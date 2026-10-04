@@ -114,5 +114,34 @@
       "yank": "01a10491-4570-74e7-be1e-e51ee1404c8e",
       "jump": "01a10491-470b-7590-9c28-da68a9d93954"
     }
+  },
+  "spitter": {
+    "preview": "01a106d6-5844-72bd-8b93-8ac5e9f0f46a",
+    "refine": "01a106d7-21de-7677-89f5-fd90345f22e4",
+    "rig": "01a106d8-d343-7699-8340-fb46801ddefe",
+    "anims": {
+      "idle": "01a106d9-462b-71a3-8350-d6677ebd99a4",
+      "hit": "01a106d9-47ec-72c1-8479-123febfba37e",
+      "death": "01a106d9-4960-76cd-ba6a-aa648877f761",
+      "throw": "01a106d9-4aec-7645-ad93-90fcb269242f",
+      "stagger": "01a106d9-4c58-7469-b359-98a4d142cbbf"
+    }
+  },
+  "ghoul": {
+    "preview": "01a106d9-8ac1-74ac-bf5d-876b36856ff8",
+    "refine": "01a106da-b15f-7724-86ce-6233bb368d88",
+    "rig": "01a106dc-02e5-7232-8ee8-2729fd81d1d3",
+    "anims": {
+      "idle": "01a106dc-44e7-72df-89ae-2c4c78f91438",
+      "hit": "01a106dc-4663-7759-a9ce-eb3673516514",
+      "death": "01a106dc-47f5-7300-921a-1067ed63164d",
+      "attack": "01a106dc-497d-7187-bef4-6b9402102f85",
+      "leap": "01a106dc-4b06-72f0-a9a7-9fae26910415",
+      "charge_run": "01a106dc-4c50-75f0-8cc7-c81a4d4b0c6d"
+    }
+  },
+  "bloater": {
+    "preview": "01a106dc-8cb6-7621-b9df-29ba57f50b92",
+    "refine": "01a106dd-832e-70a2-93bc-c63bf1a39218"
   }
 }

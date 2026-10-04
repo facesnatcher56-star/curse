@@ -159,5 +159,62 @@
       "yank": 239,
       "jump": 466
     }
+  },
+  "spitter": {
+    "prompt": "Bloated undead spitter, full body, standing in A-pose, arms hanging slightly away from the body, swollen throat sac and gaping jaw dripping green acid, sickly yellow-green skin with open sores, tattered rags, hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "pose": "a-pose",
+    "polycount": 12000,
+    "rig": true,
+    "height": 1.7,
+    "animations": {
+      "idle": 0,
+      "hit": 178,
+      "death": 188,
+      "throw": 132,
+      "stagger": 113
+    }
+  },
+  "ghoul": {
+    "prompt": "Feral emaciated ghoul, full body, standing in A-pose, arms hanging slightly away from the body, very thin elongated limbs, ashen grey skin stretched over ribs, long clawed hands, hollow glowing eyes, matted hair, crouched hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "pose": "a-pose",
+    "polycount": 12000,
+    "rig": true,
+    "height": 1.6,
+    "animations": {
+      "idle": 0,
+      "hit": 178,
+      "death": 188,
+      "attack": 214,
+      "leap": 402,
+      "charge_run": 511
+    }
+  },
+  "bloater": {
+    "prompt": "Hugely swollen bloated undead corpse, full body, standing in A-pose, arms hanging slightly away from the body, grotesquely distended belly covered in glowing green pustules, stitched pale skin, small head, torn burial shroud, realistic hand-painted dark fantasy game creature, PBR",
+    "pose": "a-pose",
+    "polycount": 12000,
+    "rig": true,
+    "height": 2.0,
+    "animations": {
+      "idle": 0,
+      "hit": 178,
+      "death": 188,
+      "attack": 128,
+      "scream": 386
+    }
+  },
+  "priest": {
+    "prompt": "Plague priest necromancer, full body, standing in A-pose, arms hanging slightly away from the body, tattered black robes, plague doctor bird mask, holding a bone staff topped with a glowing sickly green orb, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 14000,
+    "rig": true,
+    "height": 1.85,
+    "animations": {
+      "idle": 0,
+      "hit": 178,
+      "death": 188,
+      "attack": 4,
+      "cast": 129
+    }
   }
 }
