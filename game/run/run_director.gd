@@ -28,7 +28,7 @@ func offer_reward() -> void:
 	if player.dead:
 		return
 	var owned: Array[String] = []
-	for item in player.equipment.values():
+	for item in player.stats.equipment.values():
 		if item["rarity"] == Items.Rarity.UNIQUE:
 			owned.append(item["name"])
 	_choices = Items.roll_choices(wave, _brute_killed, owned)
@@ -40,9 +40,9 @@ func offer_reward() -> void:
 
 func choose(index: int) -> void:
 	if index >= 0 and index < _choices.size():
-		player.equip(_choices[index])
+		player.stats.equip(_choices[index])
 	else:
-		player.potions += 1
+		player.stats.potions += 1
 		player._say("Skipped: +1 potion")
 	choosing = false
 	_reward_pending = false
@@ -73,7 +73,9 @@ func start_wave() -> void:
 			_spawn_packs(def, count, level, centres)
 		elif def.spawn_mode == "solo":
 			for i in count:
-				spawn_enemy(_spawn_point(18.0, 34.0, centres, 8.0), def.id, level)
+				var spot: Vector3 = _spawn_point(18.0, 34.0, centres, 11.0)   # clear of pack members, which spread up to ~4.5 m
+				centres.append(spot)
+				spawn_enemy(spot, def.id, level)
 	for def in defs:
 		if def.spawn_mode == "support":
 			for i in EnemyDb.count_for(def, wave):

@@ -41,34 +41,34 @@ func _draw() -> void:
 	var base: Vector2 = Vector2(24, size_px.y - 92)
 	_bar(base, Vector2(260, 24), player.health / player.max_health, Color(0.75, 0.12, 0.12),
 		"%d / %d" % [int(player.health), int(player.max_health)], font)
-	_bar(base + Vector2(0, 30), Vector2(260, 18), player.mana / player.max_mana, Color(0.15, 0.35, 0.85),
-		"%d / %d" % [int(player.mana), int(player.max_mana)], font)
-	_bar(base + Vector2(0, 54), Vector2(260, 8), player.stamina / player.max_stamina, Color(0.85, 0.75, 0.2), "", font)
+	_bar(base + Vector2(0, 30), Vector2(260, 18), player.stats.mana / player.stats.max_mana, Color(0.15, 0.35, 0.85),
+		"%d / %d" % [int(player.stats.mana), int(player.stats.max_mana)], font)
+	_bar(base + Vector2(0, 54), Vector2(260, 8), player.stats.stamina / player.stats.max_stamina, Color(0.85, 0.75, 0.2), "", font)
 
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
 	var slot: float = 64.0
-	var slot_count: int = player.hotbar.size() + 2
+	var slot_count: int = player.skills.hotbar.size() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var y0: float = size_px.y - slot - 24
-	for i in player.hotbar.size():
-		var id: String = player.hotbar[i]
+	for i in player.skills.hotbar.size():
+		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font)
-	var extra: int = player.hotbar.size()
-	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.right_click_skill, font)
+	var extra: int = player.skills.hotbar.size()
+	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	_draw_tooltip(font, size_px)
-	if player.aiming_id != "":
-		draw_string(font, Vector2(0, y0 - 14.0), "Release %s to cast %s" % [GameSettings.short_binding_text(player.aiming_action),
-			SkillDb.all()[player.aiming_id]["name"]], HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1.0, 0.75, 0.4))
+	if player.skills.aiming_id != "":
+		draw_string(font, Vector2(0, y0 - 14.0), "Release %s to cast %s" % [GameSettings.short_binding_text(player.skills.aiming_action),
+			SkillDb.all()[player.skills.aiming_id]["name"]], HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1.0, 0.75, 0.4))
 
 	# Target bar, top centre: whatever the mouse is over, else what we are attacking.
 	var target: Actor = player.hover_target
 	if target == null:
 		target = player.attack_target
-	if target == null and player.queued_target != null:
-		target = player.queued_target
+	if target == null and player.skills.queued_target != null:
+		target = player.skills.queued_target
 	if target != null and not target.dead:
 		var w: float = 340.0
 		var color: Color = Color(0.55, 0.1, 0.1) if target.max_health < 150.0 else Color(0.62, 0.3, 0.08)
@@ -165,7 +165,7 @@ func _draw_gear(size_px: Vector2, font: Font) -> void:
 	draw_string(font, Vector2(x, y), "Equipped", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 1, 1, 0.9))
 	y += 24.0
 	for slot in 3:
-		var item: Variant = player.equipment.get(slot)
+		var item: Variant = player.stats.equipment.get(slot)
 		draw_string(font, Vector2(x, y), Items.SLOT_NAMES[slot], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, 0.5))
 		y += 17.0
 		if item == null:
@@ -213,7 +213,7 @@ func _draw_reward(size_px: Vector2, font: Font) -> void:
 			draw_multiline_string(font, Vector2(rect.position.x + pad, y), line,
 				HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 15, -1, Color(1, 1, 1, 0.9))
 			y += maxf(font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 15).y, 16.0) + 8.0
-		var current: Variant = player.equipment.get(int(item["slot"]))
+		var current: Variant = player.stats.equipment.get(int(item["slot"]))
 		var replaces: String = "Replaces: %s" % (current["name"] if current != null else "nothing")
 		draw_string(font, Vector2(rect.position.x + pad, rect.end.y - 14.0), replaces, HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 12, Color(1, 1, 1, 0.45))
 	draw_string(font, Vector2(0, y0 + card_h + 44.0), "Press 1-3 or click to take one.   [4] Skip for a potion",
@@ -237,15 +237,15 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
 
-	if player.skill_has_modifier(id):
+	if player.stats.skill_has_modifier(id):
 		# A small gold diamond: gear you wear is changing this skill (hover it for the details).
 		var c: Vector2 = pos + Vector2(size_px - 11.0, 11.0)
 		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7), c + Vector2(7, 0), c + Vector2(0, 7), c + Vector2(-7, 0)]), Color(0.1, 0.07, 0.02, 0.9))
 		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -5), c + Vector2(5, 0), c + Vector2(0, 5), c + Vector2(-5, 0)]), Color(1.0, 0.82, 0.3))
-	var remaining: float = float(player.cooldowns.get(id, 0.0))
-	var fraction: float = player.cooldown_fraction(id)
+	var remaining: float = float(player.stats.cooldowns.get(id, 0.0))
+	var fraction: float = player.stats.cooldown_fraction(id)
 	_slot_hits.append({"rect": rect, "id": id, "action": action})
-	var affordable: bool = player.mana >= float(skill["mana"])
+	var affordable: bool = player.stats.mana >= float(skill["mana"])
 	if not affordable:
 		draw_rect(rect, Color(0.1, 0.2, 0.6, 0.45))
 
@@ -273,7 +273,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	draw_string(font, pos + Vector2(5, 15), key_text, HORIZONTAL_ALIGNMENT_LEFT, size_px - 8, 12, Color(0, 0, 0, 0.9))
 	draw_string(font, pos + Vector2(4, 14), key_text, HORIZONTAL_ALIGNMENT_LEFT, size_px - 8, 12, Color(1, 0.92, 0.55))
 	if id == "potion":
-		draw_string(font, pos + Vector2(0, size_px - 5), "x%d" % player.potions, HORIZONTAL_ALIGNMENT_RIGHT, size_px - 5, 15, Color(1, 1, 1))
+		draw_string(font, pos + Vector2(0, size_px - 5), "x%d" % player.stats.potions, HORIZONTAL_ALIGNMENT_RIGHT, size_px - 5, 15, Color(1, 1, 1))
 	elif float(skill["mana"]) > 0.0:
 		draw_string(font, pos + Vector2(5, size_px - 5), str(int(skill["mana"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
 
@@ -299,13 +299,13 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if float(skill["range"]) > 0.0:
 			stats.append("Range %d m" % int(round(float(skill["range"]))))
 		if id == "dodge":
-			stats.append("Stamina %d" % int(round(Player.ROLL_STAMINA * player.armor_stat("roll_cost", 1.0))))
+			stats.append("Stamina %d" % int(round(PlayerMovement.ROLL_STAMINA * player.stats.armor_stat("roll_cost", 1.0))))
 		var stat_line: String = "    ".join(stats)
-		var damage_line: String = player.skill_damage_text(id)
+		var damage_line: String = player.stats.skill_damage_text(id)
 		var desc: String = SkillDb.description(id)
 		var mods: Array[String] = []
 		for affix_id in SkillDb.modifier_affixes(id):
-			if player.has_affix(affix_id):
+			if player.stats.has_affix(affix_id):
 				mods.append(AffixDb.all()[affix_id]["desc"])
 		# Measure, then draw the panel.
 		var height: float = pad + 26.0

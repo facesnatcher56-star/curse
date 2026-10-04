@@ -228,7 +228,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 				stun_time = maxf(stun_time, 0.25 * weight * (1.0 - stun_resist))
 	var shove: float = push * weight * (1.0 - knock_resist)
 	if hero:
-		shove *= 0.2 if bool(get("busy")) else 0.5   # mid-skill the hero is planted
+		shove *= 0.2 if is_acting() else 0.5   # mid-skill the hero is planted
 	knock += away * shove
 	if outcome == Combat.Outcome.DEEP_WOUNDS:
 		bleed_dps = result["bleed_dps"]
@@ -572,6 +572,10 @@ func _apply_damage(amount: float) -> void:
 ## How a killing blow bursts the body: "" (it just falls), "gore" or "fire". Set by receive() just before the lethal damage.
 var _pending_gib: String = ""
 var _gib_from: Vector3 = Vector3.ZERO
+
+## True while the actor is committed to a skill or attack (the hero overrides this); committed actors are shoved less.
+func is_acting() -> bool:
+	return false
 
 ## Colour of the pieces when this body bursts (set from the enemy's definition).
 var gib_color: Color = Color(0.42, 0.48, 0.37)

@@ -11,7 +11,7 @@ const HASTE_BONUS := 0.30
 
 static func outgoing_multiplier(player: Player, target: Actor) -> float:
 	var mult: float = 1.0
-	if player.has_affix("executioner") and target.health < target.max_health * 0.25 and not target.dead:
+	if player.stats.has_affix("executioner") and target.health < target.max_health * 0.25 and not target.dead:
 		mult *= 1.6
 		SkillFx.execute_mark(player, target)
 	return mult
@@ -24,14 +24,14 @@ static func on_dealt_hit(player: Player, target: Actor, result: Dictionary) -> v
 	if outcome == Combat.Outcome.MISS or outcome == Combat.Outcome.BLOCK:
 		return
 	if not target.dead:
-		if player.has_affix("frostbite"):
+		if player.stats.has_affix("frostbite"):
 			target.apply_slow(0.4, 2.0)
-		if player.has_affix("searing") and outcome == Combat.Outcome.CRITICAL:
+		if player.stats.has_affix("searing") and outcome == Combat.Outcome.CRITICAL:
 			target.apply_burn(maxf(float(result["damage"]) * 0.3, 2.0), 3.0)
 			SkillFx.ignite_mark(player, target)
-	if player.has_affix("chain") and randf() < 0.25:
+	if player.stats.has_affix("chain") and randf() < 0.25:
 		_chain_lightning(player, target, result)
-	if player.has_affix("cleaving") and result.get("finisher", false):
+	if player.stats.has_affix("cleaving") and result.get("finisher", false):
 		_cleave_arc(player, target, result)
 
 static func _nearest_other(player: Player, from_actor: Actor, max_dist: float) -> Actor:
@@ -82,13 +82,13 @@ static func _cleave_arc(player: Player, target: Actor, result: Dictionary) -> vo
 # --- kills --------------------------------------------------------------------
 
 static func on_kill(player: Player, enemy: Actor) -> void:
-	if player.has_affix("momentum"):
-		player.haste_time = HASTE_TIME
+	if player.stats.has_affix("momentum"):
+		player.stats.haste_time = HASTE_TIME
 	_drop_loot(player, enemy)
-	if player.has_affix("quickening") and randf() < 0.12:
-		player.cooldowns.clear()
+	if player.stats.has_affix("quickening") and randf() < 0.12:
+		player.stats.cooldowns.clear()
 		Fx.text_at(player, player.global_position + Vector3(0, 2.6, 0), "Cooldowns reset", Color(0.7, 0.9, 1.0), 40)
-	if player.has_affix("ember"):
+	if player.stats.has_affix("ember"):
 		_ember_blast(player, enemy)
 
 ## Healing is scarce but fair: orbs drop more often the more hurt you are, potions drop rarely, and a Brute always
@@ -102,7 +102,7 @@ static func _drop_loot(player: Player, enemy: Actor) -> void:
 		orbs = 2
 		potions = 1 if randf() < 0.6 else 0
 	else:
-		var chance: float = 0.09 + 0.22 * missing + (0.15 if player.has_affix("windfall") else 0.0)
+		var chance: float = 0.09 + 0.22 * missing + (0.15 if player.stats.has_affix("windfall") else 0.0)
 		orbs = 1 if randf() < chance else 0
 		potions = 1 if randf() < 0.025 + 0.04 * missing else 0
 	for i in orbs + potions:
@@ -120,26 +120,26 @@ static func _ember_blast(player: Player, enemy: Actor) -> void:
 		var e := node as Actor
 		if e == null or e == enemy or e.dead or e.flat_distance_to(enemy) > 3.0:
 			continue
-		var blast: Dictionary = Combat.resolve(player, e, player.weapon_damage(0.7), Combat.DamageType.FIRE, false, 1.3)
+		var blast: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(0.7), Combat.DamageType.FIRE, false, 1.3)
 		blast["secondary"] = true
 		e.receive(blast, centre)
 
 # --- rolling --------------------------------------------------------------------
 
 static func on_roll_start(player: Player) -> void:
-	if player.has_affix("shock_roll"):
+	if player.stats.has_affix("shock_roll"):
 		Fx.ring(player, player.global_position, 3.0, Color(0.7, 0.85, 1.0))
 		for node in player.get_tree().get_nodes_in_group("enemies"):
 			var e := node as Actor
 			if e == null or e.dead or e.flat_distance_to(player) > 3.0:
 				continue
-			var blast: Dictionary = Combat.resolve(player, e, player.weapon_damage(0.7), Combat.DamageType.PHYSICAL, false, 2.2)
+			var blast: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(0.7), Combat.DamageType.PHYSICAL, false, 2.2)
 			blast["secondary"] = true
 			e.receive(blast, player.global_position)
 
 static func on_roll_end(player: Player) -> void:
-	if player.has_affix("riposte"):
-		player.riposte_time = 1.5
+	if player.stats.has_affix("riposte"):
+		player.stats.riposte_time = 1.5
 		Fx.text_at(player, player.global_position + Vector3(0, 2.6, 0), "Riposte ready", Color(1.0, 0.9, 0.4), 38)
 
 # --- damage taken -----------------------------------------------------------------
@@ -149,18 +149,18 @@ static func filter_incoming(player: Player, result: Dictionary) -> Dictionary:
 	var outcome: int = result["outcome"]
 	if outcome == Combat.Outcome.MISS or outcome == Combat.Outcome.BLOCK:
 		return result
-	if player.has_affix("warding") and player.ward_timer <= 0.0:
-		player.ward_timer = 8.0
+	if player.stats.has_affix("warding") and player.stats.ward_timer <= 0.0:
+		player.stats.ward_timer = 8.0
 		result["outcome"] = Combat.Outcome.BLOCK
 		Fx.ring(player, player.global_position, 1.6, Color(0.5, 0.8, 1.0))
 		return result
-	if player.has_affix("aegis"):
-		player.aegis_hits += 1
-		if player.aegis_hits % 4 == 0:
+	if player.stats.has_affix("aegis"):
+		player.stats.aegis_hits += 1
+		if player.stats.aegis_hits % 4 == 0:
 			result["outcome"] = Combat.Outcome.BLOCK
 			_aegis_wave(player)
 			return result
-	if player.has_affix("last_stand") and player.health < player.max_health * 0.35:
+	if player.stats.has_affix("last_stand") and player.health < player.max_health * 0.35:
 		result["damage"] = float(result["damage"]) * 0.7
 	return result
 
@@ -171,7 +171,7 @@ static func _aegis_wave(player: Player) -> void:
 		var e := node as Actor
 		if e == null or e.dead or e.flat_distance_to(player) > 3.6:
 			continue
-		var wave: Dictionary = Combat.resolve(player, e, player.weapon_damage(0.9), Combat.DamageType.PHYSICAL, false, 2.4)
+		var wave: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(0.9), Combat.DamageType.PHYSICAL, false, 2.4)
 		wave["secondary"] = true
 		e.receive(wave, player.global_position)
 
@@ -179,7 +179,7 @@ static func _aegis_wave(player: Player) -> void:
 
 ## Gravewarden: Power Strike sends a shockwave through everything in a line.
 static func power_shockwave(player: Player, direction: Vector3) -> void:
-	if not player.has_affix("gravewarden"):
+	if not player.stats.has_affix("gravewarden"):
 		return
 	var dir: Vector3 = direction
 	dir.y = 0.0
@@ -194,13 +194,13 @@ static func power_shockwave(player: Player, direction: Vector3) -> void:
 		var along: float = to_e.dot(dir)
 		var across: float = absf(to_e.cross(dir).y)
 		if along > 0.5 and along < 8.5 and across < 1.2:
-			var wave: Dictionary = Combat.resolve(player, e, player.weapon_damage(1.0), Combat.DamageType.PHYSICAL, false, 1.8)
+			var wave: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(1.0), Combat.DamageType.PHYSICAL, false, 1.8)
 			wave["secondary"] = true
 			e.receive(wave, player.global_position)
 
 ## Whirlpool: Cleave drags enemies in before it lands.
 static func pull_for_cleave(player: Player) -> void:
-	if not player.has_affix("whirlpool"):
+	if not player.stats.has_affix("whirlpool"):
 		return
 	SkillFx.whirlpool(player, 5.0)
 	for node in player.get_tree().get_nodes_in_group("enemies"):
