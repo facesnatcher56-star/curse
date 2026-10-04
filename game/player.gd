@@ -100,6 +100,7 @@ func _physics_process(delta: float) -> void:
 	if skills.combo_timer <= 0.0 and not skills.busy:
 		skills.combo_step = 0
 
+	_update_pad_aim(delta)
 	var cursor: Vector3 = cursor_world()
 	hover_target = _hover_pick(cursor)
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
@@ -124,9 +125,8 @@ func _physics_process(delta: float) -> void:
 		move_with(Vector3.ZERO)
 		return
 	_was_stunned = false
-	var aiming_stick: Vector2 = Gamepad.aim_vector()
-	if Gamepad.active and aiming_stick.length() > 0.0:
-		face(global_position + Gamepad.to_world(aiming_stick), 0.3)   # twin-stick: the hero looks where it aims
+	if Gamepad.active and skills.aiming_id != "":
+		face(cursor, 0.3)   # holding an aimed skill: the hero looks at the target area
 	_read_input(cursor)
 	_act(delta, cursor)
 	movement.update_locomotion_anim()
@@ -148,37 +148,74 @@ func cursor_world() -> Vector3:
 		return global_position
 	return hit
 
-## Controller aim. The right stick places the cursor in front of the hero (further out the harder it is pushed) and it snaps
-## to an enemy near that spot. With the stick released, the nearest enemy in range is targeted; with none, straight ahead.
+## Controller aim. Normally the cursor is simply the enemy the hero is facing (see pad_facing_target); the right stick is the
+## camera. Holding an aimed skill's button (Fireball) is the exception: the target area snaps to that enemy once, when the button
+## goes down, and from then on the right stick slides it freely (no snapping back onto enemies) until the button is released.
+const PAD_AIM_SPEED := 11.0     # metres per second at full stick
+const PAD_AIM_REACH := 16.0
+
+func _update_pad_aim(delta: float) -> void:
+	if not Gamepad.active or skills.aiming_id == "":
+		_pad_hold_valid = false
+		return
+	if not _pad_hold_valid:
+		_pad_hold = _pad_default_target()   # the one and only snap
+		_pad_hold_valid = true
+	var stick: Vector2 = Gamepad.aim_vector()
+	if stick.length() > 0.0:
+		_pad_hold += Gamepad.to_world(stick) * (PAD_AIM_SPEED * stick.length() * delta)
+		var offset: Vector3 = _pad_hold - global_position
+		offset.y = 0.0
+		_pad_hold = global_position + offset.limit_length(PAD_AIM_REACH)
+	_pad_hold.y = 0.0
+
 func _pad_cursor() -> Vector3:
-	var aim: Vector2 = Gamepad.aim_vector()
-	var aiming_skill: bool = skills.aiming_id != ""
-	if aim.length() > 0.0:
-		_pad_aim_dir = Gamepad.to_world(aim).normalized()
-		var point: Vector3 = global_position + _pad_aim_dir * (3.0 + 11.0 * aim.length())
-		var assist: Actor = enemy_near(point, 2.2)
-		if assist != null:
-			point = assist.global_position
-		if aiming_skill:
-			_pad_hold = point - global_position
-			_pad_hold_valid = true
-		return point
-	if aiming_skill:
-		# Holding an aimed skill's button (Fireball): the target area stays where the stick left it. It starts on the nearest
-		# enemy (or straight ahead), and the right stick then moves it about.
+	if skills.aiming_id != "":
 		if not _pad_hold_valid:
-			_pad_hold = _pad_default_target() - global_position
+			_pad_hold = _pad_default_target()
 			_pad_hold_valid = true
-		return global_position + _pad_hold
+		return _pad_hold
 	_pad_hold_valid = false
 	return _pad_default_target()
 
-## The nearest enemy in range, or a spot straight ahead when there is none.
+## With a controller the hero's target is the enemy nearest to where the model is facing (close counts, and so does being straight
+## ahead; anything behind is a last resort). It sticks to its choice until another enemy is clearly better, so the highlight does
+## not flicker between two enemies; holding A attacks it. With no enemy about, a spot straight ahead.
+const PAD_TARGET_RANGE := 14.0
+const PAD_TARGET_STICKY := 1.3
+var _pad_target: Actor
+
 func _pad_default_target() -> Vector3:
-	var nearest: Actor = enemy_near(global_position, 12.0)
-	if nearest != null:
-		return nearest.global_position
+	var target: Actor = pad_facing_target()
+	if target != null:
+		return target.global_position
 	return global_position + Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y)) * 7.0
+
+func pad_facing_target() -> Actor:
+	var forward := Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
+	var best: Actor = null
+	var best_score: float = INF
+	var kept_score: float = INF
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead:
+			continue
+		var offset: Vector3 = e.global_position - global_position
+		offset.y = 0.0
+		var dist: float = offset.length()
+		if dist > PAD_TARGET_RANGE:
+			continue
+		var angle: float = forward.angle_to(offset) if dist > 0.05 else 0.0   # 0 straight ahead .. PI directly behind
+		var score: float = dist * (1.0 + angle * 0.9) + (6.0 if angle > deg_to_rad(100.0) else 0.0)
+		if score < best_score:
+			best_score = score
+			best = e
+		if e == _pad_target:
+			kept_score = score
+	if _pad_target != null and is_instance_valid(_pad_target) and not _pad_target.dead and kept_score <= best_score * PAD_TARGET_STICKY:
+		return _pad_target
+	_pad_target = best
+	return best
 
 ## Enemy under the mouse, picked in screen space: pointing at a head or chest counts, not just the feet.
 func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0)) -> Actor:
@@ -248,11 +285,25 @@ func _process(_delta: float) -> void:
 	var focus: Actor = hover_target
 	if focus == null and attack_target != null and not attack_target.dead:
 		focus = attack_target
+	if not is_instance_valid(focus):
+		focus = null   # freed since last frame (a dead enemy removed from the scene)
+	_update_focus_glow(focus)
 	_ring.visible = focus != null and not focus.dead
 	if _ring.visible:
 		var radius: float = focus.body_radius * 1.5
 		var origin: Vector3 = focus.get_global_transform_interpolated().origin
 		_ring.global_transform = Transform3D(Basis().scaled(Vector3(radius, 1.0, radius)), Vector3(origin.x, 0.05, origin.z))
+
+var _glowing: Actor
+
+## With the pad the targeted enemy also glows (the ring alone is easy to lose in a crowd).
+func _update_focus_glow(focus: Variant) -> void:
+	var want: Actor = focus as Actor if (Gamepad.active and is_instance_valid(focus) and not (focus as Actor).dead and skills.aiming_id == "") else null
+	if _glowing != null and _glowing != want and is_instance_valid(_glowing):
+		_glowing.set_highlighted(false)
+	_glowing = want
+	if _glowing != null:
+		_glowing.set_highlighted(true)
 
 ## The mouse is over a HUD panel (minimap, hotbar, bars).
 func mouse_over_ui(at: Vector2 = Vector2(-1.0, -1.0)) -> bool:

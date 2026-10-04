@@ -49,8 +49,8 @@ func stick_move(stick: Vector2, delta: float) -> void:
 	var strength: float = clampf(stick.length(), 0.0, 1.0)
 	var direction: Vector3 = Gamepad.to_world(stick).normalized()
 	var speed: float = _travel_speed(delta) * lerpf(0.45, 1.0, clampf((strength - 0.1) / 0.8, 0.0, 1.0))
-	if Gamepad.aim_vector().length() == 0.0:
-		p.face(p.global_position + direction, 0.35)
+	if p.skills.aiming_id == "":
+		p.face(p.global_position + direction, 0.35)   # (while an aimed skill is held the hero faces the target area instead)
 	p.move_with(direction * speed)
 
 func move(delta: float) -> void:

@@ -20,6 +20,8 @@ static func apply() -> void:
 ## Controller bindings (see Gamepad for the layout). Added next to the keyboard ones, never instead of them.
 static func _apply_gamepad() -> void:
 	_pad_button("alt_skill", JOY_BUTTON_A)
+	_pad_button("ui_accept", JOY_BUTTON_A)   # Godot gives the menu actions no pad buttons of their own: A confirms, B goes back
+	_pad_button("ui_cancel", JOY_BUTTON_B)
 	_pad_button("restart", JOY_BUTTON_A)
 	_pad_button("dodge", JOY_BUTTON_B)
 	_pad_button("skill_1", JOY_BUTTON_X)

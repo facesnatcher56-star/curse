@@ -690,19 +690,15 @@ func _test_gamepad() -> void:
 	expect("releasing the stick stops the hero", player.velocity.length() < 0.5 and player.model.current == "idle_alert")
 	print("  gamepad move: full push ", snappedf(run_dist, 0.1), " m (", run_clip, "), half push ", snappedf(walk_dist, 0.1), " m")
 
-	# Right stick aims; released, the nearest enemy is auto-targeted; an enemy near the aim point is snapped to.
+	# The right stick is the camera: pushed up with no skill held it does not move the target; the nearest enemy in front is targeted.
 	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: 0.0, JOY_AXIS_RIGHT_Y: -1.0}
-	var aim_point: Vector3 = player.cursor_world()
-	expect("right stick up aims straight ahead (-Z)", absf(aim_point.x - player.global_position.x) < 0.1 and aim_point.z < player.global_position.z - 10.0)
-	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -12.5))
+	player.visual.rotation.y = 0.0
+	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(4.0, 0, 3.0))
 	enemy.aggro_range = 0.0
-	await get_tree().process_frame
-	expect("the aim point snaps to an enemy near it", player.cursor_world().distance_to(enemy.global_position) < 0.01)
-	Gamepad.test_axes = {}
-	enemy.global_position = player.global_position + Vector3(4.0, 0, 3.0)
 	await get_tree().physics_frame
-	await get_tree().physics_frame   # hover is refreshed in the hero's physics step: give it a full frame after the move
-	expect("with the stick released the nearest enemy is auto-targeted", player.cursor_world().distance_to(enemy.global_position) < 0.01 and player.hover_target == enemy)
+	await get_tree().physics_frame
+	expect("the right stick does not aim the hero; the facing target is used", player.cursor_world().distance_to(enemy.global_position) < 0.01 and player.hover_target == enemy)
+	Gamepad.test_axes = {}
 
 	# A attacks the auto-target (same path as the right mouse button).
 	player.global_position = enemy.global_position + Vector3(-1.6, 0, 0)
@@ -2314,6 +2310,21 @@ func _test_pad_menus() -> void:
 	release.action = "ui_down"
 	release.pressed = false
 	Input.parse_input_event(release)
+	# A real A-button press on the selected button presses it (Resume is first in the pause menu).
+	game.pause_menu.open()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var press := InputEventJoypadButton.new()
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	await get_tree().process_frame
+	var lift := InputEventJoypadButton.new()
+	lift.button_index = JOY_BUTTON_A
+	lift.pressed = false
+	Input.parse_input_event(lift)
+	await get_tree().process_frame
+	expect("pressing A on the selected menu button activates it", not game.pause_menu.visible)
 	game.pause_menu.close()
 	await get_tree().process_frame
 	# Settings: opened from the pause menu it gets a selection too.
@@ -2348,12 +2359,223 @@ func _test_pad_menus() -> void:
 	Gamepad.active = false
 	await get_tree().process_frame
 
+## Controller targeting: the enemy nearest to where the hero faces is targeted and glows; holding A attacks it; B dodges; Start pauses.
+func _test_pad_targeting() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = 0.0   # facing +Z
+	Gamepad.active = true
+	var behind: Enemy = _spawn_enemy(Vector3(0, 0, -3))
+	var ahead: Enemy = _spawn_enemy(Vector3(1.5, 0, 7))
+	for e in [behind, ahead]:
+		e.aggro_range = 0.0
+		e.max_health = 4000.0
+		e.health = 4000.0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("the pad targets the enemy in front, not the nearer one behind", player.pad_facing_target() == ahead)
+	expect("the targeted enemy is the cursor point and the hover target", player.cursor_world().distance_to(ahead.global_position) < 0.01 and player.hover_target == ahead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the targeted enemy glows", ahead.highlighted and not behind.highlighted)
+	# Turn around: the enemy behind is now the one in front.
+	player.visual.rotation.y = PI
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	expect("turning around changes the target", player.pad_facing_target() == behind and behind.highlighted and not ahead.highlighted)
+	# It does not flicker: a slightly different angle keeps the same target.
+	player.visual.rotation.y = PI + 0.15
+	await get_tree().physics_frame
+	expect("the target is sticky", player.pad_facing_target() == behind)
+	# Holding A attacks the targeted enemy.
+	Gamepad.test_axes = {}
+	player.visual.rotation.y = PI
+	var start_health: float = behind.health
+	Input.action_press("alt_skill")
+	await get_tree().create_timer(2.5).timeout
+	Input.action_release("alt_skill")
+	expect("holding A attacks the targeted enemy", behind.health < start_health)
+	# Defaults: A attacks (and confirms in menus), B dodges, Start pauses.
+	var has_a: bool = false
+	for ev in InputMap.action_get_events("alt_skill"):
+		has_a = has_a or (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_A)
+	var has_b: bool = false
+	for ev in InputMap.action_get_events("dodge"):
+		has_b = has_b or (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_B)
+	var has_start: bool = false
+	for ev in InputMap.action_get_events("pause"):
+		has_start = has_start or (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_START)
+	var confirms: bool = false
+	for ev in InputMap.action_get_events("ui_accept"):
+		confirms = confirms or (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_A)
+	for ev in InputMap.action_get_events("ui_cancel"):
+		confirms = confirms and true
+	var backs: bool = false
+	for ev in InputMap.action_get_events("ui_cancel"):
+		backs = backs or (ev is InputEventJoypadButton and (ev as InputEventJoypadButton).button_index == JOY_BUTTON_B)
+	confirms = confirms and backs
+	expect("A is attack and menu confirm, B is dodge, Start is pause", has_a and has_b and has_start and confirms)
+	Gamepad.active = false
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the glow is removed when the mouse takes over", not behind.highlighted and not ahead.highlighted)
+	# Leave the hero idle for whatever test comes next (no swing in progress, no target, no queued skill).
+	player.skills.cancel_action()
+	player.skills.queued_skill = ""
+	player.attack_target = null
+	player.click_mode = 0
+	player.movement.has_goal = false
+	behind.queue_free()
+	ahead.queue_free()
+	await get_tree().create_timer(0.3).timeout
+
+## Controller camera and Fireball aiming: the right stick turns/zooms the camera, except while Fireball is held, when it slides the
+## target area: one snap to the nearest target at the start, then free movement with no snapping back onto enemies.
+func _test_pad_camera_and_aim() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = 0.0
+	Gamepad.active = true
+	rig.reset_view()
+	rig._zoom_target = 2.0
+	rig._zoom = 2.0
+	await get_tree().create_timer(0.5).timeout
+	# Right stick: right turns the camera, down zooms out.
+	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: 1.0, JOY_AXIS_RIGHT_Y: 0.0}
+	await get_tree().create_timer(0.6).timeout
+	var turned: float = rig._yaw_target
+	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: 0.0, JOY_AXIS_RIGHT_Y: 1.0}
+	var zoom_before: float = rig._zoom_target
+	await get_tree().create_timer(0.6).timeout
+	var zoom_out: float = rig._zoom_target
+	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: 0.0, JOY_AXIS_RIGHT_Y: -1.0}
+	await get_tree().create_timer(0.6).timeout
+	var zoom_in: float = rig._zoom_target
+	Gamepad.test_axes = {}
+	expect("the right stick turns the camera", absf(turned) > 0.5)
+	expect("right stick down zooms out and up zooms in", zoom_out > zoom_before + 0.3 and zoom_in < zoom_out - 0.3)
+	# While Fireball is held the stick no longer moves the camera; it slides the target area.
+	rig.reset_view()
+	await get_tree().create_timer(1.0).timeout
+	var first: Enemy = _spawn_enemy(Vector3(2.0, 0, 6.0))
+	var second: Enemy = _spawn_enemy(Vector3(-6.0, 0, 8.0))
+	for e in [first, second]:
+		e.aggro_range = 0.0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	Input.action_press("skill_3")
+	await get_tree().create_timer(0.2).timeout
+	expect("holding Fireball is aiming", player.skills.aiming_id == "fireball")
+	var snap_point: Vector3 = player.cursor_world()
+	expect("the target area starts on the enemy the hero faces", snap_point.distance_to(first.global_position) < 0.5)
+	var yaw_before: float = rig._yaw_target
+	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: -1.0, JOY_AXIS_RIGHT_Y: 0.0}   # push left: toward the second enemy and past it
+	await get_tree().create_timer(0.5).timeout
+	var mid: Vector3 = player.cursor_world()
+	expect("the stick slides the target area", mid.distance_to(snap_point) > 2.0 and mid.x < snap_point.x)
+	expect("the camera does not turn while aiming", absf(rig._yaw_target - yaw_before) < 0.001)
+	# It passes straight over the second enemy without latching onto it: keep going and it ends up beyond.
+	await get_tree().create_timer(0.8).timeout
+	var far: Vector3 = player.cursor_world()
+	expect("no snapping onto enemies once the stick is moving it", far.x < second.global_position.x - 1.0)
+	Gamepad.test_axes = {}
+	var held: Vector3 = player.cursor_world()
+	await get_tree().create_timer(0.4).timeout
+	expect("released stick: the target area stays where it was put", player.cursor_world().distance_to(held) < 0.01)
+	Input.action_release("skill_3")
+	await get_tree().create_timer(1.2).timeout
+	player.skills.cancel_action()
+	first.queue_free()
+	second.queue_free()
+	Gamepad.active = false
+	rig._zoom_target = 1.0
+	rig._zoom = 1.0
+	await get_tree().process_frame
+
+## Twin Flame: the second fireball goes for a second target; with only one enemy it lands right next to it.
+func _test_twin_flame_target() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var one: Enemy = _spawn_enemy(Vector3(0, 0, -8))
+	var two: Enemy = _spawn_enemy(Vector3(6, 0, -9))
+	var near_first: Enemy = _spawn_enemy(Vector3(0.8, 0, -8))
+	for e in [one, two, near_first]:
+		e.aggro_range = 0.0
+	await get_tree().physics_frame
+	var dest: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
+	expect("the second fireball picks a second target, outside the first blast", dest.distance_to(Vector3(two.global_position.x, 0.0, two.global_position.z)) < 0.01)
+	two.queue_free()
+	near_first.queue_free()
+	await get_tree().process_frame
+	var lone: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
+	var gap: float = Vector2(lone.x - one.global_position.x, lone.z - one.global_position.z).length()
+	expect("with one enemy the second fireball lands right beside it", gap > 0.3 and gap < 1.3)
+	one.queue_free()
+	await get_tree().process_frame
+	var none: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
+	expect("with no enemies it still lands near the aim point", Vector2(none.x, none.z).distance_to(Vector2(0, -8)) < 1.3)
+	await get_tree().process_frame
+
+## Start (or Esc) pauses the whole game: enemies, hero, animations, projectiles and effects all stop until it is resumed.
+func _test_pause_stops_game() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var chaser: Enemy = _spawn_enemy(Vector3(0, 0, -12))
+	chaser.alert_delay = 0.0
+	chaser.aggro_range = 60.0
+	var ball := Projectile.new()
+	ball.owner_actor = player
+	ball.direction = Vector3(1, 0, 0)
+	ball.destination = Vector3(20, 0.8, 0)
+	add_child(ball)
+	ball.global_position = Vector3(4, 1.0, 0)
+	await get_tree().create_timer(0.8).timeout
+	var press := InputEventJoypadButton.new()
+	press.button_index = JOY_BUTTON_START
+	press.pressed = true
+	Input.parse_input_event(press)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("Start opens the pause menu and pauses the tree", game.pause_menu.visible and get_tree().paused)
+	var chaser_at: Vector3 = chaser.global_position
+	var ball_at: Vector3 = ball.global_position
+	var player_at: Vector3 = player.global_position
+	var anim_at: float = chaser.model.anim.current_animation_position
+	await get_tree().create_timer(1.0, true, false, true).timeout
+	expect("enemies do not move while paused", chaser.global_position.distance_to(chaser_at) < 0.01)
+	expect("projectiles do not fly while paused", ball.global_position.distance_to(ball_at) < 0.01)
+	expect("the hero does not move while paused", player.global_position.distance_to(player_at) < 0.01)
+	expect("animations stand still while paused", is_equal_approx(chaser.model.anim.current_animation_position, anim_at))
+	expect("time scale is untouched", is_equal_approx(Engine.time_scale, 1.0))
+	game.pause_menu.close()
+	await get_tree().create_timer(0.5).timeout
+	expect("resuming gets everything moving again", not get_tree().paused and chaser.global_position.distance_to(chaser_at) > 0.3)
+	if is_instance_valid(ball):
+		ball.queue_free()
+	chaser.queue_free()
+	await get_tree().process_frame
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
 }
 
 var _failures: PackedStringArray = []
@@ -2403,6 +2625,9 @@ func _run_selftest() -> void:
 	await _test_death_ragdoll()
 	await _test_enemy_run()
 	await _test_pad_menus()
+	await _test_pad_targeting()
+	await _test_pad_camera_and_aim()
+	await _test_twin_flame_target()
 	await _test_sword_sound()
 	await _test_sword_miss_in_air()
 	await _test_fireball_sounds()

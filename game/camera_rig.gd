@@ -17,6 +17,8 @@ const ZOOM_EASE := 9.0
 const ROTATE_PER_PIXEL := 0.0055
 const ROTATE_EASE := 11.0
 const CLICK_PIXELS := 6.0
+const PAD_ROTATE_SPEED := 2.2    # radians per second at full stick
+const PAD_ZOOM_SPEED := 1.6      # zoom units per second at full stick
 
 var yaw: float = 0.0            # what is drawn (eased)
 var _yaw_target: float = 0.0
@@ -69,6 +71,19 @@ func start_zoomed_out() -> void:
 func rotate_view(radians: float) -> void:
 	_yaw_target = wrapf(_yaw_target + radians, -PI, PI)
 
+## Right stick: left/right orbits the camera, up/down zooms (up = closer). It is the target-area stick while Fireball is held.
+func _pad_camera(delta: float) -> void:
+	if not Gamepad.active:
+		return
+	var player := target as Player
+	if player != null and player.skills.aiming_id != "":
+		return
+	var stick: Vector2 = Gamepad.aim_vector()
+	if stick.length() <= 0.0:
+		return
+	rotate_view(-stick.x * PAD_ROTATE_SPEED * delta)
+	_zoom_target = clampf(_zoom_target + stick.y * PAD_ZOOM_SPEED * delta, ZOOM_MIN, ZOOM_MAX)
+
 ## Back behind the hero (the default angle).
 func reset_view() -> void:
 	_yaw_target = 0.0
@@ -102,6 +117,7 @@ func kick(direction: Vector3, amount: float) -> void:
 
 func _process(delta: float) -> void:
 	_kick = _kick.lerp(Vector3.ZERO, clampf(10.0 * delta, 0.0, 1.0))
+	_pad_camera(delta)
 	yaw = lerp_angle(yaw, _yaw_target, 1.0 - exp(-ROTATE_EASE * delta))
 	rotation.y = yaw
 	Gamepad.view_yaw = yaw   # sticks and the minimap follow the view

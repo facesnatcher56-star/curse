@@ -592,12 +592,49 @@ func _apply_skill(skill: Dictionary) -> void:
 			if p.stats.has_affix("twin_flame"):
 				var twin := Projectile.new()
 				twin.owner_actor = p
-				twin.direction = ball.direction.rotated(Vector3.UP, 0.4)
 				twin.damage = ball.damage * 0.6
-				var offset: Vector3 = (busy_aim - p.global_position).rotated(Vector3.UP, 0.35)
-				twin.destination = p.global_position + offset + Vector3(0, 0.8, 0)
+				var twin_point: Vector3 = twin_destination(busy_aim)
+				var heading: Vector3 = twin_point - p.global_position
+				heading.y = 0.0
+				twin.direction = heading.normalized() if heading.length() > 0.05 else ball.direction
+				twin.destination = twin_point + Vector3(0, 0.8, 0)
 				p.get_tree().current_scene.add_child(twin)
 				twin.global_position = ball.global_position
+
+## Where the second Twin Flame fireball goes: at a second enemy (the nearest one to the first fireball's target that is not the
+## target itself, preferring one outside the first blast); with only one enemy about, right next to it.
+func twin_destination(first_point: Vector3) -> Vector3:
+	var enemies: Array[Actor] = []
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e != null and not e.dead and p.flat_distance_to(e) <= float(SkillDb.all()["fireball"]["range"]) + 2.0:
+			enemies.append(e)
+	var primary: Actor = null
+	var primary_d: float = INF
+	for e in enemies:
+		var d: float = Vector2(e.global_position.x - first_point.x, e.global_position.z - first_point.z).length()
+		if d < primary_d:
+			primary_d = d
+			primary = e
+	var second: Actor = null
+	var second_d: float = INF
+	var outside: bool = false   # one beyond the first blast beats any inside it
+	for e in enemies:
+		if e == primary:
+			continue
+		var d: float = Vector2(e.global_position.x - first_point.x, e.global_position.z - first_point.z).length()
+		var is_outside: bool = d > Projectile.BLAST_RADIUS * 0.9
+		if (is_outside and not outside) or (is_outside == outside and d < second_d):
+			second = e
+			second_d = d
+			outside = is_outside
+	if second != null:
+		return Vector3(second.global_position.x, 0.0, second.global_position.z)
+	var anchor: Vector3 = primary.global_position if primary != null else first_point
+	var side: Vector3 = (anchor - p.global_position)
+	side.y = 0.0
+	side = side.normalized().rotated(Vector3.UP, PI * 0.5) if side.length() > 0.05 else Vector3.RIGHT
+	return Vector3(anchor.x, 0.0, anchor.z) + side * 0.8   # right beside the only target
 
 ## The sword stays red while it is bloody and slowly dries.
 func update_blade_blood(delta: float) -> void:

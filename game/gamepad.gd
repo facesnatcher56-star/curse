@@ -3,8 +3,8 @@ extends RefCounted
 ## Controller support (Xbox 360/One/Series and anything Godot maps the same way, over USB or Bluetooth).
 ##
 ##   Left stick   move (analog: a light push walks, a full push runs)
-##   Right stick  aim: the cursor sits in front of the hero (further out the harder you push) and snaps to a nearby enemy.
-##                Released, the nearest enemy in range is targeted automatically.
+##   Right stick  camera: left/right turns it, up/down zooms. While an aimed skill (Fireball) is held it slides the target area instead.
+##                The target is always the enemy nearest to where the hero faces; holding A attacks it.
 ##   A            attack the target (hold to keep attacking)         B   dodge roll
 ##   X / Y        skills 1 / 2 (Power Strike, Cleave)                RB  skill 3 (Fireball: hold to aim, release to cast)
 ##   LB           skill 4 (potion)                                   RT  skill 5 (Skewer)        LT  skill 6 (Leap)
@@ -98,6 +98,6 @@ static func label_for(action: String) -> String:
 static func help_text() -> String:
 	var move: String = "R-stick" if GameSettings.swap_sticks else "L-stick"
 	var aim: String = "L-stick" if GameSettings.swap_sticks else "R-stick"
-	return "%s move   %s aim   %s attack   %s/%s/%s/%s/%s/%s skills   %s ultimate   %s dodge   %s gear   %s pause" % [move, aim,
+	return "%s move   %s camera (aim while holding Fireball)   %s attack   %s/%s/%s/%s/%s/%s skills   %s ultimate   %s dodge   %s gear   %s pause" % [move, aim,
 		label_for("alt_skill"), label_for("skill_1"), label_for("skill_2"), label_for("skill_3"), label_for("skill_4"),
 		label_for("skill_5"), label_for("skill_6"), label_for("skill_7"), label_for("dodge"), label_for("gear"), label_for("pause")]

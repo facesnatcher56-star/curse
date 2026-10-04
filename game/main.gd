@@ -21,9 +21,13 @@ func _mark(label: String) -> void:
 
 func _ready() -> void:
 	_boot_ms = Time.get_ticks_msec()
-	# The reward screen pauses the game; this node must keep receiving input while paused.
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Pausing (the pause menu, the reward screen) must freeze the whole world, so this node and everything under it is pausable. The
+	# menus and HUD (the CanvasLayer below) and the input relay keep running while paused.
 	get_tree().paused = false
+	var relay := Node.new()
+	relay.set_script(preload("res://game/pause_relay.gd"))
+	add_child(relay)
+	relay.connect("unhandled", _unhandled_input)
 	Fx.reset_time()
 	GameSettings.boot()
 	_mark("settings")
@@ -50,6 +54,7 @@ func _ready() -> void:
 	rig.global_position = player.global_position
 
 	var layer := CanvasLayer.new()
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 	hud = Hud.new()
 	hud.player = player
