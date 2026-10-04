@@ -94,6 +94,7 @@ func _actor_tick(delta: float) -> bool:
 	_tick_burn(delta)
 	_update_daze(delta)
 	_update_frost()
+	_update_ward(delta)
 	if _flash > 0.0:
 		_flash = maxf(_flash - delta * 6.0, 0.0)
 		_flash_mat.albedo_color.a = _flash * 0.5
@@ -134,6 +135,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	var outcome: int = result["outcome"]
 	var damage: float = result["damage"]
+	if ward_time > 0.0:
+		damage *= 1.0 - ward_reduction   # a plague ward soaks part of every blow
 	var weight: float = result.get("weight", 1.0)
 	var source: Actor = result.get("source")
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
@@ -327,6 +330,51 @@ func speed_factor() -> float:
 func apply_slow(amount: float, seconds: float) -> void:
 	slow_amount = maxf(amount, slow_amount if slow_time > 0.0 else 0.0)
 	slow_time = maxf(slow_time, seconds)
+
+## A ward (cast by a Plague Priest): takes less damage and moves faster for a few seconds, shown as a green shell.
+var ward_time: float = 0.0
+var ward_reduction: float = 0.0
+var ward_haste: float = 1.0
+var ward_source: Actor
+var _ward_fx: MeshInstance3D
+
+func apply_ward(seconds: float, reduction: float, haste: float, source: Actor) -> void:
+	ward_time = maxf(ward_time, seconds)
+	ward_reduction = reduction
+	ward_haste = haste
+	ward_source = source
+
+func clear_ward() -> void:
+	ward_time = 0.0
+	ward_source = null
+
+func _update_ward(delta: float) -> void:
+	if ward_time > 0.0:
+		ward_time -= delta
+		if ward_time <= 0.0:
+			clear_ward()
+	var want: bool = ward_time > 0.0 and not dead and model != null
+	if want and _ward_fx == null:
+		_ward_fx = MeshInstance3D.new()
+		var shell := SphereMesh.new()
+		shell.radius = maxf(body_radius * 1.5, 0.6)
+		shell.height = body_height * 1.15
+		_ward_fx.mesh = shell
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.albedo_color = Color(0.35, 0.9, 0.25, 0.18)
+		mat.cull_mode = BaseMaterial3D.CULL_FRONT
+		_ward_fx.material_override = mat
+		_ward_fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_ward_fx.position.y = body_height * 0.5
+		add_child(_ward_fx)
+	elif not want and _ward_fx != null:
+		_ward_fx.queue_free()
+		_ward_fx = null
+	if _ward_fx != null:
+		_ward_fx.scale = Vector3.ONE * (1.0 + 0.04 * sin(Time.get_ticks_msec() * 0.008))
 
 ## Slowed (frostbite, etc.): a cold blue mist drifts off the body and a pale light clings to it until it wears off.
 var _frost: Node3D

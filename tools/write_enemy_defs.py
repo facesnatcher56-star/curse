@@ -45,14 +45,14 @@ ENEMIES = {
                    damage_min=6.0, damage_max=9.0, speed=2.2, attack_range=1.8, attack_time=0.9, armor=4.0, defense=14.0,
                    attack_rating=30.0, flinch=0.4, behavior="support",
                    clips=["idle", "walk", "attack", "hit", "death", "cast"], gib_color=(0.3, 0.3, 0.32),
-                   attack_clip="attack", token_weight=0,
+                   attack_clip="attack", attack_start=0.5, attack_strike=1.07, attack_end=1.45, token_weight=1,
                    params={"ward_interval": 7.0, "ward_time": 5.0, "ward_reduction": 0.4, "ward_haste": 1.25,
                            "summon_interval": 15.0, "summon_count": 2, "summon_max": 4, "keep_min": 6.5,
                            "keep_max": 11.0, "flee_dist": 4.5},
                    min_wave=5, spawn_mode="support", base_count=1.0, per_wave=0.3, max_per_wave=2),
 }
 
-DEFAULTS = dict(model_scale=(1.0, 1.0, 1.0), knock_resist=0.0, stun_resist=0.0, impalable=True, token_weight=1,
+DEFAULTS = dict(attack_start=0.6, attack_strike=1.43, attack_end=2.0, model_scale=(1.0, 1.0, 1.0), knock_resist=0.0, stun_resist=0.0, impalable=True, token_weight=1,
                 gib_color=(0.42, 0.48, 0.37), clips=ZOMBIE_CLIPS, attack_clip="attack", spawn_mode="pack", min_wave=1,
                 base_count=0.0, per_wave=0.0, max_per_wave=0, params={})
 
@@ -91,7 +91,8 @@ def main() -> None:
             lines.append("%s = %s" % (key, fmt(d[key])))
         lines.append("gib_color = Color(%s, %s, %s, 1)" % tuple(repr(float(x)) for x in gib))
         for key in ("health", "damage_min", "damage_max", "speed", "attack_range", "attack_time", "armor", "defense",
-                    "attack_rating", "flinch", "knock_resist", "stun_resist", "impalable", "attack_clip", "behavior",
+                    "attack_rating", "flinch", "knock_resist", "stun_resist", "impalable", "attack_clip", "attack_start",
+                    "attack_strike", "attack_end", "behavior",
                     "params", "token_weight", "min_wave", "spawn_mode", "base_count", "per_wave", "max_per_wave"):
             lines.append("%s = %s" % (key, fmt(d[key])))
         (OUT / ("%s.tres" % eid)).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

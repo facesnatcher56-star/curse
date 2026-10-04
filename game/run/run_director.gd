@@ -15,6 +15,9 @@ var _choices: Array[Dictionary] = []
 var _brute_killed: bool = false
 var _reward_pending: bool = false
 
+func _ready() -> void:
+	add_to_group("director")   # lets enemies that summon reinforcements find it
+
 ## Wave over: offer three items, one of which you keep. Brutes make better offers.
 func offer_reward() -> void:
 	if _reward_pending:
@@ -51,21 +54,40 @@ func choose(index: int) -> void:
 
 func start_wave() -> void:
 	wave += 1
-	var count: int = 8 + wave * 3
-	var brutes: int = wave / 2  # none in wave 1, then one more every other wave
 	var level: float = 1.0 + 0.12 * (wave - 1)
+	var defs: Array[EnemyDef] = EnemyDb.spawnable(wave)
 	var banner: String = "Wave %d" % wave
-	if brutes == 1:
-		banner += "  -  a Brute approaches"
-	elif brutes > 1:
-		banner += "  -  %d Brutes approach" % brutes
+	var arrivals: PackedStringArray = []
+	for def in defs:
+		if def.min_wave == wave and def.id != "zombie":
+			arrivals.append(def.display_name + ("s" if def.id != "priest" else ""))
+	if not arrivals.is_empty():
+		banner += "  -  new: " + ", ".join(arrivals)
 	hud.show_banner(banner)
 	Enemy.max_tokens = 2 + wave / 5   # how many enemies may swing at the hero at once
-	# Zombies come in tight packs; Brutes and the odd straggler stand alone, scattered at random.
+	# Packs and loners first, then the support enemies that hang back behind the packs.
 	var centres: Array[Vector3] = []
+	for def in defs:
+		var count: int = EnemyDb.count_for(def, wave)
+		if def.spawn_mode == "pack":
+			_spawn_packs(def, count, level, centres)
+		elif def.spawn_mode == "solo":
+			for i in count:
+				spawn_enemy(_spawn_point(18.0, 34.0, centres, 8.0), def.id, level)
+	for def in defs:
+		if def.spawn_mode == "support":
+			for i in EnemyDb.count_for(def, wave):
+				spawn_enemy(_support_point(centres), def.id, level)
+	if wave >= 2:
+		for i in randi_range(1, 2):
+			spawn_enemy(_spawn_point(16.0, 34.0, centres, 6.0), "zombie", level)  # stragglers
+
+## Spawns `count` of an enemy in tight little groups (zombies 2-5 strong, the smaller kinds 2-3) with room between groups.
+func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector3]) -> void:
+	var biggest: int = 5 if def.id == "zombie" else 3
 	var remaining: int = count
 	while remaining > 0:
-		var pack: int = mini(remaining, randi_range(2, 5))
+		var pack: int = mini(remaining, randi_range(2, biggest))
 		if remaining - pack < 2:
 			pack = remaining
 		remaining -= pack
@@ -85,12 +107,17 @@ func start_wave() -> void:
 				if clear:
 					break
 			placed.append(pos)
-			spawn_enemy(_clamp_to_arena(pos), "zombie", level)
-	for i in brutes:
-		spawn_enemy(_spawn_point(18.0, 34.0, centres, 8.0), "brute", level)
-	if wave >= 2:
-		for i in randi_range(1, 2):
-			spawn_enemy(_spawn_point(16.0, 34.0, centres, 6.0), "zombie", level)  # stragglers
+			spawn_enemy(_clamp_to_arena(pos), def.id, level)
+
+## A spot just behind one of the packs (on the far side from the hero), for enemies that support from the back.
+func _support_point(centres: Array[Vector3]) -> Vector3:
+	if centres.is_empty():
+		return _spawn_point(18.0, 30.0, centres, 6.0)
+	var centre: Vector3 = centres[randi() % centres.size()]
+	var behind: Vector3 = centre - player.global_position
+	behind.y = 0.0
+	behind = behind.normalized() if behind.length() > 0.1 else Vector3.FORWARD
+	return _clamp_to_arena(centre + behind * 4.5)
 
 func _clamp_to_arena(pos: Vector3) -> Vector3:
 	return Vector3(clampf(pos.x, -ARENA_HALF + 2, ARENA_HALF - 2), 0.0, clampf(pos.z, -ARENA_HALF + 2, ARENA_HALF - 2))

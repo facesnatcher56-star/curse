@@ -26,6 +26,9 @@ knock_resist = 0.0
 stun_resist = 0.0
 impalable = true
 attack_clip = "attack"
+attack_start = 0.6
+attack_strike = 1.43
+attack_end = 2.0
 behavior = "melee"
 params = {
 "heavy_chance": 0.25

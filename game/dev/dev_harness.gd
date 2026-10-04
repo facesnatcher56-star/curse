@@ -45,6 +45,10 @@ func run_from_args() -> bool:
 		_skill_shots("fireball")
 	elif OS.get_cmdline_user_args().has("--skillshot=leap"):
 		_leap_shots()
+	elif OS.get_cmdline_user_args().has("--enemyshot"):
+		_enemy_shot()
+	elif OS.get_cmdline_user_args().has("--enemyfight"):
+		_enemy_fight()
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
 		_gib_shots()
 	elif OS.get_cmdline_user_args().has("--skillshot=power"):
@@ -447,6 +451,167 @@ func _test_gibs() -> void:
 			e.queue_free()
 	await get_tree().process_frame
 
+## The four new enemy kinds each do what their behaviour promises, against a hero who just stands there.
+func _test_enemies() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("hazards"):
+		node.queue_free()
+	await get_tree().process_frame
+	var saved_health: float = player.max_health
+	player.max_health = 5000.0
+	player.health = 5000.0
+	player.global_position = Vector3(30, 0, 30)
+	player.reset_physics_interpolation()
+	player.has_goal = false
+	player.attack_target = null
+
+	# Ghoul: stalks round, crouches, springs, lands, is stuck for a moment.
+	var ghoul: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -8.0), "ghoul")
+	ghoul.aggro_range = 40.0
+	var states: Dictionary = {}
+	var landed_near: bool = false
+	var elapsed: float = 0.0
+	while elapsed < 9.0 and not states.has(PouncerBehavior.State.RECOVER):
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+		var state: int = (ghoul.behavior as PouncerBehavior)._state
+		states[state] = true
+		if state == PouncerBehavior.State.RECOVER:
+			landed_near = ghoul.flat_distance_to(player) < 2.2
+	expect("ghoul crouches, leaps and lands next to the hero", states.has(PouncerBehavior.State.WINDUP) and states.has(PouncerBehavior.State.LEAP) and landed_near)
+	print("  ghoul: states seen=", states.keys(), " landed near hero=", landed_near, " after ", snappedf(elapsed, 0.1), " s")
+	ghoul.queue_free()
+	await get_tree().process_frame
+
+	# Spitter: keeps its distance and lobs acid that leaves a puddle.
+	player.health = 5000.0
+	var spitter: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -10.0), "spitter")
+	spitter.aggro_range = 40.0
+	var globs_seen: int = 0
+	var min_gap: float = 99.0
+	var zones: int = 0
+	elapsed = 0.0
+	var seen_globs: Dictionary = {}
+	while elapsed < 10.0:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+		for g in get_tree().get_nodes_in_group("acid_globs"):
+			if not seen_globs.has(g.get_instance_id()):
+				seen_globs[g.get_instance_id()] = true
+				globs_seen += 1
+		if elapsed > 3.0:
+			min_gap = minf(min_gap, spitter.flat_distance_to(player))
+		zones = maxi(zones, get_tree().get_nodes_in_group("hazards").size())
+	expect("spitter lobs acid", globs_seen >= 1)
+	expect("acid leaves a puddle", zones >= 1)
+	expect("spitter keeps its distance", min_gap > 4.0)
+	print("  spitter: globs=", globs_seen, " puddles seen=", zones, " closest approach=", snappedf(min_gap, 0.1), " m")
+	# The hero walks up to it: it backs off instead of standing and fighting.
+	player.global_position = spitter.global_position + Vector3(0, 0, 2.5)
+	player.reset_physics_interpolation()
+	var before: float = spitter.flat_distance_to(player)
+	await get_tree().create_timer(1.2).timeout
+	var after: float = spitter.flat_distance_to(player)
+	expect("spitter backs away when the hero closes in", after > before + 0.8)
+	print("  spitter retreat: ", snappedf(before, 0.1), " -> ", snappedf(after, 0.1), " m")
+	spitter.queue_free()
+	for node in get_tree().get_nodes_in_group("hazards"):
+		node.queue_free()
+	player.global_position = Vector3(30, 0, 30)
+	await get_tree().process_frame
+
+	# Bloater: walks up and bursts by itself, hurting the hero and leaving a gas cloud.
+	player.health = player.max_health
+	var bloater: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -7.0), "bloater")
+	bloater.aggro_range = 40.0
+	var hp_before: float = player.health
+	elapsed = 0.0
+	while elapsed < 12.0 and not bloater.dead:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+	expect("bloater bursts itself next to the hero", bloater.dead and player.health < hp_before)
+	expect("bloater leaves a gas cloud", get_tree().get_nodes_in_group("hazards").size() >= 1)
+	print("  bloater: burst after ", snappedf(elapsed, 0.1), " s, hero lost ", snappedf(hp_before - player.health, 0.1), " HP, clouds=", get_tree().get_nodes_in_group("hazards").size())
+	for node in get_tree().get_nodes_in_group("hazards"):
+		node.queue_free()
+	await get_tree().process_frame
+
+	# Bloater shot with a fireball: the gas ignites and burns the zombies around it.
+	player.global_position = Vector3(30, 0, 30)
+	var bomb: Enemy = _spawn_enemy(Vector3(36, 0, 22), "bloater")
+	bomb.aggro_range = 0.0
+	var crowd: Array[Enemy] = []
+	for off in [Vector3(1.6, 0, 0), Vector3(-1.4, 0.0, 1.0), Vector3(0.2, 0, -1.8)]:
+		var z: Enemy = _spawn_enemy(bomb.global_position + off)
+		z.aggro_range = 0.0
+		z.max_health = 400.0
+		z.health = 400.0
+		crowd.append(z)
+	await get_tree().process_frame
+	bomb.health = 20.0   # the fireball kills the Bloater but only singes the zombies
+	var ball := Projectile.new()
+	ball.owner_actor = player
+	ball.damage = 60.0
+	ball.destination = bomb.global_position
+	add_child(ball)
+	ball.global_position = bomb.global_position + Vector3(0, 1.0, 0)
+	ball._explode()
+	await get_tree().create_timer(0.3).timeout
+	var burning: int = 0
+	for z in crowd:
+		if is_instance_valid(z) and z.is_burning():
+			burning += 1
+	expect("a fireball-killed bloater ignites the crowd around it", bomb.dead and burning >= 2)
+	print("  bloater firebomb: bloater dead=", bomb.dead, ", zombies burning=", burning, "/3")
+	for z in crowd:
+		if is_instance_valid(z):
+			z.queue_free()
+	await get_tree().process_frame
+
+	# Priest: wards its allies, raises zombies, and the wards end when it dies.
+	for node in get_tree().get_nodes_in_group("hazards"):
+		node.queue_free()
+	player.global_position = Vector3(-30, 0, -30)
+	player.reset_physics_interpolation()
+	player.health = player.max_health
+	var priest: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, 9.0), "priest")
+	priest.aggro_range = 40.0
+	var guards: Array[Enemy] = []
+	for off in [Vector3(1.5, 0, 1.0), Vector3(-1.5, 0, 1.0)]:
+		var g: Enemy = _spawn_enemy(priest.global_position + off)
+		g.aggro_range = 0.0
+		guards.append(g)
+	(priest.behavior as SupportBehavior)._summon_cd = 0.5
+	var warded: bool = false
+	var summoned: int = 0
+	var group_before: int = get_tree().get_nodes_in_group("enemies").size()
+	elapsed = 0.0
+	while elapsed < 9.0:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+		for g in guards:
+			if is_instance_valid(g) and g.ward_time > 0.0:
+				warded = true
+		summoned = maxi(summoned, get_tree().get_nodes_in_group("enemies").size() - group_before)
+	expect("the priest wards its allies", warded)
+	expect("the priest raises zombies", summoned >= 1)
+	var kept_distance: float = priest.flat_distance_to(player)
+	expect("the priest stays well back from the hero", kept_distance > 5.0)
+	priest.receive(Combat.resolve(player, priest, 9999.0, Combat.DamageType.PHYSICAL, false, 1.0, false), player.global_position)
+	await get_tree().process_frame
+	var still_warded: int = 0
+	for g in guards:
+		if is_instance_valid(g) and g.ward_time > 0.0:
+			still_warded += 1
+	expect("killing the priest strips its wards", priest.dead and still_warded == 0)
+	print("  priest: warded allies=", warded, " zombies raised=", summoned, " distance=", snappedf(kept_distance, 0.1), " m, wards left after its death=", still_warded)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.max_health = saved_health
+	player.health = saved_health
+	await get_tree().process_frame
+
 ## Hero stands idle with NO input while a pack of zombies swarms in. Logs hits taken per second, how many attackers swing at
 ## once, and any moment the hero starts a skill / changes clip by itself (an "auto attack" with nobody clicking).
 func _test_swarm() -> void:
@@ -544,7 +709,7 @@ func _test_balance() -> void:
 		for b in brutes:
 			var near: bool = false
 			for z in zombies:
-				if z.global_position.distance_to(b.global_position) < 5.0:
+				if z.global_position.distance_to(b.global_position) < 3.0:
 					near = true
 			if not near:
 				lone_brutes += 1
@@ -997,6 +1162,42 @@ func _pause_shot() -> void:
 	print("paused after resume=", get_tree().paused)
 	get_tree().quit()
 
+## `-- --enemyfight`: the new enemy kinds in action against an idle hero; frames in %TEMP%/curse_fight_N.png.
+func _enemy_fight() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.max_health = 5000.0
+	player.health = 5000.0
+	var kinds: Array = [["spitter", Vector3(-6, 0, -8)], ["ghoul", Vector3(7, 0, -6)], ["bloater", Vector3(1.5, 0, -6)],
+		["priest", Vector3(0, 0, -11)], ["zombie", Vector3(-1.5, 0, -11.5)], ["zombie", Vector3(1.5, 0, -11.0)]]
+	for k in kinds:
+		var z: Enemy = _spawn_enemy(k[1], k[0])
+		z.aggro_range = 40.0
+	for i in 16:
+		await get_tree().create_timer(0.35).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_fight_%d.png" % i)
+	get_tree().quit()
+
+## `-- --enemyshot`: one of each enemy kind in a row facing the camera; frame in %TEMP%/curse_enemies.png.
+func _enemy_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	var ids: Array = EnemyDb.all().keys()
+	ids.sort()
+	var x: float = -float(ids.size() - 1) * 1.4
+	for id in ids:
+		var z: Enemy = _spawn_enemy(Vector3(x, 0, -3.0), id)
+		z.aggro_range = 0.0
+		z.visual.rotation.y = PI
+		x += 2.8
+	await get_tree().create_timer(1.0).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_enemies.png")
+	var names: PackedStringArray = []
+	for id in ids:
+		names.append(id)
+	print("enemy kinds (left to right): ", ", ".join(names))
+	get_tree().quit()
+
 ## `-- --skillshot=gibs`: a fireball detonates on low-health zombies; frames in %TEMP%/curse_gib_N.png.
 func _gib_shots() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1308,7 +1509,7 @@ func _screenshot_demo() -> void:
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "leap": "_test_leap", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "leap": "_test_leap", "impact": "_test_impact", "fireblast": "_test_fire_blast",
 }
 
 var _failures: PackedStringArray = []
@@ -1353,6 +1554,7 @@ func _run_selftest() -> void:
 	await _test_fire_blast()
 	await _test_gibs()
 	await _test_swarm()
+	await _test_enemies()
 	await _test_balance()
 	await _test_auto_attack()
 

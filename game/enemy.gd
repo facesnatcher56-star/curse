@@ -17,8 +17,6 @@ var attack_range: float = 1.6
 var attack_time: float = 1.1
 var damage_min: float = 6.0
 var damage_max: float = 10.0
-## Speed multiplier from buffs (a Plague Priest's ward hastes its allies).
-var buff_speed: float = 1.0
 ## Distance at which it holds position while waiting for its turn to attack.
 var ring: float = 2.8
 ## True while it is committed to an attack (behaviours set and clear this; an interrupt clears it).
@@ -61,7 +59,7 @@ func _ready() -> void:
 	_orbit_flip = randf_range(1.5, 3.5)
 	ring = attack_range + randf_range(0.9, 1.6)
 	var folder: String = def.model_path
-	var borrowed: bool = not ResourceLoader.exists(folder + "/rigged.glb")
+	var borrowed: bool = not (ResourceLoader.exists(folder + "/rigged.glb") and ResourceLoader.exists(folder + "/anims.res"))
 	if borrowed:
 		folder = def.fallback_model_path
 	_build_model(folder, def.clips, def.height, def.radius)
@@ -111,7 +109,7 @@ func _physics_process(delta: float) -> void:
 
 ## Current walking speed, with slows and buffs applied.
 func pace() -> float:
-	return move_speed * speed_factor() * buff_speed
+	return move_speed * speed_factor() * (ward_haste if ward_time > 0.0 else 1.0)
 
 ## Walks toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
 func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: bool = true) -> void:
@@ -172,6 +170,15 @@ func separation() -> Vector3:
 		if d > 0.001 and d < spacing:
 			push += away / d * (spacing - d)
 	return push.limit_length(1.0)
+
+## Whether this enemy's model has an animation by that name (new enemies may not have every clip yet).
+func has_clip(clip: String) -> bool:
+	return model != null and model.anim.has_animation("game/" + clip)
+
+## Clear line (no wall or prop) to another actor, chest height to chest height.
+func has_line_to(other: Actor) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 1.0, 0), other.global_position + Vector3(0, 1.0, 0), LAYER_WORLD)
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 ## Red glow: the wind-up cue that tells the hero a heavy attack is coming.
 func telegraph(strength: float = 0.55) -> void:

@@ -26,6 +26,9 @@ knock_resist = 0.0
 stun_resist = 0.0
 impalable = true
 attack_clip = "attack"
+attack_start = 0.5
+attack_strike = 1.07
+attack_end = 1.45
 behavior = "support"
 params = {
 "ward_interval": 7.0,
@@ -39,7 +42,7 @@ params = {
 "keep_max": 11.0,
 "flee_dist": 4.5
 }
-token_weight = 0
+token_weight = 1
 min_wave = 5
 spawn_mode = "support"
 base_count = 1.0

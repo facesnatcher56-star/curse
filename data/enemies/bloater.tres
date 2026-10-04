@@ -26,6 +26,9 @@ knock_resist = 0.5
 stun_resist = 0.0
 impalable = false
 attack_clip = "attack"
+attack_start = 0.6
+attack_strike = 1.43
+attack_end = 2.0
 behavior = "bloater"
 params = {
 "fuse_range": 2.3,
