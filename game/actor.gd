@@ -145,11 +145,15 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var weight: float = result.get("weight", 1.0)
 	var source: Actor = result.get("source")
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
+	# A "calm" hit (the Earthshatter shockwave striking a whole crowd at once) skips the per-enemy blood, numbers, flashes, shake and
+	# hit-pause: ten of those at the same instant would bury the move in noise.
+	var calm: bool = bool(result.get("calm", false))
 	var away: Vector3 = global_position - source_pos
 	away.y = 0.0
 	away = away.normalized()
 
-	Fx.popup(self, outcome, damage, _popup_tint())
+	if not calm:
+		Fx.popup(self, outcome, damage, _popup_tint())
 	if outcome == Combat.Outcome.MISS:
 		if source is Player and String(result.get("skill_id", "")) in SWORD_SKILLS and not result.get("secondary", false):
 			Sfx.sword_miss(self)   # the blade cut empty air
@@ -173,7 +177,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if health - damage <= 0.0 and not is_in_group("player"):
 		if fire and not result.get("secondary", false):
 			_pending_gib = "fire"
-		elif outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
+		elif not calm and (outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING):
 			_pending_gib = "gore"
 		_gib_from = source_pos
 	_apply_damage(damage)
@@ -183,33 +187,36 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
 	if sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
-	var amount: int = int(clampf(6.0 + damage * 0.5 + weight * 4.0, 6.0, 40.0)) * (2 if big else 1)
-	Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
-	if big or randf() < 0.3:
-		Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
-	if big:
-		Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 2.5, 0.08)
+	if not calm:
+		var amount: int = int(clampf(6.0 + damage * 0.5 + weight * 4.0, 6.0, 40.0)) * (2 if big else 1)
+		Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
+		if big or randf() < 0.3:
+			Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
+		if big:
+			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 2.5, 0.08)
 	if not dead:
 		_flash = 1.0
 		model.set_overlay(_flash_mat)
 		_squash(away, 0.08 * weight + (0.1 if big else 0.0))
 
-	var shake_amount: float = clampf(0.03 + damage * 0.004, 0.03, 0.12) * weight
-	Fx.shake(self, shake_amount)
-	if source != null and source.is_in_group("player") or is_in_group("player"):
-		Fx.kick(self, -away if is_in_group("player") else away, 0.5 * weight)
+	if not calm:
+		var shake_amount: float = clampf(0.03 + damage * 0.004, 0.03, 0.12) * weight
+		Fx.shake(self, shake_amount)
+		if source != null and source.is_in_group("player") or is_in_group("player"):
+			Fx.kick(self, -away if is_in_group("player") else away, 0.5 * weight)
 
 	# Hit-pause on both parties makes the blow land; crits add a brief global slow-down.
 	var pause: float = 0.06 * weight + (0.045 if big else 0.0)
 	# The hero is never frozen by being hit: a crowd landing blows would otherwise stutter every skill to a halt.
-	if not killed and not is_in_group("player"):
-		add_hitpause(pause)
-	if source != null and source != self:
-		source.add_hitpause(pause)
-	if outcome == Combat.Outcome.CRUSHING:
-		Fx.hitstop(self, 0.07)
-	elif outcome == Combat.Outcome.CRITICAL:
-		Fx.hitstop(self, 0.045)
+	if not calm:
+		if not killed and not is_in_group("player"):
+			add_hitpause(pause)
+		if source != null and source != self:
+			source.add_hitpause(pause)
+		if outcome == Combat.Outcome.CRUSHING:
+			Fx.hitstop(self, 0.07)
+		elif outcome == Combat.Outcome.CRITICAL:
+			Fx.hitstop(self, 0.045)
 
 	# Equipment reacts to every landed hit (including the one that killed).
 	if source is Player and source != self:
@@ -506,6 +513,8 @@ func _tick_burn(delta: float) -> void:
 		return
 	burn_time -= delta
 	_apply_damage(burn_dps * delta)
+	if _flames != null:
+		_flames.visible = not is_ragdolled()   # no flame trail across the sky while thrown, and none on a body lying stunned
 	if burn_time <= 0.0 or dead:
 		stop_burning()
 

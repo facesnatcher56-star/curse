@@ -25,6 +25,7 @@ const RISE_TIME := 0.9
 
 var state: int = State.OFF
 var permanent: bool = false  # dead actors stay down
+var calm: bool = false       # no blood trail or splatter (set for crowd-wide throws such as Earthshatter, to keep them readable)
 
 var actor: Actor
 var skeleton: Skeleton3D
@@ -108,6 +109,7 @@ func hang(facing_yaw: float, lean_back: float = 0.45) -> void:
 
 ## Thrown: ballistic arc with a tumble. `velocity` is the horizontal launch velocity, `lift` the upward speed.
 func launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
+	calm = false
 	if state == State.OFF:
 		_saved_layers = Vector2i(actor.collision_layer, actor.collision_mask)
 		_begin()
@@ -290,7 +292,8 @@ func _begin_lying() -> void:
 	var z_axis: Vector3 = Vector3.UP * face_up
 	var x_axis: Vector3 = flat.cross(z_axis).normalized()
 	_lie_to = Basis(x_axis, flat, z_axis).orthonormalized() * Basis(Vector3.UP, -yaw)
-	Fx.blood_decal(actor, actor.global_position, 0.9, Color(0.3, 0.02, 0.02))
+	if not calm:
+		Fx.blood_decal(actor, actor.global_position, 0.9, Color(0.3, 0.02, 0.02))
 
 func _step_lying(delta: float) -> void:
 	_lie_t += delta
@@ -314,6 +317,8 @@ func _step_rising(delta: float) -> void:
 # --- blood ----------------------------------------------------------------------
 
 func _leave_blood(delta: float) -> void:
+	if calm:
+		return
 	var speed: float = _velocity.length()
 	_trail_travel += speed * delta
 	if _trail_travel >= 0.45:

@@ -130,7 +130,7 @@ func _impact() -> void:
 	centre = p.global_position + dir * 1.2
 	centre.y = 0.0
 	SkillFx.earthshatter_impact(p, centre, RADIUS)
-	Fx.text_at(p, p.global_position + Vector3(0, 2.8, 0), "Earthshatter!", Color(1.0, 0.7, 0.3), 64)
+	Fx.text_at(p, p.global_position + Vector3(0, 2.8, 0), "Earthshatter!", Color(1.0, 0.7, 0.3), 56)
 	Gamepad.rumble(0.9, 1.0, 0.55)
 	var in_range: Array[Actor] = []
 	for node in p.get_tree().get_nodes_in_group("enemies"):
@@ -166,6 +166,7 @@ func _hit(e: Actor) -> void:
 	var damage: float = p.stats.weapon_damage(MULT) * ItemEffects.outgoing_multiplier(p, e) * lerpf(MIN_FALLOFF, 1.0, near)
 	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 3.0)
 	result["skill_id"] = "earthshatter"
+	result["calm"] = true   # one big shockwave, not a separate splash of effects on every victim
 	e.receive(result, centre)
 	if not is_instance_valid(e):
 		return
@@ -178,6 +179,8 @@ func _hit(e: Actor) -> void:
 	# Thrown up and outward; the ones nearest the blade go highest, spinning end over end.
 	var spin: Vector3 = away.cross(Vector3.UP) * randf_range(5.0, 9.0) + Vector3.UP * randf_range(-2.0, 2.0)
 	e.ragdoll_launch(away * (LAUNCH_OUT * lerpf(0.45, 1.0, near)), LAUNCH_LIFT * lerpf(0.7, 1.0, near) + randf_range(-0.8, 1.2), spin)
+	if e.ragdoll != null:
+		e.ragdoll.calm = true
 
 static func _flat(v: Vector3) -> Vector3:
 	v.y = 0.0

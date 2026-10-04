@@ -303,21 +303,16 @@ static func chain_spark(player: Player, at: Vector3) -> void:
 
 # --- Earthshatter ----------------------------------------------------------------------
 
-## The ultimate's impact: a blinding flash, shockwave rings racing out to the edge, a crater of glowing fissures, a wall of dust
-## and rock, and the biggest camera hit in the game.
+## The ultimate's impact, kept readable: a short flash, one bright ring racing out to the edge of the blast (the visible reach of
+## the move) with a paler one right behind it, a low ring of dust, a few rock chips and a few short scars at the centre. Nothing else.
 static func earthshatter_impact(player: Player, point: Vector3, radius: float) -> void:
 	var scene: Node = player
-	Fx.light_flash(scene, point + Vector3(0, 0.8, 0), Color(1.0, 0.65, 0.3), 12.0, 0.45)
-	Fx.light_flash(scene, point + Vector3(0, 3.0, 0), Color(1.0, 0.9, 0.7), 6.0, 0.18)
-	ground_ring(scene, point, 0.5, radius, Color(1.0, 0.7, 0.3, 0.95), 0.55, 0.0, 0.16)
-	ground_ring(scene, point, 0.3, radius * 0.75, Color(1.0, 1.0, 0.9, 0.8), 0.45, 0.05, 0.1)
-	ground_ring(scene, point, 0.2, radius * 1.1, Color(0.6, 0.45, 0.3, 0.6), 0.8, 0.12, 0.22)
-	ground_cracks(scene, point, 11, radius * 0.25, radius * 0.6, Color(1.0, 0.45, 0.12, 0.8), 0.06, 3.0)   # glowing, short-lived
-	ground_cracks(scene, point, 10, radius * 0.25, radius * 0.65, Color(0.05, 0.04, 0.03, 0.8), 0.05, 20.0)    # the scars that stay
-	dust(scene, point, radius * 0.5, 60, Color(0.42, 0.37, 0.31, 0.55), 2.4, 1.6)
-	debris(scene, point, 60, 12.0)
-	Fx.burst(scene, point + Vector3(0, 0.3, 0), Vector3.UP, Color(1.0, 0.75, 0.35), 50, 14.0, 0.04, true)
-	Fx.ring(scene, point, radius * 0.6, Color(1.0, 0.8, 0.45))
-	Fx.shake(scene, 0.7)
-	Fx.punch(scene, 5.0)
-	Fx.kick(scene, player.global_position - point, 0.9)
+	Fx.light_flash(scene, point + Vector3(0, 1.0, 0), Color(1.0, 0.7, 0.35), 7.0, 0.25)
+	ground_ring(scene, point, 0.5, radius, Color(1.0, 0.72, 0.35, 0.9), 0.5, 0.0, 0.1)
+	ground_ring(scene, point, 0.3, radius * 0.8, Color(1.0, 0.95, 0.85, 0.5), 0.45, 0.06, 0.06)
+	dust(scene, point, radius * 0.3, 12, Color(0.45, 0.4, 0.34, 0.25), 1.0, 0.8)
+	debris(scene, point, 14, 8.0)
+	ground_cracks(scene, point, 5, radius * 0.1, radius * 0.22, Color(0.05, 0.04, 0.03, 0.6), 0.06, 20.0)   # a few short scars at the centre
+	Fx.shake(scene, 0.4)
+	Fx.punch(scene, 3.0)
+	Fx.kick(scene, player.global_position - point, 0.5)
