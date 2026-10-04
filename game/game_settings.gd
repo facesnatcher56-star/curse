@@ -131,10 +131,12 @@ static func pad_event_to_dict(event: InputEvent) -> Dictionary:
 static func dict_to_pad_event(data: Dictionary) -> InputEvent:
 	if data.get("type") == "button":
 		var button := InputEventJoypadButton.new()
+		button.device = -1   # any controller
 		button.button_index = int(data["code"]) as JoyButton
 		return button
 	if data.get("type") == "axis":
 		var motion := InputEventJoypadMotion.new()
+		motion.device = -1
 		motion.axis = int(data["axis"]) as JoyAxis
 		motion.axis_value = 1.0
 		return motion

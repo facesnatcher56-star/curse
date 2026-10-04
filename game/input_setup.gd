@@ -44,6 +44,7 @@ static func _pad_button(action: String, button: int) -> void:
 		if existing is InputEventJoypadButton and (existing as InputEventJoypadButton).button_index == button:
 			return
 	var event := InputEventJoypadButton.new()
+	event.device = -1   # any controller (the Deck's own pad is device 0, an Xbox pad is 1)
 	event.button_index = button as JoyButton
 	InputMap.action_add_event(action, event)
 
@@ -54,6 +55,7 @@ static func _pad_trigger(action: String, axis: int) -> void:
 		if existing is InputEventJoypadMotion and (existing as InputEventJoypadMotion).axis == axis:
 			return
 	var event := InputEventJoypadMotion.new()
+	event.device = -1
 	event.axis = axis as JoyAxis
 	event.axis_value = 1.0
 	InputMap.action_add_event(action, event)

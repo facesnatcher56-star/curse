@@ -23,9 +23,14 @@ static var view_yaw: float = 0.0
 static func to_world(v: Vector2) -> Vector3:
 	return Vector3(v.x, 0.0, v.y).rotated(Vector3.UP, view_yaw)
 
+## The controller used last (the Deck's own pad and an Xbox pad can both be connected); note_event keeps it current.
+static var _last_device: int = -1
+
 static func device() -> int:
 	var pads: Array[int] = Input.get_connected_joypads()
-	return pads[0] if not pads.is_empty() else -1
+	if pads.is_empty():
+		return -1
+	return _last_device if pads.has(_last_device) else pads[0]
 
 static func connected() -> bool:
 	return device() >= 0 or not test_axes.is_empty()
@@ -57,7 +62,11 @@ static func aim_vector() -> Vector2:
 	return _stick(JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y)
 
 static var _mouse_ms: int = -100000   # when the mouse or keyboard was last used
+static var _pad_ms: int = -100000     # when the pad was last used deliberately
 const MOUSE_PRIORITY_MS := 400
+## Steam Input (the Steam Deck's default layout) turns sticks and buttons into mouse moves, clicks and keys. Those arrive
+## right alongside the pad's own events, so while the pad is in use they must not hand control back to the mouse.
+const PAD_PRIORITY_MS := 600
 
 ## Called for every input event (by the InputWatcher autoload): tracks whether the pad or the mouse/keyboard is the active
 ## device. A button press, or a stick pushed well off centre, hands control to the pad; a mouse move or any key or click takes
@@ -69,18 +78,25 @@ static func note_event(event: InputEvent) -> void:
 	if event is InputEventJoypadButton:
 		if (event as InputEventJoypadButton).pressed:
 			active = true
+			_pad_ms = now
+			_last_device = event.device
 	elif event is InputEventJoypadMotion:
 		var motion: InputEventJoypadMotion = event
 		var is_trigger: bool = motion.axis == JOY_AXIS_TRIGGER_LEFT or motion.axis == JOY_AXIS_TRIGGER_RIGHT
 		var deliberate: bool = motion.axis_value > 0.6 if is_trigger else absf(motion.axis_value) > 0.55
-		if deliberate and now - _mouse_ms > MOUSE_PRIORITY_MS:
-			active = true
+		if deliberate:
+			_pad_ms = now
+			_last_device = motion.device
+			if now - _mouse_ms > MOUSE_PRIORITY_MS:
+				active = true
 	elif event is InputEventKey or event is InputEventMouseButton:
-		active = false
-		_mouse_ms = now
+		if not (active and now - _pad_ms < PAD_PRIORITY_MS):
+			active = false
+			_mouse_ms = now
 	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).relative.length() > 1.5:
-		active = false
-		_mouse_ms = now
+		if not (active and now - _pad_ms < PAD_PRIORITY_MS):
+			active = false
+			_mouse_ms = now
 	if active != was and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if active else Input.MOUSE_MODE_VISIBLE
 
