@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/skill_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dodge"
+display_name = "Dodge"
+description = "Roll in the direction you are moving (or toward the cursor). You take no damage for the whole roll, and every non-boss enemy near you is shoved aside and has its current attack interrupted."
+mana = 0.0
+cooldown = 0.7
+time = 0.55
+clip = ""
+clip_start = 0.0
+clip_strike = 0.0
+clip_end = 0.0
+kind = "dodge"
+range = 0.0
+mult = 0.0
+weight = 1.0
+lunge = 0.0
+directional = false
+aimed = false
+modifier_affixes = Array[String](["shock_roll", "riposte"])
+extra = {}

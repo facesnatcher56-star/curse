@@ -61,7 +61,7 @@ func _draw() -> void:
 	_draw_tooltip(font, size_px)
 	if player.aiming_id != "":
 		draw_string(font, Vector2(0, y0 - 14.0), "Release %s to cast %s" % [GameSettings.short_binding_text(player.aiming_action),
-			Player.SKILLS[player.aiming_id]["name"]], HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1.0, 0.75, 0.4))
+			SkillDb.all()[player.aiming_id]["name"]], HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1.0, 0.75, 0.4))
 
 	# Target bar, top centre: whatever the mouse is over, else what we are attacking.
 	var target: Actor = player.hover_target
@@ -229,7 +229,7 @@ func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: 
 ## One hotbar slot: icon, radial cooldown sweep with seconds left, mana-cost tint, ready flash, bound key.
 func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font) -> void:
 	var rect := Rect2(pos, Vector2(size_px, size_px))
-	var skill: Dictionary = Player.SKILLS[id]
+	var skill: Dictionary = SkillDb.all()[id]
 	draw_rect(rect, Color(0.17, 0.16, 0.2, 0.95))
 	var icon: Texture2D = _icon(id)
 	if icon != null:
@@ -287,7 +287,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if not rect.has_point(mouse):
 			continue
 		var id: String = hit["id"]
-		var skill: Dictionary = Player.SKILLS[id]
+		var skill: Dictionary = SkillDb.all()[id]
 		var width: float = 340.0
 		var pad: float = 14.0
 		var inner: float = width - pad * 2.0
@@ -302,9 +302,9 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 			stats.append("Stamina %d" % int(round(Player.ROLL_STAMINA * player.armor_stat("roll_cost", 1.0))))
 		var stat_line: String = "    ".join(stats)
 		var damage_line: String = player.skill_damage_text(id)
-		var desc: String = Player.SKILL_DESCRIPTIONS.get(id, "")
+		var desc: String = SkillDb.description(id)
 		var mods: Array[String] = []
-		for affix_id in Player.SKILL_AFFIXES.get(id, []):
+		for affix_id in SkillDb.modifier_affixes(id):
 			if player.has_affix(affix_id):
 				mods.append(Items.AFFIXES[affix_id]["desc"])
 		# Measure, then draw the panel.

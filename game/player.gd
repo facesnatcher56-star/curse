@@ -16,64 +16,16 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
 const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cleave", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump"]
 
-## `time` is the gameplay duration. The clip window (start/strike/end, in clip seconds, measured with
-## tools/anim_timing.gd) is stretched to fit it, and the damage frame is derived from the strike time.
-const SKILLS := {
-	"basic": {"name": "Attack", "mana": 0.0, "time": 0.85, "range": 2.4, "mult": 1.0, "cd": 0.0, "kind": "melee",
-		"clip": "slash", "start": 0.5, "strike": 1.07, "end": 1.45, "weight": 1.0, "lunge": 0.5},
-	"power": {"name": "Power Strike", "mana": 8.0, "time": 1.3, "range": 2.4, "mult": 2.3, "cd": 2.0, "kind": "melee",
-		"clip": "power", "start": 0.55, "strike": 1.23, "end": 1.75, "weight": 1.9, "lunge": 1.0},
-	"cleave": {"name": "Cleave", "mana": 12.0, "time": 1.35, "range": 3.0, "mult": 1.1, "cd": 3.5, "kind": "cleave",
-		"clip": "cleave", "start": 1.0, "strike": 1.73, "end": 3.0, "weight": 1.3, "lunge": 0.3},
-	# Fireball is a two-phase cast: gather (arms rise, orb swells overhead), then throw. Times are at 1.0x speed:
-	# `gather` seconds of gathering (charge clip start -> strike), then the throw clip plays and the fireball
-	# leaves the hand `release_after` seconds into it.
-	"fireball": {"name": "Fireball", "mana": 16.0, "time": 1.4, "range": 14.0, "mult": 1.0, "cd": 3.0, "kind": "projectile", "aimed": true,
-		"charged": true, "clip": "charge", "start": 0.8, "strike": 2.05, "end": 2.3, "gather": 0.72,
-		"release_clip": "throw", "release_start": 0.55, "release_speed": 1.5, "release_after": 0.3,
-		"weight": 1.6, "lunge": 0.4},	# Skewer: charge, run up to three enemies onto the blade, skid to a halt, then kick them all off. `range` is the
-	# longest charge in metres; `mult` scales the impale and the kick.
-	"skewer": {"name": "Skewer", "mana": 18.0, "time": 1.8, "range": 9.0, "mult": 1.5, "cd": 9.0, "kind": "charge", "directional": true,
-		"skewer": true, "weight": 2.2, "lunge": 0.0, "clip": "charge_run", "start": 0.0, "strike": 0.3, "end": 0.5},
-	# Leap: spring up to `range` m at the cursor. On a downed enemy it is a slam (`LEAP_SLAM_MULT`, always crits);
-	# otherwise a lighter overhead chop around the landing spot.
-	"leap": {"name": "Leap", "mana": 12.0, "time": 1.8, "range": 10.0, "mult": 1.3, "cd": 7.0, "kind": "leap", "directional": true,
-		"leap": true, "weight": 2.0, "lunge": 0.0, "clip": "leap", "start": 1.4, "strike": 2.5, "end": 3.9},
-	"potion": {"name": "Potion", "mana": 0.0, "time": 0.0, "range": 0.0, "mult": 0.0, "cd": 1.0, "kind": "potion"},
-	"dodge": {"name": "Dodge", "mana": 0.0, "time": 0.55, "range": 0.0, "mult": 0.0, "cd": 0.7, "kind": "dodge"},
-}
-
-## Tooltip text for the hotbar. Keep these in step with what the skills actually do.
-const SKILL_DESCRIPTIONS := {
-	"basic": "A three-hit sword combo. The first two hits vary between slashes and thrusts; the third is a heavy finisher. Pause for a moment and the combo resets.",
-	"power": "Heave the blade overhead for a crushing blow. Hits much harder than a normal swing, and heavily staggers and knocks back what it hits.",
-	"cleave": "Whirl your blade around you, striking every enemy within reach.",
-	"fireball": "Hold the key to aim a ground target, release to cast. The fireball flies to that exact point and explodes, burning everything inside the highlighted sphere. Fire damage ignores armor and cannot miss.",
-	"potion": "Drink a health potion to restore 60 health. Does nothing at full health.",
-	"skewer": "Lower the blade and charge toward the cursor. The first enemy in your path is run through to the hilt and carried along; up to two more are skewered on the same blade. Then you plant yourself and drive a boot into the pile, kicking all of them off the sword and far away from you. Enemies in the way that do not fit on the blade are shoved aside. Bosses cannot be impaled and stop the charge.",
-	"leap": "Spring through the air to the cursor. Land on a knocked-down enemy and drive the sword straight down through it into the earth for a guaranteed critical blow, then plant a boot on it, pinning it and stunning it while you wrench the blade free. Land anywhere else and the same plunging chop hits everything around the landing spot for lighter damage. You sail over enemies in the way.",
-	"dodge": "Roll in the direction you are moving (or toward the cursor). You take no damage for the whole roll, and every non-boss enemy near you is shoved aside and has its current attack interrupted.",
-}
-## Gear effects that change a skill, shown in its tooltip while equipped: skill id -> affix ids.
-const SKILL_AFFIXES := {
-	"basic": ["cleaving", "momentum", "chain", "searing", "executioner", "frostbite", "riposte"],
-	"power": ["gravewarden", "executioner", "frostbite", "searing", "chain"],
-	"cleave": ["whirlpool", "executioner", "frostbite", "searing", "chain"],
-	"fireball": ["twin_flame"],
-	"dodge": ["shock_roll", "riposte"],
-	"skewer": ["frostbite", "searing"],
-}
-
 ## True when worn gear changes how this skill behaves (shown as a gold pip on its hotbar slot).
 func skill_has_modifier(id: String) -> bool:
-	for affix in SKILL_AFFIXES.get(id, []):
+	for affix in SkillDb.modifier_affixes(id):
 		if has_affix(affix):
 			return true
 	return false
 
 ## One-line damage summary for tooltips.
 func skill_damage_text(id: String) -> String:
-	var skill: Dictionary = SKILLS[id]
+	var skill: Dictionary = SkillDb.all()[id]
 	match String(skill["kind"]):
 		"melee", "cleave":
 			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * float(skill["mult"])
@@ -94,21 +46,6 @@ func skill_damage_text(id: String) -> String:
 			return "Heals 60"
 	return ""
 
-## The basic attack is a 3-step combo; each step picks one of these variants at random.
-## Strike timings come from tools/anim_timing.gd; `lunge` is the most distance (m) the swing may close.
-const BASIC_COMBO: Array = [
-	[
-		{"clip": "slash_r", "start": 0.35, "strike": 0.73, "end": 1.1, "time": 0.78, "weight": 1.0, "lunge": 0.4},
-		{"clip": "thrust", "start": 1.0, "strike": 1.57, "end": 2.1, "time": 0.9, "weight": 0.9, "lunge": 0.7, "range": 2.8},
-	],
-	[
-		{"clip": "slash_l", "start": 0.7, "strike": 1.37, "end": 1.85, "time": 0.85, "weight": 1.0, "lunge": 0.4},
-		{"clip": "slash", "start": 0.5, "strike": 1.07, "end": 1.45, "time": 0.85, "weight": 1.0, "lunge": 0.5},
-	],
-	[
-		{"clip": "combo_end", "start": 0.6, "strike": 1.37, "end": 2.2, "time": 1.3, "weight": 1.7, "lunge": 0.9, "mult": 1.35, "finisher": true},
-	],
-]
 const COMBO_WINDOW := 0.9
 const ROLL_TIME := 0.55
 const ROLL_SPEED := 10.0
@@ -422,15 +359,15 @@ func _read_input(cursor: Vector3) -> void:
 
 	for i in hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
-		if SKILLS[hotbar[i]].get("directional", false):
+		if SkillDb.all()[hotbar[i]].get("directional", false):
 			if Input.is_action_just_pressed(action):
 				_try_directional(hotbar[i], cursor)
-		elif SKILLS[hotbar[i]].get("aimed", false):
+		elif SkillDb.all()[hotbar[i]].get("aimed", false):
 			_handle_aimed_key(action, hotbar[i], cursor)
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
 			if hotbar[i] != "potion":  # potions are handled every frame in _handle_hotkeys, even mid-animation
 				_queue_skill(hotbar[i], cursor)
-	if SKILLS[right_click_skill].get("aimed", false):
+	if SkillDb.all()[right_click_skill].get("aimed", false):
 		_handle_aimed_key("alt_skill", right_click_skill, cursor)
 	elif Input.is_action_pressed("alt_skill"):
 		_queue_skill(right_click_skill, cursor)
@@ -459,16 +396,16 @@ func _handle_hotkeys(cursor: Vector3) -> void:
 				_cancel_action()
 		elif busy and not rolling and stun_time <= 0.0:
 			if not _can_use(id):
-				if mana < float(SKILLS[id]["mana"]):
+				if mana < float(SkillDb.all()[id]["mana"]):
 					_say("Not enough mana")
 				else:
-					_say("%s is on cooldown" % SKILLS[id]["name"])
+					_say("%s is on cooldown" % SkillDb.all()[id]["name"])
 			elif _hotkey_would_start(id, cursor):
 				_cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).
 func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
-	var skill: Dictionary = SKILLS[id]
+	var skill: Dictionary = SkillDb.all()[id]
 	if skill.get("directional", false) or skill.get("aimed", false):
 		return true
 	return enemy_near(cursor, 12.0) != null
@@ -495,10 +432,10 @@ func _cancel_action() -> void:
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
 func _try_directional(id: String, cursor: Vector3) -> void:
 	if not _can_use(id):
-		if mana < float(SKILLS[id]["mana"]):
+		if mana < float(SkillDb.all()[id]["mana"]):
 			_say("Not enough mana")
 		return
-	if bool(SKILLS[id].get("leap", false)):
+	if bool(SkillDb.all()[id].get("leap", false)):
 		_start_leap(cursor)
 	else:
 		_start_skewer(cursor)
@@ -517,7 +454,7 @@ func _release_aim(cursor: Vector3) -> void:
 	var point: Vector3 = aim_point_for(id, cursor)
 	if not _can_use(id):
 		_clear_aim()
-		if mana < float(SKILLS[id]["mana"]):
+		if mana < float(SkillDb.all()[id]["mana"]):
 			_say("Not enough mana")
 		return
 	_clear_aim(true)
@@ -539,7 +476,7 @@ func _clear_aim(keep_orb: bool = false) -> void:
 
 ## The cursor point on the ground, pulled in to the skill's range if it is too far.
 func aim_point_for(id: String, cursor: Vector3) -> Vector3:
-	var reach: float = float(SKILLS[id]["range"])
+	var reach: float = float(SkillDb.all()[id]["range"])
 	var flat: Vector3 = cursor - global_position
 	flat.y = 0.0
 	if flat.length() > reach:
@@ -552,7 +489,7 @@ func _update_aim(cursor: Vector3) -> void:
 	if aiming_id == "":
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
-	if bool(SKILLS[aiming_id].get("charged", false)) and not busy:
+	if bool(SkillDb.all()[aiming_id].get("charged", false)) and not busy:
 		_ensure_orb(0.28)
 	_ensure_aim_nodes()
 	_aim_root.visible = true
@@ -688,7 +625,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 		attack_target = null
 
 	if skill_id != "" and target != null:
-		var skill: Dictionary = SKILLS[skill_id]
+		var skill: Dictionary = SkillDb.all()[skill_id]
 		var dist: float = flat_distance_to(target) - target.body_radius
 		if dist <= float(skill["range"]):
 			if _can_use(skill_id):
@@ -740,7 +677,7 @@ func _move(delta: float) -> void:
 	move_with(to_steer.normalized() * speed)
 
 func _can_use(id: String) -> bool:
-	var skill: Dictionary = SKILLS[id]
+	var skill: Dictionary = SkillDb.all()[id]
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
 
 func _use_potion() -> bool:
@@ -754,14 +691,14 @@ func _use_potion() -> bool:
 		_say("Already at full health")
 		return false
 	potions -= 1
-	cooldowns["potion"] = float(SKILLS["potion"]["cd"])
+	cooldowns["potion"] = float(SkillDb.all()["potion"]["cd"])
 	health = minf(health + 60.0, max_health)
 	Sfx.play(self, "potion", -4.0)
 	Fx.text_at(self, global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 
 func _start_skill(id: String, target: Actor, aim: Variant = null) -> void:
-	var skill: Dictionary = SKILLS[id]
+	var skill: Dictionary = SkillDb.all()[id]
 	if id == "basic":
 		skill = _next_basic()
 	busy_def = skill
@@ -880,10 +817,10 @@ func _make_haste_fx() -> CPUParticles3D:
 
 ## Picks the next swing of the combo and returns it merged over the basic attack stats.
 func _next_basic() -> Dictionary:
-	var variants: Array = BASIC_COMBO[combo_step]
-	var skill: Dictionary = SKILLS["basic"].duplicate()
+	var variants: Array = SkillDb.basic_combo()[combo_step]
+	var skill: Dictionary = SkillDb.all()["basic"].duplicate()
 	skill.merge(variants[randi() % variants.size()], true)
-	combo_step = (combo_step + 1) % BASIC_COMBO.size()
+	combo_step = (combo_step + 1) % SkillDb.basic_combo().size()
 	combo_timer = COMBO_WINDOW + float(skill["time"])
 	return skill
 
@@ -974,7 +911,7 @@ const KICK_STRIKE := 0.6
 const KICK_END := 1.1
 
 func _start_skewer(cursor: Vector3) -> void:
-	var skill: Dictionary = SKILLS["skewer"]
+	var skill: Dictionary = SkillDb.all()["skewer"]
 	var dir: Vector3 = cursor - global_position
 	dir.y = 0.0
 	if dir.length() < 0.4:
@@ -1259,7 +1196,7 @@ func _downed_near(point: Vector3, radius: float) -> Actor:
 	return best
 
 func _start_leap(cursor: Vector3) -> void:
-	var skill: Dictionary = SKILLS["leap"]
+	var skill: Dictionary = SkillDb.all()["leap"]
 	var reach: Vector3 = aim_point_for("leap", cursor)
 	leap_victim = _downed_near(cursor, 3.2)
 	leap_slam = leap_victim != null
@@ -1511,7 +1448,7 @@ func _try_roll(cursor: Vector3) -> void:
 		dir = Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
 	roll_dir = dir.normalized()
 	stamina -= roll_cost
-	cooldowns["dodge"] = float(SKILLS["dodge"]["cd"])
+	cooldowns["dodge"] = float(SkillDb.all()["dodge"]["cd"])
 	rolling = true
 	roll_t = 0.0
 	busy = false
@@ -1566,7 +1503,7 @@ func _power_impact() -> void:
 		gap.y = 0.0
 		if gap.length() > POWER_SPLASH_RADIUS + e.body_radius:
 			continue
-		var splash: Dictionary = Combat.resolve(self, e, weapon_damage(float(SKILLS["power"]["mult"]) * 0.5), Combat.DamageType.PHYSICAL, false, 1.5)
+		var splash: Dictionary = Combat.resolve(self, e, weapon_damage(float(SkillDb.all()["power"]["mult"]) * 0.5), Combat.DamageType.PHYSICAL, false, 1.5)
 		splash["skill_id"] = "power"
 		splash["secondary"] = true
 		e.receive(splash, point)
@@ -1718,7 +1655,7 @@ func _say(text: String) -> void:
 	message_time = 1.5
 
 func cooldown_fraction(id: String) -> float:
-	var total: float = float(SKILLS[id]["cd"])
+	var total: float = float(SkillDb.all()[id]["cd"])
 	if total <= 0.0:
 		return 0.0
 	return clampf(float(cooldowns.get(id, 0.0)) / total, 0.0, 1.0)

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/skill_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "skewer"
+display_name = "Skewer"
+description = "Lower the blade and charge toward the cursor. The first enemy in your path is run through to the hilt and carried along; up to two more are skewered on the same blade. Then you plant yourself and drive a boot into the pile, kicking all of them off the sword and far away from you. Enemies in the way that do not fit on the blade are shoved aside. Bosses cannot be impaled and stop the charge."
+mana = 18.0
+cooldown = 9.0
+time = 1.8
+clip = "charge_run"
+clip_start = 0.0
+clip_strike = 0.3
+clip_end = 0.5
+kind = "charge"
+range = 9.0
+mult = 1.5
+weight = 2.2
+lunge = 0.0
+directional = true
+aimed = false
+modifier_affixes = Array[String](["frostbite", "searing"])
+extra = {"skewer": true}
