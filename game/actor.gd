@@ -154,6 +154,14 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 
 	var fire: bool = result.get("type", 0) == Combat.DamageType.FIRE
 	bar_timer = 4.0
+	# A killing blow that is a crit (or a crushing blow) bursts the body; a direct fire kill (a fireball, not a
+	# secondary proc) bursts it into burning pieces.
+	if health - damage <= 0.0 and not is_in_group("player"):
+		if fire and not result.get("secondary", false):
+			_pending_gib = "fire"
+		elif outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
+			_pending_gib = "gore"
+		_gib_from = source_pos
 	_apply_damage(damage)
 
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
@@ -512,6 +520,13 @@ func _apply_damage(amount: float) -> void:
 		health = 0.0
 		_die()
 
+## How a killing blow bursts the body: "" (it just falls), "gore" or "fire". Set by receive() just before the lethal damage.
+var _pending_gib: String = ""
+var _gib_from: Vector3 = Vector3.ZERO
+
+func _gib_color() -> Color:
+	return Color(0.42, 0.48, 0.37)
+
 func _die() -> void:
 	dead = true
 	died.emit(self)
@@ -522,7 +537,12 @@ func _die() -> void:
 		_frost.queue_free()
 		_frost = null
 	model.set_overlay(null)
-	if is_ragdolled():
+	if _pending_gib != "":
+		Gibs.explode(self, _pending_gib, _gib_from)
+		visual.visible = false   # nothing left to lie there
+		if is_ragdolled():
+			ragdoll.stay_down()
+	elif is_ragdolled():
 		ragdoll.stay_down()  # dies where it lies instead of playing the death animation
 	else:
 		model.once("death", 0.0, 1.0, 0.1)

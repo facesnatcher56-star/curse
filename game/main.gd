@@ -60,6 +60,8 @@ func _ready() -> void:
 		_skill_shots("fireball")
 	elif OS.get_cmdline_user_args().has("--skillshot=leap"):
 		_leap_shots()
+	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
+		_gib_shots()
 	elif OS.get_cmdline_user_args().has("--skillshot=power"):
 		_melee_shots("power")
 	elif OS.get_cmdline_user_args().has("--skillshot=cleave"):
@@ -570,6 +572,64 @@ func _test_fireball() -> void:
 	victim.queue_free()
 	await get_tree().process_frame
 
+## Crit kills burst into gore, fireball kills into burning pieces, plain kills just fall over.
+func _test_gibs() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("gibs"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(-30, 0, 30)
+	player.reset_physics_interpolation()
+	var crit_victim: Enemy = _spawn_enemy(Vector3(-30, 0, 24))
+	var plain_victim: Enemy = _spawn_enemy(Vector3(-24, 0, 30))
+	var fire_victim: Enemy = _spawn_enemy(Vector3(-36, 0, 30))
+	for e in [crit_victim, plain_victim, fire_victim]:
+		e.aggro_range = 0.0
+	await get_tree().process_frame
+	var crit: Dictionary = Combat.resolve(player, crit_victim, 500.0, Combat.DamageType.PHYSICAL, false, 1.5, true)
+	crit_victim.receive(crit, player.global_position)
+	await get_tree().process_frame
+	var gore_chunks: int = get_tree().get_nodes_in_group("gibs").size()
+	var gore_hidden: bool = not crit_victim.visual.visible
+	var gore_burning: int = 0
+	for g in get_tree().get_nodes_in_group("gibs"):
+		if (g as GibChunk).burning:
+			gore_burning += 1
+	var plain: Dictionary = Combat.resolve(player, plain_victim, 500.0, Combat.DamageType.PHYSICAL, false, 1.0, false)
+	plain["outcome"] = Combat.Outcome.HIT
+	plain_victim.receive(plain, player.global_position)
+	await get_tree().process_frame
+	var plain_chunks: int = get_tree().get_nodes_in_group("gibs").size() - gore_chunks
+	var ball := Projectile.new()
+	ball.owner_actor = player
+	ball.damage = 500.0
+	ball.destination = fire_victim.global_position
+	add_child(ball)
+	ball.global_position = fire_victim.global_position + Vector3(0, 1.0, 0)
+	ball._explode()
+	await get_tree().process_frame
+	var fire_chunks: int = get_tree().get_nodes_in_group("gibs").size() - gore_chunks - plain_chunks
+	var fire_burning: int = 0
+	for g in get_tree().get_nodes_in_group("gibs"):
+		if (g as GibChunk).burning:
+			fire_burning += 1
+	var fire_hidden: bool = not fire_victim.visual.visible
+	await get_tree().create_timer(2.5).timeout
+	var grounded: int = 0
+	for g in get_tree().get_nodes_in_group("gibs"):
+		if (g as Node3D).global_position.y < 0.3:
+			grounded += 1
+	print("  gibs: crit kill -> ", gore_chunks, " chunks (burning=", gore_burning, ") body hidden=", gore_hidden, "; plain kill -> ", plain_chunks,
+		" chunks, body visible=", plain_victim.visual.visible, "; fireball kill -> ", fire_chunks, " chunks (burning=", fire_burning, ") body hidden=",
+		fire_hidden, "; pieces on the ground after 2.5 s: ", grounded)
+	for node in get_tree().get_nodes_in_group("gibs"):
+		node.queue_free()
+	for e in [crit_victim, plain_victim, fire_victim]:
+		if is_instance_valid(e):
+			e.queue_free()
+	await get_tree().process_frame
+
 ## Hero stands idle with NO input while a pack of zombies swarms in. Logs hits taken per second, how many attackers swing at
 ## once, and any moment the hero starts a skill / changes clip by itself (an "auto attack" with nobody clicking).
 func _test_swarm() -> void:
@@ -1077,6 +1137,31 @@ func _test_items() -> void:
 	player.health = player.max_health
 	await get_tree().process_frame
 
+## `-- --skillshot=gibs`: a fireball detonates on low-health zombies; frames in %TEMP%/curse_gib_N.png.
+func _gib_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.set_physics_process(true)
+	var victims: Array[Enemy] = []
+	for pos in [Vector3(0.0, 0, -4.0), Vector3(1.4, 0, -4.8), Vector3(-1.3, 0, -4.6), Vector3(0.3, 0, -6.0)]:
+		var z: Enemy = _spawn_enemy(pos)
+		z.aggro_range = 0.0
+		z.max_health = 30.0
+		z.health = 30.0
+		victims.append(z)
+	await get_tree().create_timer(0.6).timeout
+	var ball := Projectile.new()
+	ball.owner_actor = player
+	ball.damage = 200.0
+	ball.destination = Vector3(0.0, 0.0, -4.6)
+	add_child(ball)
+	ball.global_position = Vector3(0.0, 1.0, -4.6)
+	ball._explode()
+	for i in 16:
+		await get_tree().create_timer(0.12).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_gib_%d.png" % i)
+	get_tree().quit()
+
 ## `-- --skillshot=power|cleave [--mods]`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
 ## With --mods the hero wears every skill-modifying affix so their effects show too.
 func _melee_shots(which: String) -> void:
@@ -1364,6 +1449,11 @@ func _run_selftest() -> void:
 	print("SELFTEST start")
 	# `--only=NAME` runs a single test, so changes can be checked without the whole suite.
 	for arg in OS.get_cmdline_user_args():
+		if arg == "--only=gibs":
+			await _test_gibs()
+			print("SELFTEST done")
+			get_tree().quit()
+			return
 		if arg == "--only=swarm":
 			await _test_swarm()
 			print("SELFTEST done")
