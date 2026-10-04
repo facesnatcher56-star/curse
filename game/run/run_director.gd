@@ -35,6 +35,7 @@ func offer_reward() -> void:
 	_brute_killed = false
 	hud.choices = _choices
 	hud.choosing = true
+	hud.card_selected = 0
 	choosing = true
 	get_tree().paused = true
 

@@ -56,18 +56,31 @@ static func aim_vector() -> Vector2:
 		return _stick(JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y)
 	return _stick(JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y)
 
-## Called for every input event: tracks whether the pad or the mouse/keyboard is the active device.
+static var _mouse_ms: int = -100000   # when the mouse or keyboard was last used
+const MOUSE_PRIORITY_MS := 400
+
+## Called for every input event (by the InputWatcher autoload): tracks whether the pad or the mouse/keyboard is the active
+## device. A button press, or a stick pushed well off centre, hands control to the pad; a mouse move or any key or click takes
+## it back. Trigger axes that rest at -1 (some drivers do) and stick drift never count, and for a moment after the mouse was
+## used a wobbling pad cannot steal control from it.
 static func note_event(event: InputEvent) -> void:
 	var was: bool = active
+	var now: int = Time.get_ticks_msec()
 	if event is InputEventJoypadButton:
-		active = true
+		if (event as InputEventJoypadButton).pressed:
+			active = true
 	elif event is InputEventJoypadMotion:
-		if absf((event as InputEventJoypadMotion).axis_value) > 0.4:
+		var motion: InputEventJoypadMotion = event
+		var is_trigger: bool = motion.axis == JOY_AXIS_TRIGGER_LEFT or motion.axis == JOY_AXIS_TRIGGER_RIGHT
+		var deliberate: bool = motion.axis_value > 0.6 if is_trigger else absf(motion.axis_value) > 0.55
+		if deliberate and now - _mouse_ms > MOUSE_PRIORITY_MS:
 			active = true
 	elif event is InputEventKey or event is InputEventMouseButton:
 		active = false
-	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).relative.length() > 3.0:
+		_mouse_ms = now
+	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).relative.length() > 1.5:
 		active = false
+		_mouse_ms = now
 	if active != was and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if active else Input.MOUSE_MODE_VISIBLE
 

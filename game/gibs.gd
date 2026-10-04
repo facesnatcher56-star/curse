@@ -50,7 +50,5 @@ static func explode(actor: Actor, mode: String, from_pos: Vector3) -> void:
 		Fx.ring(actor, actor.global_position, 4.2, Color(1.0, 0.6, 0.25))
 		Fx.burst(actor, centre, Vector3.UP, Color(1.0, 0.65, 0.2), 50, 11.0, 0.04, true)
 		SkillFx.dust(actor, actor.global_position, 1.8, 16, Color(0.16, 0.14, 0.13, 0.5), 1.4, 1.4)
-		Sfx.play(actor, "explosion", -3.0)
 	else:
 		Fx.ring(actor, actor.global_position, 2.6, Color(0.8, 0.15, 0.1))
-		Sfx.play(actor, "crush", 3.0)

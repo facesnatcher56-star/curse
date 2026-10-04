@@ -41,8 +41,6 @@ func _begin() -> void:
 	_scale = 1.4 if _heavy else randf_range(0.78, 0.95)
 	e.model.manual(e.def.attack_clip)
 	e.model.scrub(e.def.attack_start)
-	if randf() < 0.4:
-		Sfx.play(e, "groan", -8.0, randf_range(0.9, 1.15))
 
 func _hit_frac() -> float:
 	return (e.def.attack_strike - e.def.attack_start) / (e.def.attack_end - e.def.attack_start)
@@ -68,7 +66,6 @@ func _tick_attack(delta: float, dist: float) -> void:
 		_hit_done = true
 		var reach: float = e.attack_range + (1.0 if _heavy else 0.6)
 		if dist <= reach:
-			Sfx.play(e, "swing", -8.0, 0.7 if _heavy else 0.8)
 			var weight: float = (1.0 if e.def.token_weight <= 1 else 1.8) * (1.5 if _heavy else 1.0)
 			e.strike_target((1.6 if _heavy else 0.85), weight)
 	if t >= 1.0:

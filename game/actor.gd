@@ -127,6 +127,8 @@ const SWORD_SKILLS: Array[String] = ["basic", "power", "cleave", "skewer", "leap
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if dead:
 		return
+	_last_hit_from = source_pos
+	_last_hit_ms = Time.get_ticks_msec()
 	if invulnerable_time > 0.0:
 		Fx.text_at(self, global_position + Vector3(0, 2.2, 0), "Dodge", Color(0.6, 0.95, 1.0), 40)
 		return
@@ -154,7 +156,6 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		_on_avoided(outcome)
 		return
 	if outcome == Combat.Outcome.BLOCK:
-		Sfx.play(self, "clang", -2.0)
 		Fx.burst(self, chest, away + Vector3.UP * 0.5, Color(1.0, 0.85, 0.5), 10, 6.0, 0.03, true)
 		knock += away * 1.5 * weight
 		_on_avoided(outcome)
@@ -182,14 +183,6 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
 	if sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
-	elif not fire:
-		match outcome:
-			Combat.Outcome.CRUSHING:
-				Sfx.play(self, "crush", 2.0)
-			Combat.Outcome.CRITICAL:
-				Sfx.play(self, "crit", 1.0)
-			_:
-				Sfx.play(self, "hit", 0.0, 1.0 / maxf(weight, 0.7))
 	var amount: int = int(clampf(6.0 + damage * 0.5 + weight * 4.0, 6.0, 40.0)) * (2 if big else 1)
 	Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
 	if big or randf() < 0.3:
@@ -582,6 +575,8 @@ func _apply_damage(amount: float) -> void:
 
 ## How a killing blow bursts the body: "" (it just falls), "gore" or "fire". Set by receive() just before the lethal damage.
 var _pending_gib: String = ""
+var _last_hit_from: Vector3 = Vector3.ZERO   # where the latest blow came from, and when: a death is thrown away from it
+var _last_hit_ms: int = -100000
 var _gib_from: Vector3 = Vector3.ZERO
 
 ## True while the actor is committed to a skill or attack (the hero overrides this); committed actors are shoved less.
@@ -614,12 +609,28 @@ func _die() -> void:
 			ragdoll.stay_down()
 	elif is_ragdolled():
 		ragdoll.stay_down()  # dies where it lies instead of playing the death animation
+	elif is_in_group("player"):
+		model.once("death", 0.0, 1.0, 0.1)   # the hero keeps the death animation
 	else:
-		model.once("death", 0.0, 1.0, 0.1)
+		_collapse_as_ragdoll()
 	Fx.blood_decal(self, global_position, 1.3, _blood_color().darkened(0.5))
 	for shape in find_children("*", "CollisionShape3D", false, false):
 		(shape as CollisionShape3D).set_deferred("disabled", true)
 	_on_death()
+
+## A killed enemy goes limp and is thrown by the blow that killed it: further for heavy hits, away from where it came from; a
+## death from burning or bleeding just crumples. It stays where it lands.
+func _collapse_as_ragdoll() -> void:
+	var recent: bool = Time.get_ticks_msec() - _last_hit_ms < 400
+	var away: Vector3 = global_position - _last_hit_from
+	away.y = 0.0
+	if not recent or away.length() < 0.05:
+		away = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
+	away = away.normalized()
+	var weight: float = clampf(float(last_result.get("weight", 1.0)), 0.4, 3.5) if recent else 0.4
+	var speed: float = 1.5 + weight * 2.6
+	var spin: Vector3 = away.cross(Vector3.UP) * (3.0 + weight * 2.0) + Vector3(randf_range(-1.0, 1.0), randf_range(-1.5, 1.5), randf_range(-1.0, 1.0))
+	ragdoll_launch(away * speed, 2.0 + weight * 1.4, spin)
 
 func _on_hurt(_result: Dictionary, _source_pos: Vector3) -> void:
 	pass

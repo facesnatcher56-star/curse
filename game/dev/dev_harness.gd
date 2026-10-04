@@ -1733,6 +1733,7 @@ func _test_earthshatter() -> void:
 	player.stats.ult_charge = 0.0
 	Fx.reset_time()
 	var cost: float = player.stats.ult_cost("earthshatter")
+	expect("a new hero starts with the ultimate ready", PlayerStats.new(player).can_use("earthshatter"))
 	expect("earthshatter has a charge cost and no mana cost", cost > 0.0 and float(SkillDb.all()["earthshatter"]["mana"]) == 0.0)
 	var offsets: Array[Vector3] = [Vector3(2, 0, 0), Vector3(-3, 0, 1), Vector3(0, 0, -4), Vector3(4, 0, 3), Vector3(-5, 0, -2), Vector3(1, 0, 5.5)]
 	var centre: Vector3 = player.global_position + Vector3(0, 0, -1.2)
@@ -1772,11 +1773,17 @@ func _test_earthshatter() -> void:
 	var phases: Array = []
 	var peak: Dictionary = {}
 	var min_scale: float = 1.0
+	var slow_before_impact: bool = false
+	var impact_seen: bool = false
 	var t: float = 0.0
 	while player.skills.busy and t < 12.0:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
 		min_scale = minf(min_scale, Engine.time_scale)
+		if player.earthshatter.phase < 3 and not impact_seen:
+			slow_before_impact = slow_before_impact or Engine.time_scale < 0.99
+		if player.earthshatter.phase >= 3:
+			impact_seen = true
 		if phases.is_empty() or phases[-1] != player.earthshatter.phase:
 			phases.append(player.earthshatter.phase)
 		for z in ring:
@@ -1802,6 +1809,7 @@ func _test_earthshatter() -> void:
 	expect("the burn on one victim is shared with the rest", ring[2].burn_time > 0.0 and ring[3].burn_time > 0.0)
 	expect("the ultimate does not charge itself", player.stats.ult_charge < 1.0)
 	expect("time slowed during the impact", min_scale < 0.5)
+	expect("time runs at full speed until the blade hits the ground", not slow_before_impact)
 	await get_tree().create_timer(1.6, true, false, true).timeout
 	expect("time is back to normal afterwards", is_equal_approx(Engine.time_scale, 1.0))
 	expect("it restores the hero's state", not player.skills.busy and player.collision_mask == (Player.LAYER_WORLD | Player.LAYER_ENEMY))
@@ -2086,6 +2094,7 @@ func _test_sword_miss_in_air() -> void:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
 	expect("a Leap chop on bare ground makes the swing sound", _logged("sword_miss") == 1)
+	expect("the Leap landing plays its impact sound once", _logged("leap_land") == 1)
 	# And when it does connect there is no swing sound.
 	var near: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -1.6))
 	near.aggro_range = 0.0
@@ -2158,12 +2167,193 @@ func _test_fireball_sounds() -> void:
 	Sfx.enabled = was_enabled
 	await get_tree().process_frame
 
+## A normal run starts with the camera zoomed all the way out.
+func _test_start_zoom() -> void:
+	var fresh := CameraRig.new()
+	add_child(fresh)
+	fresh.start_zoomed_out()
+	await get_tree().process_frame
+	expect("a new run starts fully zoomed out", is_equal_approx(fresh._zoom, CameraRig.ZOOM_MAX) and is_equal_approx(fresh._zoom_target, CameraRig.ZOOM_MAX))
+	fresh.queue_free()
+	await get_tree().process_frame
+
+## A killed enemy goes ragdoll, thrown away from the blow, and stays down: every kind of enemy, and also one killed while it is
+## already getting back up (it used to finish standing, then stand there dead).
+func _test_death_ragdoll() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var variants: Array[String] = ["zombie", "brute", "ghoul", "spitter", "bloater", "priest"]
+	for i in variants.size():
+		var variant: String = variants[i]
+		var victim: Enemy = _spawn_enemy(Vector3(-15.0 + 6.0 * i, 0, -12), variant)
+		victim.health = 1.0
+		victim.aggro_range = 0.0
+		await get_tree().create_timer(0.2).timeout
+		var killed_at: Vector3 = victim.global_position
+		var blow: Dictionary = Combat.resolve(player, victim, 500.0, Combat.DamageType.PHYSICAL, false, 2.0)
+		blow["outcome"] = Combat.Outcome.HIT   # a plain hit, so it is not turned into gore
+		victim._pending_gib = ""
+		victim.receive(blow, killed_at + Vector3(0, 0, 2.0))
+		expect("a killed %s goes ragdoll" % variant, victim.dead and victim.is_ragdolled())
+		await get_tree().create_timer(1.8).timeout
+		var thrown: Vector3 = victim.global_position - killed_at
+		expect("a killed %s is thrown away from the blow (from +Z)" % variant, thrown.z < -0.4)
+		expect("a killed %s is lying down, not standing" % variant, victim.ragdoll != null and victim.ragdoll.permanent and victim.ragdoll.state == Ragdoll.State.LYING)
+		victim.queue_free()
+	# Knocked down, getting up, and then killed.
+	var riser: Enemy = _spawn_enemy(Vector3(0, 0, -8))
+	riser.aggro_range = 0.0
+	riser.max_health = 500.0
+	riser.health = 500.0
+	await get_tree().process_frame
+	riser.ragdoll_launch(Vector3(0, 0, -2.0), 3.0, Vector3(3, 0, 0))
+	var t: float = 0.0
+	while t < 5.0 and (riser.ragdoll == null or riser.ragdoll.state != Ragdoll.State.RISING):
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	expect("the test enemy reached the getting-up stage", riser.ragdoll != null and riser.ragdoll.state == Ragdoll.State.RISING)
+	var finish: Dictionary = Combat.resolve(player, riser, 5000.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	finish["outcome"] = Combat.Outcome.HIT
+	riser._pending_gib = ""
+	riser.receive(finish, riser.global_position + Vector3(0, 0, 2.0))
+	var stood_up: bool = false
+	t = 0.0
+	while t < 2.5:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		stood_up = stood_up or riser.ragdoll == null or riser.ragdoll.state == Ragdoll.State.OFF or riser.ragdoll.state == Ragdoll.State.RISING
+	expect("an enemy killed while getting up lies back down and stays down", riser.dead and not stood_up and riser.ragdoll != null and riser.ragdoll.state == Ragdoll.State.LYING)
+	riser.queue_free()
+	await get_tree().process_frame
+
+## Enemies run (the run clip) when they chase, never walk.
+func _test_enemy_run() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	for variant in ["zombie", "brute", "ghoul"]:
+		var e: Enemy = _spawn_enemy(Vector3(0, 0, -14), variant)
+		e.alert_delay = 0.0
+		e.aggro_range = 60.0
+		await get_tree().create_timer(0.3).timeout
+		var seen: Dictionary = {}
+		var t: float = 0.0
+		while t < 1.5:
+			await get_tree().physics_frame
+			t += 1.0 / 60.0
+			seen[e.model.current] = true
+		print("  ", variant, " clips seen while chasing: ", seen.keys())
+		expect("a %s runs toward the hero (never plays the walk clip)" % variant, seen.has("run") and not seen.has("walk"))
+		e.queue_free()
+	await get_tree().process_frame
+
+
+## Controller in the menus and the game: pad input hides the mouse and takes over; a real mouse move or any key or click takes it back;
+## noisy axes cannot steal control; menus have a selection that D-pad / left stick move; rewards can be chosen from the pad.
+func _test_pad_menus() -> void:
+	var down := InputEventJoypadButton.new()
+	down.pressed = true
+	down.button_index = JOY_BUTTON_A
+	Gamepad.active = false
+	Gamepad._mouse_ms = -100000
+	Gamepad.note_event(down)
+	expect("a pad button press hands control to the controller", Gamepad.active)
+	var wiggle := InputEventMouseMotion.new()
+	wiggle.relative = Vector2(4.0, 0.0)
+	Gamepad.note_event(wiggle)
+	expect("moving the real mouse switches back to mouse and keyboard", not Gamepad.active)
+	var stick := InputEventJoypadMotion.new()
+	stick.axis = JOY_AXIS_LEFT_X
+	stick.axis_value = 0.9
+	Gamepad.note_event(stick)
+	expect("a wobbling stick right after mouse use does not steal control", not Gamepad.active)
+	Gamepad._mouse_ms = -100000   # ...but after the mouse has been still for a moment a real push does
+	Gamepad.note_event(stick)
+	expect("a real stick push takes control once the mouse is still", Gamepad.active)
+	var key := InputEventKey.new()
+	key.pressed = true
+	key.physical_keycode = KEY_W
+	Gamepad.note_event(key)
+	expect("a key press switches back to keyboard and mouse", not Gamepad.active)
+	var rest := InputEventJoypadMotion.new()
+	rest.axis = JOY_AXIS_TRIGGER_LEFT
+	rest.axis_value = -1.0     # an idle trigger on some drivers
+	Gamepad._mouse_ms = -100000
+	Gamepad.note_event(rest)
+	var drift := InputEventJoypadMotion.new()
+	drift.axis = JOY_AXIS_RIGHT_Y
+	drift.axis_value = 0.2
+	Gamepad.note_event(drift)
+	expect("a resting trigger or a drifting stick never counts as using the pad", not Gamepad.active)
+	var click := InputEventMouseButton.new()
+	click.pressed = true
+	click.button_index = MOUSE_BUTTON_LEFT
+	Gamepad.note_event(down)
+	Gamepad.note_event(click)
+	expect("a mouse click switches back too", not Gamepad.active)
+	# The pause menu opens with something selected, and the D-pad / stick (ui_down) moves it.
+	game.pause_menu.open()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var first: Control = get_viewport().gui_get_focus_owner()
+	expect("the pause menu opens with a button selected", first is Button)
+	var move := InputEventAction.new()
+	move.action = "ui_down"
+	move.pressed = true
+	Input.parse_input_event(move)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var second: Control = get_viewport().gui_get_focus_owner()
+	expect("down on the D-pad / left stick moves the selection", second != null and second != first)
+	var release := InputEventAction.new()
+	release.action = "ui_down"
+	release.pressed = false
+	Input.parse_input_event(release)
+	game.pause_menu.close()
+	await get_tree().process_frame
+	# Settings: opened from the pause menu it gets a selection too.
+	var settings := SettingsMenu.new()
+	add_child(settings)
+	await get_tree().process_frame
+	settings.focus_first()
+	await get_tree().process_frame
+	expect("the settings screen has a selection for the controller", get_viewport().gui_get_focus_owner() != null)
+	settings.queue_free()
+	await get_tree().process_frame
+	# Rewards: D-pad moves the highlighted card, A takes it.
+	Gamepad.active = true
+	game.director.offer_reward()
+	await get_tree().create_timer(1.6).timeout   # (the offer appears after the wave-cleared banner)
+	var right := InputEventAction.new()
+	right.action = "ui_right"
+	right.pressed = true
+	game._unhandled_input(right)
+	expect("D-pad right moves to the next reward card", game.hud.card_selected == 1)
+	var left := InputEventAction.new()
+	left.action = "ui_left"
+	left.pressed = true
+	game._unhandled_input(left)
+	game._unhandled_input(left)
+	expect("and left wraps around", game.hud.card_selected == game.hud.choices.size() - 1)
+	var accept := InputEventAction.new()
+	accept.action = "ui_accept"
+	accept.pressed = true
+	game._unhandled_input(accept)
+	expect("A takes the highlighted reward", not game.director.choosing)
+	Gamepad.active = false
+	await get_tree().process_frame
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
 }
 
 var _failures: PackedStringArray = []
@@ -2209,6 +2399,10 @@ func _run_selftest() -> void:
 	await _test_ui_block()
 	await _test_hover_behind_camera()
 	await _test_camera_rotation()
+	await _test_start_zoom()
+	await _test_death_ragdoll()
+	await _test_enemy_run()
+	await _test_pad_menus()
 	await _test_sword_sound()
 	await _test_sword_miss_in_air()
 	await _test_fireball_sounds()
@@ -2249,17 +2443,7 @@ func _run_selftest() -> void:
 	print("  roll: moved ", snappedf(player.global_position.distance_to(before), 0.1), " m, invulnerable during=", roll_invuln,
 		", mask restored=", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY), ", rolling=", player.movement.rolling)
 
-	# Death: a killed zombie must play its death clip and keep playing it (not freeze on frame 0).
-	var victim: Enemy = _spawn_enemy(Vector3(1.5, 0, -3.0))
-	victim.health = 1.0
-	await get_tree().create_timer(0.2).timeout
-	victim.receive(Combat.resolve(player, victim, 50.0, Combat.DamageType.PHYSICAL, false), player.global_position)
-	await get_tree().create_timer(0.1).timeout
-	var pos_a: float = victim.model.anim.current_animation_position
-	await get_tree().create_timer(0.6).timeout
-	var pos_b: float = victim.model.anim.current_animation_position
-	expect("a killed zombie plays its death clip", victim.dead and victim.model.current == "death")
-	print("  zombie death: clip=", victim.model.current, " dead=", victim.dead, " pos ", snappedf(pos_a, 0.01), " -> ", snappedf(pos_b, 0.01))
+	# (Death behaviour has its own check: _test_death_ragdoll.)
 
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]
 	var parts: Array[String] = []

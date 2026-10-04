@@ -118,7 +118,6 @@ func tick_leap(delta: float) -> void:
 				leap_t = 0.0
 				Fx.burst(p, p.global_position + Vector3(0, 0.1, 0), Vector3.UP, Color(0.5, 0.45, 0.38), 12, 3.5, 0.04)
 				Fx.punch(p, 1.6)
-				Sfx.play(p, "swing", -4.0)
 		2:
 			var u: float = clampf(leap_t / leap_air_time, 0.0, 1.0)
 			if slam:
@@ -173,6 +172,7 @@ func _leap_land(slam: bool) -> void:
 	p.reset_physics_interpolation()
 	leap_phase = 3
 	leap_t = 0.0
+	Sfx.sample(p, "leap_land", -3.0, 1.0)   # the heavy touchdown, slam or chop
 	if slam:
 		p.model.scrub(LEAP_CLIP_LAND)
 		var damage: float = p.stats.weapon_damage(LEAP_SLAM_MULT) * ItemEffects.outgoing_multiplier(p, leap_victim)
@@ -192,7 +192,6 @@ func _leap_land(slam: bool) -> void:
 		Fx.shake(p, 0.3)
 		Fx.punch(p, 3.4)
 		Fx.hitstop(p, 0.08)
-		Sfx.play(p, "swing_heavy", 0.0)
 	else:
 		p.model.scrub(LEAP_CLIP_LAND)
 		var hit_any: bool = false
@@ -215,7 +214,6 @@ func _leap_land(slam: bool) -> void:
 			Fx.hitstop(p, 0.06)
 		else:
 			Sfx.sword_miss(p)   # the chop landed on bare ground
-		Sfx.play(p, "swing_heavy", -2.0)
 
 func end_leap() -> void:
 	if leap_victim != null and is_instance_valid(leap_victim) and leap_victim.ragdoll != null:

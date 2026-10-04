@@ -405,7 +405,6 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0
 	hurt_flash = 1.0
-	Sfx.play(self, "hurt", -2.0)
 	Fx.shake(self, 0.08)
 
 func _on_avoided(_outcome: int) -> void:

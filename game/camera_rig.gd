@@ -9,7 +9,7 @@ extends Node3D
 
 ## Scroll wheel zooms along the view direction; the angle stays fixed. Movement is eased, not stepped.
 const ZOOM_MIN := 0.5
-const ZOOM_MAX := 1.8
+const ZOOM_MAX := 4.2
 const ZOOM_EASE := 9.0
 
 ## Hold the "camera_rotate" button (middle mouse) and drag sideways to swing the camera around the hero. The angle eases toward
@@ -23,6 +23,8 @@ var _yaw_target: float = 0.0
 var _rotating: bool = false
 var _drag_pixels: float = 0.0
 var _saved_mouse: Vector2 = Vector2.ZERO
+var fog_env: Environment      # fog thins out as the camera pulls back, so a wide view is not murky
+var _base_fog: float = -1.0
 var _fov_kick: float = 0.0
 var _zoom: float = 1.0
 var _zoom_target: float = 1.0
@@ -57,6 +59,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_zoom_target = clampf(_zoom_target - GameSettings.zoom_step, ZOOM_MIN, ZOOM_MAX)
 	elif event.is_action_pressed("zoom_out"):
 		_zoom_target = clampf(_zoom_target + GameSettings.zoom_step, ZOOM_MIN, ZOOM_MAX)
+
+## A new run starts fully zoomed out (the widest view).
+func start_zoomed_out() -> void:
+	_zoom_target = ZOOM_MAX
+	_zoom = ZOOM_MAX
 
 ## Swings the camera by `radians` (eased). Positive turns the view counter-clockwise seen from above.
 func rotate_view(radians: float) -> void:
@@ -105,6 +112,10 @@ func _process(delta: float) -> void:
 	# Frame-rate independent easing toward the zoom target.
 	_zoom = lerpf(_zoom, _zoom_target, 1.0 - exp(-ZOOM_EASE * delta))
 	camera.position = offset * _zoom
+	if fog_env != null:
+		if _base_fog < 0.0:
+			_base_fog = fog_env.fog_density
+		fog_env.fog_density = _base_fog / maxf(_zoom, 1.0)
 	_fov_kick = lerpf(_fov_kick, 0.0, 1.0 - exp(-14.0 * delta))
 	camera.fov = fov - _fov_kick
 	_shake = move_toward(_shake, 0.0, delta * 0.9)

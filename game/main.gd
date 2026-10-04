@@ -8,6 +8,7 @@ var hud: Hud
 var pause_menu: PauseMenu
 var rig: CameraRig
 var director: RunDirector
+var world_environment: Environment
 
 var _boot_ms: int = 0
 
@@ -40,6 +41,7 @@ func _ready() -> void:
 	player.add_child(torch)
 
 	rig = CameraRig.new()
+	rig.fog_env = world_environment
 	if OS.get_cmdline_user_args().has("--zoom"):
 		rig.offset = Vector3(0.0, 2.6, 4.2)
 		rig.pitch_degrees = -22.0
@@ -72,6 +74,7 @@ func _ready() -> void:
 	add_child(dev)
 	if dev.run_from_args():
 		return
+	rig.start_zoomed_out()
 	# The navigation map only learns about the arena a physics frame or two after it is built (and, coming from the menu,
 	# still holds the old scene's data until then); spawn the first wave once it is ready.
 	await get_tree().physics_frame
@@ -79,19 +82,33 @@ func _ready() -> void:
 	_mark("2 physics frames")
 	director.start_wave()
 	_mark("first wave spawned")
+	if OS.get_cmdline_user_args().has("--startshot"):   # a normal run's opening view, for judging the start zoom by eye
+		await get_tree().create_timer(2.5).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_start.png")
+		get_tree().quit()
 	if OS.get_cmdline_user_args().has("--timing"):
 		await get_tree().create_timer(1.0).timeout
 		_mark("1 s of play")
 		get_tree().quit()
-
-func _input(event: InputEvent) -> void:
-	Gamepad.note_event(event)   # tracks whether the pad or the mouse/keyboard is in use (hints, cursor, aim)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not director.choosing and not pause_menu.is_open():
 		pause_menu.open()
 		return
 	if director.choosing:
+		var count: int = maxi(hud.choices.size(), 1)
+		if event.is_action_pressed("ui_left"):
+			hud.card_selected = posmod(hud.card_selected - 1, count)
+			return
+		if event.is_action_pressed("ui_right"):
+			hud.card_selected = posmod(hud.card_selected + 1, count)
+			return
+		if Gamepad.active and event.is_action_pressed("ui_accept"):
+			director.choose(clampi(hud.card_selected, 0, count - 1))
+			return
+		if Gamepad.active and event.is_action_pressed("ui_cancel"):
+			director.choose(-1)
+			return
 		for i in 3:
 			if event.is_action_pressed("skill_%d" % (i + 1)):
 				director.choose(i)
@@ -125,6 +142,7 @@ func _build_world() -> void:
 	environment.fog_light_color = Color(0.08, 0.09, 0.12)
 	environment.fog_density = 0.01
 	env.environment = environment
+	world_environment = environment
 	add_child(env)
 
 	var sun := DirectionalLight3D.new()
@@ -132,7 +150,7 @@ func _build_world() -> void:
 	sun.light_color = Color(0.8, 0.85, 1.0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 40.0
+	sun.directional_shadow_max_distance = 90.0
 	add_child(sun)
 
 	arena = Arena.new()

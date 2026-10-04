@@ -70,6 +70,22 @@ static func _build() -> Theme:
 	return theme
 
 ## A standard menu button.
+## Gives keyboard/pad focus to the first control under `root` that can take it (a button, slider, checkbox...). So a menu opened
+## with a controller always has something selected, and the D-pad / left stick move from there.
+static func focus_first(root: Node) -> bool:
+	if root == null:
+		return false
+	var queue: Array[Node] = [root]
+	while not queue.is_empty():
+		var node: Node = queue.pop_front()
+		var control := node as Control
+		if control != null and control.focus_mode == Control.FOCUS_ALL and control.is_visible_in_tree():
+			if not (control is BaseButton and (control as BaseButton).disabled):
+				control.grab_focus()
+				return true
+		queue.append_array(node.get_children())
+	return false
+
 static func button(text: String, min_width: float = 260.0) -> Button:
 	var b := Button.new()
 	b.text = text

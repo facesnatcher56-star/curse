@@ -139,7 +139,6 @@ func try_roll(cursor: Vector3) -> void:
 	p.visual.rotation.y = atan2(roll_dir.x, roll_dir.z)
 	p.model.manual("roll")
 	p.model.scrub(ROLL_CLIP_START)
-	Sfx.play(p, "swing", -6.0, 0.7)
 	ItemEffects.on_roll_start(p)
 
 func tick_roll(delta: float) -> void:

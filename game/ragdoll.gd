@@ -125,6 +125,15 @@ func launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
 ## Called when the actor dies mid-ragdoll: it should stay down instead of getting up.
 func stay_down() -> void:
 	permanent = true
+	if state == State.RISING:
+		# Killed while getting up (it was knocked down, started to rise, and the blow landed): it must collapse again where it
+		# is, not finish standing up and then stand there dead.
+		var u: float = clampf(_rise_t / RISE_TIME, 0.0, 1.0)
+		var eased: float = u * u * (3.0 - 2.0 * u)
+		_lie_from = _lie_from.slerp(Basis(), eased)   # the pose it is in right now
+		_lie_blend = 0.0
+		_lie_t = LIE_TIME
+		state = State.LYING
 
 # --- per-frame -----------------------------------------------------------------
 

@@ -36,7 +36,6 @@ var _aim_root: Node3D
 var _aim_sphere_mat: StandardMaterial3D
 var _aim_line: MeshInstance3D
 var _highlighted: Array[Actor] = []
-var _swing_sound_played: bool = false
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
 	var kind: String = String(busy_def.get("kind", ""))
@@ -301,7 +300,6 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	# replaces the attack order, so the hero never starts auto-attacking again once the skill ends.
 	if id != "basic" or not (Input.is_action_pressed("click") or Input.is_action_pressed("alt_skill")):
 		p.attack_target = null
-	_swing_sound_played = false
 	_release_started = false
 	_style_trail(id)
 	p.model.manual(skill["clip"])
@@ -422,14 +420,6 @@ func tick_busy(delta: float) -> void:
 		busy_aim = busy_target.global_position
 	var duration: float = busy_time
 	var hit_at: float = duration * hit_fraction(skill)
-	# Whoosh just before the blow so the sound leads the impact.
-	if not _swing_sound_played and busy_t >= hit_at - 0.14:
-		_swing_sound_played = true
-		match String(skill["kind"]):
-			"melee", "cleave":
-				Sfx.play(p, "swing_heavy" if float(skill["weight"]) > 1.3 else "swing", -3.0)
-			"projectile":
-				Sfx.play(p, "fire_whoosh", -4.0)
 	if not busy_hit_done and busy_t >= hit_at:
 		busy_hit_done = true
 		_apply_skill(skill)

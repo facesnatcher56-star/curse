@@ -129,10 +129,12 @@ func _build_ui() -> void:
 func _open_settings() -> void:
 	_buttons.visible = false
 	_panel_holder.visible = true
+	_settings.focus_first.call_deferred()
 
 func _close_settings() -> void:
 	_panel_holder.visible = false
 	_buttons.visible = true
+	(_buttons.get_child(4) as Button).grab_focus()
 
 ## `-- --menushot[=settings:N]`: save a PNG of the menu (optionally with a settings tab open) and quit.
 func _capture(args: PackedStringArray) -> void:

@@ -11,6 +11,7 @@ var alive: int = 0
 var choosing: bool = false
 var choices: Array[Dictionary] = []
 var card_rects: Array[Rect2] = []
+var card_selected: int = 0   # the card the controller has highlighted
 var show_gear: bool = false
 var banner_text: String = ""
 var banner_time: float = 0.0
@@ -205,12 +206,15 @@ func _draw_reward(size_px: Vector2, font: Font) -> void:
 	var count: int = choices.size()
 	var x0: float = (size_px.x - (card_w * count + gap * (count - 1))) * 0.5
 	var y0: float = size_px.y * 0.2
+	if Gamepad.active:
+		draw_string(font, Vector2(0, y0 + card_h + 48.0), "D-pad / left stick: choose     A: take     B: skip", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1, 0.92, 0.75))
 	card_rects.clear()
 	for i in count:
 		var item: Dictionary = choices[i]
 		var rect := Rect2(Vector2(x0 + i * (card_w + gap), y0), Vector2(card_w, card_h))
 		card_rects.append(rect)
-		var hovered: bool = rect.has_point(get_viewport().get_mouse_position())
+		var picked: bool = Gamepad.active and i == card_selected
+		var hovered: bool = picked or (not Gamepad.active and rect.has_point(get_viewport().get_mouse_position()))
 		var color: Color = Items.RARITY_COLORS[item["rarity"]]
 		draw_rect(rect, Color(0.08, 0.08, 0.1, 0.96) if not hovered else Color(0.14, 0.14, 0.18, 0.98))
 		draw_rect(rect, color, false, 3.0 if hovered else 2.0)

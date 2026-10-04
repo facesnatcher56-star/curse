@@ -6,6 +6,7 @@ var p: Player
 
 func _init(player: Player) -> void:
 	p = player
+	ult_charge = ult_cost("earthshatter")   # a run starts with the ultimate ready
 
 ## True when worn gear changes how this skill behaves (shown as a gold pip on its hotbar slot).
 func skill_has_modifier(id: String) -> bool:
@@ -60,7 +61,7 @@ var riposte_time: float = 0.0
 var ward_timer: float = 0.0
 var aegis_hits: int = 0
 ## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
-var ult_charge: float = 0.0
+var ult_charge: float = 0.0   # starts full (set in _init)
 
 func ult_cost(id: String) -> float:
 	return float(SkillDb.all()[id].get("charge", 0.0))
@@ -93,7 +94,6 @@ func use_potion() -> bool:
 	potions -= 1
 	cooldowns["potion"] = float(SkillDb.all()["potion"]["cd"])
 	p.health = minf(p.health + 60.0, p.max_health)
-	Sfx.play(p, "potion", -4.0)
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 

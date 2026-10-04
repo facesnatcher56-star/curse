@@ -37,7 +37,6 @@ func tick(delta: float, dist: float) -> void:
 		_fuse_t = 0.0
 		if e.has_clip("scream"):
 			e.model.once("scream", 0.0, 1.6, 0.1)
-		Sfx.play(e, "groan", -2.0, 0.7)
 		return
 	e.walk_to(e.target.global_position, delta, 1.0, dist > 3.5)
 
@@ -84,7 +83,6 @@ func _burst(by_fire: bool) -> void:
 		cloud.global_position = Vector3(centre.x, 0.0, centre.z)
 	Fx.shake(scene, 0.4)
 	Fx.punch(scene, 3.0)
-	Sfx.play(e, "explosion", -2.0)
 	if not e.dead:
 		# It burst itself: it dies in pieces.
 		e._pending_gib = "fire" if by_fire else "gore"

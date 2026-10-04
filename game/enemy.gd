@@ -118,7 +118,13 @@ func _physics_process(delta: float) -> void:
 func pace() -> float:
 	return move_speed * speed_factor() * (ward_haste if ward_time > 0.0 else 1.0)
 
-## Walks toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
+## Enemies run everywhere (the run clip, played faster or slower to suit their speed); "walk" is only a fallback.
+const RUN_REF_SPEED := 4.0
+
+func locomotion_clip() -> String:
+	return "run" if has_clip("run") else "walk"
+
+## Runs toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
 func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: bool = true) -> void:
 	var dist: float = Vector2(point.x - global_position.x, point.z - global_position.z).length()
 	var aim: Vector3 = point
@@ -129,7 +135,7 @@ func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: boo
 	face(global_position + dir, 0.2)
 	var speed: float = pace() * speed_mult
 	move_with(dir.normalized() * speed + separation() * speed)
-	model.loop("walk", speed / 2.4)
+	model.loop(locomotion_clip(), clampf(speed / RUN_REF_SPEED, 0.6, 1.8))
 
 ## Closes in on the target.
 func advance_on_target(delta: float, dist: float) -> void:
@@ -143,7 +149,7 @@ func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
 	face(target.global_position, 0.25)
 	var speed: float = pace() * speed_mult
 	move_with(away * speed + separation() * speed * 0.5)
-	model.loop("walk", 0.9)
+	model.loop(locomotion_clip(), 0.9)
 
 ## Waiting for a turn: shuffle around the target at a respectful distance instead of standing in a stack.
 func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> void:
@@ -159,7 +165,7 @@ func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> 
 	face(target.global_position, 0.25)
 	move_with(desired)
 	if desired.length() > 0.25:
-		model.loop("walk", 0.7)
+		model.loop(locomotion_clip(), 0.75)
 	else:
 		model.loop("idle")
 
@@ -232,7 +238,6 @@ func _on_death() -> void:
 	release_token()
 	behavior.on_death(last_result)
 	remove_from_group("enemies")
-	Sfx.play(self, "death_groan", -4.0)
 	await get_tree().create_timer(5.0).timeout
 	if not is_inside_tree():
 		return

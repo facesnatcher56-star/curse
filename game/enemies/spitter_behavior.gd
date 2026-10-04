@@ -87,5 +87,4 @@ func _spit() -> void:
 	glob.puddle_dps = float(e.def.param("puddle_dps", 5.0))
 	glob.puddle_slow = float(e.def.param("puddle_slow", 0.3))
 	e.get_tree().current_scene.add_child(glob)
-	Sfx.play(e, "swing", -6.0, 1.4)
 	Fx.burst(e, glob.from_pos, (_aim - e.global_position).normalized(), Color(0.5, 0.9, 0.2), 12, 4.0, 0.03, true)

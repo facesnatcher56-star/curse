@@ -38,6 +38,24 @@ func _ready() -> void:
 func select_tab(index: int) -> void:
 	_tabs.current_tab = index
 
+## Puts the controller's selection on the first control of the current tab.
+func focus_first() -> void:
+	UiTheme.focus_first(_tabs.get_current_tab_control())
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or _listening_action != "":
+		return
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		close()
+		return
+	var button := event as InputEventJoypadButton   # LB / RB switch tabs
+	if button != null and button.pressed and (button.button_index == JOY_BUTTON_LEFT_SHOULDER or button.button_index == JOY_BUTTON_RIGHT_SHOULDER):
+		var step: int = -1 if button.button_index == JOY_BUTTON_LEFT_SHOULDER else 1
+		_tabs.current_tab = posmod(_tabs.current_tab + step, _tabs.get_tab_count())
+		focus_first()
+		get_viewport().set_input_as_handled()
+
 func close() -> void:
 	_cancel_listening()
 	GameSettings.save_to_disk()
@@ -107,7 +125,7 @@ func _build_audio() -> Control:
 		GameSettings.sfx_enabled = on
 		Sfx.enabled = on)))
 	var note := Label.new()
-	note.text = "Sound effects are synthesised in code. There is no music yet."
+	note.text = "Sound effects are recordings; there is no music yet."
 	note.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	page.add_child(note)
 	return page

@@ -75,13 +75,15 @@ func close() -> void:
 func _open_settings() -> void:
 	_buttons.get_parent().visible = false
 	_settings_holder.visible = true
+	_settings.focus_first.call_deferred()
 
 func _close_settings() -> void:
 	_settings_holder.visible = false
 	_buttons.get_parent().visible = true
+	(_buttons.get_child(3) as Button).grab_focus()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or not event.is_action_pressed("pause"):
+	if not visible or not (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
 		return
 	get_viewport().set_input_as_handled()
 	if _settings_holder.visible:

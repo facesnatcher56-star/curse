@@ -12,8 +12,10 @@ var p: Player
 func _init(player: Player) -> void:
 	p = player
 
-const GATHER_TIME := 0.85
-const SLAM_TIME := 0.2
+const RAISE_TIME := 0.42         # arms swing up (clip 0 -> OVERHEAD_REACHED), brisk and even: it must not read as slow motion
+const HOLD_OVERHEAD := 0.22      # blade held up, nearly still
+const GATHER_TIME := RAISE_TIME + HOLD_OVERHEAD
+const SLAM_TIME := 0.16
 const HOLD_TIME := 0.45
 const RECOVER_TIME := 0.4
 const MULT := 3.2
@@ -26,6 +28,7 @@ const BOSS_STUN := 1.6
 # Key times in the "earthshatter" clip (Meshy Charged_Ground_Slam): arms up, blade overhead and held, the plunge, kneeling, rising.
 const CLIP_START := 0.0
 const CLIP_OVERHEAD := 1.38
+const CLIP_ARMS_UP := 0.55       # the clip has the arms fully raised here and then holds the pose until 1.38
 const CLIP_IMPACT := 1.93
 const CLIP_HOLD_END := 2.48
 const CLIP_END := 3.03
@@ -71,7 +74,10 @@ func tick(delta: float) -> void:
 	match phase:
 		1:
 			var u: float = clampf(t / GATHER_TIME, 0.0, 1.0)
-			p.model.scrub(lerpf(CLIP_START, CLIP_OVERHEAD, smoothstep(0.0, 1.0, u)))
+			if t < RAISE_TIME:
+				p.model.scrub(lerpf(CLIP_START, CLIP_ARMS_UP, clampf(t / RAISE_TIME, 0.0, 1.0)))   # constant speed, no easing in or out
+			else:
+				p.model.scrub(lerpf(CLIP_ARMS_UP, CLIP_OVERHEAD, clampf((t - RAISE_TIME) / HOLD_OVERHEAD, 0.0, 1.0)))
 			p.visual.rotation.x = -0.1 * u
 			Fx.shake(p, 0.01 + 0.05 * u)   # the ground trembles, harder the longer the blade is held up
 			_blade_light(u)
@@ -83,7 +89,7 @@ func tick(delta: float) -> void:
 				t = 0.0
 		2:
 			var u: float = clampf(t / SLAM_TIME, 0.0, 1.0)
-			p.model.scrub(lerpf(CLIP_OVERHEAD, CLIP_IMPACT, u * u))   # accelerates into the ground
+			p.model.scrub(lerpf(CLIP_OVERHEAD, CLIP_IMPACT, u))
 			p.visual.rotation.x = lerpf(-0.1, 0.22, u)
 			_blade_light(1.0)
 			if t >= SLAM_TIME:

@@ -92,7 +92,6 @@ func _begin_leap() -> void:
 	_saved_mask = e.collision_mask
 	e.collision_mask = Actor.LAYER_WORLD
 	e.visual.position.y = 0.0
-	Sfx.play(e, "groan", -4.0, 1.3)
 
 func _tick_leap(delta: float) -> void:
 	_timer += delta
