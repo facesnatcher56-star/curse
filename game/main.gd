@@ -199,8 +199,8 @@ func _next_wave() -> void:
 	var centres: Array[Vector3] = []
 	var remaining: int = count
 	while remaining > 0:
-		var pack: int = mini(remaining, randi_range(3, 7))
-		if remaining - pack < 3:
+		var pack: int = mini(remaining, randi_range(2, 5))
+		if remaining - pack < 2:
 			pack = remaining
 		remaining -= pack
 		var centre: Vector3 = _spawn_point(14.0, 28.0, centres, 9.0)
@@ -209,11 +209,11 @@ func _next_wave() -> void:
 		for k in pack:
 			var pos: Vector3 = centre
 			for attempt in 8:
-				var offset: Vector2 = Vector2.from_angle(randf() * TAU) * randf_range(0.0, 1.0 + pack * 0.28)
+				var offset: Vector2 = Vector2.from_angle(randf() * TAU) * randf_range(0.0, 1.8 + pack * 0.55)
 				pos = centre + Vector3(offset.x, 0.0, offset.y)
 				var clear: bool = true
 				for other in placed:
-					if other.distance_to(pos) < 0.95:
+					if other.distance_to(pos) < 1.5:
 						clear = false
 						break
 				if clear:

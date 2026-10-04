@@ -49,7 +49,6 @@ var _attack_scale: float = 1.0
 var _attack_move: Vector3 = Vector3.ZERO
 var _orbit_dir: float = 1.0
 var _orbit_flip: float = 2.0
-var _backoff: float = 0.0
 var _ring: float = 2.8
 
 func _ready() -> void:
@@ -77,6 +76,7 @@ func _ready() -> void:
 	_orbit_dir = 1.0 if randf() < 0.5 else -1.0
 	_orbit_flip = randf_range(1.5, 3.5)
 	_ring = attack_range + randf_range(0.9, 1.6)
+	aggro_range *= randf_range(0.6, 1.0)   # pack-mates notice the hero at different distances, so a pack trickles in
 	_build_model(spec["model"], CLIPS, spec["height"], spec["radius"])
 	model.loop("idle")
 	# Desynchronise idle poses so a crowd does not move in lockstep.
@@ -114,7 +114,6 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_cool = maxf(_cool - delta, 0.0)
-	_backoff = maxf(_backoff - delta, 0.0)
 	_orbit_flip -= delta
 	if _orbit_flip <= 0.0:
 		_orbit_flip = randf_range(1.5, 3.5)
@@ -123,11 +122,11 @@ func _physics_process(delta: float) -> void:
 		_tick_attack(delta, dist)
 		move_with(_attack_move)
 		return
-	var can_swing: bool = _cool <= 0.0 and _backoff <= 0.0 and _tokens_available()
+	var can_swing: bool = _cool <= 0.0 and _tokens_available()
 	if dist <= attack_range and can_swing and _take_token():
 		_begin_attack()
 		return
-	if dist > attack_range * 0.9 and (can_swing or dist > _ring + 0.5) and _backoff <= 0.0:
+	if dist > attack_range * 0.9 and (can_swing or dist > _ring + 0.5):
 		# Close in. Path around obstacles while far away; go straight in for the last few metres.
 		var aim: Vector3 = target.global_position
 		if dist > 3.5:
@@ -147,7 +146,7 @@ func _circle(dist: float) -> void:
 	to_target.y = 0.0
 	var radial: Vector3 = to_target.normalized() if to_target.length() > 0.01 else Vector3.FORWARD
 	var tangent: Vector3 = radial.cross(Vector3.UP) * _orbit_dir
-	var hold: float = _ring + (0.9 if _backoff > 0.0 else 0.0)
+	var hold: float = _ring
 	var radial_push: float = clampf((dist - hold) * 0.9, -1.0, 1.0)   # +toward the target, -away
 	var pace: float = move_speed * speed_factor() * 0.55
 	var desired: Vector3 = (tangent * 0.75 + radial * radial_push).limit_length(1.0) * pace + _separation() * pace
@@ -247,10 +246,8 @@ func _tick_attack(delta: float, dist: float) -> void:
 	if t >= 1.0:
 		_attacking = false
 		_release_token()
-		# Heavy blows leave it open for longer; sometimes it backs off after a swing instead of standing in the hero's face.
+		# Heavy blows leave it open for longer. It stays where it is; it does not step back.
 		_cool = randf_range(1.3, 2.1) if _attack_heavy else randf_range(0.7, 1.4)
-		if randf() < 0.3:
-			_backoff = randf_range(0.7, 1.4)
 
 func _on_death() -> void:
 	_release_token()
