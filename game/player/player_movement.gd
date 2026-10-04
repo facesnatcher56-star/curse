@@ -24,7 +24,7 @@ var roll_dir: Vector3 = Vector3.FORWARD
 func update_locomotion_anim() -> void:
 	var moving_speed: float = (p.velocity - p.knock).length()
 	# Only walk or run on purpose: being shoved by the crowd or a hit must not start the legs moving.
-	if moving_speed > 0.5 and has_goal and not p.skills.busy:
+	if moving_speed > 0.5 and (has_goal or Gamepad.move_vector().length() > 0.0) and not p.skills.busy:
 		if moving_speed > p.stats.run_speed * 0.8:
 			p.model.loop("run", 1.0)
 		else:
@@ -32,7 +32,32 @@ func update_locomotion_anim() -> void:
 	elif not p.skills.busy:
 		p.model.loop("idle_alert")
 
+## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
+func _travel_speed(delta: float) -> float:
+	var speed: float = p.stats.run_speed
+	if p.combat_timer > 0.0:
+		if p.stats.stamina <= 0.0:
+			speed = p.stats.run_speed * 0.6
+		else:
+			p.stats.stamina = maxf(p.stats.stamina - 16.0 * delta, 0.0)
+	return speed
+
+## Left-stick movement: direct and analog (a light push walks, a full push runs). The hero faces the right-stick aim if it
+## is in use, otherwise where it is going.
+func stick_move(stick: Vector2, delta: float) -> void:
+	has_goal = false
+	var strength: float = clampf(stick.length(), 0.0, 1.0)
+	var direction := Vector3(stick.x, 0.0, stick.y).normalized()
+	var speed: float = _travel_speed(delta) * lerpf(0.45, 1.0, clampf((strength - 0.1) / 0.8, 0.0, 1.0))
+	if Gamepad.aim_vector().length() == 0.0:
+		p.face(p.global_position + direction, 0.35)
+	p.move_with(direction * speed)
+
 func move(delta: float) -> void:
+	var stick: Vector2 = Gamepad.move_vector()
+	if stick.length() > 0.0:
+		stick_move(stick, delta)
+		return
 	if not has_goal:
 		p.move_with(Vector3.ZERO)
 		return
@@ -42,13 +67,7 @@ func move(delta: float) -> void:
 		has_goal = false
 		p.move_with(Vector3.ZERO)
 		return
-	var speed: float = p.stats.run_speed
-	var in_combat: bool = p.combat_timer > 0.0
-	if in_combat:
-		if p.stats.stamina <= 0.0:
-			speed = p.stats.run_speed * 0.6
-		else:
-			p.stats.stamina = maxf(p.stats.stamina - 16.0 * delta, 0.0)
+	var speed: float = _travel_speed(delta)
 	# Steer along the navmesh path so we walk around pillars, walls and ruins instead of grinding against them.
 	var steer: Vector3 = Nav.next_point(p, goal, _nav_state, delta)
 	var to_steer: Vector3 = steer - p.global_position
@@ -92,7 +111,10 @@ func try_roll(cursor: Vector3) -> void:
 		p._say("Too tired to dodge")
 		return
 	var dir: Vector3 = Vector3.ZERO
-	if has_goal and (goal - p.global_position).length() > 0.4:
+	var stick: Vector2 = Gamepad.move_vector()
+	if stick.length() > 0.0:
+		dir = Vector3(stick.x, 0.0, stick.y)   # roll the way the stick is pushed
+	elif has_goal and (goal - p.global_position).length() > 0.4:
 		dir = goal - p.global_position
 	else:
 		dir = cursor - p.global_position

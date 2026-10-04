@@ -108,7 +108,7 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size = Vector2(0, 28)
 	_buttons.add_child(spacer)
 	var play := UiTheme.button("Play")
-	play.pressed.connect(func() -> void: get_tree().change_scene_to_file(GAME_SCENE))
+	play.pressed.connect(func() -> void: LoadingScreen.go(get_tree(), GAME_SCENE))
 	_buttons.add_child(play)
 	var settings := UiTheme.button("Settings")
 	settings.pressed.connect(_open_settings)

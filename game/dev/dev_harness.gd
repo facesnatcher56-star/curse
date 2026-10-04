@@ -612,6 +612,160 @@ func _test_enemies() -> void:
 	player.health = saved_health
 	await get_tree().process_frame
 
+## The first wave must not put anyone on top of the hero. Runs right at start-up (before the navigation map has caught up),
+## once with a navmesh that answers every snap with the origin (the real-game failure), once normally.
+func _test_first_wave() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for broken in [true, false]:
+		Nav.debug_broken_snap = broken
+		game.director.wave = 0
+		game.director.start_wave()
+		var closest: float = 9999.0
+		var count: int = 0
+		var alert_ok: bool = true
+		for node in get_tree().get_nodes_in_group("enemies"):
+			var e := node as Enemy
+			if e.get_parent() != game.director:
+				continue
+			count += 1
+			closest = minf(closest, e.global_position.distance_to(player.global_position))
+			alert_ok = alert_ok and e.alert_delay > 0.0
+		expect("wave 1 (navmesh %s) keeps every enemy at least 11 m away" % ("broken" if broken else "ok"), count > 0 and closest >= 11.0)
+		expect("wave 1 enemies wait before noticing the hero", alert_ok)
+		print("  first wave (broken nav snap=", broken, "): ", count, " enemies, closest ", snappedf(closest, 0.1), " m")
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+	Nav.debug_broken_snap = false
+	game.director.wave = 0
+	await get_tree().process_frame
+
+## Controller: sticks move and aim the hero, buttons are bound to the skills, rolls follow the stick, hints switch to pad labels.
+func _test_gamepad() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	# Every action has its pad button.
+	var wanted: Dictionary = {"alt_skill": true, "dodge": true, "skill_1": true, "skill_2": true, "skill_3": true, "skill_4": true,
+		"skill_5": true, "skill_6": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
+	var missing: PackedStringArray = []
+	for action in wanted:
+		var has_pad: bool = false
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+				has_pad = true
+		if not has_pad:
+			missing.append(action)
+	expect("every action has a controller binding", missing.is_empty())
+	expect("keyboard bindings survive next to the pad ones", GameSettings.binding_text("skill_1") == "1")
+
+	player.global_position = Vector3(-30, 0, 20)
+	player.reset_physics_interpolation()
+	player.movement.has_goal = false
+	player.attack_target = null
+	Gamepad.active = true
+	# Left stick moves the hero, analog.
+	Gamepad.test_axes = {JOY_AXIS_LEFT_X: 1.0, JOY_AXIS_LEFT_Y: 0.0}
+	var start: Vector3 = player.global_position
+	await get_tree().create_timer(1.0).timeout
+	var run_dist: float = player.global_position.x - start.x
+	var run_clip: String = player.model.current
+	expect("left stick runs the hero", run_dist > 3.5 and run_clip == "run")
+	Gamepad.test_axes = {JOY_AXIS_LEFT_X: 0.0, JOY_AXIS_LEFT_Y: 0.5}
+	start = player.global_position
+	await get_tree().create_timer(1.0).timeout
+	var walk_dist: float = player.global_position.z - start.z
+	expect("a light push walks slower than a full push", walk_dist > 1.0 and walk_dist < run_dist * 0.8)
+	Gamepad.test_axes = {}
+	await get_tree().create_timer(0.4).timeout
+	expect("releasing the stick stops the hero", player.velocity.length() < 0.5 and player.model.current == "idle_alert")
+	print("  gamepad move: full push ", snappedf(run_dist, 0.1), " m (", run_clip, "), half push ", snappedf(walk_dist, 0.1), " m")
+
+	# Right stick aims; released, the nearest enemy is auto-targeted; an enemy near the aim point is snapped to.
+	Gamepad.test_axes = {JOY_AXIS_RIGHT_X: 0.0, JOY_AXIS_RIGHT_Y: -1.0}
+	var aim_point: Vector3 = player.cursor_world()
+	expect("right stick up aims straight ahead (-Z)", absf(aim_point.x - player.global_position.x) < 0.1 and aim_point.z < player.global_position.z - 10.0)
+	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -12.5))
+	enemy.aggro_range = 0.0
+	await get_tree().process_frame
+	expect("the aim point snaps to an enemy near it", player.cursor_world().distance_to(enemy.global_position) < 0.01)
+	Gamepad.test_axes = {}
+	enemy.global_position = player.global_position + Vector3(4.0, 0, 3.0)
+	await get_tree().physics_frame
+	expect("with the stick released the nearest enemy is auto-targeted", player.cursor_world().distance_to(enemy.global_position) < 0.01 and player.hover_target == enemy)
+
+	# A attacks the auto-target (same path as the right mouse button).
+	player.global_position = enemy.global_position + Vector3(-1.6, 0, 0)
+	player.reset_physics_interpolation()
+	enemy.max_health = 5000.0
+	enemy.health = 5000.0
+	Input.action_press("alt_skill")
+	var swung: bool = false
+	var t: float = 0.0
+	while t < 2.0 and not swung:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		swung = player.skills.busy
+	Input.action_release("alt_skill")
+	expect("A attacks the targeted enemy", swung)
+	await get_tree().create_timer(1.2).timeout
+	expect("the enemy was hit", enemy.health < enemy.max_health)
+
+	# Rolling follows the stick.
+	player.skills.cancel_action()
+	player.stats.cooldowns.clear()
+	player.stats.stamina = player.stats.max_stamina
+	player.global_position = Vector3(-30, 0, 20)
+	player.reset_physics_interpolation()
+	await get_tree().physics_frame
+	Gamepad.test_axes = {JOY_AXIS_LEFT_X: 0.0, JOY_AXIS_LEFT_Y: 1.0}
+	player.movement.try_roll(player.cursor_world())
+	var roll_toward_z: bool = player.movement.rolling and player.movement.roll_dir.z > 0.9
+	expect("the dodge rolls the way the stick points", roll_toward_z)
+	Gamepad.test_axes = {}
+	await get_tree().create_timer(0.8).timeout
+
+	# Hints show pad labels while the pad is in use and keyboard ones otherwise.
+	var pad_hint: String = GameSettings.short_binding_text("skill_1")
+	Gamepad.active = false
+	var key_hint: String = GameSettings.short_binding_text("skill_1")
+	expect("hotbar hints switch between pad and keyboard labels", pad_hint == "X" and key_hint == "1")
+	print("  gamepad hints: pad=", pad_hint, " keyboard=", key_hint)
+	Gamepad.active = false
+	Gamepad.test_axes = {}
+	enemy.queue_free()
+	await get_tree().process_frame
+
+## The loading screen loads every asset on background threads, the bar only ever moves forward and ends at 100%,
+## and the messages rotate without repeating back to back.
+func _test_loading() -> void:
+	var screen := LoadingScreen.new()
+	screen.auto_switch = false
+	LoadingScreen.next_scene = "res://game/main.tscn"
+	add_child(screen)
+	var last: float = 0.0
+	var monotonic: bool = true
+	var elapsed: float = 0.0
+	while elapsed < 60.0 and not (screen._finished and screen.progress >= 0.999):
+		await get_tree().process_frame
+		elapsed += get_process_delta_time()
+		monotonic = monotonic and screen.progress >= last - 0.0001
+		last = screen.progress
+	expect("loading screen finishes loading everything", screen._finished and screen.assets_total > 20 and screen.assets_done == screen.assets_total)
+	expect("the progress bar only moves forward and ends full", monotonic and screen.progress >= 0.999)
+	var seen: Dictionary = {}
+	var repeat: bool = false
+	var previous: String = screen.message
+	for i in 40:
+		var next: String = screen.next_message()
+		repeat = repeat or next == previous
+		previous = next
+		seen[next] = true
+	expect("loading messages are plentiful and never repeat back to back", LoadingScreen.MESSAGES.size() >= 40 and seen.size() >= 25 and not repeat)
+	print("  loading: ", screen.assets_done, "/", screen.assets_total, " assets in ", snappedf(elapsed, 0.1), " s, ", LoadingScreen.MESSAGES.size(), " messages, e.g. \"", screen.message, "\"")
+	screen.queue_free()
+	await get_tree().process_frame
+
 ## Hero stands idle with NO input while a pack of zombies swarms in. Logs hits taken per second, how many attackers swing at
 ## once, and any moment the hero starts a skill / changes clip by itself (an "auto attack" with nobody clicking).
 func _test_swarm() -> void:
@@ -1093,6 +1247,31 @@ func _test_settings() -> void:
 	ok = ok and absf(GameSettings.master_volume - 0.42) < 0.001 and GameSettings.binding_text("skill_1") == "Q"
 	GameSettings.reset_bindings()
 	ok = ok and GameSettings.binding_text("skill_1") == "1" and GameSettings.binding_text("dodge") == "Space"
+	# Controller buttons: rebind, swap on conflict, persist, survive a keyboard rebind, reset.
+	var pad_ok: bool = GameSettings.pad_binding_text("skill_1") == "X" and GameSettings.pad_binding_text("skill_2") == "Y"
+	var pad_press := InputEventJoypadButton.new()
+	pad_press.button_index = JOY_BUTTON_Y
+	GameSettings.rebind_pad("skill_1", pad_press)   # skill_1 takes Y; skill_2 (which had Y) gets X
+	pad_ok = pad_ok and GameSettings.pad_binding_text("skill_1") == "Y" and GameSettings.pad_binding_text("skill_2") == "X"
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger.axis_value = 1.0
+	GameSettings.rebind_pad("dodge", trigger)       # a trigger can be bound too; skill_5 (RT) gets dodge's old B
+	pad_ok = pad_ok and GameSettings.pad_binding_text("dodge") == "RT" and GameSettings.pad_binding_text("skill_5") == "B"
+	GameSettings.rebind("skill_3", q)               # a keyboard rebind must leave the pad button alone
+	pad_ok = pad_ok and GameSettings.pad_binding_text("skill_3") == "RB" and GameSettings.binding_text("skill_3") == "Q"
+	GameSettings.swap_sticks = true
+	GameSettings.save_to_disk()
+	GameSettings.custom_pad_bindings.clear()
+	GameSettings.swap_sticks = false
+	GameSettings.load_from_disk()
+	GameSettings.apply_bindings()
+	pad_ok = pad_ok and GameSettings.swap_sticks and GameSettings.pad_binding_text("skill_1") == "Y" and GameSettings.pad_binding_text("dodge") == "RT"
+	GameSettings.reset_bindings()
+	pad_ok = pad_ok and GameSettings.pad_binding_text("skill_1") == "X" and GameSettings.pad_binding_text("dodge") == "B" and GameSettings.pad_binding_text("skill_5") == "RT"
+	GameSettings.swap_sticks = false
+	expect("controller rebind/swap/persist/reset keeps keyboard bindings", pad_ok)
+	print("  controller bindings round trip ok=", pad_ok)
 	GameSettings.master_volume = 0.8
 	GameSettings.save_to_disk()
 	GameSettings.custom_bindings = backup
@@ -1509,7 +1688,7 @@ func _screenshot_demo() -> void:
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "leap": "_test_leap", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "impact": "_test_impact", "fireblast": "_test_fire_blast",
 }
 
 var _failures: PackedStringArray = []
@@ -1541,6 +1720,7 @@ func _run_selftest() -> void:
 		expect("input action %s exists" % action, InputMap.has_action(action))
 	print("  camera current: ", rig.camera.current, "  pitch: ", rig.camera.rotation_degrees.x, "  fov: ", rig.camera.fov)
 
+	await _test_first_wave()
 	_test_settings()
 	await _test_zoom()
 	await _test_hotkeys()
@@ -1554,6 +1734,8 @@ func _run_selftest() -> void:
 	await _test_fire_blast()
 	await _test_gibs()
 	await _test_swarm()
+	await _test_gamepad()
+	await _test_loading()
 	await _test_enemies()
 	await _test_balance()
 	await _test_auto_attack()

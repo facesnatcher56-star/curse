@@ -6,7 +6,9 @@ extends PanelContainer
 signal closed
 
 var _tabs: TabContainer
-var _binding_buttons: Dictionary = {}  # action -> Button
+var _binding_buttons: Dictionary = {}  # action -> keyboard/mouse binding Button
+var _pad_buttons: Dictionary = {}      # action -> controller binding Button
+var _listening_kind: String = "kb"
 var _listening_action: String = ""
 var _resolution_option: OptionButton
 
@@ -155,19 +157,48 @@ func _build_controls() -> Control:
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(page)
 	var hint := Label.new()
-	hint.text = "Click a binding, then press a key or mouse button. Esc cancels. A key already in use is swapped."
+	hint.text = ("Every action can be rebound on both the keyboard/mouse and the controller. Click a binding, then press the key, "
+		+ "mouse button or controller button (triggers work too). Esc cancels. A binding already in use is swapped with this one. "
+		+ "Aiming with a stick: hold a skill's button (e.g. Fireball) and move the aiming stick to place the target; it stays where you leave it.")
 	hint.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(640, 0)
 	page.add_child(hint)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 20)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(250, 0)
+	header.add_child(spacer)
+	for title in ["Keyboard / mouse", "Controller"]:
+		var column := Label.new()
+		column.text = title
+		column.custom_minimum_size = Vector2(212, 0)
+		column.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
+		header.add_child(column)
+	page.add_child(header)
 	for entry in GameSettings.ACTIONS:
 		var action: String = entry[0]
+		var pair := HBoxContainer.new()
+		pair.add_theme_constant_override("separation", 12)
 		var button := Button.new()
 		button.custom_minimum_size = Vector2(200, 36)
 		button.text = GameSettings.binding_text(action)
-		button.pressed.connect(func() -> void: _start_listening(action))
+		button.pressed.connect(func() -> void: _start_listening(action, "kb"))
 		_binding_buttons[action] = button
-		page.add_child(_row(entry[1], button))
+		pair.add_child(button)
+		var pad_button := Button.new()
+		pad_button.custom_minimum_size = Vector2(200, 36)
+		pad_button.text = GameSettings.pad_binding_text(action)
+		pad_button.pressed.connect(func() -> void: _start_listening(action, "pad"))
+		_pad_buttons[action] = pad_button
+		pair.add_child(pad_button)
+		page.add_child(_row(entry[1], pair))
+	page.add_child(_row("Swap sticks (move on right)", _check("Enabled", GameSettings.swap_sticks, func(on: bool) -> void:
+		GameSettings.swap_sticks = on)))
+	page.add_child(_row("Stick dead zone", _slider(GameSettings.stick_deadzone, 0.6, func(v: float) -> void:
+		GameSettings.stick_deadzone = clampf(v, 0.05, 0.6))))
+	page.add_child(_row("Controller vibration", _check("Enabled", GameSettings.vibration, func(on: bool) -> void:
+		GameSettings.vibration = on)))
 	var reset := UiTheme.button("Reset to defaults", 220)
 	reset.pressed.connect(func() -> void:
 		_cancel_listening()
@@ -178,10 +209,14 @@ func _build_controls() -> Control:
 
 # --- rebinding --------------------------------------------------------------------
 
-func _start_listening(action: String) -> void:
+func _start_listening(action: String, kind: String = "kb") -> void:
 	_cancel_listening()
 	_listening_action = action
-	(_binding_buttons[action] as Button).text = "Press a key..."
+	_listening_kind = kind
+	if kind == "pad":
+		(_pad_buttons[action] as Button).text = "Press a button..."
+	else:
+		(_binding_buttons[action] as Button).text = "Press a key..."
 
 func _cancel_listening() -> void:
 	_listening_action = ""
@@ -190,9 +225,23 @@ func _cancel_listening() -> void:
 func _refresh_bindings() -> void:
 	for action in _binding_buttons:
 		(_binding_buttons[action] as Button).text = GameSettings.binding_text(action)
+	for action in _pad_buttons:
+		(_pad_buttons[action] as Button).text = GameSettings.pad_binding_text(action)
 
 func _input(event: InputEvent) -> void:
 	if _listening_action == "":
+		return
+	if _listening_kind == "pad":
+		var pad_data: Dictionary = GameSettings.pad_event_to_dict(event)
+		var is_press: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed) or event is InputEventJoypadMotion
+		if is_press and not pad_data.is_empty():
+			get_viewport().set_input_as_handled()
+			GameSettings.rebind_pad(_listening_action, event)
+			_listening_action = ""
+			_refresh_bindings()
+		elif event is InputEventKey and (event as InputEventKey).pressed and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_cancel_listening()
 		return
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo:

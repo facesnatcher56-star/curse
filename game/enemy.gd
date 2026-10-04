@@ -24,6 +24,8 @@ var _attacking: bool = false
 
 var _nav_state: Dictionary = {}
 var _aggro: bool = false
+## Seconds left before it notices anything (set by the wave director; gives the hero a moment to get their bearings).
+var alert_delay: float = 0.0
 var _was_stunned: bool = false
 var _orbit_dir: float = 1.0
 var _orbit_flip: float = 2.0
@@ -92,6 +94,11 @@ func _physics_process(delta: float) -> void:
 		return
 	_was_stunned = false
 
+	if alert_delay > 0.0:
+		alert_delay -= delta
+		move_with(Vector3.ZERO)
+		model.loop("idle")
+		return
 	var dist: float = flat_distance_to(target)
 	if not _aggro and dist < aggro_range:
 		_aggro = true

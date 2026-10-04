@@ -6,11 +6,16 @@ extends RefCounted
 static func map_of(node: Node3D) -> RID:
 	return node.get_world_3d().navigation_map
 
+## Tests set this to simulate a navigation map that is not usable yet (every query answers with the origin).
+static var debug_broken_snap: bool = false
+
 static func ready(node: Node3D) -> bool:
-	return NavigationServer3D.map_get_iteration_id(map_of(node)) > 0
+	return debug_broken_snap or NavigationServer3D.map_get_iteration_id(map_of(node)) > 0
 
 ## Nearest walkable point; clicking inside a pillar sends you to the closest reachable spot beside it.
 static func snap(node: Node3D, point: Vector3) -> Vector3:
+	if debug_broken_snap:
+		return Vector3.ZERO
 	if not ready(node):
 		return point
 	return NavigationServer3D.map_get_closest_point(map_of(node), point)

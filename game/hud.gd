@@ -99,7 +99,7 @@ func _draw() -> void:
 			Color(1.0, 0.9, 0.7, fade))
 	draw_string(font, Vector2(24, 34), "Wave %d   Kills %d   Zombies %d" % [wave, kills, alive],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9))
-	draw_string(font, Vector2(24, 58), "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
+	draw_string(font, Vector2(24, 58), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.55))
 
 	_draw_minimap(size_px, font)

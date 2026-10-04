@@ -42,7 +42,7 @@ func _ready() -> void:
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS
 	layer.add_child(hud)
 	pause_menu = PauseMenu.new()
-	pause_menu.restart_requested.connect(func() -> void: get_tree().reload_current_scene())
+	pause_menu.restart_requested.connect(func() -> void: LoadingScreen.go(get_tree(), "res://game/main.tscn"))
 	pause_menu.main_menu_requested.connect(func() -> void: get_tree().change_scene_to_file("res://game/menu.tscn"))
 	layer.add_child(pause_menu)
 
@@ -58,7 +58,14 @@ func _ready() -> void:
 	add_child(dev)
 	if dev.run_from_args():
 		return
+	# The navigation map only learns about the arena a physics frame or two after it is built (and, coming from the menu,
+	# still holds the old scene's data until then); spawn the first wave once it is ready.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
 	director.start_wave()
+
+func _input(event: InputEvent) -> void:
+	Gamepad.note_event(event)   # tracks whether the pad or the mouse/keyboard is in use (hints, cursor, aim)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not director.choosing and not pause_menu.is_open():

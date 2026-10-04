@@ -57,6 +57,8 @@ func start_wave() -> void:
 	var level: float = 1.0 + 0.12 * (wave - 1)
 	var defs: Array[EnemyDef] = EnemyDb.spawnable(wave)
 	var banner: String = "Wave %d" % wave
+	# Wave 1 starts farther out and every enemy holds still for a few seconds, so the hero can take in the arena first.
+	var lead: float = 6.0 if wave == 1 else 0.0
 	var arrivals: PackedStringArray = []
 	for def in defs:
 		if def.min_wave == wave and def.id != "zombie":
@@ -70,10 +72,10 @@ func start_wave() -> void:
 	for def in defs:
 		var count: int = EnemyDb.count_for(def, wave)
 		if def.spawn_mode == "pack":
-			_spawn_packs(def, count, level, centres)
+			_spawn_packs(def, count, level, centres, lead)
 		elif def.spawn_mode == "solo":
 			for i in count:
-				var spot: Vector3 = _spawn_point(18.0, 34.0, centres, 11.0)   # clear of pack members, which spread up to ~4.5 m
+				var spot: Vector3 = _spawn_point(18.0 + lead, 34.0, centres, 11.0)   # clear of pack members, which spread up to ~4.5 m
 				centres.append(spot)
 				spawn_enemy(spot, def.id, level)
 	for def in defs:
@@ -83,9 +85,13 @@ func start_wave() -> void:
 	if wave >= 2:
 		for i in randi_range(1, 2):
 			spawn_enemy(_spawn_point(16.0, 34.0, centres, 6.0), "zombie", level)  # stragglers
+	# Nobody notices the hero for the first moments of a wave (longer on wave 1).
+	var grace: float = 4.0 if wave == 1 else 2.0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		(node as Enemy).alert_delay = grace + randf() * 1.5
 
 ## Spawns `count` of an enemy in tight little groups (zombies 2-5 strong, the smaller kinds 2-3) with room between groups.
-func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector3]) -> void:
+func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector3], lead: float = 0.0) -> void:
 	var biggest: int = 5 if def.id == "zombie" else 3
 	var remaining: int = count
 	while remaining > 0:
@@ -93,7 +99,7 @@ func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector
 		if remaining - pack < 2:
 			pack = remaining
 		remaining -= pack
-		var centre: Vector3 = _spawn_point(14.0, 28.0, centres, 9.0)
+		var centre: Vector3 = _spawn_point(14.0 + lead, 28.0 + lead, centres, 9.0)
 		centres.append(centre)
 		var placed: Array[Vector3] = []
 		for k in pack:
@@ -136,7 +142,11 @@ func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacin
 		var angle: float = randf() * TAU
 		var pos: Vector3 = _clamp_to_arena(player.global_position + Vector3(cos(angle), 0, sin(angle)) * randf_range(min_dist, max_dist))
 		if Nav.ready(self):
-			pos = Nav.snap(self, pos)
+			# Snap to the navmesh, but never trust a snap that moves the spot far: right after a scene change the map can still
+			# be empty and answers with the origin, which is exactly where the hero stands.
+			var snapped: Vector3 = Nav.snap(self, pos)
+			if snapped.distance_to(pos) <= 4.0:
+				pos = snapped
 		var d: float = pos.distance_to(player.global_position)
 		if d > farthest_d:
 			farthest_d = d

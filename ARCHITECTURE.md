@@ -15,6 +15,8 @@ A Godot 4 click-to-move ARPG: fixed 3/4 camera, weighty melee, wave arena. Scrip
 | `game/actor.gd` | Base of hero and enemies: health, hit reaction, burn/frost/ward/daze, ragdoll, gib bursts. |
 | `game/data/` | Resource classes (`EnemyDef`, `SkillDef`, `AffixDef`) and their loaders (`EnemyDb`, `SkillDb`, `AffixDb`). |
 | `data/` | The `.tres` files those loaders read: `data/enemies`, `data/skills`, `data/affixes`. |
+| `game/gamepad.gd`, `game/input_setup.gd` | Controller support: sticks, aim, labels, rumble; all buttons are ordinary input actions, rebindable in Settings > Controls (keyboard/mouse and controller columns). |
+| `game/loading_screen.gd` | Loading bar with real progress (assets load on background threads) and rotating messages; the menu's Play and the pause menu's Restart go through it. |
 | `game/dev/dev_harness.gd` | Developer tooling: the headless self-test and the screenshot/pose tools. Not part of the game. |
 | `tools/` | Asset pipeline (Meshy generation, animation baking) and the generators for the `.tres` data files. |
 

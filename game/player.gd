@@ -28,6 +28,9 @@ var _cursor_on_enemy: bool = false
 var click_mode: int = 0  # 0 move, 1 attack locked target, 2 stand-still attack
 var _was_stunned: bool = false
 var _trail: WeaponTrail
+var _pad_aim_dir: Vector3 = Vector3.FORWARD
+var _pad_hold: Vector3 = Vector3.ZERO          # aim offset kept while an aimed skill button is held
+var _pad_hold_valid: bool = false
 
 # Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
 var skewer: SkewerSkill
@@ -119,13 +122,19 @@ func _physics_process(delta: float) -> void:
 		move_with(Vector3.ZERO)
 		return
 	_was_stunned = false
+	var aiming_stick: Vector2 = Gamepad.aim_vector()
+	if Gamepad.active and aiming_stick.length() > 0.0:
+		face(global_position + Vector3(aiming_stick.x, 0.0, aiming_stick.y), 0.3)   # twin-stick: the hero looks where it aims
 	_read_input(cursor)
 	_act(delta, cursor)
 	movement.update_locomotion_anim()
 
 # --- Input -------------------------------------------------------------------
 
+## Where the hero is "pointing": the mouse position on the ground, or with a controller the right-stick aim point.
 func cursor_world() -> Vector3:
+	if Gamepad.active:
+		return _pad_cursor()
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return global_position
@@ -137,8 +146,42 @@ func cursor_world() -> Vector3:
 		return global_position
 	return hit
 
+## Controller aim. The right stick places the cursor in front of the hero (further out the harder it is pushed) and it snaps
+## to an enemy near that spot. With the stick released, the nearest enemy in range is targeted; with none, straight ahead.
+func _pad_cursor() -> Vector3:
+	var aim: Vector2 = Gamepad.aim_vector()
+	var aiming_skill: bool = skills.aiming_id != ""
+	if aim.length() > 0.0:
+		_pad_aim_dir = Vector3(aim.x, 0.0, aim.y).normalized()
+		var point: Vector3 = global_position + _pad_aim_dir * (3.0 + 11.0 * aim.length())
+		var assist: Actor = enemy_near(point, 2.2)
+		if assist != null:
+			point = assist.global_position
+		if aiming_skill:
+			_pad_hold = point - global_position
+			_pad_hold_valid = true
+		return point
+	if aiming_skill:
+		# Holding an aimed skill's button (Fireball): the target area stays where the stick left it. It starts on the nearest
+		# enemy (or straight ahead), and the right stick then moves it about.
+		if not _pad_hold_valid:
+			_pad_hold = _pad_default_target() - global_position
+			_pad_hold_valid = true
+		return global_position + _pad_hold
+	_pad_hold_valid = false
+	return _pad_default_target()
+
+## The nearest enemy in range, or a spot straight ahead when there is none.
+func _pad_default_target() -> Vector3:
+	var nearest: Actor = enemy_near(global_position, 12.0)
+	if nearest != null:
+		return nearest.global_position
+	return global_position + Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y)) * 7.0
+
 ## Enemy under the mouse, picked in screen space: pointing at a head or chest counts, not just the feet.
 func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0)) -> Actor:
+	if Gamepad.active and mouse_override.x < 0.0:
+		return enemy_near(cursor, 2.5)
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return null
@@ -300,8 +343,9 @@ func _act(delta: float, cursor: Vector3) -> void:
 			face(target.global_position, 0.4)
 			move_with(Vector3.ZERO)
 			return
-		movement.goal = target.global_position
-		movement.has_goal = true
+		if Gamepad.move_vector().length() == 0.0:   # with the left stick in use the player steers; no auto-chase
+			movement.goal = target.global_position
+			movement.has_goal = true
 
 	if ctrl:
 		face(cursor, 0.4)
@@ -310,6 +354,9 @@ func _act(delta: float, cursor: Vector3) -> void:
 	movement.move(delta)
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
+	var outcome: int = result.get("outcome", 0)
+	if outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
+		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)
 	ItemEffects.on_dealt_hit(self, target, result)
@@ -327,7 +374,9 @@ func _say(text: String) -> void:
 	message = text
 	message_time = 1.5
 
-func _on_hurt(_result: Dictionary, _source_pos: Vector3) -> void:
+func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
+	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
+	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0
 	hurt_flash = 1.0
 	Sfx.play(self, "hurt", -2.0)
