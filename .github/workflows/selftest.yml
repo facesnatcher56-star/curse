@@ -1,0 +1,75 @@
+name: Self-test
+
+# Runs the game's built-in headless self-test (navigation, combat, hotkeys, skills, items...) on every push and PR.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.8-dev2
+  GODOT_ZIP: Godot_v4.8-dev2_linux.x86_64.zip
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false   # fetched below through a cache, so CI does not burn LFS bandwidth on every run
+
+      - name: LFS cache key
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+
+      - name: Restore LFS objects
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+
+      - name: Fetch LFS files
+        run: git lfs pull
+
+      - name: Restore Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}
+
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          curl -fsSL -o ~/godot/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
+          unzip -q ~/godot/godot.zip -d ~/godot
+          chmod +x ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64
+
+      - name: Restore asset import cache
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('.lfs-assets-id', 'project.godot') }}
+
+      - name: Import project
+        run: ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . --import
+
+      - name: Run self-test
+        run: |
+          set -o pipefail
+          timeout 1200 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest 2>&1 | tee selftest.log
+
+      - name: Check results
+        if: always()
+        run: python3 tools/ci_check_selftest.py selftest.log
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-log
+          path: selftest.log
