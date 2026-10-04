@@ -1,5 +1,7 @@
 # Architecture
 
+> **Art direction (gritty and versatile) governs every asset: see [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md) and [CLAUDE.md](CLAUDE.md).**
+
 A Godot 4 click-to-move ARPG: fixed 3/4 camera, weighty melee, wave arena. Scripts live in `game/`, tunable data in `data/`.
 
 ## Layout

@@ -7,6 +7,7 @@ Usage:  python tools/meshy.py build <asset> [<asset> ...]     (assets defined in
 The API key is read from the MESHY_API_KEY env var or ~/.meshy/key. It is never stored in the project.
 Task ids are saved in tools/state.json, so re-running skips finished (already paid-for) steps.
 """
+import art_direction  # the project's art direction (docs/ART_DIRECTION.md): every prompt goes through it
 import json
 import os
 import sys
@@ -101,7 +102,7 @@ def build(name: str, spec: dict, state: dict) -> None:
     if "preview" not in entry:
         body = {
             "mode": "preview",
-            "prompt": spec["prompt"],
+            "prompt": art_direction.styled(spec["prompt"]),
             "ai_model": spec.get("ai_model", "latest"),
             "should_remesh": True,
             "topology": "triangle",
@@ -123,7 +124,7 @@ def build(name: str, spec: dict, state: dict) -> None:
             "target_formats": ["glb"],
         }
         if spec.get("texture_prompt"):
-            body["texture_prompt"] = spec["texture_prompt"]
+            body["texture_prompt"] = art_direction.styled(spec["texture_prompt"])
         entry["refine"] = request("POST", "/v2/text-to-3d", body)["result"]
         save_state(state)
     refined = wait(f"/v2/text-to-3d/{entry['refine']}", "texture")

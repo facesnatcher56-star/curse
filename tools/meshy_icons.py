@@ -6,11 +6,12 @@ Usage: python tools/meshy_icons.py [name ...]     (re-running skips icons that a
 import sys
 from pathlib import Path
 
+import art_direction  # the project's art direction: every prompt goes through it (docs/ART_DIRECTION.md)
 import meshy  # same folder; reuses key handling, retry-on-429 and downloads
 
 OUT = meshy.ROOT / "assets" / "icons"
-STYLE = ("Fantasy RPG ability icon, bold stylized painterly game icon, single centered subject, "
-         "strong readable silhouette, rich saturated colors, dramatic lighting, no text, no border, no frame. ")
+STYLE = ("Dark fantasy RPG ability icon, gritty hand-painted game icon, single centered subject, strong readable silhouette, "
+         "no text, no border, no frame. ")
 
 ICONS = {
     "basic": "a steel longsword caught mid-slash with a bright white curved slash arc",
@@ -35,7 +36,7 @@ def main() -> None:
         print(f"== {name}")
         task_id = meshy.request("POST", "/v1/text-to-image", {
             "ai_model": "nano-banana-2",
-            "prompt": STYLE + ICONS[name],
+            "prompt": art_direction.styled(STYLE + ICONS[name]),
             "aspect_ratio": "1:1",
             "remove_background": True,
         })["result"]
