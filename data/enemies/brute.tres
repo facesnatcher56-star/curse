@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "brute"
+display_name = "Brute"
+model_path = "res://assets/models/zombie_brute"
+model_scale = Vector3(1.0, 1.0, 1.0)
+height = 2.4
+radius = 0.62
+clips = Array[String](["idle", "walk", "attack", "hit", "death"])
+gib_color = Color(0.38, 0.42, 0.34, 1)
+health = 220.0
+damage_min = 14.0
+damage_max = 22.0
+speed = 1.9
+attack_range = 2.2
+attack_time = 1.4
+armor = 25.0
+defense = 20.0
+attack_rating = 45.0
+flinch = 0.1
+knock_resist = 0.6
+stun_resist = 0.5
+impalable = false
+attack_clip = "attack"
+behavior = "melee"
+params = {
+"heavy_chance": 0.5
+}
+token_weight = 2
+min_wave = 2
+spawn_mode = "solo"
+base_count = 1.0
+per_wave = 0.5
+max_per_wave = 8

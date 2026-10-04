@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "priest"
+display_name = "Plague Priest"
+model_path = "res://assets/models/priest"
+model_scale = Vector3(1.0, 1.0, 1.0)
+height = 1.85
+radius = 0.4
+clips = Array[String](["idle", "walk", "attack", "hit", "death", "cast"])
+gib_color = Color(0.3, 0.3, 0.32, 1)
+health = 55.0
+damage_min = 6.0
+damage_max = 9.0
+speed = 2.2
+attack_range = 1.8
+attack_time = 0.9
+armor = 4.0
+defense = 14.0
+attack_rating = 30.0
+flinch = 0.4
+knock_resist = 0.0
+stun_resist = 0.0
+impalable = true
+attack_clip = "attack"
+behavior = "support"
+params = {
+"ward_interval": 7.0,
+"ward_time": 5.0,
+"ward_reduction": 0.4,
+"ward_haste": 1.25,
+"summon_interval": 15.0,
+"summon_count": 2,
+"summon_max": 4,
+"keep_min": 6.5,
+"keep_max": 11.0,
+"flee_dist": 4.5
+}
+token_weight = 0
+min_wave = 5
+spawn_mode = "support"
+base_count = 1.0
+per_wave = 0.3
+max_per_wave = 2

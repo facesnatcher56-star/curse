@@ -153,6 +153,15 @@
     }
   },
   "priest": {
-    "preview": "01a106df-9346-73de-ad3f-f425b1f749d8"
+    "preview": "01a106df-9346-73de-ad3f-f425b1f749d8",
+    "refine": "01a106e0-ba28-7488-98a6-7657407a822a",
+    "rig": "01a106e2-3b67-7402-95b4-8d8134afa234",
+    "anims": {
+      "idle": "01a106e3-9b8b-7492-8dfe-59c9952d0c5e",
+      "hit": "01a106e3-9d82-7038-a271-72dd85f1f0cf",
+      "death": "01a106e3-9f84-7196-ad97-246d3d7b5d17",
+      "attack": "01a106e3-a124-76ce-89fd-1daf84e06d86",
+      "cast": "01a106e3-a2de-7226-ab33-b4614ded8b84"
+    }
   }
 }

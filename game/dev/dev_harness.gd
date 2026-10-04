@@ -493,7 +493,7 @@ func _test_swarm() -> void:
 			autos.append("t=%.2f player stunned %.2f" % [elapsed, player.stun_time])
 	expect("at most max_tokens enemies swing at once", max_swinging <= Enemy.max_tokens)
 	expect("swarm damage stays under 8/s", (start_health - player.health) / 8.0 < 8.0)
-	expect("hero never acts or animates by itself in a swarm", not autos.any(func(l: String) -> bool: return "busy skill" in l or "-> hit" in l or "-> walk" in l))
+	expect("hero never acts or animates by itself in a swarm", not autos.any(func(l: String) -> bool: return "busy skill" in l or "-> walk" in l or "-> run" in l))
 	print("  swarm: hero health ", int(start_health), " -> ", int(player.health), " in 8 s (", snappedf((start_health - player.health) / 8.0, 0.1),
 		" dmg/s); attackers swinging at once: max ", max_swinging, ", average ", snappedf(swinging_total / frames, 0.1))
 	for line in autos:

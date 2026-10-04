@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "zombie"
+display_name = "Zombie"
+model_path = "res://assets/models/zombie"
+model_scale = Vector3(1.0, 1.0, 1.0)
+height = 1.75
+radius = 0.42
+clips = Array[String](["idle", "walk", "attack", "hit", "death"])
+gib_color = Color(0.42, 0.48, 0.37, 1)
+health = 60.0
+damage_min = 6.0
+damage_max = 10.0
+speed = 2.4
+attack_range = 1.6
+attack_time = 1.1
+armor = 8.0
+defense = 12.0
+attack_rating = 28.0
+flinch = 0.35
+knock_resist = 0.0
+stun_resist = 0.0
+impalable = true
+attack_clip = "attack"
+behavior = "melee"
+params = {
+"heavy_chance": 0.25
+}
+token_weight = 1
+min_wave = 1
+spawn_mode = "pack"
+base_count = 11.0
+per_wave = 3.0
+max_per_wave = 60

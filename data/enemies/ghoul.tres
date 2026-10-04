@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ghoul"
+display_name = "Ghoul"
+model_path = "res://assets/models/ghoul"
+model_scale = Vector3(0.95, 0.95, 0.95)
+height = 1.6
+radius = 0.36
+clips = Array[String](["idle", "walk", "run", "attack", "hit", "death", "leap", "charge_run"])
+gib_color = Color(0.5, 0.5, 0.47, 1)
+health = 38.0
+damage_min = 5.0
+damage_max = 8.0
+speed = 3.4
+attack_range = 1.5
+attack_time = 0.8
+armor = 3.0
+defense = 20.0
+attack_rating = 30.0
+flinch = 0.5
+knock_resist = 0.0
+stun_resist = 0.0
+impalable = true
+attack_clip = "attack"
+behavior = "pouncer"
+params = {
+"flank_radius": 5.5,
+"leap_min": 2.8,
+"leap_max": 6.5,
+"windup": 0.55,
+"leap_time": 0.42,
+"recover": 1.1,
+"pounce_mult": 1.5,
+"cooldown_min": 2.2,
+"cooldown_max": 3.6
+}
+token_weight = 1
+min_wave = 2
+spawn_mode = "pack"
+base_count = 2.0
+per_wave = 0.7
+max_per_wave = 8

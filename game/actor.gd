@@ -154,6 +154,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 
 	var fire: bool = result.get("type", 0) == Combat.DamageType.FIRE
 	bar_timer = 4.0
+	last_result = result
 	# A killing blow that is a crit (or a crushing blow) bursts the body; a direct fire kill (a fireball, not a
 	# secondary proc) bursts it into burning pieces.
 	if health - damage <= 0.0 and not is_in_group("player"):
@@ -524,8 +525,14 @@ func _apply_damage(amount: float) -> void:
 var _pending_gib: String = ""
 var _gib_from: Vector3 = Vector3.ZERO
 
+## Colour of the pieces when this body bursts (set from the enemy's definition).
+var gib_color: Color = Color(0.42, 0.48, 0.37)
+
+## The most recent resolved hit this actor took (read by death hooks, e.g. "was it killed by fire?").
+var last_result: Dictionary = {}
+
 func _gib_color() -> Color:
-	return Color(0.42, 0.48, 0.37)
+	return gib_color
 
 func _die() -> void:
 	dead = true
