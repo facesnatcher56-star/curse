@@ -148,6 +148,8 @@ func _build_gameplay() -> Control:
 	page.add_child(_row("Zoom sensitivity (scroll wheel)", zoom_slider))
 	page.add_child(_row("Damage numbers", _check("Show", GameSettings.show_damage_numbers, func(on: bool) -> void:
 		GameSettings.show_damage_numbers = on)))
+	page.add_child(_row("Slow-motion moments", _check("On", GameSettings.slow_motion, func(on: bool) -> void:
+		GameSettings.slow_motion = on)))
 	return page
 
 func _build_controls() -> Control:

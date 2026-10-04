@@ -252,6 +252,7 @@ func _skewer_kick() -> void:
 	Fx.shake(p, 0.3)
 	Fx.punch(p, 3.8)
 	Fx.hitstop(p, 0.09)
+	Fx.slowmo(p, 0.2, 0.4, 0.5)   # the boot lands and the pile flies off the blade in slow motion
 func end_skewer() -> void:
 	for e in skewer_impaled:
 		if is_instance_valid(e):

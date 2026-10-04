@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cxk353ejvg7x"
-path="res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.ctex"
+path.s3tc="res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "627f5488bb3387cf5993b64b96fc4bd1"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/zombie_brute/rigged_Image_1.jpg"
-dest_files=["res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.ctex"]
+dest_files=["res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -40,5 +41,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

@@ -73,6 +73,7 @@ func _explode() -> void:
 	Fx.shake(self, 0.22)
 	Fx.punch(self, 2.0)
 	Fx.hitstop(self, 0.05)
+	Sfx.sample(self, "fireball_impact", 1.0, 1.0)
 	Sfx.play(self, "explosion", 0.0)
 	_explosion_visuals(center)
 	queue_free()

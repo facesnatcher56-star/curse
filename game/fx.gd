@@ -42,13 +42,51 @@ static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size
 	tween.tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.5)
 	tween.chain().tween_callback(label.queue_free)
 
+static var _slow_scale: float = 1.0
+static var _slow_id: int = 0
+static var _stopped: bool = false
+
+## The clock is the slower of a hit-stop freeze and a slow-motion moment.
+static func _apply_time() -> void:
+	Engine.time_scale = 0.06 if _stopped else _slow_scale
+
+## Back to normal speed (a new run, or a test finishing).
+static func reset_time() -> void:
+	_stopped = false
+	_slow_scale = 1.0
+	_slow_id += 1
+	_hitstop_id += 1
+	Engine.time_scale = 1.0
+
 static func hitstop(node: Node, duration: float) -> void:
 	_hitstop_id += 1
 	var my_id: int = _hitstop_id
-	Engine.time_scale = 0.06
+	_stopped = true
+	_apply_time()
 	await node.get_tree().create_timer(duration, true, false, true).timeout
 	if my_id == _hitstop_id:
-		Engine.time_scale = 1.0
+		_stopped = false
+		_apply_time()
+
+## A slow-motion beat: the world drops to `scale` speed for `hold` seconds, then eases back over `ease_back` seconds.
+## Both are real time (they do not stretch with the slowdown). A later call replaces an earlier one.
+static func slowmo(node: Node, scale: float, hold: float, ease_back: float = 0.4) -> void:
+	if not GameSettings.slow_motion:
+		return
+	_slow_id += 1
+	var my_id: int = _slow_id
+	_slow_scale = clampf(scale, 0.05, 1.0)
+	_apply_time()
+	var tree: SceneTree = node.get_tree()
+	await tree.create_timer(hold, true, false, true).timeout
+	var started: int = Time.get_ticks_msec()
+	while my_id == _slow_id:
+		var u: float = clampf(float(Time.get_ticks_msec() - started) / 1000.0 / maxf(ease_back, 0.01), 0.0, 1.0)
+		_slow_scale = lerpf(clampf(scale, 0.05, 1.0), 1.0, u * u)
+		_apply_time()
+		if u >= 1.0:
+			break
+		await tree.process_frame
 
 static func shake(node: Node, amount: float) -> void:
 	node.get_tree().call_group("camera_rig", "shake", amount * GameSettings.screen_shake)

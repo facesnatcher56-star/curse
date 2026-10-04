@@ -19,9 +19,11 @@ const ACTIONS: Array = [
 	["skill_4", "Hotbar 4 (Potion)"],
 	["skill_5", "Hotbar 5 (Skewer)"],
 	["skill_6", "Hotbar 6 (Leap)"],
+	["skill_7", "Hotbar 7 (Earthshatter)"],
 	["dodge", "Dodge roll"],
 	["stand_still", "Stand still (hold)"],
 	["gear", "Show gear (hold)"],
+	["camera_rotate", "Rotate camera (hold and drag)"],
 	["zoom_in", "Camera zoom in"],
 	["zoom_out", "Camera zoom out"],
 	["pause", "Pause menu"],
@@ -43,6 +45,7 @@ static var vsync: bool = true
 static var msaa_index: int = 2
 static var screen_shake: float = 1.0
 static var show_damage_numbers: bool = true
+static var slow_motion: bool = true   # brief slow-motion on the biggest hits (Skewer kick, Earthshatter)
 static var zoom_step: float = 0.12   # camera zoom change per wheel notch
 
 ## action -> {"type": "key"|"mouse", "code": int}. Only actions the player changed are stored here.
@@ -293,6 +296,7 @@ static func save_to_disk() -> void:
 	config.set_value("video", "msaa_index", msaa_index)
 	config.set_value("gameplay", "screen_shake", screen_shake)
 	config.set_value("gameplay", "show_damage_numbers", show_damage_numbers)
+	config.set_value("gameplay", "slow_motion", slow_motion)
 	config.set_value("gameplay", "zoom_step", zoom_step)
 	config.set_value("controller", "swap_sticks", swap_sticks)
 	config.set_value("controller", "stick_deadzone", stick_deadzone)
@@ -315,6 +319,7 @@ static func load_from_disk() -> void:
 	msaa_index = int(config.get_value("video", "msaa_index", msaa_index))
 	screen_shake = float(config.get_value("gameplay", "screen_shake", screen_shake))
 	show_damage_numbers = bool(config.get_value("gameplay", "show_damage_numbers", show_damage_numbers))
+	slow_motion = bool(config.get_value("gameplay", "slow_motion", slow_motion))
 	zoom_step = float(config.get_value("gameplay", "zoom_step", zoom_step))
 	swap_sticks = bool(config.get_value("controller", "swap_sticks", swap_sticks))
 	stick_deadzone = float(config.get_value("controller", "stick_deadzone", stick_deadzone))

@@ -14,7 +14,7 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 	Basis(Vector3(1, 0, 0), PI / 2), Basis(Vector3(1, 0, 0), -PI / 2), Basis(Vector3(1, 0, 0), PI)]
 # Middle of the right fist in the hand bone's space (rig units are cm; the bone origin is the wrist).
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
-const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cleave", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump"]
+const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cleave", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump", "earthshatter"]
 
 # State the hero itself owns (everything else lives in a component).
 var combat_timer: float = 0.0
@@ -35,6 +35,7 @@ var _pad_hold_valid: bool = false
 # Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
 var skewer: SkewerSkill
 var leap: LeapSkill
+var earthshatter: EarthshatterSkill
 var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
@@ -42,6 +43,7 @@ var skills: SkillController
 func _init() -> void:
 	skewer = SkewerSkill.new(self)
 	leap = LeapSkill.new(self)
+	earthshatter = EarthshatterSkill.new(self)
 	movement = PlayerMovement.new(self)
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
@@ -124,7 +126,7 @@ func _physics_process(delta: float) -> void:
 	_was_stunned = false
 	var aiming_stick: Vector2 = Gamepad.aim_vector()
 	if Gamepad.active and aiming_stick.length() > 0.0:
-		face(global_position + Vector3(aiming_stick.x, 0.0, aiming_stick.y), 0.3)   # twin-stick: the hero looks where it aims
+		face(global_position + Gamepad.to_world(aiming_stick), 0.3)   # twin-stick: the hero looks where it aims
 	_read_input(cursor)
 	_act(delta, cursor)
 	movement.update_locomotion_anim()
@@ -152,7 +154,7 @@ func _pad_cursor() -> Vector3:
 	var aim: Vector2 = Gamepad.aim_vector()
 	var aiming_skill: bool = skills.aiming_id != ""
 	if aim.length() > 0.0:
-		_pad_aim_dir = Vector3(aim.x, 0.0, aim.y).normalized()
+		_pad_aim_dir = Gamepad.to_world(aim).normalized()
 		var point: Vector3 = global_position + _pad_aim_dir * (3.0 + 11.0 * aim.length())
 		var assist: Actor = enemy_near(point, 2.2)
 		if assist != null:
@@ -182,6 +184,8 @@ func _pad_default_target() -> Vector3:
 func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0)) -> Actor:
 	if Gamepad.active and mouse_override.x < 0.0:
 		return enemy_near(cursor, 2.5)
+	if mouse_override.x < 0.0 and mouse_over_ui():
+		return null   # an enemy hidden behind the minimap or hotbar is not under the cursor
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return null
@@ -193,10 +197,14 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 		if e == null or e.dead:
 			continue
 		var origin: Vector3 = e.get_global_transform_interpolated().origin
+		# unproject_position mirrors anything behind the camera back onto the screen: such an enemy would be "under" the
+		# cursor (highlighted, and chased on click) with nothing visible there.
+		if camera.is_position_behind(origin) or camera.is_position_behind(origin + Vector3(0, e.body_height, 0)):
+			continue
 		var feet: Vector2 = camera.unproject_position(origin)
 		var head: Vector2 = camera.unproject_position(origin + Vector3(0, e.body_height, 0))
 		var pixels_per_metre: float = maxf(feet.distance_to(head) / e.body_height, 1.0)
-		var reach: float = e.body_radius * pixels_per_metre + 4.0
+		var reach: float = minf(e.body_radius * pixels_per_metre + 4.0, 90.0)   # close to the camera the projection blows up
 		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(mouse, feet, head)
 		var d: float = mouse.distance_to(closest)
 		if d <= reach and d < best_score:
@@ -246,6 +254,18 @@ func _process(_delta: float) -> void:
 		var origin: Vector3 = focus.get_global_transform_interpolated().origin
 		_ring.global_transform = Transform3D(Basis().scaled(Vector3(radius, 1.0, radius)), Vector3(origin.x, 0.05, origin.z))
 
+## The mouse is over a HUD panel (minimap, hotbar, bars).
+func mouse_over_ui(at: Vector2 = Vector2(-1.0, -1.0)) -> bool:
+	if Gamepad.active:
+		return false
+	var mouse: Vector2 = get_viewport().get_mouse_position() if at.x < 0.0 else at
+	for node in get_tree().get_nodes_in_group("hud"):
+		if node.has_method("covers") and node.covers(mouse):
+			return true
+	return false
+
+var _ui_click: bool = false   # the current mouse press started on the interface: it does not move or attack
+
 func enemy_near(point: Vector3, max_dist: float) -> Actor:
 	var best: Actor = null
 	var best_d: float = max_dist
@@ -264,6 +284,10 @@ func _read_input(cursor: Vector3) -> void:
 	var ctrl: bool = Input.is_action_pressed("stand_still")
 
 	if Input.is_action_just_pressed("click"):
+		_ui_click = mouse_over_ui()
+	if not Input.is_action_pressed("click"):
+		_ui_click = false
+	if Input.is_action_just_pressed("click") and not _ui_click:
 		var hover: Actor = _hover_pick(cursor)
 		skills.queued_skill = ""
 		if ctrl:
@@ -279,7 +303,7 @@ func _read_input(cursor: Vector3) -> void:
 			# Clicking the ground means "go there": drop a swing in progress instead of finishing it.
 			if skills.busy and not movement.rolling and skills.swing_cancellable_by_move():
 				skills.cancel_action()
-	if Input.is_action_pressed("click"):
+	if Input.is_action_pressed("click") and not _ui_click:
 		match click_mode:
 			0:
 				movement.goal = Nav.snap(self, cursor)  # clicking inside a pillar goes to the nearest reachable spot
@@ -359,6 +383,8 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)
+	if result.get("skill_id", "") != "earthshatter":
+		stats.gain_ult_charge(float(result.get("damage", 0.0)))   # the ultimate does not charge itself
 	ItemEffects.on_dealt_hit(self, target, result)
 
 func on_enemy_killed(enemy: Actor) -> void:

@@ -9,16 +9,29 @@ var pause_menu: PauseMenu
 var rig: CameraRig
 var director: RunDirector
 
+var _boot_ms: int = 0
+
+## `-- --timing` prints how long each stage of starting a run takes (and quits once the first wave is up).
+func _mark(label: String) -> void:
+	if OS.get_cmdline_user_args().has("--timing"):
+		var now: int = Time.get_ticks_msec()
+		print("[boot] %-22s +%4d ms  (total %d ms since engine start)" % [label, now - _boot_ms, now])
+		_boot_ms = now
+
 func _ready() -> void:
+	_boot_ms = Time.get_ticks_msec()
 	# The reward screen pauses the game; this node must keep receiving input while paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = false
-	Engine.time_scale = 1.0
+	Fx.reset_time()
 	GameSettings.boot()
+	_mark("settings")
 	_build_world()
+	_mark("world + nav bake")
 
 	player = Player.new()
 	add_child(player)
+	_mark("hero model")
 	var torch := OmniLight3D.new()
 	torch.light_color = Color(1.0, 0.72, 0.45)
 	torch.light_energy = 1.1
@@ -46,6 +59,7 @@ func _ready() -> void:
 	pause_menu.main_menu_requested.connect(func() -> void: get_tree().change_scene_to_file("res://game/menu.tscn"))
 	layer.add_child(pause_menu)
 
+	_mark("camera + hud + menus")
 	director = RunDirector.new()
 	director.player = player
 	director.hud = hud
@@ -62,7 +76,13 @@ func _ready() -> void:
 	# still holds the old scene's data until then); spawn the first wave once it is ready.
 	await get_tree().physics_frame
 	await get_tree().physics_frame
+	_mark("2 physics frames")
 	director.start_wave()
+	_mark("first wave spawned")
+	if OS.get_cmdline_user_args().has("--timing"):
+		await get_tree().create_timer(1.0).timeout
+		_mark("1 s of play")
+		get_tree().quit()
 
 func _input(event: InputEvent) -> void:
 	Gamepad.note_event(event)   # tracks whether the pad or the mouse/keyboard is in use (hints, cursor, aim)

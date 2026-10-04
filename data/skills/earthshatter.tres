@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/skill_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "earthshatter"
+display_name = "Earthshatter"
+description = "The ultimate. It charges as you deal damage (taking damage does not charge it); when the bar is full, raise your blade overhead and drive it into the earth. The shockwave hurls every enemy around you high into the air, hardest near the centre, and leaves them stunned. Anything thrown into a wall or pillar is slammed for extra damage. Burning, bleeding and chilled enemies pass those effects to everyone else caught in it. Bosses are staggered, not thrown."
+mana = 0.0
+cooldown = 0.0
+time = 1.9
+clip = "earthshatter"
+clip_start = 0.0
+clip_strike = 1.93
+clip_end = 3.03
+kind = "earthshatter"
+range = 7.5
+mult = 3.2
+weight = 3.0
+lunge = 0.0
+directional = true
+aimed = false
+modifier_affixes = Array[String]([])
+extra = {"earthshatter": true, "charge": 650.0}

@@ -8,7 +8,7 @@ func _init(player: Player) -> void:
 	p = player
 
 const COMBO_WINDOW := 0.9
-var hotbar: Array[String] = ["power", "cleave", "fireball", "potion", "skewer", "leap"]
+var hotbar: Array[String] = ["power", "cleave", "fireball", "potion", "skewer", "leap", "earthshatter"]
 var right_click_skill: String = "basic"
 var _glow_light: OmniLight3D
 var _haste_fx: CPUParticles3D
@@ -83,6 +83,8 @@ func cancel_action() -> void:
 		p.skewer.end_skewer()  # releases anyone on the blade and restores collision
 	if bool(busy_def.get("leap", false)):
 		p.leap.end_leap()
+	if bool(busy_def.get("earthshatter", false)):
+		p.earthshatter.end()
 	if bool(busy_def.get("charged", false)):
 		drop_orb()
 	busy = false
@@ -97,10 +99,14 @@ func cancel_action() -> void:
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
 func try_directional(id: String, cursor: Vector3) -> void:
 	if not p.stats.can_use(id):
-		if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+		if p.stats.ult_charge < p.stats.ult_cost(id):
+			p._say("%s is %d%% charged" % [SkillDb.all()[id]["name"], int(p.stats.ult_fraction(id) * 100.0)])
+		elif p.stats.mana < float(SkillDb.all()[id]["mana"]):
 			p._say("Not enough mana")
 		return
-	if bool(SkillDb.all()[id].get("leap", false)):
+	if bool(SkillDb.all()[id].get("earthshatter", false)):
+		p.earthshatter.start(cursor)
+	elif bool(SkillDb.all()[id].get("leap", false)):
 		p.leap.start_leap(cursor)
 	else:
 		p.skewer.start_skewer(cursor)
@@ -406,6 +412,9 @@ func tick_busy(delta: float) -> void:
 	if bool(skill.get("leap", false)):
 		p.leap.tick_leap(delta)
 		return
+	if bool(skill.get("earthshatter", false)):
+		p.earthshatter.tick(delta)
+		return
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
 		return
@@ -554,6 +563,8 @@ func _apply_skill(skill: Dictionary) -> void:
 				if guaranteed_crit:
 					p.stats.riposte_time = 0.0
 				busy_target.receive(result, p.global_position)
+			else:
+				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
 			if busy_skill == "power":
 				_power_impact()
 		"cleave":
@@ -568,10 +579,13 @@ func _apply_skill(skill: Dictionary) -> void:
 					cleave_hits += 1
 					SkillFx.cleave_hit(p, e)
 			SkillFx.cleave_burst(p, float(skill["range"]))
+			if cleave_hits == 0:
+				Sfx.sword_miss(p)
 			if cleave_hits > 0:
 				Fx.hitstop(p, 0.05)
 				Fx.punch(p, 1.2 + 0.4 * minf(cleave_hits, 4))
 		"projectile":
+			Sfx.sample(p, "fireball_cast", -1.0, 1.0)   # the cast burst lands exactly as the fireball leaves the hands
 			var ball := Projectile.new()
 			ball.owner_actor = p
 			var dir: Vector3 = busy_aim - p.global_position

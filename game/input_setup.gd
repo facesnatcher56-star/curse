@@ -5,6 +5,7 @@ extends RefCounted
 static func apply() -> void:
 	_mouse("click", MOUSE_BUTTON_LEFT)
 	_mouse("alt_skill", MOUSE_BUTTON_RIGHT)
+	_mouse("camera_rotate", MOUSE_BUTTON_MIDDLE)
 	_mouse("zoom_in", MOUSE_BUTTON_WHEEL_UP)
 	_mouse("zoom_out", MOUSE_BUTTON_WHEEL_DOWN)
 	_key("stand_still", KEY_CTRL)
@@ -12,7 +13,7 @@ static func apply() -> void:
 	_key("dodge", KEY_SPACE)
 	_key("gear", KEY_TAB)
 	_key("pause", KEY_ESCAPE)
-	for i in 6:
+	for i in 7:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()
 
@@ -27,6 +28,7 @@ static func _apply_gamepad() -> void:
 	_pad_button("skill_4", JOY_BUTTON_LEFT_SHOULDER)
 	_pad_trigger("skill_5", JOY_AXIS_TRIGGER_RIGHT)
 	_pad_trigger("skill_6", JOY_AXIS_TRIGGER_LEFT)
+	_pad_button("skill_7", JOY_BUTTON_RIGHT_STICK)
 	_pad_button("stand_still", JOY_BUTTON_LEFT_STICK)
 	_pad_button("gear", JOY_BUTTON_BACK)
 	_pad_button("pause", JOY_BUTTON_START)

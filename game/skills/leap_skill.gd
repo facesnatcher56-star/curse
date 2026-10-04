@@ -213,6 +213,8 @@ func _leap_land(slam: bool) -> void:
 		Fx.punch(p, 2.6)
 		if hit_any:
 			Fx.hitstop(p, 0.06)
+		else:
+			Sfx.sword_miss(p)   # the chop landed on bare ground
 		Sfx.play(p, "swing_heavy", -2.0)
 
 func end_leap() -> void:

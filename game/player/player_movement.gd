@@ -47,7 +47,7 @@ func _travel_speed(delta: float) -> float:
 func stick_move(stick: Vector2, delta: float) -> void:
 	has_goal = false
 	var strength: float = clampf(stick.length(), 0.0, 1.0)
-	var direction := Vector3(stick.x, 0.0, stick.y).normalized()
+	var direction: Vector3 = Gamepad.to_world(stick).normalized()
 	var speed: float = _travel_speed(delta) * lerpf(0.45, 1.0, clampf((strength - 0.1) / 0.8, 0.0, 1.0))
 	if Gamepad.aim_vector().length() == 0.0:
 		p.face(p.global_position + direction, 0.35)
@@ -113,7 +113,7 @@ func try_roll(cursor: Vector3) -> void:
 	var dir: Vector3 = Vector3.ZERO
 	var stick: Vector2 = Gamepad.move_vector()
 	if stick.length() > 0.0:
-		dir = Vector3(stick.x, 0.0, stick.y)   # roll the way the stick is pushed
+		dir = Gamepad.to_world(stick)   # roll the way the stick is pushed
 	elif has_goal and (goal - p.global_position).length() > 0.4:
 		dir = goal - p.global_position
 	else:

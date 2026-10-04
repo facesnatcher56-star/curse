@@ -45,6 +45,8 @@ func run_from_args() -> bool:
 		_skill_shots("fireball")
 	elif OS.get_cmdline_user_args().has("--skillshot=leap"):
 		_leap_shots()
+	elif OS.get_cmdline_user_args().has("--skillshot=earthshatter"):
+		_earthshatter_shots()
 	elif OS.get_cmdline_user_args().has("--enemyshot"):
 		_enemy_shot()
 	elif OS.get_cmdline_user_args().has("--enemyfight"):
@@ -508,13 +510,20 @@ func _test_enemies() -> void:
 	expect("spitter keeps its distance", min_gap > 4.0)
 	print("  spitter: globs=", globs_seen, " puddles seen=", zones, " closest approach=", snappedf(min_gap, 0.1), " m")
 	# The hero walks up to it: it backs off instead of standing and fighting.
-	player.global_position = spitter.global_position + Vector3(0, 0, 2.5)
-	player.reset_physics_interpolation()
-	var before: float = spitter.flat_distance_to(player)
-	await get_tree().create_timer(1.2).timeout
-	var after: float = spitter.flat_distance_to(player)
-	expect("spitter backs away when the hero closes in", after > before + 0.8)
-	print("  spitter retreat: ", snappedf(before, 0.1), " -> ", snappedf(after, 0.1), " m")
+	# (A spitter in the middle of a spit stands still by design, so try again if the first attempt caught it mid-attack.)
+	var backed_away: bool = false
+	for attempt in 4:
+		while spitter.behavior.is_attacking():
+			await get_tree().physics_frame
+		player.global_position = spitter.global_position + Vector3(0, 0, 2.5)
+		player.reset_physics_interpolation()
+		var before: float = spitter.flat_distance_to(player)
+		await get_tree().create_timer(1.2).timeout
+		if spitter.flat_distance_to(player) > before + 0.8:
+			backed_away = true
+			break
+	expect("spitter backs away when the hero closes in", backed_away)
+	print("  spitter retreat: backed away = ", backed_away)
 	spitter.queue_free()
 	for node in get_tree().get_nodes_in_group("hazards"):
 		node.queue_free()
@@ -647,7 +656,7 @@ func _test_gamepad() -> void:
 	await get_tree().process_frame
 	# Every action has its pad button.
 	var wanted: Dictionary = {"alt_skill": true, "dodge": true, "skill_1": true, "skill_2": true, "skill_3": true, "skill_4": true,
-		"skill_5": true, "skill_6": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
+		"skill_5": true, "skill_6": true, "skill_7": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
 	var missing: PackedStringArray = []
 	for action in wanted:
 		var has_pad: bool = false
@@ -692,6 +701,7 @@ func _test_gamepad() -> void:
 	Gamepad.test_axes = {}
 	enemy.global_position = player.global_position + Vector3(4.0, 0, 3.0)
 	await get_tree().physics_frame
+	await get_tree().physics_frame   # hover is refreshed in the hero's physics step: give it a full frame after the move
 	expect("with the stick released the nearest enemy is auto-targeted", player.cursor_world().distance_to(enemy.global_position) < 0.01 and player.hover_target == enemy)
 
 	# A attacks the auto-target (same path as the right mouse button).
@@ -756,7 +766,7 @@ func _test_loading() -> void:
 	var seen: Dictionary = {}
 	var repeat: bool = false
 	var previous: String = screen.message
-	for i in 40:
+	for i in 120:
 		var next: String = screen.next_message()
 		repeat = repeat or next == previous
 		previous = next
@@ -1449,6 +1459,33 @@ func _leap_shots() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_leap_%d.png" % i)
 	get_tree().quit()
 
+## `-- --skillshot=earthshatter`: a crowd (one burning) around the hero, a full ultimate; frames in %TEMP%/curse_es_N.png.
+func _earthshatter_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.set_physics_process(true)
+	var crowd: Array[Enemy] = []
+	for i in 14:
+		var angle: float = TAU * float(i) / 14.0 + 0.2
+		var radius: float = 2.6 + float(i % 3) * 1.6
+		var z: Enemy = _spawn_enemy(player.global_position + Vector3(sin(angle), 0, cos(angle)) * radius, "zombie" if i % 4 else "brute")
+		z.aggro_range = 0.0
+		z.max_health = 900.0
+		z.health = 900.0
+		crowd.append(z)
+	await get_tree().create_timer(0.6).timeout
+	crowd[0].apply_burn(6.0, 8.0)
+	player.stats.ult_charge = player.stats.ult_cost("earthshatter")
+	player.skills.try_directional("earthshatter", player.global_position + Vector3(0, 0, -5))
+	var frame: int = 0
+	var started: int = Time.get_ticks_msec()
+	while frame < 30:
+		await get_tree().create_timer(0.12, true, false, true).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_es_%d.png" % frame)
+		print("frame ", frame, " t=", Time.get_ticks_msec() - started, " ms  time_scale=", snappedf(Engine.time_scale, 0.01), " phase=", player.earthshatter.phase)
+		frame += 1
+	get_tree().quit()
+
 ## `-- --skillshot=skewer|fireball`: run the skill on dummies and capture a frame every 0.12 s.
 func _skill_shots(which: String) -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1683,12 +1720,450 @@ func _screenshot_demo() -> void:
 		image.save_png(OS.get_environment("TEMP") + "/curse_shot_%d.png" % i)
 	get_tree().quit()
 
+## Earthshatter: charges only from damage dealt, will not fire until full, then throws everything in the ring up into the air,
+## stuns and hurts it, shares a burn with the rest, staggers a boss without throwing it, and slows time briefly (and restores it).
+func _test_earthshatter() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(32, 0, -12)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	player.stats.ult_charge = 0.0
+	Fx.reset_time()
+	var cost: float = player.stats.ult_cost("earthshatter")
+	expect("earthshatter has a charge cost and no mana cost", cost > 0.0 and float(SkillDb.all()["earthshatter"]["mana"]) == 0.0)
+	var offsets: Array[Vector3] = [Vector3(2, 0, 0), Vector3(-3, 0, 1), Vector3(0, 0, -4), Vector3(4, 0, 3), Vector3(-5, 0, -2), Vector3(1, 0, 5.5)]
+	var centre: Vector3 = player.global_position + Vector3(0, 0, -1.2)
+	var ring: Array[Enemy] = []
+	for offset in offsets:
+		var z: Enemy = _spawn_enemy(centre + offset)
+		z.aggro_range = 0.0
+		z.max_health = 3000.0
+		z.health = 3000.0
+		ring.append(z)
+	var far: Enemy = _spawn_enemy(centre + Vector3(14, 0, 0))
+	far.aggro_range = 0.0
+	far.max_health = 3000.0
+	far.health = 3000.0
+	await get_tree().process_frame
+	ring[0].apply_burn(6.0, 8.0)
+	# It charges from damage the hero deals...
+	var dummy: Enemy = ring[1]
+	var before_charge: float = player.stats.ult_charge
+	dummy.receive(Combat.resolve(player, dummy, 60.0, Combat.DamageType.PHYSICAL, false, 1.0), player.global_position)
+	expect("dealing damage charges the ultimate", player.stats.ult_charge > before_charge + 30.0)
+	# ...and not from damage taken.
+	var charge_now: float = player.stats.ult_charge
+	player.receive(Combat.resolve(dummy, player, 20.0, Combat.DamageType.PHYSICAL, false, 1.0), dummy.global_position)
+	expect("taking damage does not charge it", is_equal_approx(player.stats.ult_charge, charge_now))
+	# Not full: pressing it does nothing.
+	player.skills.try_directional("earthshatter", centre)
+	expect("an uncharged ultimate will not start", not player.skills.busy and not player.stats.can_use("earthshatter"))
+	# Full: it fires.
+	player.stats.ult_charge = cost
+	var health_before: Dictionary = {}
+	for z in ring:
+		health_before[z] = z.health
+	var far_before: float = far.health
+	player.skills.try_directional("earthshatter", centre)
+	expect("a full ultimate starts", player.skills.busy and player.earthshatter.phase == 1)
+	var phases: Array = []
+	var peak: Dictionary = {}
+	var min_scale: float = 1.0
+	var t: float = 0.0
+	while player.skills.busy and t < 12.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		min_scale = minf(min_scale, Engine.time_scale)
+		if phases.is_empty() or phases[-1] != player.earthshatter.phase:
+			phases.append(player.earthshatter.phase)
+		for z in ring:
+			if is_instance_valid(z):
+				peak[z] = maxf(float(peak.get(z, 0.0)), z.visual.global_position.y)
+	expect("earthshatter runs gather/slam/hold/recover", phases == [1, 2, 3, 4, 0])
+	var all_hurt: bool = true
+	var all_stunned: bool = true
+	for z in ring:
+		all_hurt = all_hurt and z.health < float(health_before[z])
+		all_stunned = all_stunned and z.stun_time > 0.5
+	expect("everything in the ring is hurt", all_hurt)
+	expect("everything in the ring is stunned", all_stunned)
+	expect("it counts its victims", player.earthshatter.victims == ring.size())
+	expect("the enemy outside the ring is untouched", is_equal_approx(far.health, far_before))
+	var highest: float = 0.0
+	var thrown: int = 0
+	for z in ring:
+		highest = maxf(highest, float(peak.get(z, 0.0)))
+		if float(peak.get(z, 0.0)) > 1.0:
+			thrown += 1
+	expect("the ring is thrown up into the air", thrown == ring.size() and highest > 2.0)
+	expect("the burn on one victim is shared with the rest", ring[2].burn_time > 0.0 and ring[3].burn_time > 0.0)
+	expect("the ultimate does not charge itself", player.stats.ult_charge < 1.0)
+	expect("time slowed during the impact", min_scale < 0.5)
+	await get_tree().create_timer(1.6, true, false, true).timeout
+	expect("time is back to normal afterwards", is_equal_approx(Engine.time_scale, 1.0))
+	expect("it restores the hero's state", not player.skills.busy and player.collision_mask == (Player.LAYER_WORLD | Player.LAYER_ENEMY))
+	print("  earthshatter: phases=", phases, " thrown=", thrown, "/", ring.size(), " highest=", snappedf(highest, 0.1), " m  slowest time scale=",
+		snappedf(min_scale, 0.01), " spread transfers=", player.earthshatter.last_spread)
+	# A boss is staggered, not thrown.
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(32, 0, -12)
+	player.reset_physics_interpolation()
+	var boss: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -3.5))
+	boss.aggro_range = 0.0
+	boss.is_boss = true
+	boss.max_health = 3000.0
+	boss.health = 3000.0
+	await get_tree().process_frame
+	player.stats.ult_charge = cost
+	player.skills.try_directional("earthshatter", boss.global_position)
+	t = 0.0
+	while player.skills.busy and t < 12.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	expect("a boss takes the blow and is staggered but not thrown", boss.health < 3000.0 and boss.stun_time > 0.5 and not boss.is_ragdolled())
+	# Cancelling before the blade lands costs nothing.
+	await get_tree().create_timer(1.6, true, false, true).timeout
+	player.stats.ult_charge = cost
+	player.skills.try_directional("earthshatter", boss.global_position)
+	await get_tree().create_timer(0.2).timeout
+	player.skills.cancel_action()
+	expect("cancelling the wind-up keeps the charge", player.stats.ult_charge >= cost and not player.skills.busy)
+	boss.queue_free()
+	player.stats.ult_charge = 0.0
+	Fx.reset_time()
+	await get_tree().process_frame
+
+## The mouse over the minimap, hotbar or bars must not pick (or walk to) an enemy standing in the world behind them.
+func _test_ui_block() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var size_px: Vector2 = get_viewport().get_visible_rect().size
+	var minimap_point: Vector2 = Vector2(size_px.x - 100.0, size_px.y - 100.0)
+	var open_point: Vector2 = size_px * 0.5
+	expect("the minimap blocks the mouse", game.hud.covers(minimap_point))
+	expect("the hotbar blocks the mouse", game.hud.covers(Vector2(size_px.x * 0.5, size_px.y - 50.0)))
+	expect("open ground does not", not game.hud.covers(open_point))
+	# An enemy standing in the world exactly behind the minimap pixel.
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var hidden_spot: Variant = Plane(Vector3.UP, 0.0).intersects_ray(camera.project_ray_origin(minimap_point), camera.project_ray_normal(minimap_point))
+	var enemy: Enemy = _spawn_enemy(hidden_spot)
+	enemy.aggro_range = 0.0
+	await get_tree().process_frame
+	Gamepad.active = false
+	expect("the enemy behind the minimap is picked when the mouse is not over the interface", player._hover_pick(enemy.global_position, minimap_point) == enemy)
+	expect("the player treats the minimap as interface, not world", player.mouse_over_ui(minimap_point) and not player.mouse_over_ui(open_point))
+	enemy.queue_free()
+	await get_tree().process_frame
+
+## An enemy behind the camera must never be picked: Camera3D.unproject_position mirrors such points back onto the screen, so one
+## standing behind the view used to be "under" the cursor (highlighted and chased on click) while nothing visible was there.
+func _test_hover_behind_camera() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, -20)
+	player.reset_physics_interpolation()
+	game.rig.global_position = player.global_position
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var behind: Vector3 = Vector3(camera.global_position.x, 0.0, camera.global_position.z + 20.0)
+	var enemy: Enemy = _spawn_enemy(behind)
+	enemy.aggro_range = 0.0
+	await get_tree().process_frame
+	var projected: Vector2 = camera.unproject_position(enemy.global_position + Vector3(0, enemy.body_height * 0.5, 0))
+	var size_px: Vector2 = get_viewport().get_visible_rect().size
+	print("  behind-camera enemy: behind=", camera.is_position_behind(enemy.global_position), " mirrored onto screen at ", projected, " (screen ", size_px, ")")
+	expect("the test enemy really is behind the camera", camera.is_position_behind(enemy.global_position))
+	expect("an enemy behind the camera is not picked by a cursor where it mirrors", player._hover_pick(Vector3(0, 0, 0), projected) != enemy)
+	enemy.queue_free()
+	await get_tree().process_frame
+
+## Holding the camera-rotate button and dragging swings the camera around the hero smoothly; sticks, picking and the minimap follow it,
+## and a click without a drag puts it back.
+func _test_camera_rotation() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	rig.reset_view()
+	await get_tree().create_timer(0.6).timeout
+	expect("the camera starts behind the hero", absf(rig.yaw) < 0.01 and absf(Gamepad.view_yaw) < 0.01)
+	var down := InputEventAction.new()
+	down.action = "camera_rotate"
+	down.pressed = true
+	rig._unhandled_input(down)
+	var drag := InputEventMouseMotion.new()
+	drag.relative = Vector2(-285.0, 0.0)   # about a quarter turn
+	rig._unhandled_input(drag)
+	var up := InputEventAction.new()
+	up.action = "camera_rotate"
+	up.pressed = false
+	rig._unhandled_input(up)
+	expect("a drag does not count as a reset click", absf(rig._yaw_target) > 1.0)
+	var last: float = rig.yaw
+	var biggest_step: float = 0.0
+	var frames: int = 0
+	var t: float = 0.0
+	while t < 1.2:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		biggest_step = maxf(biggest_step, absf(angle_difference(last, rig.yaw)))
+		last = rig.yaw
+		frames += 1
+	expect("the camera glides to the new angle (no snap)", biggest_step < 0.25 and frames > 10)
+	expect("it arrives", absf(angle_difference(rig.yaw, rig._yaw_target)) < 0.02 and absf(rig.yaw) > 1.0)
+	expect("the camera node is really turned", absf(angle_difference(rig.rotation.y, rig.yaw)) < 0.001)
+	expect("sticks follow the view", Gamepad.to_world(Vector2(0, -1)).distance_to(Vector3(0, 0, -1).rotated(Vector3.UP, rig.yaw)) < 0.001)
+	# Stick up now means up the screen: the hero walks away from the camera, not along world -Z.
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var screen_up: Vector3 = -camera.global_transform.basis.z
+	screen_up.y = 0.0
+	screen_up = screen_up.normalized()
+	Gamepad.active = true
+	Gamepad.test_axes = {JOY_AXIS_LEFT_X: 0.0, JOY_AXIS_LEFT_Y: -1.0}
+	var start: Vector3 = player.global_position
+	await get_tree().create_timer(0.8).timeout
+	Gamepad.test_axes = {}
+	Gamepad.active = false
+	var moved: Vector3 = player.global_position - start
+	moved.y = 0.0
+	expect("stick up walks up the screen after the camera is turned", moved.length() > 2.0 and moved.normalized().dot(screen_up) > 0.95)
+	# Picking still works from the new angle.
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var enemy: Enemy = _spawn_enemy(Vector3(2.0, 0, 1.0))
+	enemy.aggro_range = 0.0
+	await get_tree().create_timer(0.3).timeout
+	var at: Vector2 = camera.unproject_position(enemy.global_position + Vector3(0, enemy.body_height * 0.5, 0))
+	expect("an enemy is still picked under the cursor from the new angle", player._hover_pick(enemy.global_position, at) == enemy)
+	enemy.queue_free()
+	# A click without a drag resets.
+	var click_down := InputEventAction.new()
+	click_down.action = "camera_rotate"
+	click_down.pressed = true
+	rig._unhandled_input(click_down)
+	var click_up := InputEventAction.new()
+	click_up.action = "camera_rotate"
+	click_up.pressed = false
+	rig._unhandled_input(click_up)
+	await get_tree().create_timer(1.2).timeout
+	expect("a middle click without a drag resets the camera", absf(rig.yaw) < 0.02 and absf(Gamepad.view_yaw) < 0.02)
+	print("  camera rotation: biggest per-frame step ", snappedf(biggest_step, 0.001), " rad over ", frames, " frames")
+	await get_tree().process_frame
+
+## The sword sound plays when the blade connects with an enemy, and only then: not on a miss or a block, not for a fireball or a
+## boot or a shockwave.
+func _logged(prefix: String) -> int:
+	var count: int = 0
+	for name in Sfx.played_log:
+		if name.begins_with(prefix):
+			count += 1
+	return count
+
+func _test_sword_sound() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var was_enabled: bool = Sfx.enabled
+	Sfx.enabled = true
+	expect("both sword sound files are in the project", ResourceLoader.exists("res://assets/audio/sword_hit.ogg") and ResourceLoader.exists("res://assets/audio/sword_hit_2.wav"))
+	# The sounds are randomised, never the same recording twice in a row, and both get used.
+	var used: Dictionary = {}
+	var repeated: bool = false
+	var previous: String = ""
+	for i in 40:
+		Sfx._last_played.clear()
+		Sfx.sample(self, "sword_hit")
+		used[Sfx.last_name] = true
+		repeated = repeated or Sfx.last_name == previous
+		previous = Sfx.last_name
+	expect("the sword hit sound is randomised between both recordings", used.size() == 2 and not repeated)
+	Sfx._last_played.clear()
+	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -3))
+	enemy.aggro_range = 0.0
+	enemy.max_health = 5000.0
+	enemy.health = 5000.0
+	await get_tree().process_frame
+	Sfx.played_log.clear()
+	var hit: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	hit["skill_id"] = "basic"
+	enemy.receive(hit, player.global_position)
+	expect("a sword hit plays the sound", _logged("sword_hit") == 1 and _logged("sword_miss") == 0)
+	await get_tree().create_timer(0.1).timeout
+	var miss: Dictionary = {"outcome": Combat.Outcome.MISS, "damage": 0.0, "source": player, "skill_id": "basic"}
+	enemy.receive(miss, player.global_position)
+	expect("a missed swing plays a swing sound, not the hit sound", _logged("sword_hit") == 1 and _logged("sword_miss") == 1)
+	await get_tree().create_timer(0.1).timeout
+	var block: Dictionary = {"outcome": Combat.Outcome.BLOCK, "damage": 0.0, "source": player, "skill_id": "basic", "weight": 1.0}
+	enemy.receive(block, player.global_position)
+	expect("a block plays neither", Sfx.played_log.size() == 2)
+	await get_tree().create_timer(0.1).timeout
+	for other in ["skewer_kick", "earthshatter", "fireball"]:
+		var odd: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
+		odd["skill_id"] = other
+		enemy.receive(odd, player.global_position)
+		await get_tree().create_timer(0.1).timeout
+	expect("a boot, a shockwave or a fireball is not the sword", Sfx.played_log.size() == 2)
+	var secondary: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	secondary["skill_id"] = "power"
+	secondary["secondary"] = true
+	enemy.receive(secondary, player.global_position)
+	expect("splash damage is not a sword hit either", Sfx.played_log.size() == 2)
+	await get_tree().create_timer(0.1).timeout
+	var cleave: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	cleave["skill_id"] = "cleave"
+	enemy.receive(cleave, player.global_position)
+	expect("every sword skill makes it", _logged("sword_hit") == 2)
+	# The four swing recordings are all used, never the same twice running.
+	Sfx.played_log.clear()
+	var repeats: bool = false
+	for i in 60:
+		Sfx._last_played.clear()
+		Sfx.sample(self, "sword_miss")
+		if Sfx.played_log.size() >= 2 and Sfx.played_log[-1] == Sfx.played_log[-2]:
+			repeats = true
+	var distinct: Dictionary = {}
+	for name in Sfx.played_log:
+		distinct[name] = true
+	expect("all four swing sounds are used and none repeats back to back", distinct.size() == 4 and not repeats)
+	Sfx.enabled = was_enabled
+	enemy.queue_free()
+	await get_tree().process_frame
+
+## Any time the sword swings and finds nothing, a swing sound plays: a swing at a target that is out of reach, a Cleave with nobody
+## around, a Leap chop on open ground.
+func _test_sword_miss_in_air() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var was_enabled: bool = Sfx.enabled
+	Sfx.enabled = true
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	# A swing at an enemy that is out of reach by the time the blow lands.
+	var far: Enemy = _spawn_enemy(Vector3(0, 0, -9))
+	far.aggro_range = 0.0
+	await get_tree().process_frame
+	Sfx._last_played.clear()
+	Sfx.played_log.clear()
+	player.skills.start_skill("basic", far, far.global_position)
+	var t: float = 0.0
+	while player.skills.busy and t < 3.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	expect("a swing that cannot reach its target makes the swing sound", _logged("sword_miss") == 1 and _logged("sword_hit") == 0)
+	far.queue_free()
+	await get_tree().process_frame
+	# A Cleave with nobody in range.
+	await get_tree().create_timer(0.2).timeout
+	Sfx._last_played.clear()
+	Sfx.played_log.clear()
+	player.skills.start_skill("cleave", null, player.global_position + Vector3(0, 0, -3))
+	t = 0.0
+	while player.skills.busy and t < 3.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	expect("a Cleave through empty air makes the swing sound", _logged("sword_miss") == 1)
+	# A Leap chop onto open ground.
+	player.stats.cooldowns.clear()
+	Sfx._last_played.clear()
+	Sfx.played_log.clear()
+	player.skills.try_directional("leap", player.global_position + Vector3(0, 0, -6))
+	t = 0.0
+	while player.skills.busy and t < 5.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+	expect("a Leap chop on bare ground makes the swing sound", _logged("sword_miss") == 1)
+	# And when it does connect there is no swing sound.
+	var near: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -1.6))
+	near.aggro_range = 0.0
+	near.max_health = 3000.0
+	near.health = 3000.0
+	await get_tree().process_frame
+	for attempt in 8:   # a swing can also be dodged (that is a miss): swing until one connects
+		player.stats.cooldowns.clear()
+		Sfx._last_played.clear()
+		Sfx.played_log.clear()
+		player.skills.start_skill("cleave", null, near.global_position)
+		t = 0.0
+		while player.skills.busy and t < 3.0:
+			await get_tree().physics_frame
+			t += 1.0 / 60.0
+		if _logged("sword_hit") >= 1:
+			break
+		await get_tree().create_timer(0.1).timeout
+	expect("a Cleave that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
+	near.queue_free()
+	Sfx.enabled = was_enabled
+	await get_tree().process_frame
+
+## The fireball's cast sound plays at the moment of launch (whatever the casting speed) and its impact sound plays on the explosion.
+func _test_fireball_sounds() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var was_enabled: bool = Sfx.enabled
+	Sfx.enabled = true
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	for haste in [1.0, 1.6]:   # casting faster moves the launch earlier, and the sound must follow it
+		player.stats.cooldowns.clear()
+		player.stats.haste_time = 99.0 if haste > 1.0 else 0.0
+		Sfx._last_played.clear()
+		Sfx.played_log.clear()
+		var target: Vector3 = Vector3(0, 0, -8)
+		player.skills.start_skill("fireball", null, target)
+		var skill: Dictionary = SkillDb.all()["fireball"]
+		var scale_factor: float = player.skills.busy_time / float(skill["time"])
+		var throw_at: float = (float(skill["gather"]) + float(skill["release_after"])) * scale_factor
+		var cast_at: float = -1.0
+		var impact_at: float = -1.0
+		var early: bool = false
+		var t: float = 0.0
+		while t < 5.0:
+			await get_tree().physics_frame
+			t += 1.0 / 60.0
+			if cast_at < 0.0 and _logged("fireball_cast") > 0:
+				cast_at = player.skills.busy_t if player.skills.busy else throw_at
+			if impact_at < 0.0 and _logged("fireball_impact") > 0:
+				impact_at = t
+				break
+		expect("the cast sound plays once, at launch (casting speed x%.1f)" % haste, _logged("fireball_cast") == 1 and cast_at >= 0.0 and absf(cast_at - throw_at) < 0.1)
+		expect("the impact sound plays when the fireball explodes", _logged("fireball_impact") >= 1 and impact_at > throw_at)
+		print("  fireball sound x", haste, ": launch at ", snappedf(throw_at, 0.01), " s, cast sound at ", snappedf(cast_at, 0.01), " s, impact sound after ", snappedf(impact_at, 0.01), " s")
+		await get_tree().create_timer(0.5).timeout
+	player.stats.haste_time = 0.0
+	# Both cast recordings get used.
+	Sfx.played_log.clear()
+	for i in 30:
+		Sfx._last_played.clear()
+		Sfx.sample(self, "fireball_cast")
+	var seen: Dictionary = {}
+	for name in Sfx.played_log:
+		seen[name] = true
+	expect("both cast recordings are used", seen.size() == 2)
+	Sfx.enabled = was_enabled
+	await get_tree().process_frame
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
 }
 
 var _failures: PackedStringArray = []
@@ -1730,6 +2205,13 @@ func _run_selftest() -> void:
 	await _test_fireball()
 	await _test_items()
 	await _test_leap()
+	await _test_earthshatter()
+	await _test_ui_block()
+	await _test_hover_behind_camera()
+	await _test_camera_rotation()
+	await _test_sword_sound()
+	await _test_sword_miss_in_air()
+	await _test_fireball_sounds()
 	await _test_impact()
 	await _test_fire_blast()
 	await _test_gibs()

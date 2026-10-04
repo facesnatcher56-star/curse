@@ -21,6 +21,7 @@ ICONS = {
     "dodge": "an armored knight tumbling in a dodge roll with motion streaks and kicked-up dust",
     "leap": "an armored knight leaping through the air high above the ground, gripping a longsword with both hands pointed straight down, about to stab a fallen enemy, dust ring and motion streaks",
     "skewer": "an armored knight charging forward with a long sword thrust through three enemies lined up on the blade, motion streaks and sparks",
+    "earthshatter": "an armored knight on one knee driving a longsword deep into cracked ground, a huge glowing orange shockwave and fissures bursting outward, rocks and enemies flung into the air",
 }
 
 

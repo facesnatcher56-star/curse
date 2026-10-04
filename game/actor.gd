@@ -120,6 +120,9 @@ func flat_distance_to(other: Node3D) -> float:
 	d.y = 0.0
 	return d.length()
 
+## Skills whose blow is the hero's sword itself.
+const SWORD_SKILLS: Array[String] = ["basic", "power", "cleave", "skewer", "leap"]
+
 ## Apply a resolved attack (see Combat.resolve) to this actor.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if dead:
@@ -146,6 +149,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 
 	Fx.popup(self, outcome, damage, _popup_tint())
 	if outcome == Combat.Outcome.MISS:
+		if source is Player and String(result.get("skill_id", "")) in SWORD_SKILLS and not result.get("secondary", false):
+			Sfx.sword_miss(self)   # the blade cut empty air
 		_on_avoided(outcome)
 		return
 	if outcome == Combat.Outcome.BLOCK:
@@ -156,6 +161,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 
 	var fire: bool = result.get("type", 0) == Combat.DamageType.FIRE
+	# Only the hero's blade landing makes the sword sound (not a miss or a block, which returned above, and not a fireball,
+	# a boot, a shockwave or a splash).
+	var sword_contact: bool = source is Player and not result.get("secondary", false) \
+		and String(result.get("skill_id", "")) in SWORD_SKILLS
 	bar_timer = 4.0
 	last_result = result
 	# A killing blow that is a crit (or a crushing blow) bursts the body; a direct fire kill (a fireball, not a
@@ -171,7 +180,9 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
 	var killed: bool = dead
 	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
-	if not fire:
+	if sword_contact:
+		Sfx.sword_hit(self, outcome, weight)
+	elif not fire:
 		match outcome:
 			Combat.Outcome.CRUSHING:
 				Sfx.play(self, "crush", 2.0)

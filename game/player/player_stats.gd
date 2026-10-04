@@ -33,6 +33,10 @@ func skill_damage_text(id: String) -> String:
 			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0)
 			return "Chop %d-%d, slam %d-%d (crit)" % [int(weapon_min * factor * p.leap.LEAP_CHOP_MULT), int(weapon_max * factor * p.leap.LEAP_CHOP_MULT),
 				int(weapon_min * factor * p.leap.LEAP_SLAM_MULT), int(weapon_max * factor * p.leap.LEAP_SLAM_MULT)]
+		"earthshatter":
+			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * p.earthshatter.MULT
+			return "Damage %d-%d, thrown %d m up" % [int(weapon_min * factor * p.earthshatter.MIN_FALLOFF), int(weapon_max * factor),
+				int(pow(p.earthshatter.LAUNCH_LIFT, 2.0) / 40.0)]
 		"potion":
 			return "Heals 60"
 	return ""
@@ -55,8 +59,25 @@ var haste_time: float = 0.0
 var riposte_time: float = 0.0
 var ward_timer: float = 0.0
 var aegis_hits: int = 0
+## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
+var ult_charge: float = 0.0
+
+func ult_cost(id: String) -> float:
+	return float(SkillDb.all()[id].get("charge", 0.0))
+
+func ult_fraction(id: String) -> float:
+	var cost: float = ult_cost(id)
+	return clampf(ult_charge / cost, 0.0, 1.0) if cost > 0.0 else 1.0
+
+func gain_ult_charge(damage: float) -> void:
+	ult_charge = minf(ult_charge + damage, MAX_ULT_CHARGE)
+
+const MAX_ULT_CHARGE := 650.0
+
 func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
+	if ult_charge < ult_cost(id):
+		return false
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
 
 func use_potion() -> bool:

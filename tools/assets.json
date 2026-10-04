@@ -157,7 +157,8 @@
       "leap": 86,
       "stomp": 255,
       "yank": 239,
-      "jump": 466
+      "jump": 466,
+      "earthshatter": 127
     }
   },
   "spitter": {

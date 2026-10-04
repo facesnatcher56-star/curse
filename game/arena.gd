@@ -22,11 +22,23 @@ const PROPS := {
 var obstacles: Array[Dictionary] = []
 var _nav_region: NavigationRegion3D
 
+var _stage_ms: int = 0
+
+## `-- --timing`: print how long each part of building the arena takes.
+func _stage(label: String) -> void:
+	if OS.get_cmdline_user_args().has("--timing"):
+		var now: int = Time.get_ticks_msec()
+		print("[arena] %-14s +%4d ms" % [label, now - _stage_ms])
+		_stage_ms = now
+
 func build(bake_navigation: bool = true) -> void:
+	_stage_ms = Time.get_ticks_msec()
 	_nav_region = NavigationRegion3D.new()
 	add_child(_nav_region)
 	_build_ground()
+	_stage("ground")
 	_build_walls()
+	_stage("walls")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var placed_any: bool = false
@@ -43,6 +55,7 @@ func build(bake_navigation: bool = true) -> void:
 				pos = pos.normalized() * (7.0 + rng.randf() * 4.0)
 			_place(prop_name, scene, Vector3(pos.x, 0, pos.y), rng.randf() * TAU,
 				float(spec[1]) * rng.randf_range(0.85, 1.2), bool(spec[2]), bool(spec[3]))
+	_stage("props")
 	if not placed_any:
 		for i in 18:
 			var pos := Vector2(rng.randf_range(-30, 30), rng.randf_range(-30, 30))
@@ -50,6 +63,7 @@ func build(bake_navigation: bool = true) -> void:
 				_add_pillar(Vector3(pos.x, 0, pos.y), rng.randf_range(0.7, 1.4), rng.randf_range(2.0, 4.5))
 	if bake_navigation:
 		_bake_navigation()
+		_stage("nav bake")
 
 ## Bakes a navigation mesh from the static colliders (ground, walls, props) so characters can path around them.
 func _bake_navigation() -> void:
@@ -147,6 +161,13 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		obstacles.append({"position": pos, "radius": maxf(bounds.size.x, bounds.size.z) * factor * 0.5})
 	_nav_region.add_child(holder)
 
+var _hulls: Dictionary = {}   # mesh -> its convex hull: every copy of a prop shares one hull instead of recomputing it
+
+func _hull_for(mesh: Mesh) -> Shape3D:
+	if not _hulls.has(mesh):
+		_hulls[mesh] = mesh.create_convex_shape(true, true)
+	return _hulls[mesh]
+
 ## One convex hull per mesh, so collision follows the real silhouette instead of a box.
 func _add_hull_shapes(body: StaticBody3D, prop: Node3D, factor: float) -> void:
 	for child in prop.find_children("*", "MeshInstance3D", true, false):
@@ -159,7 +180,7 @@ func _add_hull_shapes(body: StaticBody3D, prop: Node3D, factor: float) -> void:
 			rel = (walker as Node3D).transform * rel
 			walker = walker.get_parent()
 		var shape := CollisionShape3D.new()
-		shape.shape = mi.mesh.create_convex_shape(true, true)
+		shape.shape = _hull_for(mi.mesh)
 		shape.transform = Transform3D(Basis().scaled(Vector3.ONE * factor), prop.position) * rel
 		body.add_child(shape)
 

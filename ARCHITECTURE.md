@@ -10,7 +10,7 @@ A Godot 4 click-to-move ARPG: fixed 3/4 camera, weighty melee, wave arena. Scrip
 | `game/run/run_director.gd` | The run: wave composition and spawning, kill tracking, the reward offered between waves. |
 | `game/player.gd` | The hero node: input, cursor picking, orchestration of the components below, hit hooks. |
 | `game/player/` | `PlayerStats` (mana/stamina/potions, cooldowns, equipment + affix queries, regen), `PlayerMovement` (click-to-move, locomotion animation, dodge roll), `SkillController` (hotkeys, aim preview, starting/ticking skills, combo, strike effects). |
-| `game/skills/` | `SkewerSkill`, `LeapSkill`: the two self-contained skill state machines. |
+| `game/skills/` | `SkewerSkill`, `LeapSkill`, `EarthshatterSkill` (the ultimate: charges from damage dealt, `PlayerStats.ult_charge`): self-contained skill state machines. |
 | `game/enemy.gd`, `game/enemies/` | `Enemy` is the shared body (stats from its `EnemyDef`, aggro/stun, movement helpers, attack slots). `EnemyBehavior` subclasses decide what it does: `MeleeBehavior`, `PouncerBehavior`, `SpitterBehavior`, `BloaterBehavior`, `SupportBehavior`. `AcidGlob` and `HazardZone` are their effects. |
 | `game/actor.gd` | Base of hero and enemies: health, hit reaction, burn/frost/ward/daze, ragdoll, gib bursts. |
 | `game/data/` | Resource classes (`EnemyDef`, `SkillDef`, `AffixDef`) and their loaders (`EnemyDb`, `SkillDb`, `AffixDb`). |
@@ -31,10 +31,10 @@ Skills, enemies and affixes are Resources, not dictionaries in scripts.
 
 ## Tests and CI
 
-`godot --headless --path . res://game/main.tscn -- --selftest` runs every check in `game/dev/dev_harness.gd`; each check calls `expect(label, condition)` and the process exits non-zero if any fail. `--only=NAME` runs one (`gibs`, `swarm`, `enemies`, `leap`, `impact`, `fireblast`, `balance`, `items`, `autoattack`). `.github/workflows/selftest.yml` runs the full suite on every push and pull request.
+`godot --headless --path . res://game/main.tscn -- --selftest` runs every check in `game/dev/dev_harness.gd`; each check calls `expect(label, condition)` and the process exits non-zero if any fail. `--only=NAME` runs one (`gibs`, `swarm`, `enemies`, `leap`, `earthshatter`, `impact`, `fireblast`, `balance`, `items`, `autoattack`). `tools/run_godot.sh LOG SECS -- <args>` runs Godot and kills it the moment a script/parse error appears instead of waiting for a timeout. `-- --timing` prints how long each stage of starting a run takes. `.github/workflows/selftest.yml` runs the full suite on every push and pull request.
 
 Screenshot modes (`--skillshot=…`, `--enemyshot`, `--enemyfight`, `--clipsheet=…`, `--poses`, …) write PNGs to `%TEMP%` for judging visuals by eye.
 
 ## Assets
 
-Large binaries (`*.glb`, `*.res`, `*.jpg`, audio, video) are stored with Git LFS (see `.gitattributes`). Models, rigs, animations and icons come from Meshy via `tools/meshy.py` / `meshy_icons.py`; `tools/bake_anims.gd` bakes animations into small `anims.res` files.
+Model textures are imported GPU-compressed (VRAM) and capped at 1024 px (hero 2048): lossless 2k textures made every prop take ~280 ms to load. Large binaries (`*.glb`, `*.res`, `*.jpg`, audio, video) are stored with Git LFS (see `.gitattributes`). Models, rigs, animations and icons come from Meshy via `tools/meshy.py` / `meshy_icons.py`; `tools/bake_anims.gd` bakes animations into small `anims.res` files.

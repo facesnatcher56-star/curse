@@ -20,6 +20,7 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_time = seconds
 
 func _ready() -> void:
+	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -117,7 +118,20 @@ func _draw() -> void:
 		draw_string(font, Vector2(0, size_px.y * 0.45), "YOU DIED", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 64, Color(0.8, 0.1, 0.1))
 		draw_string(font, Vector2(0, size_px.y * 0.45 + 40), "Press R to restart", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 24, Color(1, 1, 1))
 
-## Whole-arena minimap, bottom right. The camera never rotates, so world -Z is up on the map.
+## True when a screen point is over a HUD panel (minimap, hotbar, resource bars): the world behind it must not react to the mouse.
+func covers(point: Vector2) -> bool:
+	var size_px: Vector2 = get_viewport_rect().size
+	var side: float = 210.0
+	if Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side)).has_point(point):
+		return true
+	if Rect2(Vector2(24.0, size_px.y - 92.0), Vector2(260.0, 70.0)).has_point(point):   # health / mana / stamina bars
+		return true
+	var slot: float = 64.0
+	var count: int = (player.skills.hotbar.size() + 2) if player != null else 9
+	var total: float = slot * count + 8.0 * (count - 1)
+	return Rect2(Vector2((size_px.x - total) * 0.5, size_px.y - slot - 24.0), Vector2(total, slot)).has_point(point)
+
+## Whole-arena minimap, bottom right. It turns with the camera, so whatever is up the screen is up on the map.
 func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var side: float = 210.0
 	var rect := Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side))
@@ -129,7 +143,7 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		for obstacle in arena.obstacles:
 			var op: Vector3 = obstacle["position"]
 			var r: float = maxf(float(obstacle["radius"]) * scale_px, 1.5)
-			draw_circle(centre + Vector2(op.x, op.z) * scale_px, r, Color(0.3, 0.3, 0.34, 0.5))
+			draw_circle(centre + Vector2(op.x, op.z).rotated(Gamepad.view_yaw) * scale_px, r, Color(0.3, 0.3, 0.34, 0.5))
 	# Enemies: red dots, larger orange for bosses; the nearest few are not special, the count is in the header.
 	var count: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -138,7 +152,8 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 			continue
 		count += 1
 		var p: Vector3 = enemy.global_position
-		var at: Vector2 = centre + Vector2(clampf(p.x, -half, half), clampf(p.z, -half, half)) * scale_px
+		var rel: Vector2 = Vector2(p.x, p.z).rotated(Gamepad.view_yaw)
+		var at: Vector2 = centre + Vector2(clampf(rel.x, -half, half), clampf(rel.y, -half, half)) * scale_px
 		if enemy.is_boss or enemy.max_health >= 150.0:
 			draw_circle(at, 5.0, Color(0, 0, 0, 0.8))
 			draw_circle(at, 3.8, Color(1.0, 0.55, 0.12))
@@ -147,9 +162,9 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 			draw_circle(at, 2.2, Color(0.95, 0.15, 0.12))
 	# The hero: a white arrow pointing the way they face.
 	var pp: Vector3 = player.global_position
-	var me: Vector2 = centre + Vector2(pp.x, pp.z) * scale_px
+	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px
 	var yaw: float = player.visual.rotation.y if player.visual != null else 0.0
-	var fwd := Vector2(sin(yaw), cos(yaw))
+	var fwd: Vector2 = Vector2(sin(yaw), cos(yaw)).rotated(Gamepad.view_yaw)
 	var side_v := Vector2(-fwd.y, fwd.x)
 	draw_colored_polygon(PackedVector2Array([me + fwd * 7.0, me - fwd * 4.0 + side_v * 4.5, me - fwd * 2.0, me - fwd * 4.0 - side_v * 4.5]),
 		Color(1, 1, 1))
@@ -249,11 +264,14 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	if not affordable:
 		draw_rect(rect, Color(0.1, 0.2, 0.6, 0.45))
 
-	# Ready flash: the moment a cooldown ends the slot pulses white.
+	# An ultimate has no cooldown: it fills from the bottom as damage is dealt and glows when it is ready to use.
+	var ult_cost: float = player.stats.ult_cost(id)
+	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_charge < ult_cost
+	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
-	if was_on_cooldown and remaining <= 0.0:
+	if was_on_cooldown and remaining <= 0.0 and not ult_filling:
 		_ready_flash[id] = 0.35
-	_was_cooling[id] = remaining > 0.0
+	_was_cooling[id] = remaining > 0.0 or ult_filling
 	var flash: float = float(_ready_flash.get(id, 0.0))
 	if flash > 0.0:
 		draw_rect(rect, Color(1, 1, 1, 0.55 * flash / 0.35))
@@ -267,6 +285,17 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_string(font, Vector2(pos.x, pos.y + size_px * 0.6), text, HORIZONTAL_ALIGNMENT_CENTER, size_px, 26, Color(1, 0.95, 0.85))
 
 	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if remaining <= 0.0 and affordable else Color(0.4, 0.4, 0.45, 0.9)
+	if ult_cost > 0.0:
+		var filled: float = player.stats.ult_fraction(id)
+		if ult_filling:
+			draw_rect(Rect2(pos, Vector2(size_px, size_px * (1.0 - filled))), Color(0, 0, 0, 0.62))   # the unfilled part stays dark
+			draw_rect(Rect2(pos + Vector2(0, size_px * (1.0 - filled)), Vector2(size_px, size_px * filled)), Color(1.0, 0.55, 0.15, 0.22))
+			draw_string(font, Vector2(pos.x, pos.y + size_px * 0.62), "%d%%" % int(filled * 100.0), HORIZONTAL_ALIGNMENT_CENTER, size_px, 22, Color(1, 0.95, 0.85))
+			border = Color(0.55, 0.4, 0.25, 0.9)
+		else:
+			var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
+			draw_rect(rect.grow(2.0 + 2.0 * beat), Color(1.0, 0.6, 0.2, 0.35 + 0.35 * beat), false, 3.0)
+			border = Color(1.0, 0.8, 0.4, 1.0)
 	draw_rect(rect, border, false, 2.0)
 	# Key hint (follows rebinding), potion count and mana cost.
 	var key_text: String = GameSettings.short_binding_text(action)
