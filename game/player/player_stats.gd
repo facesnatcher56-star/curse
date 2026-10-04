@@ -55,11 +55,11 @@ var haste_time: float = 0.0
 var riposte_time: float = 0.0
 var ward_timer: float = 0.0
 var aegis_hits: int = 0
-func _can_use(id: String) -> bool:
+func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
 
-func _use_potion() -> bool:
+func use_potion() -> bool:
 	if potions <= 0:
 		p._say("No potions left")
 		return false
@@ -113,7 +113,7 @@ func heal(amount: float) -> void:
 	p.health = minf(p.health + amount, p.max_health)
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+%d" % int(amount), Color(0.4, 1.0, 0.4), 40)
 
-func _collect_orbs() -> void:
+func collect_orbs() -> void:
 	for node in p.get_tree().get_nodes_in_group("orbs"):
 		var orb := node as Node3D
 		if orb != null and orb.global_position.distance_to(p.global_position + Vector3(0, 0.6, 0)) < 1.3:
@@ -124,7 +124,7 @@ func _collect_orbs() -> void:
 				heal(HealthOrb.HEAL)
 			orb.queue_free()
 
-func _regen(delta: float) -> void:
+func regen(delta: float) -> void:
 	var in_combat: bool = p.combat_timer > 0.0
 	p.health = minf(p.health + 1.5 * (0.3 if in_combat else 1.0) * delta, p.max_health)
 	mana = minf(mana + 3.0 * delta, max_mana)

@@ -54,7 +54,7 @@ func _downed_near(point: Vector3, radius: float) -> Actor:
 			best = e
 	return best
 
-func _start_leap(cursor: Vector3) -> void:
+func start_leap(cursor: Vector3) -> void:
 	var skill: Dictionary = SkillDb.all()["leap"]
 	var reach: Vector3 = p.skills.aim_point_for("leap", cursor)
 	leap_victim = _downed_near(cursor, 3.2)
@@ -81,7 +81,7 @@ func _start_leap(cursor: Vector3) -> void:
 	leap_air_time = clampf(0.36 + flat.length() * 0.035, 0.4, 0.75)
 	p.stats.mana -= float(skill["mana"])
 	p.stats.cooldowns["leap"] = float(skill["cd"])
-	p.skills._clear_aim()
+	p.skills.clear_aim()
 	p.skills.busy = true
 	p.skills.busy_skill = "leap"
 	p.skills.busy_def = skill
@@ -104,7 +104,7 @@ func _start_leap(cursor: Vector3) -> void:
 		p._trail.active = false
 	Fx.ring(p, p.global_position, 1.4, Color(0.9, 0.85, 0.7))
 
-func _tick_leap(delta: float) -> void:
+func tick_leap(delta: float) -> void:
 	leap_t += delta
 	# Committed at take-off: once the knight is committed to a slam, the victim getting up or dying does not change it.
 	var slam: bool = leap_slam and leap_victim != null and is_instance_valid(leap_victim)
@@ -146,7 +146,7 @@ func _tick_leap(delta: float) -> void:
 				var u: float = clampf(leap_t / LEAP_CHOP_RECOVER, 0.0, 1.0)
 				p.model.scrub(lerpf(LEAP_CLIP_LAND, LEAP_CLIP_END, u))
 				if u >= 1.0:
-					_end_leap()
+					end_leap()
 		4:
 			# Boot up onto the body, then rise and wrench the blade out of the ground (the clip's own rise).
 			p.move_with(Vector3.ZERO)
@@ -163,7 +163,7 @@ func _tick_leap(delta: float) -> void:
 				Fx.shake(p, 0.1)
 				Fx.punch(p, 1.2)
 			if u >= 1.0:
-				_end_leap()
+				end_leap()
 
 func _leap_land(slam: bool) -> void:
 	if slam and leap_victim.dead:
@@ -215,7 +215,7 @@ func _leap_land(slam: bool) -> void:
 			Fx.hitstop(p, 0.06)
 		Sfx.play(p, "swing_heavy", -2.0)
 
-func _end_leap() -> void:
+func end_leap() -> void:
 	if leap_victim != null and is_instance_valid(leap_victim) and leap_victim.ragdoll != null:
 		leap_victim.ragdoll.release_pin()
 	leap_victim = null

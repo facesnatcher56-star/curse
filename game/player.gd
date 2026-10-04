@@ -1,20 +1,5 @@
 class_name Player
 extends Actor
-
-# Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
-var skewer: SkewerSkill
-var leap: LeapSkill
-var movement: PlayerMovement
-var stats: PlayerStats
-var skills: SkillController
-
-func _init() -> void:
-	skewer = SkewerSkill.new(self)
-	leap = LeapSkill.new(self)
-	movement = PlayerMovement.new(self)
-	stats = PlayerStats.new(self)
-	skills = SkillController.new(self)
-
 ## Click-to-move action RPG hero. Control scheme follows the Zombasite manual:
 ##  - Left click ground: move (hold to keep moving). Left click enemy: walk up and attack, hold to keep attacking.
 ##  - Number keys: use the hotbar skill on the enemy nearest the cursor. Hold to repeat.
@@ -30,6 +15,8 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 # Middle of the right fist in the hand bone's space (rig units are cm; the bone origin is the wrist).
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
 const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cleave", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump"]
+
+# State the hero itself owns (everything else lives in a component).
 var combat_timer: float = 0.0
 var message: String = ""
 var message_time: float = 0.0
@@ -41,6 +28,21 @@ var _cursor_on_enemy: bool = false
 var click_mode: int = 0  # 0 move, 1 attack locked target, 2 stand-still attack
 var _was_stunned: bool = false
 var _trail: WeaponTrail
+
+# Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
+var skewer: SkewerSkill
+var leap: LeapSkill
+var movement: PlayerMovement
+var stats: PlayerStats
+var skills: SkillController
+
+func _init() -> void:
+	skewer = SkewerSkill.new(self)
+	leap = LeapSkill.new(self)
+	movement = PlayerMovement.new(self)
+	stats = PlayerStats.new(self)
+	skills = SkillController.new(self)
+
 func _ready() -> void:
 	add_to_group("player")
 	display_name = "Knight"
@@ -74,8 +76,8 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
-	skills._update_blade_blood(delta)
-	skills._update_buff_visuals()
+	skills.update_blade_blood(delta)
+	skills.update_buff_visuals()
 	if model != null and model.weapon != null:
 		model.weapon.visible = not (skills.busy and bool(skills.busy_def.get("charged", false)))
 	if not skills.busy and visual != null and absf(visual.rotation.x) > 0.001:
@@ -84,11 +86,11 @@ func _physics_process(delta: float) -> void:
 	combat_timer = maxf(combat_timer - delta, 0.0)
 	for id in stats.cooldowns.keys():
 		stats.cooldowns[id] = maxf(float(stats.cooldowns[id]) - delta, 0.0)
-	stats._regen(delta)
+	stats.regen(delta)
 	stats.haste_time = maxf(stats.haste_time - delta, 0.0)
 	stats.riposte_time = maxf(stats.riposte_time - delta, 0.0)
 	stats.ward_timer = maxf(stats.ward_timer - delta, 0.0)
-	stats._collect_orbs()
+	stats.collect_orbs()
 	skills.combo_timer = maxf(skills.combo_timer - delta, 0.0)
 	if skills.combo_timer <= 0.0 and not skills.busy:
 		skills.combo_step = 0
@@ -96,18 +98,18 @@ func _physics_process(delta: float) -> void:
 	var cursor: Vector3 = cursor_world()
 	hover_target = _hover_pick(cursor)
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
-		skills._clear_aim()
-	skills._update_aim(cursor)
-	skills._handle_hotkeys(cursor)
+		skills.clear_aim()
+	skills.update_aim(cursor)
+	skills.handle_hotkeys(cursor)
 	if movement.rolling:
-		movement._tick_roll(delta)
+		movement.tick_roll(delta)
 		return
 	if Input.is_action_just_pressed("dodge") and stun_time <= 0.0:
-		movement._try_roll(cursor)
+		movement.try_roll(cursor)
 		if movement.rolling:
 			return
 	if skills.busy:
-		skills._tick_busy(delta)
+		skills.tick_busy(delta)
 		move_with(Vector3.ZERO)
 		return
 	if stun_time > 0.0:
@@ -119,7 +121,7 @@ func _physics_process(delta: float) -> void:
 	_was_stunned = false
 	_read_input(cursor)
 	_act(delta, cursor)
-	movement._update_locomotion_anim()
+	movement.update_locomotion_anim()
 
 # --- Input -------------------------------------------------------------------
 
@@ -170,8 +172,8 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 				best = e
 	return best
 func _process(_delta: float) -> void:
-	if skills._fire_orb != null and is_instance_valid(skills._fire_orb):
-		skills._fire_orb.global_position = skills._orb_home()
+	if skills.fire_orb != null and is_instance_valid(skills.fire_orb):
+		skills.fire_orb.global_position = skills.orb_home()
 	# Crosshair cursor and a ring under whatever enemy the mouse is over (or that we are attacking).
 	var on_enemy: bool = hover_target != null
 	if on_enemy != _cursor_on_enemy:
@@ -232,8 +234,8 @@ func _read_input(cursor: Vector3) -> void:
 			attack_target = null
 			Fx.click_marker(self, cursor)
 			# Clicking the ground means "go there": drop a swing in progress instead of finishing it.
-			if skills.busy and not movement.rolling and skills._swing_cancellable_by_move():
-				skills._cancel_action()
+			if skills.busy and not movement.rolling and skills.swing_cancellable_by_move():
+				skills.cancel_action()
 	if Input.is_action_pressed("click"):
 		match click_mode:
 			0:
@@ -251,19 +253,19 @@ func _read_input(cursor: Vector3) -> void:
 		var action: String = "skill_%d" % (i + 1)
 		if SkillDb.all()[skills.hotbar[i]].get("directional", false):
 			if Input.is_action_just_pressed(action):
-				skills._try_directional(skills.hotbar[i], cursor)
+				skills.try_directional(skills.hotbar[i], cursor)
 		elif SkillDb.all()[skills.hotbar[i]].get("aimed", false):
-			skills._handle_aimed_key(action, skills.hotbar[i], cursor)
+			skills.handle_aimed_key(action, skills.hotbar[i], cursor)
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
 			if skills.hotbar[i] != "potion":  # potions are handled every frame in _handle_hotkeys, even mid-animation
-				skills._queue_skill(skills.hotbar[i], cursor)
+				skills.queue_skill(skills.hotbar[i], cursor)
 	if SkillDb.all()[skills.right_click_skill].get("aimed", false):
-		skills._handle_aimed_key("alt_skill", skills.right_click_skill, cursor)
+		skills.handle_aimed_key("alt_skill", skills.right_click_skill, cursor)
 	elif Input.is_action_pressed("alt_skill"):
-		skills._queue_skill(skills.right_click_skill, cursor)
+		skills.queue_skill(skills.right_click_skill, cursor)
 
 func _on_death() -> void:
-	skills._drop_orb()
+	skills.drop_orb()
 
 # --- Acting ------------------------------------------------------------------
 
@@ -285,8 +287,8 @@ func _act(delta: float, cursor: Vector3) -> void:
 		var skill: Dictionary = SkillDb.all()[skill_id]
 		var dist: float = flat_distance_to(target) - target.body_radius
 		if dist <= float(skill["range"]):
-			if stats._can_use(skill_id):
-				skills._start_skill(skill_id, target)
+			if stats.can_use(skill_id):
+				skills.start_skill(skill_id, target)
 				return
 			if stats.mana < float(skill["mana"]):
 				_say("Not enough mana")
@@ -305,7 +307,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 		face(cursor, 0.4)
 		move_with(Vector3.ZERO)
 		return
-	movement._move(delta)
+	movement.move(delta)
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	if not result.get("secondary", false):

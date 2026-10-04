@@ -17,11 +17,11 @@ const ROLL_CLIP_END := 1.68
 var goal: Vector3 = Vector3.ZERO
 var has_goal: bool = false
 var _nav_state: Dictionary = {}  # cached path for click-to-move (see Nav)
-var _shoved: Dictionary = {}  # enemies already staggered by the current roll
+var shoved: Dictionary = {}  # enemies already staggered by the current roll
 var rolling: bool = false
 var roll_t: float = 0.0
 var roll_dir: Vector3 = Vector3.FORWARD
-func _update_locomotion_anim() -> void:
+func update_locomotion_anim() -> void:
 	var moving_speed: float = (p.velocity - p.knock).length()
 	# Only walk or run on purpose: being shoved by the crowd or a hit must not start the legs moving.
 	if moving_speed > 0.5 and has_goal and not p.skills.busy:
@@ -32,7 +32,7 @@ func _update_locomotion_anim() -> void:
 	elif not p.skills.busy:
 		p.model.loop("idle_alert")
 
-func _move(delta: float) -> void:
+func move(delta: float) -> void:
 	if not has_goal:
 		p.move_with(Vector3.ZERO)
 		return
@@ -60,14 +60,14 @@ func _move(delta: float) -> void:
 
 ## While rolling, every non-boss enemy close to the hero is shoved sideways out of the way and has its current
 ## action interrupted. Bosses ignore it (Actor.is_boss).
-func _shove_enemies(delta: float) -> void:
+func shove_enemies(delta: float) -> void:
 	var side: Vector3 = roll_dir.cross(Vector3.UP).normalized()
 	for node in p.get_tree().get_nodes_in_group("enemies"):
 		var e := node as Actor
 		if e == null or e.dead or e.is_boss or e.impaled or e.is_ragdolled():
 			continue
 		# During a Skewer charge, do not shove enemies the blade can still catch; they are the target.
-		if p.skewer.skewer_phase == 2 and e.can_be_impaled() and p.skewer.skewer_impaled.size() < 3 and not p.skewer._big_hit.has(e.get_instance_id()):
+		if p.skewer.skewer_phase == 2 and e.can_be_impaled() and p.skewer.skewer_impaled.size() < 3 and not p.skewer.big_hit.has(e.get_instance_id()):
 			continue
 		var rel: Vector3 = e.global_position - p.global_position
 		rel.y = 0.0
@@ -77,12 +77,12 @@ func _shove_enemies(delta: float) -> void:
 		# Direct displacement (not knockback), so heavy enemies that resist knockback still get moved.
 		var shove: Vector3 = side * direction * 6.0 + roll_dir * 1.5
 		e.move_and_collide(shove * delta)
-		if not _shoved.has(e.get_instance_id()):
-			_shoved[e.get_instance_id()] = true
+		if not shoved.has(e.get_instance_id()):
+			shoved[e.get_instance_id()] = true
 			e.interrupt(0.55)
 			Fx.burst(p, e.global_position + Vector3(0, 0.3, 0), side * direction + Vector3.UP * 0.4, Color(0.5, 0.45, 0.38), 10, 3.5, 0.04)
 
-func _try_roll(cursor: Vector3) -> void:
+func try_roll(cursor: Vector3) -> void:
 	if float(p.stats.cooldowns.get("dodge", 0.0)) > 0.0:
 		return
 	if p.skills.busy and not p.skills.busy_hit_done:
@@ -112,7 +112,7 @@ func _try_roll(cursor: Vector3) -> void:
 	if p._trail != null:
 		p._trail.active = false
 	p.invulnerable_time = ROLL_TIME + 0.12  # immune for the whole roll plus a short grace
-	_shoved.clear()
+	shoved.clear()
 	p.collision_mask = Actor.LAYER_WORLD  # slip through enemies while rolling
 	p.visual.rotation.y = atan2(roll_dir.x, roll_dir.z)
 	p.model.manual("roll")
@@ -120,8 +120,8 @@ func _try_roll(cursor: Vector3) -> void:
 	Sfx.play(p, "swing", -6.0, 0.7)
 	ItemEffects.on_roll_start(p)
 
-func _tick_roll(delta: float) -> void:
-	_shove_enemies(delta)
+func tick_roll(delta: float) -> void:
+	shove_enemies(delta)
 	roll_t += delta
 	var u: float = clampf(roll_t / ROLL_TIME, 0.0, 1.0)
 	p.model.scrub(lerpf(ROLL_CLIP_START, ROLL_CLIP_END, u))

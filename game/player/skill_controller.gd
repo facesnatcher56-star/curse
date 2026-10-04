@@ -27,7 +27,7 @@ var combo_timer: float = 0.0
 var busy_time: float = 0.8
 var blade_blood: float = 0.0    # 0..1 how bloody the sword is; fades slowly
 var _blood_mat: ShaderMaterial
-var _fire_orb: FireOrb
+var fire_orb: FireOrb
 var _release_started: bool = false
 var aiming_id: String = ""
 var aiming_action: String = ""
@@ -38,7 +38,7 @@ var _aim_line: MeshInstance3D
 var _highlighted: Array[Actor] = []
 var _swing_sound_played: bool = false
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
-func _swing_cancellable_by_move() -> bool:
+func swing_cancellable_by_move() -> bool:
 	var kind: String = String(busy_def.get("kind", ""))
 	if kind != "melee" and kind != "cleave":
 		return false
@@ -48,7 +48,7 @@ func _swing_cancellable_by_move() -> bool:
 ##  - the potion drinks at once (even while stunned);
 ##  - any other usable skill interrupts a swing/cast/charge and then starts through the normal path;
 ##  - a skill that cannot be used (cooldown, no mana, nothing to hit) tells you why and does NOT cancel anything.
-func _handle_hotkeys(cursor: Vector3) -> void:
+func handle_hotkeys(cursor: Vector3) -> void:
 	if p.dead:
 		return
 	for i in hotbar.size():
@@ -57,16 +57,16 @@ func _handle_hotkeys(cursor: Vector3) -> void:
 			continue
 		var id: String = hotbar[i]
 		if id == "potion":
-			if p.stats._use_potion() and busy and not p.movement.rolling:
-				_cancel_action()
+			if p.stats.use_potion() and busy and not p.movement.rolling:
+				cancel_action()
 		elif busy and not p.movement.rolling and p.stun_time <= 0.0:
-			if not p.stats._can_use(id):
+			if not p.stats.can_use(id):
 				if p.stats.mana < float(SkillDb.all()[id]["mana"]):
 					p._say("Not enough mana")
 				else:
 					p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
 			elif _hotkey_would_start(id, cursor):
-				_cancel_action()
+				cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).
 func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
@@ -76,15 +76,15 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 	return p.enemy_near(cursor, 12.0) != null
 
 ## Aborts the current swing, cast or charge immediately.
-func _cancel_action() -> void:
+func cancel_action() -> void:
 	if not busy:
 		return
 	if bool(busy_def.get("skewer", false)):
-		p.skewer._end_skewer()  # releases anyone on the blade and restores collision
+		p.skewer.end_skewer()  # releases anyone on the blade and restores collision
 	if bool(busy_def.get("leap", false)):
-		p.leap._end_leap()
+		p.leap.end_leap()
 	if bool(busy_def.get("charged", false)):
-		_drop_orb()
+		drop_orb()
 	busy = false
 	busy_hit_done = true
 	queued_skill = ""
@@ -95,18 +95,18 @@ func _cancel_action() -> void:
 	p.model.loop("idle_alert")
 
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
-func _try_directional(id: String, cursor: Vector3) -> void:
-	if not p.stats._can_use(id):
+func try_directional(id: String, cursor: Vector3) -> void:
+	if not p.stats.can_use(id):
 		if p.stats.mana < float(SkillDb.all()[id]["mana"]):
 			p._say("Not enough mana")
 		return
 	if bool(SkillDb.all()[id].get("leap", false)):
-		p.leap._start_leap(cursor)
+		p.leap.start_leap(cursor)
 	else:
-		p.skewer._start_skewer(cursor)
+		p.skewer.start_skewer(cursor)
 
 ## Holding the key aims; letting go casts at the point under the cursor.
-func _handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
+func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 	if Input.is_action_pressed(action):
 		aiming_id = id
 		aiming_action = action
@@ -117,17 +117,17 @@ func _handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 func _release_aim(cursor: Vector3) -> void:
 	var id: String = aiming_id
 	var point: Vector3 = aim_point_for(id, cursor)
-	if not p.stats._can_use(id):
-		_clear_aim()
+	if not p.stats.can_use(id):
+		clear_aim()
 		if p.stats.mana < float(SkillDb.all()[id]["mana"]):
 			p._say("Not enough mana")
 		return
-	_clear_aim(true)
-	_start_skill(id, null, point)
+	clear_aim(true)
+	start_skill(id, null, point)
 
-func _clear_aim(keep_orb: bool = false) -> void:
+func clear_aim(keep_orb: bool = false) -> void:
 	if not keep_orb:
-		_drop_orb()
+		drop_orb()
 	aiming_id = ""
 	aiming_action = ""
 	for e in _highlighted:
@@ -150,7 +150,7 @@ func aim_point_for(id: String, cursor: Vector3) -> Vector3:
 
 ## Per-frame preview while aiming: sphere at the impact point, ring on the ground, a line from the hero,
 ## and every enemy inside the blast lit up.
-func _update_aim(cursor: Vector3) -> void:
+func update_aim(cursor: Vector3) -> void:
 	if aiming_id == "":
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
@@ -192,19 +192,19 @@ func _update_aim(cursor: Vector3) -> void:
 	_highlighted = now_hit
 
 func _ensure_orb(size: float) -> void:
-	if _fire_orb == null or not is_instance_valid(_fire_orb):
-		_fire_orb = FireOrb.new()
-		p.add_child(_fire_orb)
-		_fire_orb.global_position = _orb_home()
-		_fire_orb.grow_to(size, 0.3)
+	if fire_orb == null or not is_instance_valid(fire_orb):
+		fire_orb = FireOrb.new()
+		p.add_child(fire_orb)
+		fire_orb.global_position = orb_home()
+		fire_orb.grow_to(size, 0.3)
 
-func _drop_orb() -> void:
-	if _fire_orb != null and is_instance_valid(_fire_orb):
-		_fire_orb.fade_out()
-	_fire_orb = null
+func drop_orb() -> void:
+	if fire_orb != null and is_instance_valid(fire_orb):
+		fire_orb.fade_out()
+	fire_orb = null
 
 ## Over the head, where the raised hands end up at the top of the gather.
-func _orb_home() -> Vector3:
+func orb_home() -> Vector3:
 	return p.get_global_transform_interpolated().origin + Vector3(0, p.body_height + 0.8, 0)
 
 func _ensure_aim_nodes() -> void:
@@ -262,7 +262,7 @@ func _ensure_aim_nodes() -> void:
 	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.add_child(_aim_line)
 
-func _queue_skill(id: String, cursor: Vector3) -> void:
+func queue_skill(id: String, cursor: Vector3) -> void:
 	var target: Actor = p.enemy_near(cursor, 12.0)
 	if target == null:
 		return
@@ -270,7 +270,7 @@ func _queue_skill(id: String, cursor: Vector3) -> void:
 	queued_target = target
 	p.movement.has_goal = false
 
-func _start_skill(id: String, target: Actor, aim: Variant = null) -> void:
+func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "basic":
 		skill = _next_basic()
@@ -302,7 +302,7 @@ func _start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	p.model.scrub(float(skill["start"]))
 	if bool(skill.get("charged", false)):
 		_ensure_orb(0.28)
-		_fire_orb.grow_to(0.55, float(skill["gather"]) * busy_time / float(skill["time"]))
+		fire_orb.grow_to(0.55, float(skill["gather"]) * busy_time / float(skill["time"]))
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
 
@@ -339,7 +339,7 @@ func _blade_glow(u: float, hit_frac: float) -> void:
 		_glow_light.light_energy = 3.5 * clampf(1.0 - (u - hit_frac) / 0.3, 0.0, 1.0)
 
 ## Gear buffs you can see: a haste wake behind you, and a gold glow on the blade while a riposte is ready.
-func _update_buff_visuals() -> void:
+func update_buff_visuals() -> void:
 	if _glow_light != null and not (busy and (busy_skill == "power" or busy_skill == "cleave")):
 		_glow_light.light_energy = 0.0
 	if _haste_fx == null and p.stats.haste_time > 0.0:
@@ -397,14 +397,14 @@ func _next_basic() -> Dictionary:
 	combo_timer = COMBO_WINDOW + float(skill["time"])
 	return skill
 
-func _tick_busy(delta: float) -> void:
+func tick_busy(delta: float) -> void:
 	busy_t += delta
 	var skill: Dictionary = busy_def
 	if bool(skill.get("skewer", false)):
-		p.skewer._tick_skewer(delta)
+		p.skewer.tick_skewer(delta)
 		return
 	if bool(skill.get("leap", false)):
-		p.leap._tick_leap(delta)
+		p.leap.tick_leap(delta)
 		return
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
@@ -581,9 +581,9 @@ func _apply_skill(skill: Dictionary) -> void:
 			ball.destination = busy_aim + Vector3(0, 0.8, 0)
 			p.get_tree().current_scene.add_child(ball)
 			var origin: Vector3 = p.global_position + Vector3(0, 1.2, 0) + ball.direction * 0.8
-			if _fire_orb != null and is_instance_valid(_fire_orb):
-				origin = _fire_orb.release()  # the gathered orb is the fireball that gets thrown
-				_fire_orb = null
+			if fire_orb != null and is_instance_valid(fire_orb):
+				origin = fire_orb.release()  # the gathered orb is the fireball that gets thrown
+				fire_orb = null
 			ball.global_position = origin
 			if p.stats.has_affix("twin_flame"):
 				var twin := Projectile.new()
@@ -596,7 +596,7 @@ func _apply_skill(skill: Dictionary) -> void:
 				twin.global_position = ball.global_position
 
 ## The sword stays red while it is bloody and slowly dries.
-func _update_blade_blood(delta: float) -> void:
+func update_blade_blood(delta: float) -> void:
 	if p.model == null or p.model.weapon == null:
 		return
 	blade_blood = maxf(blade_blood - delta * 0.04, 0.0)

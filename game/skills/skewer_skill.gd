@@ -18,7 +18,7 @@ var skewer_kicked: bool = false
 var skewer_impaled: Array[Actor] = []
 var _skewer_tick_clock: float = 0.0
 var _skewer_dust: float = 0.0
-var _big_hit: Dictionary = {}   # enemies already staggered by this charge
+var big_hit: Dictionary = {}   # enemies already staggered by this charge
 # --- Skewer ---------------------------------------------------------------------------
 
 const SKEWER_SPEED := 15.0
@@ -31,7 +31,7 @@ const SKEWER_KICK_TIME := 0.55
 const KICK_START := 0.15
 const KICK_STRIKE := 0.6
 const KICK_END := 1.1
-func _start_skewer(cursor: Vector3) -> void:
+func start_skewer(cursor: Vector3) -> void:
 	var skill: Dictionary = SkillDb.all()["skewer"]
 	var dir: Vector3 = cursor - p.global_position
 	dir.y = 0.0
@@ -40,7 +40,7 @@ func _start_skewer(cursor: Vector3) -> void:
 	skewer_dir = dir.normalized()
 	p.stats.mana -= float(skill["mana"])
 	p.stats.cooldowns["skewer"] = float(skill["cd"])
-	p.skills._clear_aim()
+	p.skills.clear_aim()
 	p.skills.busy = true
 	p.skills.busy_skill = "skewer"
 	p.skills.busy_def = skill
@@ -58,8 +58,8 @@ func _start_skewer(cursor: Vector3) -> void:
 	skewer_full_at = -1.0
 	skewer_kicked = false
 	skewer_impaled.clear()
-	p.movement._shoved.clear()
-	_big_hit.clear()
+	p.movement.shoved.clear()
+	big_hit.clear()
 	p.movement.roll_dir = skewer_dir  # lets the roll's shove logic push bystanders out of the lane
 	p.collision_mask = Actor.LAYER_WORLD  # run through the crowd; only the blade catches anyone
 	p.visual.rotation.y = atan2(skewer_dir.x, skewer_dir.z)
@@ -70,7 +70,7 @@ func _start_skewer(cursor: Vector3) -> void:
 		p._trail.active = false  # at charge speed the blade ribbon becomes a huge sheet; the impaled enemies sell it instead
 	Fx.ring(p, p.global_position, 1.6, Color(0.8, 0.85, 1.0))
 
-func _tick_skewer(delta: float) -> void:
+func tick_skewer(delta: float) -> void:
 	skewer_t += delta
 	var skill: Dictionary = p.skills.busy_def
 	match skewer_phase:
@@ -102,7 +102,7 @@ func _tick_skewer(delta: float) -> void:
 			if p.skills.blade_blood > 0.3 and p.model.weapon_tip != null:
 				Fx.burst(p, p.model.weapon_tip.global_position, Vector3.DOWN + skewer_dir * -0.5, Color(0.55, 0.04, 0.04), 2, 1.5, 0.025)
 			_skewer_catch_enemies(skill)
-			p.movement._shove_enemies(delta)
+			p.movement.shove_enemies(delta)
 			_carry_impaled(delta)
 			var blocked: bool = skewer_t > 0.2 and moved < speed * delta * 0.35
 			if skewer_impaled.size() >= 3 and skewer_full_at < 0.0:
@@ -148,7 +148,7 @@ func _tick_skewer(delta: float) -> void:
 			p.move_with(Vector3.ZERO)
 			p.visual.rotation.x = lerpf(p.visual.rotation.x, 0.0, 1.0 - exp(-12.0 * delta))
 			if skewer_t >= 0.22:
-				_end_skewer()
+				end_skewer()
 
 ## Runs the nearest enemies in the lane onto the blade. Returns true if a boss stops the charge.
 func _skewer_catch_enemies(skill: Dictionary) -> bool:
@@ -166,9 +166,9 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 		if not e.can_be_impaled():
 			# Too big (or a boss): cannot be spitted. It takes a flat chunk of extra damage and is staggered
 			# so it cannot hit back, and the charge carries on past it.
-			if _big_hit.has(e.get_instance_id()):
+			if big_hit.has(e.get_instance_id()):
 				continue
-			_big_hit[e.get_instance_id()] = true
+			big_hit[e.get_instance_id()] = true
 			var damage: float = p.stats.weapon_damage(float(skill["mult"])) * ItemEffects.outgoing_multiplier(p, e) + SKEWER_BIG_BONUS
 			var slam: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 3.0)
 			slam["skill_id"] = "skewer"
@@ -252,7 +252,7 @@ func _skewer_kick() -> void:
 	Fx.shake(p, 0.3)
 	Fx.punch(p, 3.8)
 	Fx.hitstop(p, 0.09)
-func _end_skewer() -> void:
+func end_skewer() -> void:
 	for e in skewer_impaled:
 		if is_instance_valid(e):
 			e.set_impaled(false)

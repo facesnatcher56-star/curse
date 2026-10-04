@@ -126,11 +126,13 @@ func _clamp_to_arena(pos: Vector3) -> Vector3:
 
 ## A random spot `min_dist`..`max_dist` from the hero, at least `spacing` from every spot already used.
 func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacing: float) -> Vector3:
-	# Never closer than 80% of min_dist to the hero (the arena clamp could otherwise pull a spawn onto them);
-	# if no spot qualifies, take the farthest one tried.
+	# Never closer than 80% of min_dist to the hero (the arena clamp could otherwise pull a spawn onto them) and at least
+	# `spacing` from every spot already used. If a crowded arena allows no such spot, take the roomiest one tried.
+	var roomiest: Vector3 = player.global_position
+	var roomiest_gap: float = -1.0
 	var farthest: Vector3 = player.global_position
 	var farthest_d: float = -1.0
-	for attempt in 30:
+	for attempt in 40:
 		var angle: float = randf() * TAU
 		var pos: Vector3 = _clamp_to_arena(player.global_position + Vector3(cos(angle), 0, sin(angle)) * randf_range(min_dist, max_dist))
 		if Nav.ready(self):
@@ -141,14 +143,15 @@ func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacin
 			farthest = pos
 		if d < min_dist * 0.8:
 			continue
-		var ok: bool = true
+		var gap: float = 9999.0
 		for other in used:
-			if other.distance_to(pos) < spacing:
-				ok = false
-				break
-		if ok:
+			gap = minf(gap, other.distance_to(pos))
+		if gap >= spacing:
 			return pos
-	return farthest
+		if gap > roomiest_gap:
+			roomiest_gap = gap
+			roomiest = pos
+	return roomiest if roomiest_gap >= 0.0 else farthest
 
 func spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -> Enemy:
 	var enemy := Enemy.new()

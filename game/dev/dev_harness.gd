@@ -116,7 +116,7 @@ func _test_auto_attack() -> void:
 	var yaw_drift: float = absf(angle_difference(yaw_before, player.visual.rotation.y))
 	# 3. A skill clears the attack order so the hero does not resume swinging when it ends.
 	player.attack_target = dummy
-	player.skills._start_skill("fireball", null, Vector3(0, 0, -6))
+	player.skills.start_skill("fireball", null, Vector3(0, 0, -6))
 	var cleared_by_skill: bool = player.attack_target == null
 	await get_tree().create_timer(2.0).timeout
 	var swings_after_skill: bool = player.skills.busy and player.skills.busy_skill == "basic"
@@ -144,7 +144,7 @@ func _test_hotkeys() -> void:
 	await get_tree().physics_frame
 	# 1. Potion during a swing.
 	player.health = 40.0
-	player.skills._start_skill("basic", dummy)
+	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.15).timeout
 	var was_busy: bool = player.skills.busy
 	Input.action_press("skill_4")
@@ -165,24 +165,24 @@ func _test_hotkeys() -> void:
 	player.stun_time = 0.0
 	# 3. A usable skill cancels the current swing and starts.
 	player.stats.cooldowns.clear()
-	player.skills._start_skill("basic", dummy)
+	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.1).timeout
 	Input.action_press("skill_5")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("skill_5")
 	var skill_ok: bool = player.skills.busy_skill == "skewer" and player.skewer.skewer_phase != 0
-	player.skills._cancel_action()
+	player.skills.cancel_action()
 	# 4. A skill on cooldown must NOT cancel the swing.
 	player.stats.cooldowns["skewer"] = 5.0
-	player.skills._start_skill("basic", dummy)
+	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.1).timeout
 	Input.action_press("skill_5")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("skill_5")
 	var no_cancel_ok: bool = player.skills.busy and player.skills.busy_skill == "basic"
-	player.skills._cancel_action()
+	player.skills.cancel_action()
 	expect("potion works mid-swing", potion_ok)
 	expect("potion works while stunned", stunned_ok)
 	expect("a usable skill cancels a swing", skill_ok)
@@ -279,7 +279,7 @@ func _test_skewer() -> void:
 		zombies.append(z)
 	await get_tree().process_frame
 	var stains_before: int = get_tree().get_nodes_in_group("stains").size()
-	player.skewer._start_skewer(player.global_position + Vector3(11, 0, 0))
+	player.skewer.start_skewer(player.global_position + Vector3(11, 0, 0))
 	var max_impaled: int = 0
 	var min_blade_dot: float = 1.0
 	var phases: Array[int] = []
@@ -366,7 +366,7 @@ func _test_fireball() -> void:
 	victim.max_health = 500.0
 	victim.health = 500.0
 	await get_tree().process_frame
-	player.skills._start_skill("fireball", null, Vector3(0, 0, -6.0))
+	player.skills.start_skill("fireball", null, Vector3(0, 0, -6.0))
 	var sheathed: bool = false
 	var orb_seen: bool = false
 	var orb_big: bool = false
@@ -377,9 +377,9 @@ func _test_fireball() -> void:
 		elapsed += 1.0 / 60.0
 		if player.model.weapon != null and not player.model.weapon.visible:
 			sheathed = true
-		if player.skills._fire_orb != null and is_instance_valid(player.skills._fire_orb):
+		if player.skills.fire_orb != null and is_instance_valid(player.skills.fire_orb):
 			orb_seen = true
-			orb_big = orb_big or player.skills._fire_orb.current_size() > 0.5
+			orb_big = orb_big or player.skills.fire_orb.current_size() > 0.5
 	await get_tree().create_timer(1.2).timeout
 	expect("fireball: sword sheathed, orb gathered and grown", sheathed and orb_seen and orb_big)
 	expect("fireball: sword comes back", player.model.weapon == null or player.model.weapon.visible)
@@ -667,7 +667,7 @@ func _test_swarm() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.health = player.max_health
-	player.skills._start_skill("cleave", null, player.global_position + Vector3(0, 0, 2))
+	player.skills.start_skill("cleave", null, player.global_position + Vector3(0, 0, 2))
 	var cast: float = 0.0
 	var interrupted: bool = false
 	while player.skills.busy and cast < 3.0:
@@ -760,7 +760,7 @@ func _test_balance() -> void:
 	add_child(pickup)
 	pickup.global_position = player.global_position + Vector3(0, 0.6, 0)
 	await get_tree().process_frame
-	player.stats._collect_orbs()
+	player.stats.collect_orbs()
 	expect("potion pickup gives +1 potion", player.stats.potions == 3)
 	print("  potion pickup: potions 2 -> ", player.stats.potions)
 	# Click-away cancels a basic swing.
@@ -776,9 +776,9 @@ func _test_balance() -> void:
 	while not player.skills.busy and t < 3.0:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
-	expect("a basic swing can be cancelled by clicking away", player.skills.busy and player.skills._swing_cancellable_by_move())
-	print("  swing started=", player.skills.busy, " cancellable by click-away=", player.skills._swing_cancellable_by_move())
-	player.skills._cancel_action()
+	expect("a basic swing can be cancelled by clicking away", player.skills.busy and player.skills.swing_cancellable_by_move())
+	print("  swing started=", player.skills.busy, " cancellable by click-away=", player.skills.swing_cancellable_by_move())
+	player.skills.cancel_action()
 	player.attack_target = null
 	expect("cancelling stops the swing", not player.skills.busy)
 	print("  after cancel: busy=", player.skills.busy)
@@ -806,7 +806,7 @@ func _test_leap() -> void:
 	var max_height: float = 0.0
 	var stayed_down: bool = true
 	var daze_seen: bool = false
-	player.skills._try_directional("leap", downed.global_position)
+	player.skills.try_directional("leap", downed.global_position)
 	t = 0.0
 	while player.skills.busy and t < 5.0:
 		await get_tree().physics_frame
@@ -847,7 +847,7 @@ func _test_leap() -> void:
 		else:
 			await get_tree().create_timer(0.15).timeout
 		var before: float = target.health
-		player.skills._try_directional("leap", target.global_position)
+		player.skills.try_directional("leap", target.global_position)
 		var slammed: bool = player.leap.leap_slam
 		t = 0.0
 		while player.skills.busy and t < 5.0:
@@ -867,7 +867,7 @@ func _test_leap() -> void:
 	standing.max_health = 800.0
 	standing.health = 800.0
 	await get_tree().process_frame
-	player.skills._try_directional("leap", Vector3(32, 0, -19))
+	player.skills.try_directional("leap", Vector3(32, 0, -19))
 	phases.clear()
 	t = 0.0
 	while player.skills.busy and t < 5.0:
@@ -897,7 +897,7 @@ func _test_impact() -> void:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
 	var was_lying: bool = lying.ragdoll != null and lying.ragdoll.state == Ragdoll.State.LYING
-	player.skewer._start_skewer(Vector3(-25, 0, -40))
+	player.skewer.start_skewer(Vector3(-25, 0, -40))
 	var caught: bool = false
 	t = 0.0
 	while player.skills.busy and t < 4.0:
@@ -1016,7 +1016,7 @@ func _test_roll_shove() -> void:
 	var attacker_start: Vector3 = attacker.global_position
 	var boss_start: Vector3 = boss.global_position
 	player.stats.stamina = player.stats.max_stamina
-	player.movement._try_roll(player.global_position + Vector3(8, 0, 0))
+	player.movement.try_roll(player.global_position + Vector3(8, 0, 0))
 	var immune_late: bool = false
 	boss.global_position = player.global_position + Vector3(2.4, 0, 0.9)  # inside the roll corridor
 	boss_start = boss.global_position
@@ -1241,7 +1241,7 @@ func _melee_shots(which: String) -> void:
 		z.health = 900.0
 		targets.append(z)
 	await get_tree().create_timer(0.6).timeout
-	player.skills._start_skill(which, targets[0], null)
+	player.skills.start_skill(which, targets[0], null)
 	for i in 22:
 		await get_tree().create_timer(0.08).timeout
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_melee_%d.png" % i)
@@ -1264,7 +1264,7 @@ func _leap_shots() -> void:
 	downed.ragdoll_launch(Vector3(0, 0, -2.0), 1.0, Vector3(3, 0, 0))
 	while not LeapSkill.is_downed(downed):
 		await get_tree().physics_frame
-	player.skills._try_directional("leap", downed.global_position)
+	player.skills.try_directional("leap", downed.global_position)
 	for i in 24:
 		await get_tree().create_timer(0.1).timeout
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_leap_%d.png" % i)
@@ -1293,9 +1293,9 @@ func _skill_shots(which: String) -> void:
 			dummies.append(z)
 	await get_tree().create_timer(0.8).timeout
 	if which == "skewer":
-		player.skewer._start_skewer(Vector3(1.8, 0, -12.0))
+		player.skewer.start_skewer(Vector3(1.8, 0, -12.0))
 	else:
-		player.skills._start_skill("fireball", null, Vector3(0.6, 0, -4.4))
+		player.skills.start_skill("fireball", null, Vector3(0.6, 0, -4.4))
 	for i in 20:
 		await get_tree().create_timer(0.14 if i < 12 else 0.4).timeout
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_skill_%d.png" % i)
@@ -1315,7 +1315,7 @@ func _aim_shot() -> void:
 	await get_tree().create_timer(0.8).timeout
 	var cursor: Vector3 = Vector3(1.2, 0, -5.2)
 	for i in 6:
-		player.skills._update_aim(cursor)
+		player.skills.update_aim(cursor)
 		await get_tree().process_frame
 	var lit: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1324,10 +1324,10 @@ func _aim_shot() -> void:
 	print("aim: point=", player.skills.aim_point, " highlighted=", lit, " of ", cluster.size(), " (blast radius ", Projectile.BLAST_RADIUS, ")")
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_aim.png")
 	# Cast it: the projectile must land on the aimed point.
-	player.skills._clear_aim()
-	player.skills._start_skill("fireball", null, player.skills.aim_point_for("fireball", cursor))
+	player.skills.clear_aim()
+	player.skills.start_skill("fireball", null, player.skills.aim_point_for("fireball", cursor))
 	for i in 3:
-		player.skills._tick_busy(0.3)
+		player.skills.tick_busy(0.3)
 	await get_tree().create_timer(1.0).timeout
 	# Tooltips: hover the fireball and dodge slots.
 	for pair in [["fireball", "curse_tip_0.png"], ["dodge", "curse_tip_1.png"], ["basic", "curse_tip_2.png"]]:
@@ -1392,7 +1392,7 @@ func _hover_shot() -> void:
 func _roll_shots() -> void:
 	await get_tree().create_timer(0.6).timeout
 	player.stats.stamina = player.stats.max_stamina
-	player.movement._try_roll(player.global_position + Vector3(5, 0, 0))
+	player.movement.try_roll(player.global_position + Vector3(5, 0, 0))
 	var start: Vector3 = player.global_position
 	for i in 8:
 		await get_tree().create_timer(0.07).timeout
@@ -1455,7 +1455,7 @@ func _pose_sheet() -> void:
 	player.set_physics_process(false)
 	if OS.get_cmdline_user_args().has("--blood"):
 		player.skills.blade_blood = 0.9
-		player.skills._update_blade_blood(0.0)
+		player.skills.update_blade_blood(0.0)
 	var poses: Array = [["charge_run", 0.1], ["charge_run", 0.25], ["charge_run", 0.4], ["kick", 0.15], ["kick", 0.3], ["kick", 0.45],
 		["kick", 0.6], ["kick", 0.75], ["kick", 0.9], ["kick", 1.1], ["kick", 1.3], ["charge", 2.0]]
 	if OS.get_cmdline_user_args().has("--oldposes"):
@@ -1577,7 +1577,7 @@ func _run_selftest() -> void:
 	# Roll: should move the hero ~4 m, grant brief invulnerability and not leave collision disabled.
 	var before: Vector3 = player.global_position
 	player.stats.stamina = player.stats.max_stamina
-	player.movement._try_roll(player.global_position + Vector3(5, 0, 0))
+	player.movement.try_roll(player.global_position + Vector3(5, 0, 0))
 	var roll_invuln: bool = player.invulnerable_time > 0.0
 	await get_tree().create_timer(0.8).timeout
 	expect("roll covers ground and is invulnerable", player.global_position.distance_to(before) > 3.0 and roll_invuln)
