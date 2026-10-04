@@ -1,0 +1,222 @@
+class_name Fx
+extends RefCounted
+## Feedback helpers: floating text, hit-stop, camera shake.
+
+const OUTCOME_STYLE := {
+	Combat.Outcome.MISS: ["Miss", Color(0.7, 0.7, 0.7), 30],
+	Combat.Outcome.BLOCK: ["Block", Color(0.5, 0.85, 1.0), 34],
+	Combat.Outcome.HIT: ["", Color(1, 1, 1), 36],
+	Combat.Outcome.CRITICAL: ["Critical ", Color(1.0, 0.9, 0.2), 46],
+	Combat.Outcome.CRUSHING: ["Crushing ", Color(1.0, 0.55, 0.15), 54],
+	Combat.Outcome.DEEP_WOUNDS: ["Wound ", Color(0.85, 0.15, 0.15), 42],
+}
+
+static var _hitstop_id: int = 0
+
+static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color(0, 0, 0, 0)) -> void:
+	if not GameSettings.show_damage_numbers:
+		return
+	var style: Array = OUTCOME_STYLE[outcome]
+	var text: String = style[0]
+	if outcome != Combat.Outcome.MISS and outcome != Combat.Outcome.BLOCK:
+		text += str(int(round(damage)))
+	var color: Color = style[1]
+	if tint.a > 0.0 and outcome == Combat.Outcome.HIT:
+		color = tint
+	var top: float = from.body_height + 0.4 if from is Actor else 2.2
+	text_at(from, from.global_position + Vector3(randf_range(-0.3, 0.3), top, 0), text, color, style[2])
+
+static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size: int = 48) -> void:
+	var label := Label3D.new()
+	label.text = text
+	label.modulate = color
+	label.font_size = size
+	label.outline_size = 12
+	label.pixel_size = 0.006
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	from.get_tree().current_scene.add_child(label)
+	label.global_position = pos
+	var tween := label.create_tween().set_parallel(true)
+	tween.tween_property(label, "global_position:y", pos.y + 1.4, 0.9).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.5)
+	tween.chain().tween_callback(label.queue_free)
+
+static func hitstop(node: Node, duration: float) -> void:
+	_hitstop_id += 1
+	var my_id: int = _hitstop_id
+	Engine.time_scale = 0.06
+	await node.get_tree().create_timer(duration, true, false, true).timeout
+	if my_id == _hitstop_id:
+		Engine.time_scale = 1.0
+
+static func shake(node: Node, amount: float) -> void:
+	node.get_tree().call_group("camera_rig", "shake", amount * GameSettings.screen_shake)
+
+## FOV punch-in on the camera, scaled by the shake setting.
+static func punch(node: Node, amount: float) -> void:
+	node.get_tree().call_group("camera_rig", "punch", amount * GameSettings.screen_shake)
+
+## Short directional camera shove, used on heavy hits.
+static func kick(node: Node, direction: Vector3, amount: float) -> void:
+	node.get_tree().call_group("camera_rig", "kick", direction, amount)
+
+## One-shot spray of droplets/sparks.
+static func burst(from: Node, pos: Vector3, dir: Vector3, color: Color, amount: int, speed: float,
+		size: float = 0.022, emissive: bool = false) -> void:
+	var particles := CPUParticles3D.new()
+	particles.one_shot = true
+	particles.amount = amount
+	particles.lifetime = 0.6
+	particles.explosiveness = 1.0
+	particles.direction = dir
+	particles.spread = 38.0
+	particles.initial_velocity_min = speed * 0.4
+	particles.initial_velocity_max = speed
+	particles.gravity = Vector3(0, -16, 0)
+	var mesh := SphereMesh.new()
+	mesh.radius = size
+	mesh.height = size * 2.0
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emissive:
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mesh.material = mat
+	particles.mesh = mesh
+	from.get_tree().current_scene.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+	from.get_tree().create_timer(1.0).timeout.connect(particles.queue_free)
+
+static var _blood_texture: GradientTexture2D
+
+static var _soft_texture: GradientTexture2D
+
+## Soft round falloff for billboarded smoke and flame particles (otherwise they draw as hard squares).
+static func soft_texture() -> GradientTexture2D:
+	if _soft_texture == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.5), Color(1, 1, 1, 0)])
+		_soft_texture = GradientTexture2D.new()
+		_soft_texture.gradient = g
+		_soft_texture.fill = GradientTexture2D.FILL_RADIAL
+		_soft_texture.fill_from = Vector2(0.5, 0.5)
+		_soft_texture.fill_to = Vector2(1.0, 0.5)
+		_soft_texture.width = 64
+		_soft_texture.height = 64
+	return _soft_texture
+
+## Dark stain on the ground; old ones are recycled so the arena does not fill up.
+static func blood_decal(from: Node, pos: Vector3, radius: float, color: Color = Color(0.25, 0.02, 0.02)) -> void:
+	if _blood_texture == null:
+		var gradient := Gradient.new()
+		gradient.set_color(0, Color(1, 1, 1, 0.85))
+		gradient.set_color(1, Color(1, 1, 1, 0.0))
+		_blood_texture = GradientTexture2D.new()
+		_blood_texture.gradient = gradient
+		_blood_texture.fill = GradientTexture2D.FILL_RADIAL
+		_blood_texture.fill_from = Vector2(0.5, 0.5)
+		_blood_texture.fill_to = Vector2(1.0, 0.5)
+		_blood_texture.width = 64
+		_blood_texture.height = 64
+	var scene: Node = from.get_tree().current_scene
+	var stains: Array[Node] = from.get_tree().get_nodes_in_group("stains")
+	if stains.size() > 60:
+		stains[0].queue_free()
+	var quad := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(radius * 2.0, radius * 2.0)
+	quad.mesh = plane
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = _blood_texture
+	mat.albedo_color = color
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	quad.material_override = mat
+	quad.add_to_group("stains")
+	scene.add_child(quad)
+	quad.global_position = Vector3(pos.x, 0.02 + randf() * 0.01, pos.z)
+	quad.rotation.y = randf() * TAU
+
+## Small ring that pulses where a move-click landed.
+static func click_marker(from: Node, pos: Vector3) -> void:
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.28
+	torus.outer_radius = 0.36
+	ring.mesh = torus
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.5, 0.9, 1.0, 0.9)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material_override = mat
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	from.get_tree().current_scene.add_child(ring)
+	ring.global_position = Vector3(pos.x, 0.05, pos.z)
+	ring.scale = Vector3(1.6, 1.0, 1.6)
+	var tween := ring.create_tween().set_parallel(true)
+	tween.tween_property(ring, "scale", Vector3(0.6, 1.0, 0.6), 0.35).set_ease(Tween.EASE_OUT)
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.35)
+	tween.chain().tween_callback(ring.queue_free)
+
+## Thin glowing line between two points (lightning arcs).
+static func beam(from: Node, a: Vector3, b: Vector3, color: Color) -> void:
+	var length: float = a.distance_to(b)
+	if length < 0.05:
+		return
+	var mesh_instance := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.035
+	cylinder.bottom_radius = 0.035
+	cylinder.height = length
+	mesh_instance.mesh = cylinder
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh_instance.material_override = mat
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	from.get_tree().current_scene.add_child(mesh_instance)
+	mesh_instance.global_position = (a + b) * 0.5
+	var up: Vector3 = (b - a).normalized()
+	var side: Vector3 = up.cross(Vector3.RIGHT if absf(up.dot(Vector3.RIGHT)) < 0.9 else Vector3.FORWARD).normalized()
+	mesh_instance.global_transform.basis = Basis(side.cross(up).normalized(), up, side)
+	var tween := mesh_instance.create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.18)
+	tween.tween_callback(mesh_instance.queue_free)
+
+## Expanding ground ring for area effects (shockwaves, blasts).
+static func ring(from: Node, pos: Vector3, radius: float, color: Color) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.9
+	torus.outer_radius = 1.0
+	mesh_instance.mesh = torus
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.85)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh_instance.material_override = mat
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	from.get_tree().current_scene.add_child(mesh_instance)
+	mesh_instance.global_position = Vector3(pos.x, 0.08, pos.z)
+	mesh_instance.scale = Vector3(0.3, 1.0, 0.3)
+	var tween := mesh_instance.create_tween().set_parallel(true)
+	tween.tween_property(mesh_instance, "scale", Vector3(radius, 1.0, radius), 0.3).set_ease(Tween.EASE_OUT)
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.3)
+	tween.chain().tween_callback(mesh_instance.queue_free)
+
+## Brief point light for impact flashes.
+static func light_flash(from: Node, pos: Vector3, color: Color, energy: float, duration: float) -> void:
+	var light := OmniLight3D.new()
+	light.light_color = color
+	light.light_energy = energy
+	light.omni_range = 6.0
+	from.get_tree().current_scene.add_child(light)
+	light.global_position = pos
+	var tween := light.create_tween()
+	tween.tween_property(light, "light_energy", 0.0, duration)
+	tween.tween_callback(light.queue_free)

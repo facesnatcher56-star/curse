@@ -1,0 +1,118 @@
+{
+  "hero": {
+    "preview": "01a103d5-2e7d-701d-82f5-cf67014c60f3",
+    "refine": "01a103d6-5720-7080-a8d3-546ed08dbc73",
+    "rig": "01a103d7-7911-74de-b2c1-43cd817100e2",
+    "anims": {
+      "idle": "01a103d7-bb45-77da-8be1-56131cc4cfec",
+      "slash": "01a103d7-bcb1-714e-b97b-753f9cb618e5",
+      "power": "01a103d7-be48-720d-b1f8-f3ba5e0c860c",
+      "cleave": "01a103d7-bfdd-75fa-8ef6-bb2069570c19",
+      "cast": "01a103d7-c154-70a3-b13b-5f13dd8f29af",
+      "hit": "01a103d7-c30d-7284-845c-ff8213aeb4f2",
+      "death": "01a103d7-c4b1-75b4-988a-6712fa31ba95",
+      "idle_alert": "01a103ff-c76e-7634-99f7-d08700450de7",
+      "idle_calm": "01a103ff-c969-7560-b5af-23dac9a24a11",
+      "slash_l": "01a103ff-caee-7214-9eea-69df573d26f2",
+      "slash_r": "01a103ff-ccab-75e7-ae51-f67431492cf5",
+      "thrust": "01a103ff-ce53-738d-83e5-ca57906d7120",
+      "combo_end": "01a103ff-d004-7766-9610-5633a5911652",
+      "roll": "01a103ff-d1e3-7077-9936-711d5e2dfb1b"
+    }
+  },
+  "zombie": {
+    "preview": "01a103d8-0889-77ea-8113-e856c56729be",
+    "refine": "01a103d9-02d0-77b5-a004-7fd891221eb4",
+    "rig": "01a103d9-c548-7767-8eb3-c19ef97aab5f",
+    "anims": {
+      "idle": "01a103da-06e0-7643-8f52-f386b1a971aa",
+      "attack": "01a103da-0879-77bb-be45-e47e957979d4",
+      "hit": "01a103da-09d0-7597-a4e5-9aca136ce551",
+      "death": "01a103da-0b3b-7416-a5af-b2a3fb4eae65",
+      "stagger": "01a103da-0ccc-770f-b7d6-5cbc430f2246",
+      "scream": "01a103da-0e47-7401-890d-298916706912"
+    }
+  },
+  "ruined_pillar": {
+    "preview": "01a103e4-ec15-766c-a0a0-f65e47da5ab5",
+    "refine": "01a103e6-19f6-7249-964c-3f7aa6760e0b"
+  },
+  "gravestone": {
+    "preview": "01a103e6-dcba-764c-9513-37f69ab3b8b3",
+    "refine": "01a103e7-dbe7-70d8-b62e-989ed8af445d"
+  },
+  "dead_tree": {
+    "preview": "01a103e8-6e95-7559-9ee8-7c1756fc510a",
+    "refine": "01a103e9-6664-7219-82d7-1d68948d98f7"
+  },
+  "rubble": {
+    "preview": "01a103ea-28da-71e6-921b-8586db530625",
+    "refine": "01a103eb-b0df-706f-9ec1-a64cd36a04b5"
+  },
+  "ruined_wall": {
+    "preview": "01a103ec-7361-72ab-9423-5180d9bf462f",
+    "refine": "01a103ed-6c9f-72ca-b11c-914c111d8b51"
+  },
+  "barrel": {
+    "preview": "01a103ee-2f08-7035-b159-8c481523293b",
+    "refine": "01a103ef-85aa-717a-9eb3-e85db44aef45"
+  },
+  "brazier": {
+    "preview": "01a103f0-4810-73cd-ab4d-350e19bbee34",
+    "refine": "01a103f1-89bb-70bb-a8af-8d91619ae5ef"
+  },
+  "bones": {
+    "preview": "01a103f2-7ba4-7149-a705-4ea5ddf90576",
+    "refine": "01a103f3-aaa5-7083-9daf-4df4625670dd"
+  },
+  "wrecked_cart": {
+    "preview": "01a103f4-cce6-765c-9cf5-67d2816fbd67",
+    "refine": "01a103f5-f44d-7386-9b19-5f7675ee9a9f"
+  },
+  "knight": {
+    "preview": "01a10405-30a8-74bc-9178-08bd8508351e",
+    "refine": "01a10406-5b33-7245-a65f-c8ff26fe02bb",
+    "rig": "01a10406-ee27-703a-a09a-4fe565f56020",
+    "anims": {
+      "idle_alert": "01a10407-6080-7740-b5f0-9633f69a9c79",
+      "slash": "01a10407-6248-7426-bba2-51e2d4c3f15f",
+      "slash_l": "01a10407-642d-76f0-82c9-1e081eb0eb3d",
+      "slash_r": "01a10407-65ee-7320-86ec-ec7a1f1417a3",
+      "thrust": "01a10407-6786-74d5-9bc1-f58f4b617256",
+      "combo_end": "01a10407-6930-775e-8993-8a34ab7763fe",
+      "power": "01a10407-6ab4-7297-9c01-f7d1e70d80e6",
+      "cleave": "01a10407-6c8d-705a-9001-468da72f214d",
+      "cast": "01a10407-6e12-7497-860c-8b12a27c36c6",
+      "roll": "01a10407-6f75-712c-9c28-99e575eb006d",
+      "hit": "01a10407-a4ce-75ff-9ec3-fab3abd6455e",
+      "death": "01a10407-a67a-72e8-8eab-5f8b1c846f02"
+    }
+  },
+  "knight2": {
+    "preview": "01a10408-847e-7474-84f2-647b57dec683",
+    "refine": "01a10409-ac72-7270-aa29-d7b4d65830dd",
+    "rig": "01a1040a-6f43-724f-a561-2eca842348ba",
+    "anims": {
+      "idle_alert": "01a1040a-b1b3-7189-83de-b6ccdf3dd3ba",
+      "slash": "01a1040a-b3c0-7780-89fb-facf966af264",
+      "slash_l": "01a1040a-b551-71c9-9e33-cb6dcaac1082",
+      "slash_r": "01a1040a-b6dc-7241-a3d0-358b5a0da48e",
+      "thrust": "01a1040a-b893-77dc-a070-d7f2dc143067",
+      "combo_end": "01a1040a-ba3c-73ac-b767-b6a2f742de04",
+      "power": "01a1040a-bbd2-77b1-b1f1-b4c210fa98f8",
+      "cleave": "01a1040a-bd81-7356-9cf1-25f70bad1868",
+      "cast": "01a1040a-bf62-77e7-a086-9d88513b63b4",
+      "roll": "01a1040a-c0f9-779c-a116-4f1a02bff336",
+      "hit": "01a1040b-11b5-7714-8066-eaa6177e838d",
+      "death": "01a1040b-136f-7299-a3ba-84b4b3f483ff",
+      "charge": "01a10449-bbb5-74d5-92d1-a84ea76acd4a",
+      "throw": "01a10449-bd72-715d-a5ea-3f975a83c8ab",
+      "charge_run": "01a1044d-46e7-70d7-825e-9504fc8cab5c",
+      "kick": "01a1044d-488b-71e9-8c6c-f443ddcfceea",
+      "leap": "01a10491-416d-727c-bc08-f366f8dc42de",
+      "stomp": "01a10491-43ba-743c-ae12-bf9f464a72de",
+      "yank": "01a10491-4570-74e7-be1e-e51ee1404c8e",
+      "jump": "01a10491-470b-7590-9c28-da68a9d93954"
+    }
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "hero": {
+    "prompt": "Dark fantasy human warrior, full body, standing in A-pose, arms slightly out from the body, wearing worn dented steel pauldrons and breastplate over leather, tattered cloth tabard, sturdy boots, holding a plain longsword in the right hand, grim determined bearded face, realistic hand-painted game character, PBR",
+    "pose": "a-pose",
+    "polycount": 20000,
+    "rig": true,
+    "height": 1.8,
+    "animations": {
+      "idle": 85,
+      "slash": 4,
+      "power": 242,
+      "cleave": 91,
+      "cast": 129,
+      "hit": 178,
+      "death": 8,
+      "idle_alert": 2,
+      "idle_calm": 11,
+      "slash_l": 97,
+      "slash_r": 219,
+      "thrust": 240,
+      "combo_end": 92,
+      "roll": 158
+    }
+  },
+  "zombie": {
+    "prompt": "Rotting undead zombie villager, full body, standing in A-pose, arms hanging slightly away from the body, gray-green decayed skin with exposed wounds, torn filthy ragged peasant clothes, hollow glowing eyes, hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "pose": "a-pose",
+    "polycount": 12000,
+    "rig": true,
+    "height": 1.75,
+    "animations": {
+      "idle": 0,
+      "attack": 214,
+      "hit": 178,
+      "death": 188,
+      "stagger": 113,
+      "scream": 386
+    }
+  },
+  "ruined_pillar": {
+    "prompt": "Broken ancient stone pillar, cracked and weathered, partially collapsed top, moss and grime, dark fantasy ruin, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "gravestone": {
+    "prompt": "Weathered tilted stone grave marker with a carved cross, cracked, moss patches, dark fantasy graveyard, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "dead_tree": {
+    "prompt": "Gnarled leafless dead tree with twisted bare branches, dark bark, dark fantasy, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "rubble": {
+    "prompt": "Pile of broken stone blocks and rubble debris, ruins, dark fantasy, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "ruined_wall": {
+    "prompt": "Short section of crumbling stone brick wall with broken top edge, dark fantasy ruin, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "barrel": {
+    "prompt": "Old weathered wooden barrel with rusty iron bands, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "brazier": {
+    "prompt": "Iron fire brazier on a tripod stand filled with glowing embers and charcoal, dark fantasy, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "bones": {
+    "prompt": "Pile of scattered human bones and a skull on the ground, dark fantasy, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "wrecked_cart": {
+    "prompt": "Broken tipped-over wooden hand cart with a missing wheel, weathered planks, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "sword": {
+    "prompt": "Medieval steel longsword, straight double-edged blade with a central fuller, simple iron crossguard, leather-wrapped grip and round pommel, slightly worn, single game prop, standing upright blade pointing up",
+    "polycount": 3000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "zombie_brute": {
+    "prompt": "Huge bloated hulking undead brute zombie, full body, standing in A-pose, arms hanging slightly away from the body, thick rotting gray-green skin with stitched wounds and exposed ribs, torn leather apron and rusty chains, glowing eyes, massive fists, realistic hand-painted dark fantasy game creature, PBR",
+    "pose": "a-pose",
+    "polycount": 14000,
+    "rig": true,
+    "height": 2.4,
+    "animations": {
+      "idle": 0,
+      "attack": 214,
+      "hit": 178,
+      "death": 188
+    }
+  },
+  "knight": {
+    "prompt": "Heroic dark fantasy knight, full body, standing in a straight T-pose with arms stretched straight out to the sides and open empty hands, no weapon, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, heavy dented steel plate armor with leather straps, hooded dark cloth cape, bearded determined face, realistic hand-painted game character, PBR",
+    "pose": "t-pose",
+    "polycount": 22000,
+    "rig": true,
+    "height": 1.85,
+    "animations": {
+      "idle_alert": 2,
+      "slash": 4,
+      "slash_l": 97,
+      "slash_r": 219,
+      "thrust": 240,
+      "combo_end": 92,
+      "power": 242,
+      "cleave": 91,
+      "cast": 129,
+      "roll": 158,
+      "hit": 178,
+      "death": 8
+    }
+  },
+  "knight2": {
+    "prompt": "Heroic medieval knight, full body, standing in a straight T-pose with arms stretched straight out to the sides, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, full steel plate armor with a closed great helm, fitted leather gloves as simple gauntlets, short plain tabard to the thighs, absolutely no cape, no cloak, no hood, no wings, no spikes and no loose flowing cloth, clean compact silhouette, realistic hand-painted game character, PBR",
+    "pose": "t-pose",
+    "polycount": 22000,
+    "rig": true,
+    "height": 1.85,
+    "animations": {
+      "idle_alert": 2,
+      "slash": 4,
+      "slash_l": 97,
+      "slash_r": 219,
+      "thrust": 240,
+      "combo_end": 92,
+      "power": 242,
+      "cleave": 91,
+      "cast": 129,
+      "roll": 158,
+      "hit": 178,
+      "death": 8,
+      "charge": 125,
+      "throw": 132,
+      "charge_run": 511,
+      "kick": 206,
+      "leap": 86,
+      "stomp": 255,
+      "yank": 239,
+      "jump": 466
+    }
+  }
+}
