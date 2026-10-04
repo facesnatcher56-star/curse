@@ -1111,8 +1111,8 @@ func _test_items() -> void:
 		dummies.append(z)
 	await get_tree().process_frame
 	var saved: Dictionary = player.equipment.duplicate()
-	for id in Items.AFFIXES:
-		var slot: int = Items.AFFIXES[id]["slot"]
+	for id in AffixDb.all():
+		var slot: int = AffixDb.all()[id]["slot"]
 		var item: Dictionary = Items.make(slot, Items.Rarity.RARE, 1, id)
 		player.equip(item, false)
 		if not player.has_affix(id):
@@ -1141,7 +1141,7 @@ func _test_items() -> void:
 	var choices: Array[Dictionary] = Items.roll_choices(5, true, [])
 	expect("every affix is driven by its hook", failures == 0)
 	expect("reward offers 3 choices", choices.size() == 3)
-	print("  items: ", Items.AFFIXES.size(), " affixes driven; reward choices=", choices.size(), " (brute offer: ",
+	print("  items: ", AffixDb.all().size(), " affixes driven; reward choices=", choices.size(), " (brute offer: ",
 		", ".join(choices.map(func(c): return c["name"])), "), failures=", failures)
 	for d in dummies:
 		d.queue_free()

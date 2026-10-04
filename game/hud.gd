@@ -306,7 +306,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		var mods: Array[String] = []
 		for affix_id in SkillDb.modifier_affixes(id):
 			if player.has_affix(affix_id):
-				mods.append(Items.AFFIXES[affix_id]["desc"])
+				mods.append(AffixDb.all()[affix_id]["desc"])
 		# Measure, then draw the panel.
 		var height: float = pad + 26.0
 		if stat_line != "":

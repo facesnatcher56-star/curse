@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "last_stand"
+title = "Stalwart"
+slot = 1
+description = "Below 35% health, you take 30% less damage."

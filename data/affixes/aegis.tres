@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "aegis"
+title = ""
+slot = 1
+description = "Every 4th hit you take is blocked and answered with a shockwave."

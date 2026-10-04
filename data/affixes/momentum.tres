@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "momentum"
+title = "Relentless"
+slot = 0
+description = "Each kill makes you attack 30% faster for 3 seconds."
