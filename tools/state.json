@@ -142,6 +142,17 @@
   },
   "bloater": {
     "preview": "01a106dc-8cb6-7621-b9df-29ba57f50b92",
-    "refine": "01a106dd-832e-70a2-93bc-c63bf1a39218"
+    "refine": "01a106dd-832e-70a2-93bc-c63bf1a39218",
+    "rig": "01a106de-d4cf-7757-8c0b-da1afb745c49",
+    "anims": {
+      "idle": "01a106df-4e94-70d7-a28b-2dfb62a054f0",
+      "hit": "01a106df-5052-7087-9d3f-99f890c98c62",
+      "death": "01a106df-51b7-71c9-99f0-53ae8c00f17f",
+      "attack": "01a106df-5339-7449-acff-767d1eb3381c",
+      "scream": "01a106df-54a9-71a0-a20f-cc81090cad25"
+    }
+  },
+  "priest": {
+    "preview": "01a106df-9346-73de-ad3f-f425b1f749d8"
   }
 }

@@ -20,22 +20,22 @@ var arena: Arena:
 var pause_menu: PauseMenu:
 	get: return game.pause_menu
 var wave: int:
-	get: return game.wave
-	set(value): game.wave = value
+	get: return game.director.wave
+	set(value): game.director.wave = value
 var kills: int:
-	get: return game.kills
+	get: return game.director.kills
 var _brute_killed: bool:
-	get: return game._brute_killed
-	set(value): game._brute_killed = value
+	get: return game.director._brute_killed
+	set(value): game.director._brute_killed = value
 
 func _spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -> Enemy:
-	return game._spawn_enemy(pos, variant, level)
+	return game.director.spawn_enemy(pos, variant, level)
 
 func _next_wave() -> void:
-	game._next_wave()
+	game.director.start_wave()
 
 func _offer_reward() -> void:
-	game._offer_reward()
+	game.director.offer_reward()
 
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
