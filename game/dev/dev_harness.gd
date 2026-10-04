@@ -2262,6 +2262,9 @@ func _test_pad_menus() -> void:
 	var wiggle := InputEventMouseMotion.new()
 	wiggle.relative = Vector2(4.0, 0.0)
 	Gamepad.note_event(wiggle)
+	expect("mouse moves arriving right alongside pad input (Steam's emulated mouse) are ignored", Gamepad.active)
+	Gamepad._pad_ms = -100000   # ...but once the pad has been quiet for a moment a real mouse move takes over
+	Gamepad.note_event(wiggle)
 	expect("moving the real mouse switches back to mouse and keyboard", not Gamepad.active)
 	var stick := InputEventJoypadMotion.new()
 	stick.axis = JOY_AXIS_LEFT_X
@@ -2274,6 +2277,7 @@ func _test_pad_menus() -> void:
 	var key := InputEventKey.new()
 	key.pressed = true
 	key.physical_keycode = KEY_W
+	Gamepad._pad_ms = -100000
 	Gamepad.note_event(key)
 	expect("a key press switches back to keyboard and mouse", not Gamepad.active)
 	var rest := InputEventJoypadMotion.new()
@@ -2290,6 +2294,7 @@ func _test_pad_menus() -> void:
 	click.pressed = true
 	click.button_index = MOUSE_BUTTON_LEFT
 	Gamepad.note_event(down)
+	Gamepad._pad_ms = -100000
 	Gamepad.note_event(click)
 	expect("a mouse click switches back too", not Gamepad.active)
 	# The pause menu opens with something selected, and the D-pad / stick (ui_down) moves it.
