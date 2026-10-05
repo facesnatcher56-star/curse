@@ -25,6 +25,7 @@ const SKEWER_SPEED := 15.0
 const SKEWER_SLOTS: Array[float] = [1.0, 1.4, 1.8]  # distance ahead of the hero along the blade, hilt first
 const SKEWER_BIG_BONUS := 45.0   # flat extra damage against enemies too big to impale
 const SKEWER_BIG_STUN := 1.6     # they are staggered this long, so they cannot hit back
+const RAM_BIG_STUN_MULT := 2.5   # Ramming: the ones too big to move are stunned this much longer
 const SKEWER_WINDUP := 0.28
 const SKEWER_SKID := 0.24
 const SKEWER_KICK_TIME := 0.55
@@ -175,14 +176,19 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 			var slam: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 3.0)
 			slam["skill_id"] = "skewer"
 			e.receive(slam, p.global_position)
-			e.stun_time = maxf(e.stun_time, SKEWER_BIG_STUN)  # forced, even for bosses
-			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Staggered", Color(1.0, 0.9, 0.5), 46)
+			var rammed: bool = p.stats.has_affix("charger")
+			e.stun_time = maxf(e.stun_time, SKEWER_BIG_STUN * (RAM_BIG_STUN_MULT if rammed else 1.0))  # forced, even for bosses
+			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Stunned" if rammed else "Staggered", Color(1.0, 0.9, 0.5), 46)
 			Fx.ring(p, e.global_position, 2.4, Color(1.0, 0.85, 0.5))
 			Fx.punch(p, 2.6)
 			Fx.shake(p, 0.2)
 			p.skills.blade_blood = minf(p.skills.blade_blood + 0.2, 1.0)
 			continue
 		if skewer_impaled.size() >= 3:
+			# The blade is full. With Ramming whoever else is in the lane is knocked down and thrown aside, once, instead of ignored.
+			if p.stats.has_affix("charger") and not big_hit.has(e.get_instance_id()):
+				big_hit[e.get_instance_id()] = true
+				_ram_aside(e, skill)
 			continue
 		e.set_impaled(true)
 		e.ragdoll_hang(atan2(-skewer_dir.x, -skewer_dir.z))
@@ -198,6 +204,26 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 		Fx.punch(p, 2.0)
 		Fx.shake(p, 0.12)
 	return false
+
+## Ramming: an enemy the blade could not take is hit by the shoulder of the charge, knocked down and thrown out of the lane.
+func _ram_aside(e: Actor, skill: Dictionary) -> void:
+	var rel: Vector3 = e.global_position - p.global_position
+	rel.y = 0.0
+	var lateral: Vector3 = rel - skewer_dir * rel.dot(skewer_dir)
+	if lateral.length() < 0.1:
+		lateral = skewer_dir.cross(Vector3.UP) * (1.0 if randf() < 0.5 else -1.0)
+	lateral = lateral.normalized()
+	var shove: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.6 * ItemEffects.outgoing_multiplier(p, e),
+		Combat.DamageType.PHYSICAL, false, 2.0)
+	shove["skill_id"] = "skewer"
+	shove["secondary"] = true
+	e.receive(shove, p.global_position)
+	if is_instance_valid(e) and not e.dead:
+		var away: Vector3 = (skewer_dir * 0.5 + lateral).normalized()
+		e.ragdoll_launch(away * 10.0, 4.5, lateral.cross(Vector3.UP) * randf_range(6.0, 10.0))
+		e.interrupt(1.0)
+	Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Knocked aside", Color(1.0, 0.9, 0.5), 40)
+	Fx.punch(p, 1.6)
 
 ## Keeps skewered enemies pinned along the blade, hilt first, and bleeds them a little as they ride.
 func _carry_impaled(delta: float) -> void:
@@ -252,7 +278,6 @@ func _skewer_kick() -> void:
 			var fallback: Vector3 = p.global_position + away * 8.0
 			var victim: Actor = e
 			p.get_tree().create_timer(0.85).timeout.connect(func() -> void: ItemEffects.impaler_burst(p, victim, fallback))
-	ItemEffects.on_skewer_kick(p, count)
 	p.skills.blade_blood = minf(p.skills.blade_blood + 0.3, 1.0)
 	skewer_impaled.clear()
 	Fx.ring(p, p.global_position + skewer_dir * 1.3, 3.0, Color(1.0, 0.85, 0.5))

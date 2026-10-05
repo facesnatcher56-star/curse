@@ -20,7 +20,7 @@ AFFIXES = [
     ("shock_roll", "Thunderstep", 1, "Starting a dodge roll blasts nearby enemies away and hurts them."),
     ("cinder_roll", "Ember-Treaded", 1, "Your dodge roll leaves a trail of embers that sets enemies alight for 3 seconds."),
     ("vaultborn", "Vaultborn", 1, "Landing a Leap makes your next Power Strike within 4 seconds free, with no cooldown."),
-    ("charger", "Ramming", 1, "A Skewer that carries three enemies is ready to use again the moment the kick lands."),
+    ("charger", "Ramming", 1, "Enemies your Skewer cannot spit are knocked down and thrown aside. The ones too big to move are stunned much longer."),
     ("smouldering", "Smouldering", 1, "When you are hit, every enemy close to you catches fire."),
     # Trinkets
     ("twin_flame", "Twin-Flame", 2, "Fireball launches a second fireball at an angle."),

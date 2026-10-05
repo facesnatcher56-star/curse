@@ -42,7 +42,9 @@ params = {
 "puddle_radius": 1.6,
 "puddle_time": 3.5,
 "puddle_dps": 5.0,
-"puddle_slow": 0.3
+"puddle_slow": 0.3,
+"snare_on_hit": 3.0,
+"snare_amount": 0.6
 }
 token_weight = 1
 drop_chance = 0.12

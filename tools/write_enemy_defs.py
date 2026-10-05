@@ -31,7 +31,8 @@ ENEMIES = {
                     clips=["idle", "walk", "run", "hit", "death", "throw", "stagger"], gib_color=(0.55, 0.6, 0.25),
                     params={"preferred": 8.0, "min_dist": 5.0, "fire_range": 13.0, "windup": 0.75, "cooldown_min": 2.4,
                             "cooldown_max": 3.6, "glob_time": 0.85, "splash": 1.3, "puddle_radius": 1.6,
-                            "puddle_time": 3.5, "puddle_dps": 5.0, "puddle_slow": 0.3},
+                            "puddle_time": 3.5, "puddle_dps": 5.0, "puddle_slow": 0.3,
+                            "snare_on_hit": 3.0, "snare_amount": 0.6},
                     min_wave=3, spawn_mode="solo", base_count=1.0, per_wave=0.5, max_per_wave=5),
     "bloater": dict(drop_chance=0.16, drop_luck=0.0, display_name="Bloater", model_path="res://assets/models/bloater", height=2.0, radius=0.7, health=90.0,
                     damage_min=14.0, damage_max=14.0, speed=3.3, attack_range=2.3, attack_time=1.0, armor=4.0, defense=8.0,
@@ -48,7 +49,7 @@ ENEMIES = {
                    attack_clip="attack", attack_start=0.5, attack_strike=1.07, attack_end=1.45, token_weight=1,
                    params={"ward_interval": 7.0, "ward_time": 5.0, "ward_reduction": 0.4, "ward_haste": 1.25,
                            "summon_interval": 15.0, "summon_count": 2, "summon_max": 4, "keep_min": 6.5,
-                           "keep_max": 11.0, "flee_dist": 4.5},
+                           "keep_max": 11.0, "flee_dist": 4.5, "snare_on_hit": 3.0, "snare_amount": 0.6},
                    min_wave=5, spawn_mode="support", base_count=1.0, per_wave=0.3, max_per_wave=2),
 }
 

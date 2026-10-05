@@ -270,6 +270,9 @@ func _bowl_into_enemies(speed: float) -> void:
 		other.receive(hit, here)
 		if is_instance_valid(other):
 			other.interrupt(0.9)
+			if other.can_be_impaled() and not other.dead:   # the one it hit falls down too (the very big ones only stagger)
+				var along: Vector3 = _velocity.normalized() if _velocity.length() > 0.1 else rel.normalized()
+				other.ragdoll_launch(Vector3(along.x, 0.0, along.z) * 3.0, 2.0, along.cross(Vector3.UP) * randf_range(3.0, 6.0))
 		_velocity *= 0.7
 		Fx.burst(actor, other.global_position + Vector3(0, 1.0, 0), _velocity.normalized() + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 10, 4.0)
 		Fx.shake(actor, 0.08)

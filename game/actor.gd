@@ -23,6 +23,12 @@ var dead: bool = false
 
 var stun_time: float = 0.0
 var knock: Vector3 = Vector3.ZERO
+## The hero who last hit this actor: credit for what a knock-back does when it ends against something (see _knock_impact).
+var knocked_by: Actor
+var _impact_cooldown: float = 0.0
+## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
+var snare_time: float = 0.0
+var snare_amount: float = 0.0
 var bleed_time: float = 0.0
 var bleed_dps: float = 0.0
 var burn_time: float = 0.0
@@ -85,6 +91,8 @@ func _actor_tick(delta: float) -> bool:
 	invulnerable_time = maxf(invulnerable_time - delta, 0.0)
 	bar_timer = maxf(bar_timer - delta, 0.0)
 	slow_time = maxf(slow_time - delta, 0.0)
+	snare_time = maxf(snare_time - delta, 0.0)
+	_impact_cooldown = maxf(_impact_cooldown - delta, 0.0)
 	knock = knock.move_toward(Vector3.ZERO, 22.0 * delta)
 	if bleed_time > 0.0 and not dead:
 		bleed_time -= delta
@@ -107,6 +115,70 @@ func move_with(desired: Vector3) -> void:
 	velocity.y = 0.0
 	move_and_slide()
 	global_position.y = 0.0
+	if knock.length() >= IMPACT_SPEED and _impact_cooldown <= 0.0 and not dead:
+		_knock_impact()
+
+# --- Knock-back that ends against something ----------------------------------------------------------------------------------
+
+## A knock faster than this (m/s) hurts when it ends against a wall, a prop or another monster. A normal blow pushes about 2-5 m/s, a
+## crushing one 9, Power Strike about 14, so only the heavy blows do it.
+const IMPACT_SPEED := 6.0
+
+## After moving with a knock on: was this body driven into something? A wall or a prop (anything solid that is not the floor): a little
+## damage and a stun. Another monster: both take damage, and the one that was hit falls down (unless it is too big to). Called from
+## move_with, so it only matters for what is being thrown about.
+func _knock_impact() -> void:
+	if not is_in_group("enemies"):
+		return
+	var speed: float = knock.length()
+	for i in get_slide_collision_count():
+		var hit: KinematicCollision3D = get_slide_collision(i)
+		var normal: Vector3 = hit.get_normal()
+		if absf(normal.y) > 0.7:
+			continue   # the ground
+		var other: Object = hit.get_collider()
+		if other is Actor:
+			var victim := other as Actor
+			if victim == self or victim.dead or victim.is_in_group("player") or victim.impaled:
+				continue
+			_knock_into_actor(victim, speed)
+			return
+		elif other is PhysicsBody3D:
+			_knock_into_wall(speed, hit.get_position())
+			return
+
+func _impact_hit(amount: float) -> Dictionary:
+	return {"outcome": Combat.Outcome.HIT, "damage": amount, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 0.5, "source": knocked_by,
+		"type": Combat.DamageType.PHYSICAL, "skill_id": "impact", "secondary": true}
+
+func _knock_into_wall(speed: float, point: Vector3) -> void:
+	_impact_cooldown = 0.5
+	var amount: float = minf(maxf(3.0, max_health * 0.06), 40.0) * clampf(speed / 10.0, 0.6, 1.6)
+	var back: Vector3 = -knock.normalized()
+	knock = Vector3.ZERO
+	receive(_impact_hit(amount), point)
+	if dead:
+		return
+	stun_time = maxf(stun_time, 0.9 * (1.0 - stun_resist))
+	Fx.burst(self, point + Vector3(0, 0.9, 0), back + Vector3.UP * 0.5, Color(0.42, 0.38, 0.32), 8, 3.0, 0.03)
+	Fx.shake(self, 0.05)
+
+func _knock_into_actor(victim: Actor, speed: float) -> void:
+	_impact_cooldown = 0.5
+	var dir: Vector3 = victim.global_position - global_position
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.05 else knock.normalized()
+	victim.receive(_impact_hit(8.0 + speed * 0.9), global_position)
+	if is_instance_valid(victim) and not victim.dead:
+		if victim.can_be_impaled():   # the ones too big to knock over are only stunned, for a bit longer
+			victim.ragdoll_launch(dir * (3.5 + speed * 0.3), 2.8, dir.cross(Vector3.UP) * randf_range(4.0, 7.0))
+		victim.interrupt(1.0 if victim.can_be_impaled() else 1.5)
+	knock *= 0.25   # most of the momentum went into the other one
+	receive(_impact_hit(4.0 + speed * 0.5), victim.global_position)
+	if not dead:
+		stun_time = maxf(stun_time, 0.8 * (1.0 - stun_resist))
+	Fx.burst(self, victim.global_position + Vector3(0, 1.0, 0), dir + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 10, 4.0)
+	Fx.shake(self, 0.07)
 
 func face(pos: Vector3, weight: float = 1.0) -> void:
 	var dir: Vector3 = pos - global_position
@@ -134,6 +206,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	_last_hit_from = source_pos
 	_last_hit_ms = Time.get_ticks_msec()
+	if result.get("source") is Player:
+		knocked_by = result["source"]
 	if invulnerable_time > 0.0:
 		Fx.text_at(self, global_position + Vector3(0, 2.2, 0), "Dodge", Color(0.6, 0.95, 1.0), 40)
 		return
@@ -341,7 +415,19 @@ func _refresh_overlay() -> void:
 
 ## Speed multiplier from slows (1.0 when not slowed).
 func speed_factor() -> float:
-	return 1.0 - slow_amount if slow_time > 0.0 else 1.0
+	var factor: float = 1.0 - slow_amount if slow_time > 0.0 else 1.0
+	if snare_time > 0.0:
+		factor = minf(factor, 1.0 - snare_amount)
+	return factor
+
+## Snared: crawling for `seconds` (a ranged monster that tried to run from the hero's blows, so it can be caught).
+func apply_snare(seconds: float, amount: float) -> void:
+	var fresh: bool = snare_time <= 0.0
+	snare_time = maxf(snare_time, seconds)
+	snare_amount = maxf(amount, snare_amount if not fresh else 0.0)
+	if fresh and not dead:
+		Fx.text_at(self, global_position + Vector3(0, body_height + 0.7, 0), "Snared", Color(0.75, 0.85, 0.45), 40)
+		Fx.ring(self, global_position + Vector3(0, 0.05, 0), 1.3, Color(0.5, 0.58, 0.28))
 
 func apply_slow(amount: float, seconds: float) -> void:
 	slow_amount = maxf(amount, slow_amount if slow_time > 0.0 else 0.0)

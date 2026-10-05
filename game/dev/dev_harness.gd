@@ -3649,12 +3649,6 @@ func _test_new_affixes() -> void:
 	var before: float = b.health
 	ItemEffects.impaler_burst(player, a, Vector3(6, 0, 0))
 	expect("an enemy kicked off the blade bursts and hurts the one beside it", b.health < before)
-	_wear("charger", 1)
-	player.stats.cooldowns["skewer"] = 9.0
-	ItemEffects.on_skewer_kick(player, 2)
-	expect("a Skewer that carried two is not ready again", float(player.stats.cooldowns["skewer"]) > 0.0)
-	ItemEffects.on_skewer_kick(player, 3)
-	expect("one that carried three is", float(player.stats.cooldowns["skewer"]) == 0.0)
 
 	# Ember-Treaded: the trail sets an enemy standing on it alight.
 	_wear("cinder_roll", 1)
@@ -3756,9 +3750,142 @@ func _wear(affix_id: String, slot: int) -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+"knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
+
+## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage
+## and is stunned, and one that hits another monster hurts it and knocks it down; Ramming turns a full Skewer's leftovers into
+## knocked-down, thrown-aside monsters (the big ones stunned far longer); and a ranged monster that is hit while backing away is snared.
+func _test_knockdown() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var skills: SkillController = player.skills
+	var power: Dictionary = SkillDb.all()["power"].duplicate()
+	# 1. Power Strike on one zombie in open ground: thrown back several metres and stunned for over a second.
+	var z: Enemy = _spawn_enemy(Vector3(0, 0, 1.8))
+	z.alert_delay = 999.0
+	z.max_health = 5000.0
+	z.health = 5000.0
+	skills.busy_skill = "power"
+	skills.busy_target = z
+	skills.busy_aim = z.global_position
+	skills._apply_skill(power)
+	var stun_at_hit: float = z.stun_time
+	var start: Vector3 = z.global_position
+	await get_tree().create_timer(0.7).timeout
+	var thrown: float = z.global_position.distance_to(start)
+	expect("Power Strike stuns for over a second (%.2f)" % stun_at_hit, stun_at_hit >= 1.3)
+	# (the blow itself can miss; the throw is the skill's own and happens anyway, a landed hit adds its own knock on top: 4 m and up)
+	expect("Power Strike throws it back, even on a miss (%.1f m, was about 0.5 before)" % thrown, thrown >= 1.5)
+	z.queue_free()
+	# 2. Thrown into a wall: extra damage and a stun.
+	var wall_victim: Enemy = _spawn_enemy(Vector3(37.2, 0, 0))
+	wall_victim.alert_delay = 999.0
+	wall_victim.max_health = 5000.0
+	wall_victim.health = 5000.0
+	player.global_position = Vector3(35.4, 0, 0)
+	player.reset_physics_interpolation()
+	skills.busy_target = wall_victim
+	skills.busy_aim = wall_victim.global_position
+	skills._apply_skill(power)
+	var hit_only: float = 5000.0 - wall_victim.health
+	var hit_only_stun: float = wall_victim.stun_time
+	await get_tree().create_timer(0.6).timeout
+	expect("thrown into the wall it takes extra damage (%.0f over %.0f) and the impact stuns it" % [5000.0 - wall_victim.health, hit_only],
+		5000.0 - wall_victim.health > hit_only + 2.0 and String(wall_victim.last_result.get("skill_id", "")) == "impact" and wall_victim.stun_time > 0.0)
+	wall_victim.queue_free()
+	# 3. Thrown into another monster: both are hurt and the one it hits falls down.
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var front: Enemy = _spawn_enemy(Vector3(0, 0, 1.8))
+	var behind: Enemy = _spawn_enemy(Vector3(0, 0, 3.3))
+	for e in [front, behind]:
+		e.alert_delay = 999.0
+		e.max_health = 5000.0
+		e.health = 5000.0
+	skills.busy_target = front
+	skills.busy_aim = front.global_position
+	skills._apply_skill(power)
+	var saw_down: bool = false
+	var t: float = 0.0
+	while t < 1.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		saw_down = saw_down or behind.is_ragdolled()
+	expect("the monster that gets hit by the thrown one is hurt and falls down", behind.health < 5000.0 and saw_down
+		and String(behind.last_result.get("skill_id", "")) == "impact")
+	front.queue_free()
+	behind.queue_free()
+	# 4. Ramming: a full blade's leftovers are knocked down and thrown aside; a big one is stunned far longer.
+	var armour: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "charger")
+	var skewer: SkewerSkill = skills.p.skewer
+	var skewer_def: Dictionary = SkillDb.all()["skewer"]
+	var run_lane: Callable = func(with_ram: bool) -> Dictionary:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		await get_tree().process_frame
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+		if with_ram:
+			player.stats.equip(armour, false)
+		else:
+			player.stats.equipment.erase(Items.Slot.ARMOR)
+		skewer.skewer_dir = Vector3(0, 0, 1)
+		skewer.skewer_impaled.clear()
+		skewer.big_hit.clear()
+		var lane: Array[Enemy] = []
+		for dist in [0.5, 0.8, 1.1, 1.4]:
+			var e: Enemy = _spawn_enemy(Vector3(0, 0, dist))
+			e.alert_delay = 999.0
+			lane.append(e)
+		var brute: Enemy = _spawn_enemy(Vector3(1.0, 0, 1.2), "brute")
+		brute.alert_delay = 999.0
+		skewer._skewer_catch_enemies(skewer_def)
+		await get_tree().create_timer(0.3).timeout
+		var overflow: Enemy = lane[3]
+		var out: Dictionary = {"overflow_down": is_instance_valid(overflow) and (overflow.is_ragdolled() or overflow.stun_time > 0.0),
+			"overflow_moved": is_instance_valid(overflow) and absf(overflow.global_position.x) > 0.6, "brute_stun": brute.stun_time}
+		for e in skewer.skewer_impaled:
+			if is_instance_valid(e):
+				e.set_impaled(false)
+		skewer.skewer_impaled.clear()
+		return out
+	var plain: Dictionary = await run_lane.call(false)
+	var rammed: Dictionary = await run_lane.call(true)
+	expect("without Ramming the fourth enemy in the lane is just ignored", not plain["overflow_down"] and not plain["overflow_moved"])
+	expect("with Ramming it is knocked down and thrown aside", rammed["overflow_down"] and rammed["overflow_moved"])
+	expect("with Ramming the big one is stunned much longer (%.1f vs %.1f)" % [rammed["brute_stun"], plain["brute_stun"]],
+		float(rammed["brute_stun"]) > float(plain["brute_stun"]) * 2.0)
+	player.stats.equipment.erase(Items.Slot.ARMOR)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	# 5. Snare: a spitter that was backing away and is hit gets snared; one that was not, and a zombie, do not.
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var spitter: Enemy = _spawn_enemy(Vector3(0, 0, 3.0), "spitter")
+	var calm_spitter: Enemy = _spawn_enemy(Vector3(5, 0, 3.0), "spitter")
+	var zombie: Enemy = _spawn_enemy(Vector3(-5, 0, 3.0))
+	for e in [spitter, calm_spitter, zombie]:
+		e.alert_delay = 999.0
+		e.max_health = 5000.0
+		e.health = 5000.0
+	var blow: Callable = func() -> Dictionary:
+		return {"outcome": Combat.Outcome.HIT, "damage": 5.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL,
+			"bleed_dps": 0.0, "bleed_time": 0.0}
+	spitter.back_away_from(player.global_position)
+	spitter.receive(blow.call(), player.global_position)
+	calm_spitter.receive(blow.call(), player.global_position)
+	zombie.receive(blow.call(), player.global_position)
+	expect("a spitter hit while running is snared to a crawl for a while (%.1f s, x%.2f)" % [spitter.snare_time, spitter.speed_factor()],
+		spitter.snare_time >= 2.5 and spitter.speed_factor() <= 0.45)
+	expect("one that was not running is not, and a zombie is not", calm_spitter.snare_time == 0.0 and zombie.snare_time == 0.0)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
 
 ## The connected world: the plaza and the Crypt Road load together with every monster at the start, the hero simply walks out of the gate
 ## (no scene change, nothing to accept), a finished quest is waiting for him at Warden Hale, who has a coin over his head, and handing in

@@ -39,6 +39,7 @@ var _idle_wait: float = 0.0
 var _patrol_index: int = 0
 var _idle_clock: float = 0.0
 var _notice_timer: float = 0.0
+var _retreat_ms: int = -100000   # when it last backed away from the hero (see back_away_from)
 ## Seconds left before it notices anything (set by the wave director; gives the hero a moment to get their bearings).
 var alert_delay: float = 0.0
 var _was_stunned: bool = false
@@ -136,6 +137,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if not dead and result.get("source") is Player:
 		alert_delay = 0.0
 		wake()
+		# A ranged monster that was running from the hero and got hit is snared for a while instead of being kited around the map.
+		var snare: float = float(def.param("snare_on_hit", 0.0))
+		if snare > 0.0 and Time.get_ticks_msec() - _retreat_ms < 800:
+			apply_snare(snare, float(def.param("snare_amount", 0.6)))
 	super.receive(result, source_pos)
 
 ## It has noticed the hero (or been hit): stop what it was doing, and call the rest of its group.
@@ -224,6 +229,7 @@ func advance_on_target(delta: float, dist: float) -> void:
 
 ## Backs straight away from a point (keeping its face to the target) at `speed_mult` of its walking speed.
 func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
+	_retreat_ms = Time.get_ticks_msec()
 	var away: Vector3 = global_position - point
 	away.y = 0.0
 	away = away.normalized() if away.length() > 0.01 else Vector3.BACK

@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "power"
 display_name = "Power Strike"
-description = "Heave the blade overhead for a crushing blow. Hits much harder than a normal swing, and heavily staggers and knocks back what it hits."
+description = "Heave the blade overhead for a crushing blow. Hits much harder than a normal swing, throws what it hits back hard and stuns it for a good while. Thrown into a wall or another monster, they take extra damage, and the one they hit falls down."
 mana = 8.0
 cooldown = 2.0
 time = 1.3

@@ -27,7 +27,7 @@ SKILLS = {
                   extra={"combo": COMBO}),
     "power": dict(display_name="Power Strike", mana=8.0, cooldown=2.0, time=1.3, clip="power", clip_start=0.55, clip_strike=1.23,
                   clip_end=1.75, kind="melee", range=2.4, mult=2.3, weight=1.9, lunge=1.0,
-                  description="Heave the blade overhead for a crushing blow. Hits much harder than a normal swing, and heavily staggers and knocks back what it hits.",
+                  description="Heave the blade overhead for a crushing blow. Hits much harder than a normal swing, throws what it hits back hard and stuns it for a good while. Thrown into a wall or another monster, they take extra damage, and the one they hit falls down.",
                   modifier_affixes=["gravewarden", "vaultborn", "executioner", "searing", "chain", "kindling", "juggler", "breaker", "virtuoso"]),
     "fireball": dict(display_name="Fireball", mana=16.0, cooldown=5.5, time=1.4, clip="charge", clip_start=0.8, clip_strike=2.05,
                      clip_end=2.3, kind="projectile", range=14.0, mult=1.0, weight=1.6, lunge=0.4, aimed=True,

@@ -40,7 +40,9 @@ params = {
 "summon_max": 4,
 "keep_min": 6.5,
 "keep_max": 11.0,
-"flee_dist": 4.5
+"flee_dist": 4.5,
+"snare_on_hit": 3.0,
+"snare_amount": 0.6
 }
 token_weight = 1
 drop_chance = 0.25

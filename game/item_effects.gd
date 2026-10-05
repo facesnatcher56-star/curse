@@ -301,12 +301,6 @@ static func on_leap_land(player: Player) -> void:
 		player.stats.vault_time = VAULT_WINDOW
 		Fx.text_at(player, player.global_position + Vector3(0, 2.6, 0), "Power Strike ready", Color(1.0, 0.8, 0.4), 38)
 
-## Ramming: a Skewer that carried three enemies is ready again as soon as the kick lands.
-static func on_skewer_kick(player: Player, carried: int) -> void:
-	if carried >= 3 and player.stats.has_affix("charger"):
-		player.stats.cooldowns["skewer"] = 0.0
-		Fx.text_at(player, player.global_position + Vector3(0, 2.6, 0), "Skewer ready", Color(1.0, 0.8, 0.4), 38)
-
 ## Impaler's: an enemy kicked off the Skewer bursts where it lands, hurting everything around it.
 static func impaler_burst(player: Player, victim: Actor, fallback: Vector3) -> void:
 	if not player.stats.has_affix("impaler"):

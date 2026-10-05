@@ -539,7 +539,9 @@ func _power_impact() -> void:
 	Destructible.blast(p.get_tree(), point, 2.4, 60.0, dir, 1.7, Destructible.HERO)
 	Fx.hitstop(p, 0.08)
 	if busy_target != null and is_instance_valid(busy_target) and not busy_target.dead:
-		busy_target.interrupt(0.7)
+		busy_target.knocked_by = p
+		busy_target.knock += dir * POWER_KNOCK * (1.0 - busy_target.knock_resist)   # thrown back, hard: into a wall or another monster it pays for it
+		busy_target.interrupt(POWER_STUN)
 	for node in p.get_tree().get_nodes_in_group("enemies"):
 		var e := node as Actor
 		if e == null or e.dead or e == busy_target:
@@ -553,10 +555,19 @@ func _power_impact() -> void:
 		splash["secondary"] = true
 		e.receive(splash, point)
 		if is_instance_valid(e) and not e.dead:
-			e.interrupt(0.5)
+			var outward: Vector3 = (gap.normalized() * 0.6 + dir * 0.4).normalized() if gap.length() > 0.1 else dir
+			e.knocked_by = p
+			e.knock += outward * POWER_SPLASH_KNOCK * (1.0 - e.knock_resist)
+			e.interrupt(POWER_SPLASH_STUN)
 	ItemEffects.power_shockwave(p, dir)
 
 const POWER_SPLASH_RADIUS := 2.0
+## Power Strike throws what it hits (m/s of knock-back added to the blow's own: about 4-5 m for the one struck, 3 for its neighbours, less for the heavy ones) and
+## stuns them longer than a normal blow, so it clears the space round the hero. See Actor._knock_impact for what a wall or another monster costs.
+const POWER_KNOCK := 9.0
+const POWER_SPLASH_KNOCK := 6.5
+const POWER_STUN := 1.5
+const POWER_SPLASH_STUN := 1.1
 func _apply_skill(skill: Dictionary) -> void:
 	var mult: float = skill["mult"]
 	match String(skill["kind"]):
