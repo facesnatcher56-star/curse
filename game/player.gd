@@ -95,7 +95,9 @@ func refresh_weapon_model() -> void:
 		model.attach_weapon(SWORD_PATH, "RightHand", GRIPS[_grip_index], 1.25, 0.12, HAND_GRIP_POINT, 1.7)
 	else:
 		# Built lying down with the pommel at -X and the point at +X: turn it upright. About 0.85 of its real length in the hand.
-		var bounds: AABB = CharacterModel._bounds_of((load(path) as PackedScene).instantiate())
+		var measured: Node3D = (load(path) as PackedScene).instantiate()
+		var bounds: AABB = CharacterModel._bounds_of(measured)
+		measured.free()   # only measured, never shown
 		model.attach_weapon(path, "RightHand", GRIPS[_grip_index], bounds.size.x * HELD_SCALE, 0.11, HAND_GRIP_POINT, 1.8,
 			Basis(Vector3(0, 0, 1), PI * 0.5), true)
 	if _trail != null:

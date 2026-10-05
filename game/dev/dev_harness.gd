@@ -3100,7 +3100,8 @@ func _test_loot() -> void:
 		if int(Items.roll_drop(2, 0.0, [])["rarity"]) >= Items.Rarity.RARE:
 			rare_or_better += 1
 	expect("a Brute's drop is always rare or better", common_brute == 0)
-	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 40 and rare_or_better < 160)
+	# About 73% of 200 are rare or better (a rare roll, plus every common trinket made rare): a spread of six sigma either side.
+	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 90 and rare_or_better < 188)
 	expect("only monsters that should drop do", EnemyDb.get_def("brute").drop_chance > EnemyDb.get_def("zombie").drop_chance
 		and EnemyDb.get_def("zombie").drop_chance > 0.0)
 	# The old reward screen is gone.
