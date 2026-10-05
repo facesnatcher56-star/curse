@@ -25,7 +25,7 @@ ITEMS = [
 
 # Weapons beyond damage and speed (see ItemDef.profile). The longsword is the baseline: its moveset is what the game always had.
 PROFILES = {
-    "falchion": {"swing": 1.1, "recovery": 1.7, "weight": 0.7, "finisher_time": 0.72,
+    "falchion": {"recovery": 1.7, "weight": 0.7, "finisher_time": 0.9,
                  "style": "Fast combo and recovery, light stagger"},
     "longsword": {"style": "Balanced"},
     "greatsword": {"recovery": 0.85, "weight": 1.5, "arc": 130.0, "arc_damage": 0.6, "finisher": "slam",

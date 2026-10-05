@@ -3677,9 +3677,156 @@ func _wear(affix_id: String, slot: int) -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-	"townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+	"weaponcompare": "_test_weapon_compare", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
+
+## REPORT ONLY (no expectations, so it never fails CI): the Greatsword's basic combo against Cleave on five zombies, in two formations
+## (all round the hero, all packed in front). Part A applies one action at a time to passive zombies, many trials, so hits, damage,
+## stagger and knockback are not blurred by the enemies' own movement. Part B plays whole fights and reports time, damage taken and
+## mana. Run it with `--only=weaponcompare` and read the printed table; it informs balance, it does not guard it.
+func _compare_group(formation: String, tough: bool, passive: bool) -> Array[Enemy]:
+	var group: Array[Enemy] = []
+	for i in 5:
+		var angle: float = TAU * float(i) / 5.0 if formation == "ring" else deg_to_rad(-52.0 + 26.0 * i)
+		var radius: float = 1.9 if formation == "ring" else 2.1 + 0.3 * (i % 2)
+		var z: Enemy = _spawn_enemy(Vector3(sin(angle), 0.0, cos(angle)) * radius)
+		z.alert_delay = 999.0 if passive else 0.0
+		if tough:
+			z.max_health = 5000.0
+			z.health = 5000.0
+		group.append(z)
+	return group
+
+## One action's effect on a fresh group, averaged over `trials`: {hit, damage, stun, push}.
+func _compare_action(formation: String, action: String, trials: int) -> Dictionary:
+	var skills: SkillController = player.skills
+	var total := {"hit": 0.0, "damage": 0.0, "stun": 0.0, "push": 0.0}
+	var combo: Array = SkillDb.basic_combo()
+	for trial in trials:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		await get_tree().process_frame
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+		player.visual.rotation.y = 0.0
+		var group: Array[Enemy] = _compare_group(formation, true, true)
+		var starts: Array[Vector3] = []
+		for z in group:
+			starts.append(z.global_position)
+		var target: Enemy = group[2]
+		for z in group:
+			if z.global_position.length() < target.global_position.length():
+				target = z
+		var skill: Dictionary = SkillDb.all()["cleave" if action == "cleave" else "basic"].duplicate()
+		match action:
+			"swing1": skill.merge(combo[0][0], true)
+			"swing2": skill.merge(combo[1][0], true)
+			"finisher": skill.merge(combo[2][0], true)
+		skills.busy_skill = "cleave" if action == "cleave" else "basic"
+		skills.busy_target = target
+		skills.busy_aim = target.global_position
+		skills._apply_skill(skill)
+		var stun: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
+		var push: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
+		for frame in 24:   # 0.4 s: long enough for knock-back to play out, short enough that they have not walked far
+			await get_tree().physics_frame
+			for i in 5:
+				stun[i] = maxf(stun[i], group[i].stun_time)
+				push[i] = maxf(push[i], group[i].global_position.distance_to(starts[i]))
+		for i in 5:
+			var lost: float = 5000.0 - group[i].health
+			total["hit"] += 1.0 if lost > 0.5 else 0.0
+			total["damage"] += lost
+			total["stun"] += stun[i]
+			total["push"] += push[i]
+	for key in total:
+		total[key] = float(total[key]) / trials
+	return total
+
+## One whole fight against five normal zombies; the hero attacks the nearest, using Cleave whenever it is ready if `use_cleave`.
+func _compare_fight(use_cleave: bool, formation: String) -> Dictionary:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = 0.0
+	player.health = player.max_health
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	player.skills.combo_step = 0
+	var group: Array[Enemy] = _compare_group(formation, false, false)
+	var skills: SkillController = player.skills
+	var hp_start: float = player.health
+	var t: float = 0.0
+	var mana_spent: float = 0.0
+	var cleaves: int = 0
+	var swings: int = 0
+	var killed_by_6: int = 0
+	var cleared: float = -1.0
+	while t < 40.0 and not player.dead:
+		await get_tree().physics_frame
+		t += (1.0 / 60.0) * Engine.time_scale
+		var alive: Array[Enemy] = []
+		for z in group:
+			if is_instance_valid(z) and not z.dead:
+				alive.append(z)
+		if t >= 6.0 and killed_by_6 == 0:
+			killed_by_6 = 5 - alive.size() + 1000
+		if alive.is_empty():
+			cleared = t
+			break
+		if not skills.busy:
+			var target: Enemy = alive[0]
+			for z in alive:
+				if z.global_position.length() < target.global_position.length():
+					target = z
+			if use_cleave and float(player.stats.cooldowns.get("cleave", 0.0)) <= 0.0 and player.stats.mana >= 12.0:
+				skills.start_skill("cleave", target)
+				cleaves += 1
+				mana_spent += 12.0
+			else:
+				skills.start_skill("basic", target)
+			swings += 1
+	var out: Dictionary = {"t": cleared if cleared >= 0.0 else 40.0, "cleared": cleared >= 0.0, "taken": hp_start - player.health,
+		"mana": mana_spent, "cleaves": cleaves, "swings": swings, "kills6": (killed_by_6 - 1000) if killed_by_6 >= 1000 else 5, "died": player.dead}
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	return out
+
+func _test_weapon_compare() -> void:
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"), false)
+	print("WC Greatsword, five zombies (60 hp each), hero 120 hp / 80 mana. Cleave: 12 mana, 3.5 s cooldown, %.2f s per cast at this weapon's speed." % [
+		float(SkillDb.all()["cleave"]["time"]) / player.stats.attack_speed()])
+	print("WC PART A: one action on passive zombies (avg of 12 trials). hit = enemies damaged of 5; stagger = total seconds of stun; push = total metres moved in 0.4 s")
+	for formation in ["ring", "front"]:
+		for action in ["swing1", "swing2", "finisher", "cleave"]:
+			var r: Dictionary = await _compare_action(formation, action, 12)
+			print("WC   %-5s %-9s hit %.1f of 5   damage %5.1f   stagger %.2f s   push %.1f m" % [formation, action, r["hit"], r["damage"], r["stun"], r["push"]])
+	print("WC PART B: whole fights, five normal zombies, 3 fights each")
+	for formation in ["ring", "front"]:
+		for use_cleave in [false, true]:
+			var times: Array[float] = []
+			var lost: Array[float] = []
+			var spent: float = 0.0
+			var swings: float = 0.0
+			var kills6: float = 0.0
+			var cleaves: float = 0.0
+			var deaths: int = 0
+			for n in 3:
+				var f: Dictionary = await _compare_fight(use_cleave, formation)
+				times.append(f["t"])
+				lost.append(f["taken"])
+				spent += f["mana"]
+				swings += f["swings"]
+				kills6 += f["kills6"]
+				cleaves += f["cleaves"]
+				deaths += 1 if f["died"] else 0
+			print("WC   %-5s %-16s clear in %s s   hero lost %s hp   %.1f swings, %.1f cleaves, %.0f mana   %.1f of 5 dead by 6 s%s" % [formation,
+				"Cleave when ready" if use_cleave else "basic combo only", times.map(func(v: float) -> String: return "%.1f" % v), lost.map(func(v: float) -> String: return "%.0f" % v),
+				swings / 3.0, cleaves / 3.0, spent / 3.0, kills6 / 3.0, (" (%d deaths)" % deaths) if deaths > 0 else ""])
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
 
 ## Nothing in the town may clip into anything else: no solid prop overlaps another or the palisade, none stands beyond the wall, and
 ## nobody's spot or station is inside one. Footprints are each model's bounds, scaled to its height, as a rotated rectangle.
@@ -3769,6 +3916,7 @@ func _test_weapon_styles() -> void:
 	var skills: SkillController = player.skills
 	var swing_time: Dictionary = {}
 	var finisher_time: Dictionary = {}
+	var actual_finisher: Dictionary = {}   # how long the finisher really takes, swing speed and recovery included
 	var weights: Dictionary = {}
 	var swept: Dictionary = {}
 	var slammed: Dictionary = {}
@@ -3788,6 +3936,13 @@ func _test_weapon_styles() -> void:
 		far.queue_free()
 		skills.combo_step = 2
 		finisher_time[base] = float(skills._next_basic()["time"])
+		skills.combo_step = 2
+		skills.start_skill("basic", _spawn_enemy(Vector3(0, 0, 14)))
+		var fsteps: int = 0
+		while skills.busy and fsteps < 900:
+			skills.tick_busy(1.0 / 60.0)
+			fsteps += 1
+		actual_finisher[base] = fsteps / 60.0
 		# What one swing does to enemies around the target (the timed swing above lunged the hero forward: back to the origin).
 		player.global_position = Vector3.ZERO
 		player.reset_physics_interpolation()
@@ -3825,8 +3980,10 @@ func _test_weapon_styles() -> void:
 		await get_tree().process_frame
 	expect("a falchion recovers faster than a longsword, a greatsword slower", swing_time["Falchion"] < swing_time["Longsword"] - 0.1
 		and swing_time["Greatsword"] > swing_time["Longsword"] + 0.1)
-	expect("a falchion's finisher is short and a greatsword's is not", finisher_time["Falchion"] < base_time * 0.8 and absf(finisher_time["Longsword"] - base_time) < 0.001
+	expect("a falchion's finisher is short and a greatsword's is not", absf(finisher_time["Falchion"] - base_time * 0.9) < 0.001 and absf(finisher_time["Longsword"] - base_time) < 0.001
 		and absf(finisher_time["Greatsword"] - base_time) < 0.001)
+	expect("a falchion's finisher really takes about 0.8 s (longsword 1.3 s), readable from wind-up to finish", actual_finisher["Falchion"] > 0.7
+		and actual_finisher["Falchion"] < 0.9 and absf(actual_finisher["Longsword"] - base_time) < 0.05 and actual_finisher["Greatsword"] > actual_finisher["Longsword"])
 	expect("stagger weight rises falchion < longsword < greatsword", weights["Falchion"] < weights["Longsword"] - 0.15 and weights["Greatsword"] > weights["Longsword"] + 0.3)
 	expect("only the greatsword's swing reaches the others in an arc in front (not behind)", swept["Falchion"] == 0 and swept["Longsword"] == 0 and swept["Greatsword"] == 2)
 	expect("only the greatsword's finisher slams the ground in front", slammed["Falchion"] == 0 and slammed["Longsword"] == 0 and slammed["Greatsword"] >= 2)

@@ -307,8 +307,6 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		skill = _next_basic()
 	busy_def = skill
 	busy_time = float(skill["time"]) / p.stats.attack_speed()
-	if id == "basic":
-		busy_time /= float(p.stats.weapon_profile("swing", 1.0))
 	if String(skill["kind"]) == "cleave":
 		ItemEffects.pull_for_cleave(p)
 	if id == "power" and p.stats.vault_time > 0.0:
