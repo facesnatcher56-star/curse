@@ -7,6 +7,10 @@ var arena: Arena
 var wave: int = 0
 ## What the job asks, with its progress ("Destroy nests: 1 / 3"), shown in place of the wave number when not "" (see RunDirector.objective_line).
 var objective: String = ""
+## How far down the top-left panel sits (the town draws its resource bar above it) and whether the minimap always shows a window round
+## the hero rather than the whole arena (the world is a plaza and a long road).
+var top_offset: float = 0.0
+var force_window: bool = false
 var kills: int = 0
 var alive: int = 0
 # Gear panel.
@@ -108,17 +112,19 @@ func _draw() -> void:
 		for i in range(1, lines.size()):
 			UiTheme.text(self, font, Vector2(0, size_px.y * 0.28 + 30.0 * i), lines[i], 22, Color(0.85, 0.78, 0.65, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 	_hint_age += get_process_delta_time()
-	UiTheme.draw_panel(self, Rect2(14, 14, 250, 62), 0.7)
+	var has_title: bool = objective != "" or wave > 0   # the world draws its quest elsewhere: just the kill and enemy counts here
+	var row_y: float = (50.0 if has_title else 22.0) + top_offset
+	UiTheme.draw_panel(self, Rect2(14, 14 + top_offset, 250, 62 if has_title else 38), 0.7)
 	if objective != "":
-		UiTheme.text(self, font, Vector2(28, 42), objective, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
-	else:
-		UiTheme.text(self, font, Vector2(28, 42), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
+		UiTheme.text(self, font, Vector2(28, 42 + top_offset), objective, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
+	elif wave > 0:
+		UiTheme.text(self, font, Vector2(28, 42 + top_offset), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
 	var kills_text: String = str(kills)
-	var used: float = UiTheme.draw_stat(self, font, Vector2(28, 50), "kills", kills_text, 24.0, 18)
-	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, 50), "enemies", str(alive), 24.0, 18)
+	var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
+	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	# The control hints fade to a whisper after the first half minute.
 	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
-	UiTheme.text(self, font, Vector2(24, 100), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
+	UiTheme.text(self, font, Vector2(24, 100 + top_offset), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
 		14, Color(1, 1, 1, 0.5 * hint_alpha))
 
 	_draw_minimap(size_px, font)
@@ -155,7 +161,7 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var rect := Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side))
 	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
 	var bounds: Vector2 = Arena.bounds_of(get_tree())
-	var windowed: bool = bounds.y > bounds.x * 1.6
+	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
 	var half: float = 45.0 if windowed else Arena.HALF
 	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
 	var scale_px: float = side / (half * 2.0)

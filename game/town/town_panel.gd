@@ -295,23 +295,21 @@ func _buy_supply(kind: String, price: int) -> void:
 	_rebuild()
 
 func _page_jobs() -> void:
-	_text("Jobs on the board. Take one, then leave through the gate.", UiTheme.TEXT_DIM)
-	var accepted: Dictionary = TownState.job
+	_text("Posted quests. Every one is already yours: go out and do it, then come back and I will pay you.", UiTheme.TEXT_DIM)
 	for offer in TownState.board:
-		var mods: Array[String] = []
-		for m in offer["modifiers"]:
-			mods.append(TownDb.modifier(m).display_name)
-		var title: String = "%s  -  %s  -  %dg" % [offer["name"], JobObjective.describe(offer), int(offer["reward"])]
-		var detail: String = ("Rules: " + ", ".join(mods)) if not mods.is_empty() else "No special rules."
-		var chosen: bool = not accepted.is_empty() and accepted.get("name") == offer["name"]
-		_row(title + "\n" + detail, "Taken" if chosen else "Take job", chosen, func() -> void: _take_job(offer))
-		for m in offer["modifiers"]:
+		var ready: bool = bool(offer.get("ready", false))
+		var stage: int = int(JobObjective.stages(offer)) if ready else town.quest_stage()
+		var status: String = "Done. Waiting for you to collect." if ready else JobObjective.progress_text(offer, {"stage": stage})
+		var title: String = "%s  -  %s  -  %dg\n%s" % [offer["name"], JobObjective.describe(offer), int(offer["reward"]), status]
+		_row(title, "Collect reward" if ready else "In progress", not ready, _claim)
+		for m in offer.get("modifiers", []):
 			_text("      " + TownDb.modifier(m).display_name + ": " + TownDb.modifier(m).description, UiTheme.TEXT_DIM)
 
-func _take_job(offer: Dictionary) -> void:
-	TownState.job = offer.duplicate(true)
+## Hale pays what is done (the world posts the next quest and puts the road back as it was).
+func _claim() -> void:
+	var paid: Dictionary = town.claim_rewards()
+	notice = "Paid: %dg. A new quest is posted." % int(paid["gold"]) if int(paid["count"]) > 0 else "Nothing to collect yet."
 	TownState.save()
-	notice = "Job taken: %s. Leave through the north gate when you are ready." % offer["name"]
 	_rebuild()
 
 func _page_report() -> void:

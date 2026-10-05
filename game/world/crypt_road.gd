@@ -30,6 +30,9 @@ const EXIT_Z := 174.0
 const AMBIENT_MULT := 0.8
 const FOG_MULT := 1.7
 
+## The nests: where they are (x, z, yaw). They are placed once at the start and put back by `regrow()` when the quest is handed in.
+const NEST_SPOTS: Array[Vector3] = [Vector3(-21.0, 58.0, 0.6), Vector3(20.0, 52.0, 2.4), Vector3(14.0, -98.0, 1.4)]
+
 signal nest_destroyed(count: int, total: int)
 
 var arena: Arena
@@ -44,6 +47,9 @@ var _keep_clear: Array[Vector3] = []   # (x, z, radius) circles the filler stays
 var _exit: Area3D
 var _exit_time: float = 0.0
 var _exit_told: bool = false
+## True when the road is the far end of the town's world (see TownScene): its arena is offset past the town gate, there is no exit zone
+## of its own (the hero just walks back into town) and its monsters wait out there from the start. False for the standalone run.
+var in_world: bool = false
 
 # --- Building the place -------------------------------------------------------------------------------------------------------
 
@@ -55,9 +61,23 @@ static func make_arena() -> Arena:
 	a.scatter = false
 	return a
 
+## The arena for the road as the far end of the town's world: its south end (the road gate) is flush with the town's north edge at
+## z = -town_half, the south wall left out, and it shares the navigation region `region` with the town so everyone can walk between.
+static func make_world_arena(town_half: float, region: NavigationRegion3D) -> Arena:
+	var a: Arena = make_arena()
+	a.origin_offset = Vector3(0.0, 0.0, -town_half - HALF_Z)
+	a.open_south = true
+	a.shared_region = region
+	return a
+
+## A point of the road's own plan (x, z as drawn below) in the world.
+func at(x: float, z: float) -> Vector3:
+	return arena.origin_offset + Vector3(x, 0.0, z)
+
 ## Puts down the road, the landmarks, the filler and the lights, then bakes the navigation mesh once everything is in.
 func build(for_arena: Arena) -> void:
 	arena = for_arena
+	in_world = arena.origin_offset != Vector3.ZERO
 	_rng.seed = 1313
 	_build_road()
 	_landmarks()
@@ -66,15 +86,16 @@ func build(for_arena: Arena) -> void:
 	_choke()
 	_courtyard()
 	_filler()
-	_exit_gate()
-	arena.bake_navigation()
+	if not in_world:
+		_exit_gate()
+		arena.bake_navigation()   # in the world the town bakes the one shared navigation mesh once everything is placed
 
 ## The navigation map takes its new regions on a background thread, and this one is big: true once the road is really in it.
 func navigation_ready() -> bool:
 	var map: RID = get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:   # a query before the first synchronisation is an error
 		return false
-	return NavigationServer3D.map_get_closest_point(map, START).distance_to(START) < 3.0
+	return NavigationServer3D.map_get_closest_point(map, at(START.x, START.z)).distance_to(at(START.x, START.z)) < 3.0
 
 ## Waits (a few seconds at most) for navigation_ready(), so monsters are not spawned onto an empty map and snapped to the origin.
 func wait_for_navigation() -> void:
@@ -192,6 +213,7 @@ func _build_road() -> void:
 	mesh_instance.mesh = st.commit()
 	mesh_instance.material_override = mat
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh_instance.position = arena.origin_offset
 	arena.add_child(mesh_instance)
 
 func _light(parent: Node3D, color: Color, energy: float, range_m: float, height: float, flicker: bool = true) -> OmniLight3D:
@@ -219,7 +241,7 @@ func _landmarks() -> void:
 	for sx in [-1.0, 1.0]:
 		var post := StaticBody3D.new()
 		post.collision_layer = Actor.LAYER_WORLD
-		post.position = Vector3(sx * 4.0, 1.5, 171.0)
+		post.position = at(sx * 4.0, 171.0) + Vector3(0, 1.5, 0)
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		box.size = Vector3(1.1, 3.0, 1.1)
@@ -262,7 +284,7 @@ func _graveyard() -> void:
 			if Vector2(x, z).distance_to(Vector2(-21.0, 58.0)) < 5.5 or absf(x + 14.5) < 1.6:
 				continue
 			_prop("gravestone", x, z, _rng.randf_range(-0.2, 0.2) + PI, _rng.randf_range(0.28, 0.34), true, false, 0.0)
-	_nest(-21.0, 58.0, 0.6)
+	_nest(NEST_SPOTS[0].x, NEST_SPOTS[0].y, NEST_SPOTS[0].z)
 	_prop("rubble", -16.0, 74.0, 1.0, 1.0)
 	_prop("dead_tree", -24.0, 80.0, 0.0, 6.0)
 
@@ -272,7 +294,7 @@ func _cottage() -> void:
 	_row("ruined_wall", Vector2(8, 94), Vector2(27, 94), 5.0, 2.4, 0.2, [Vector2(0.0, 0.2), Vector2(0.55, 0.7)])
 	_row("ruined_wall", Vector2(8, 44), Vector2(27, 44), 5.0, 2.4, 0.2, [Vector2(0.0, 0.3)])
 	_row("ruined_wall", Vector2(27, 94), Vector2(27, 44), 5.0, 2.4, 0.2)
-	_nest(20.0, 52.0, 2.4)
+	_nest(NEST_SPOTS[1].x, NEST_SPOTS[1].y, NEST_SPOTS[1].z)
 	_prop("barrel", 11.0, 78.0, 0.3, 1.0)
 	_prop("wrecked_cart", 23.0, 80.0, 1.1, 1.8)
 	_prop("brazier", 12.0, 56.0, 0.0, 1.5, true, true, 0.8)
@@ -308,7 +330,7 @@ func _courtyard() -> void:
 				if Vector2(x, z).distance_to(Vector2(14.0, -98.0)) < 6.0:
 					continue
 				_prop("gravestone", x, z, PI + _rng.randf_range(-0.2, 0.2), _rng.randf_range(0.28, 0.34), true, false, 0.0)
-	_nest(14.0, -98.0, 1.4)
+	_nest(NEST_SPOTS[2].x, NEST_SPOTS[2].y, NEST_SPOTS[2].z)
 	_prop("rubble", -14.0, -90.0, 0.4, 1.1)
 	_prop("rubble", 12.0, -140.0, 1.4, 1.2)
 
@@ -342,15 +364,15 @@ func _exit_gate() -> void:
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
 		patrol: Array[Vector2] = []) -> void:
 	for m in members:
-		var e: Enemy = director.spawn_enemy(Nav.snap(self, Vector3(float(m[1]), 0.0, float(m[2]))), String(m[0]), director.level_for_location())
+		var e: Enemy = director.spawn_enemy(Nav.snap(self, at(float(m[1]), float(m[2]))), String(m[0]), director.level_for_location())
 		e.group_id = id
 		e.idle_mode = mode
-		e.home = Vector3(home.x, 0.0, home.y)
+		e.home = at(home.x, home.y)
 		e.idle_radius = radius
 		if mode == "feed":
-			e.feed_at = Vector3(feed_at.x, 0.0, feed_at.y)
+			e.feed_at = at(feed_at.x, feed_at.y)
 		for p in patrol:
-			e.patrol.append(Vector3(p.x, 0.0, p.y))
+			e.patrol.append(at(p.x, p.y))
 		e.alert_delay = 0.0
 
 ## Every group, standing where the layout says. Called once the navigation map is ready (see Main).
@@ -409,10 +431,35 @@ func _on_nest_destroyed(prop: Destructible) -> void:
 		e.alert_delay = 0.0
 		e.wake()
 
+## The quest was handed in: the road is corrupted again. Whatever is left of the monsters goes, the nests grow back where they were and
+## every group is put out again.
+func regrow() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	var alive: Array[Destructible] = []
+	for nest in nests:
+		if is_instance_valid(nest) and not nest.broken:
+			alive.append(nest)
+	nests = alive
+	var have: Array[Vector3] = []
+	for nest in nests:
+		have.append(nest.global_position)
+	for spot in NEST_SPOTS:
+		var wanted: Vector3 = at(spot.x, spot.y)
+		var present: bool = false
+		for h in have:
+			present = present or h.distance_to(wanted) < 1.0
+		if not present:
+			_nest(spot.x, spot.y, spot.z)
+	nests_destroyed = 0
+	arena.request_nav_refresh()
+	await get_tree().process_frame
+	spawn_encounters(director)
+
 # --- Leaving ----------------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	if _exit == null or director == null or director.player == null or director.is_ending():
+	if in_world or _exit == null or director == null or director.player == null or director.is_ending():
 		return
 	var inside: bool = _exit.overlaps_body(director.player)
 	if not inside:

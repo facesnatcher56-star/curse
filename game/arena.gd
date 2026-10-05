@@ -32,6 +32,14 @@ var half: float = HALF:
 var half_x: float = HALF
 var half_z: float = HALF
 var scatter: bool = true
+## Where this arena's middle is in the world. The Crypt Road is an arena of its own, laid end to end with the town's, so everything
+## here (ground, walls, props, obstacles) is placed at `origin_offset` plus the position it is given.
+var origin_offset: Vector3 = Vector3.ZERO
+## Leave the +z wall out: another arena (the town) joins this one there.
+var open_south: bool = false
+## One navigation region for several arenas, so a character can path from one into the next. Whoever owns it bakes it once everything
+## is placed (`bake_navigation`); each arena just adds its geometry to it.
+var shared_region: NavigationRegion3D
 ## The invisible wall round the edge. The town turns it off and builds its own, with a real opening at the gate.
 var build_perimeter_walls: bool = true
 
@@ -49,11 +57,31 @@ static func bounds_of(tree: SceneTree) -> Vector2:
 	var arena := tree.get_first_node_in_group("arena") as Arena if tree != null else null
 	return Vector2(arena.half_x, arena.half_z) if arena != null else Vector2(HALF, HALF)
 
+## Keeps a ground point inside the walls of whichever arena it is in (or, off the map, the nearest one), `margin` metres short of them.
+## With one arena that is just its walls; with the town and the road end to end it is whichever the point belongs to.
+static func clamp_point(tree: SceneTree, point: Vector3, margin: float = 0.0) -> Vector3:
+	var best: Arena = null
+	var best_gap: float = INF
+	for node in tree.get_nodes_in_group("arena") if tree != null else []:
+		var a := node as Arena
+		var local: Vector3 = point - a.origin_offset
+		var gap: float = maxf(absf(local.x) - a.half_x, 0.0) + maxf(absf(local.z) - a.half_z, 0.0)
+		if gap < best_gap:
+			best_gap = gap
+			best = a
+	var half := Vector2(best.half_x, best.half_z) if best != null else Vector2(HALF, HALF)
+	var offset: Vector3 = best.origin_offset if best != null else Vector3.ZERO
+	return Vector3(clampf(point.x - offset.x, -half.x + margin, half.x - margin) + offset.x, point.y,
+		clampf(point.z - offset.z, -half.y + margin, half.y - margin) + offset.z)
+
 func build(bake_navigation: bool = true) -> void:
 	add_to_group("arena")
 	_stage_ms = Time.get_ticks_msec()
-	_nav_region = NavigationRegion3D.new()
-	add_child(_nav_region)
+	if shared_region != null:
+		_nav_region = shared_region
+	else:
+		_nav_region = NavigationRegion3D.new()
+		add_child(_nav_region)
 	_build_ground()
 	_stage("ground")
 	if build_perimeter_walls:
@@ -140,6 +168,7 @@ func _build_ground() -> void:
 	mesh_instance.mesh = plane
 	mesh_instance.material_override = mat
 	ground.add_child(mesh_instance)
+	ground.position = origin_offset
 	_nav_region.add_child(ground)
 
 ## Puts a prop (a res://assets/models/<name>/model.glb) on the ground at `pos`, `height` metres tall, with convex-hull collision.
@@ -176,7 +205,7 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 	var holder: Node3D = Destructible.new() if breakable else Node3D.new()
 	var body: StaticBody3D = null
 	var light: OmniLight3D = null
-	holder.position = pos
+	holder.position = pos + origin_offset
 	holder.rotation.y = yaw
 	prop.scale = Vector3.ONE * factor
 	# Centre horizontally and sit the base on the ground.
@@ -207,7 +236,7 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		var flicker := FlickerLight.new()
 		light.add_child(flicker)
 	var footprint: float = maxf(bounds.size.x, bounds.size.z) * factor * 0.5
-	var obstacle: Dictionary = {"position": pos, "radius": footprint}
+	var obstacle: Dictionary = {"position": pos + origin_offset, "radius": footprint}
 	if collides:
 		obstacles.append(obstacle)
 	_nav_region.add_child(holder)
@@ -242,7 +271,10 @@ func _add_hull_shapes(body: StaticBody3D, prop: Node3D, factor: float) -> void:
 func _build_walls() -> void:
 	var body := StaticBody3D.new()
 	body.collision_layer = Actor.LAYER_WORLD
+	body.position = origin_offset
 	for side in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+		if open_south and side.z > 0.0:
+			continue
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		var along_x: bool = side.x != 0.0

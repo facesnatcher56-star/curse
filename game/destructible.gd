@@ -202,6 +202,7 @@ func _spawn_chunk(dir: Vector3, force: float, scale_factor: float) -> void:
 	chunk.setup(size, color, glow)
 	if arena != null:
 		chunk.limit = Vector2(arena.half_x, arena.half_z) - Vector2(0.6, 0.6)
+		chunk.limit_centre = arena.origin_offset
 	get_tree().current_scene.add_child(chunk)
 	var start := global_position + Vector3(randf_range(-radius, radius) * 0.6, randf_range(0.1, maxf(height, 0.4)), randf_range(-radius, radius) * 0.6)
 	chunk.global_position = start

@@ -2757,10 +2757,11 @@ func _test_town_sim() -> void:
 func _test_town_state() -> void:
 	TownState.persist = false
 	TownState.reset()
-	var board_ok: bool = TownState.board.size() == 3
+	var board_ok: bool = TownState.board.size() == 1
 	for offer in TownState.board:
-		board_ok = board_ok and JobObjective.stages(offer) >= 2 and offer.has("location") and int(offer["reward"]) > 0
-	expect("the board posts three jobs", board_ok)
+		board_ok = board_ok and JobObjective.stages(offer) >= 2 and offer.has("location") and int(offer["reward"]) > 0 \
+			and String(offer.get("site", "")) == CryptRoad.SITE_ID and not bool(offer.get("ready", false))
+	expect("the board posts the world's quest, which is active without being taken", board_ok and TownState.job.get("name") == TownState.board[0]["name"])
 	# Saving: a version, the job and last run saved, old saves migrated, newer ones left alone, an abandoned run noticed.
 	TownState.gold = 77
 	TownState.job = TownState.board[0].duplicate(true)
@@ -2796,11 +2797,15 @@ func _test_town_state() -> void:
 	expect("a version 1 save has its items rewritten as definitions", v1["gear"]["0"].has("def") and not v1["gear"]["0"].has("stats")
 		and v1["stash"][0]["def"] == "greatsword" and v1["stock"][0]["item"]["tier"] == 3)
 	TownState.run_in_progress = true
-	TownState.job = TownState.board[0].duplicate(true)
+	TownState.job = {}
 	var mid_run: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
 	TownState.from_dict(TownState.migrate(mid_run))
-	expect("a game closed mid-run abandons that run", TownState.job.is_empty() and not TownState.run_in_progress
-		and bool(TownState.last_run.get("abandoned", false)))
+	expect("a reloaded town has nothing in progress and the posted quest is the active one", not TownState.run_in_progress
+		and TownState.job.get("name") == TownState.board[0]["name"])
+	var wave_board: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	wave_board["board"] = [{"name": "Clear Ash Ford", "location": "Ash Ford", "objective": JobObjective.clear_waves(3), "modifiers": [], "reward": 80}]
+	TownState.from_dict(TownState.migrate(wave_board))
+	expect("a board saved with only the old wave jobs is replaced by the world's quest", TownState.board.size() == 1 and TownState.board[0].get("site") == CryptRoad.SITE_ID)
 	TownState.reset()
 	var cost: int = TownState.food_cost()
 	var food_mood_before: float = TownState.happiness("marlow")
@@ -2834,9 +2839,9 @@ func _test_town_state() -> void:
 	var mood_before: float = TownState.happiness("hale")
 	TownState.finish_run({"kills": 10, "wave": 3, "completed": true, "died": false})
 	expect("a finished job pays its reward plus 2g a kill", TownState.gold == gold_before + 120)
-	expect("a finished job counts", TownState.jobs_done == 1 and TownState.job.is_empty())
+	expect("a finished job counts", TownState.jobs_done == 1)
 	expect("the town is pleased by a finished job", TownState.happiness("hale") > mood_before)
-	expect("the board is refreshed", TownState.board.size() == 3)
+	expect("the board is refreshed", TownState.board.size() == 1 and not bool(TownState.board[0].get("ready", false)))
 	expect("the result is kept for the welcome back", int(TownState.last_run["gold"]) == 120)
 	gold_before = TownState.gold
 	TownState.begin_job({})
@@ -2935,12 +2940,26 @@ func _test_town_scene() -> void:
 	town.player.global_position = Vector3(0, 0, -16.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("the gate asks for a job without offering an interaction", town.near.is_empty() and town.hud.prompt == ""
-		and town.hud.gate_hint.contains("Choose a job"))
+	expect("near the gate the quest and how far it has got show, with no prompt and nothing to accept", town.near.is_empty() and town.hud.prompt == ""
+		and town.hud.gate_hint.contains("Crypt Road") and town.hud.gate_hint.contains("0 / 3"))
+	# Walking out is just walking: no loading, no scene change. The clan eats once when the hero is properly out, not at the wall.
 	var food_before_gate: int = TownState.food
-	town._on_gate_entered(town.player)
-	expect("walking through the gate without a job stays in town and spends no food", not town.leaving
-		and not TownState.run_in_progress and TownState.food == food_before_gate)
+	town.player.global_position = Vector3(0, 0, -TownScene.HALF - 3.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("stepping just past the wall is not yet an expedition and costs nothing", not town.outside and TownState.food == food_before_gate)
+	town.player.global_position = Vector3(0, 0, -TownScene.HALF - 20.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("being properly out on the road is an expedition: the clan eats once", town.outside and TownState.expedition
+		and TownState.food == food_before_gate - TownState.food_cost())
+	town.player.global_position = Vector3(0, 0, -TownScene.HALF - 15.0)
+	await get_tree().process_frame
+	expect("going back and forth does not charge again", TownState.food == food_before_gate - TownState.food_cost())
+	town.player.global_position = Vector3(0, 0, -10.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("coming back inside ends the expedition", not town.outside and not TownState.expedition)
 	# The gate is a real opening: the north edge is walled either side of it, and the opening itself is clear.
 	var space: PhysicsDirectSpaceState3D = town.get_world_3d().direct_space_state
 	var blocked_at: Callable = func(x: float) -> bool:
@@ -3022,7 +3041,7 @@ func _test_town_scene() -> void:
 	for id in ["marlow", "hale", "maren", "cutter", "dorn"]:
 		town.panel.open_npc(id)
 		await get_tree().process_frame
-		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= 2)
+		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= (1 if id == "hale" else 2))
 		town.panel.close()
 	town.panel.open_npc("dorn")
 	await get_tree().process_frame
@@ -3033,16 +3052,15 @@ func _test_town_scene() -> void:
 	town.panel.close()
 	town.panel.open_board()
 	await get_tree().process_frame
-	expect("the board lists the jobs", _count_buttons(town.panel) >= 4)
+	expect("the board lists the quest, which has nothing to accept", _count_buttons(town.panel) >= 1)
 	var offer: Dictionary = TownState.board[0]
-	town.panel._take_job(offer)
-	expect("taking a job sets it", TownState.job.get("name") == offer["name"])
+	expect("the posted quest is already the active one", TownState.job.get("name") == offer["name"])
 	town.panel.close()
 	town.player.global_position = Vector3(0, 0, -16.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("near the gate, the chosen destination and objective appear without a button", town.hud.gate_hint.contains(String(offer["location"]).capitalize())
-		and town.hud.gate_hint.contains(JobObjective.describe(offer)) and town.hud.prompt == "")
+	expect("near the gate, the destination and its progress appear without a button", town.hud.gate_hint.contains(String(offer["location"]).capitalize())
+		and town.hud.gate_hint.contains("Destroy nests") and town.hud.prompt == "")
 	town.panel.open_stash()
 	await get_tree().process_frame
 	town.panel.close()
@@ -3738,9 +3756,122 @@ func _wear(affix_id: String, slot: int) -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+"world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
+
+## The connected world: the plaza and the Crypt Road load together with every monster at the start, the hero simply walks out of the gate
+## (no scene change, nothing to accept), a finished quest is waiting for him at Warden Hale, who has a coin over his head, and handing in
+## pays, posts the next quest and puts the road back as it was; coming back stashes the bag, and a fallen hero is dragged home.
+func _test_world() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.gold = 0
+	var scene_before: Node = get_tree().current_scene
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()   # the harness's own 80 m arena (and its invisible walls) would be in the way of the real world
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var crypt: CryptRoad = town.crypt
+	expect("the plaza and the road are both there from the start", town.npcs.size() == 5 and crypt != null and crypt.nests.size() == 3)
+	var monsters: Array = get_tree().get_nodes_in_group("enemies")
+	var awake: int = 0
+	var beyond_gate: int = 0
+	for node in monsters:
+		awake += 1 if (node as Enemy)._aggro else 0
+		beyond_gate += 1 if (node as Enemy).global_position.z < -TownScene.HALF else 0
+	expect("every monster is already out on the road, asleep to the hero", monsters.size() >= 40 and awake == 0 and beyond_gate == monsters.size())
+	expect("there is no gate to load: leaving town is not a function any more", not town.has_method("leave_through_gate"))
+	# One walkable world: from the plaza through the gate, all the way to the crypt, and to every nest.
+	var map: RID = town.get_world_3d().navigation_map
+	var to_crypt: PackedVector3Array = NavigationServer3D.map_get_path(map, Vector3(0, 0, 10), crypt.at(0, -150), true)
+	var through_gate: bool = false
+	for point in to_crypt:
+		through_gate = through_gate or (absf(point.x) < 5.0 and point.z < -TownScene.HALF + 2.0 and point.z > -TownScene.HALF - 2.0)
+	expect("a path runs from the plaza, through the gate, to the crypt", not to_crypt.is_empty() and to_crypt[to_crypt.size() - 1].distance_to(crypt.at(0, -150)) < 4.0 and through_gate)
+	var reachable: int = 0
+	for nest in crypt.nests:
+		var path: PackedVector3Array = NavigationServer3D.map_get_path(map, Vector3(0, 0, 10), nest.global_position, true)
+		reachable += 1 if not path.is_empty() and path[path.size() - 1].distance_to(nest.global_position) < 4.5 else 0
+	expect("every nest can be walked to from the plaza", reachable == 3)
+	# The hero really walks out: click-to-move through the opening, under physics, no scene change.
+	var hero: Player = town.player
+	hero.global_position = Vector3(0, 0, -10)
+	hero.reset_physics_interpolation()
+	hero.movement.goal = crypt.at(0, 150)
+	hero.movement.has_goal = true
+	var seconds: float = 0.0
+	while hero.global_position.z > -40.0 and seconds < 14.0:
+		await get_tree().physics_frame
+		seconds += 1.0 / 60.0
+	expect("the hero walks out through the gate onto the road and nothing loads", hero.global_position.z < -40.0 and get_tree().current_scene == scene_before
+		and town.outside and TownState.expedition)
+	# Quests: progress is measured as it happens, nothing was accepted.
+	expect("the quest is active without being taken and not yet done", not TownState.has_reward() and TownState.job.get("site") == CryptRoad.SITE_ID)
+	hero.movement.has_goal = false
+	for i in 3:
+		crypt.nests[i].hit(999.0, Vector3.FORWARD)
+		await get_tree().process_frame
+		if i < 2:
+			expect("nest %d destroyed: not done yet" % (i + 1), not TownState.has_reward() and crypt.nests_destroyed == i + 1)
+	var hale: TownNpc = town.npcs["hale"]
+	expect("the third nest finishes the quest and Hale has a coin over his head", TownState.has_reward() and hale.has_reward_marker())
+	var others: bool = false
+	for id in town.npcs:
+		others = others or (id != "hale" and (town.npcs[id] as TownNpc).has_reward_marker())
+	expect("nobody else has one", not others)
+	# Home again: the bag goes to the stash, the quest is still waiting.
+	hero.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"))
+	var stash_before: int = TownState.stash.size()
+	hero.global_position = Vector3(0, 0, -10)
+	hero.reset_physics_interpolation()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("coming home stashes the bag", not town.outside and hero.stats.bag.is_empty() and TownState.stash.size() == stash_before + 1)
+	expect("the finished quest stays finished", TownState.has_reward() and hale.has_reward_marker())
+	# Handing in.
+	var gold_before: int = TownState.gold
+	var reward: int = int(TownState.board[0]["reward"])
+	town.panel.open_npc("hale")
+	await get_tree().process_frame
+	var collect: Button = _find_button(town.panel, "Collect")
+	expect("Hale offers to pay out", collect != null and not collect.disabled)
+	if collect != null:
+		collect.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("he pays the reward and posts the next quest", TownState.gold == gold_before + reward and TownState.jobs_done == 1 and TownState.board.size() == 1
+		and not bool(TownState.board[0].get("ready", false)) and not hale.has_reward_marker())
+	town.panel.close()
+	waited = 0
+	while get_tree().get_nodes_in_group("enemies").size() < 40 and waited < 300:
+		await get_tree().physics_frame
+		waited += 1
+	var grown: int = 0
+	for nest in crypt.nests:
+		grown += 1 if is_instance_valid(nest) and not nest.broken else 0
+	expect("the road is corrupted again: three nests and the monsters are back", grown == 3 and crypt.nests_destroyed == 0
+		and get_tree().get_nodes_in_group("enemies").size() >= 40)
+	# A fallen hero is dragged back to the plaza, whole.
+	hero.global_position = crypt.at(0, 100)
+	hero.reset_physics_interpolation()
+	await get_tree().process_frame
+	hero.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "source": null, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+	await get_tree().process_frame
+	expect("the hero fell", hero.dead)
+	await get_tree().create_timer(4.0).timeout
+	expect("he is dragged back to the plaza on his feet, with the world as it was", not hero.dead and hero.health > hero.max_health * 0.9
+		and hero.global_position.z > -TownScene.HALF and get_tree().get_nodes_in_group("enemies").size() >= 40)
+	town.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	TownState.reset()
 
 ## Nothing in the town may clip into anything else: no solid prop overlaps another or the palisade, none stands beyond the wall, and
 ## nobody's spot or station is inside one. Footprints are each model's bounds, scaled to its height, as a rotated rectangle.

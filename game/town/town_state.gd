@@ -142,39 +142,80 @@ static func rationing() -> bool:
 
 # --- Jobs ----------------------------------------------------------------------------------------------------------------
 
-## Three offers, each with up to two modifiers (the way the data's `excludes` allows) and a reward that grows with them.
-static func roll_board(rng: RandomNumberGenerator = null) -> void:
-	var r: RandomNumberGenerator = rng if rng != null else RandomNumberGenerator.new()
-	if rng == null:
-		r.randomize()
-	board = []
-	var names: Array[String] = JOB_NAMES.duplicate()
-	var ids: Array = TownDb.sorted_ids(TownDb.modifiers())
-	for i in 3:
-		if i == 0:
-			board.append(crypt_road_offer())
-			continue
-		var waves: int = 2 + i + (1 if jobs_done >= 3 else 0)
-		var chosen: Array[String] = []
-		var wanted: int = [0, 1, 2][clampi(i + (1 if jobs_done >= 2 else 0), 0, 2)]
-		var tries: int = 0
-		while chosen.size() < wanted and tries < 30:
-			tries += 1
-			var id: String = ids[r.randi() % ids.size()]
-			if chosen.has(id) or not _compatible(id, chosen):
-				continue
-			chosen.append(id)
-		var place: String = names.pop_at(r.randi() % names.size())
-		var mult: float = 1.0
-		for id in chosen:
-			mult *= TownDb.modifier(id).reward_mult
-		board.append({"name": ("Clear " if i == 0 else "Hold ") + place, "location": place, "objective": JobObjective.clear_waves(waves), "modifiers": chosen,
-			"reward": int(round((35.0 + 25.0 * waves) * mult))})
+## The board is standing quests: whatever is posted is active, nothing has to be taken. There is one authored place in the world so far
+## (the Crypt Road), so there is one quest. `job` mirrors it: the quest the HUD and the hero's surroundings are measuring.
+static func roll_board(_rng: RandomNumberGenerator = null) -> void:
+	board = [crypt_road_offer()]
+	job = (board[0] as Dictionary).duplicate(true)
 
 ## "Cleanse the Crypt Road": destroy its three corrupted nests; no waves, no timer (see JobObjective.DESTROY_NEST).
 static func crypt_road_offer() -> Dictionary:
 	return {"name": "Cleanse " + CRYPT_ROAD, "location": CRYPT_ROAD, "site": CryptRoad.SITE_ID, "objective": JobObjective.destroy_nest(3),
 		"modifiers": [], "reward": 150 + 20 * mini(jobs_done, 10)}
+
+## Out in the world a quest's objective is measured as it happens (for the Crypt Road, nests destroyed: `stage`). When one is met it is
+## marked `ready`; the keeper pays it out when the hero comes back (claim_ready). Returns true when a quest has just become ready.
+static func report_progress(site: String, stage: int) -> bool:
+	var became: bool = false
+	for offer in board:
+		if String(offer.get("site", "")) == site and not bool(offer.get("ready", false)) \
+				and JobObjective.is_complete(offer, {"stage": stage}):
+			offer["ready"] = true
+			became = true
+	if became:
+		job = (board[0] as Dictionary).duplicate(true) if not board.is_empty() else {}
+		save()
+	return became
+
+static func has_reward() -> bool:
+	for offer in board:
+		if bool(offer.get("ready", false)):
+			return true
+	return false
+
+## The keeper pays every finished quest: gold, a better mood all round, fresh stock, and a new quest is posted in its place. Returns
+## {"gold", "count", "names"} (count 0 when there was nothing to claim).
+static func claim_ready() -> Dictionary:
+	var gold_paid: int = 0
+	var names: Array[String] = []
+	for offer in board.duplicate():
+		if bool(offer.get("ready", false)):
+			gold_paid += int(offer.get("reward", 0))
+			names.append(String(offer.get("name", "")))
+			jobs_done += 1
+			board.erase(offer)
+	if names.is_empty():
+		return {"gold": 0, "count": 0, "names": names}
+	gold += gold_paid
+	for id in member_ids():
+		var def: NpcDef = TownDb.npc(id)
+		if def != null and def.clan_skill == "forager":
+			food += 2
+		add_happiness(id, 4.0)
+	vendor_gold += 25
+	smith_gold += 20
+	stock = []   # the trader and the smith get new stock
+	smith_stock = []
+	roll_board()
+	save()
+	return {"gold": gold_paid, "count": names.size(), "names": names}
+
+## True while the hero is out beyond the town. The clan eats once per expedition, not every time the hero steps through the gate.
+static var expedition: bool = false
+
+static func begin_expedition() -> void:
+	if expedition:
+		return
+	expedition = true
+	var short: bool = food < food_cost()   # decided before eating: having exactly enough is not going hungry
+	food = maxi(food - food_cost(), 0)
+	if short:
+		for id in member_ids():
+			add_happiness(id, -3.0)
+	save()
+
+static func end_expedition() -> void:
+	expedition = false
 
 static func _compatible(id: String, chosen: Array[String]) -> bool:
 	var def: RunModifierDef = TownDb.modifier(id)
@@ -289,20 +330,17 @@ static func from_dict(data: Dictionary) -> void:
 	board = []
 	for offer in data.get("board", []):
 		board.append(JobObjective.upgrade_legacy(offer))
-	var has_site: bool = false
+	var posted: Array = []
 	for offer in board:
-		has_site = has_site or String(offer.get("site", "")) == CryptRoad.SITE_ID
-	if not board.is_empty() and not has_site:   # a board posted before the Crypt Road existed: its first offer becomes the Crypt Road job
-		board[0] = crypt_road_offer()
+		if String(offer.get("site", "")) != "":   # only quests that exist in the world; the old wave jobs are gone from the board
+			posted.append(offer)
+	board = posted
+	if board.is_empty():
+		board = [crypt_road_offer()]
 	stock = _stock_from_save(data.get("stock", []))
-	var saved_job: Dictionary = data.get("job", {})
-	job = JobObjective.upgrade_legacy(saved_job) if not saved_job.is_empty() else {}
 	last_run = data.get("last_run", {})
-	run_in_progress = bool(data.get("run_in_progress", false))
-	if run_in_progress:   # the game was closed during a run, and runs are not saved: it is over, with nothing earned
-		run_in_progress = false
-		job = {}
-		last_run = {"kills": 0, "wave": 0, "completed": false, "died": false, "gold": 0, "abandoned": true}
+	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
+	job = (board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 
 ## Items are saved as {def, tier, rarity, affix} (see Items.to_save) and built again on load; one whose base or affix no longer exists
 ## is dropped rather than breaking the save.

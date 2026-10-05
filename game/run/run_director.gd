@@ -16,6 +16,12 @@ const LOOT_BREATHER := 6.0
 var job: Dictionary = {}
 var modifiers: Array[RunModifierDef] = []
 var _ending: bool = false
+## True when the director serves the one connected world (TownScene) instead of a run: no waves, gold for every kill paid as it happens,
+## and a fallen hero is dragged home (`hero_fell`) instead of the run ending.
+var world_mode: bool = false
+var gold_per_kill: int = 0
+var _fell: bool = false
+signal hero_fell
 ## Set for a job played in an authored location (see CryptRoad) instead of the wave loop: the monsters are already out there.
 var location: CryptRoad
 
@@ -191,8 +197,9 @@ func _support_point(centres: Array[Vector3]) -> Vector3:
 	return _clamp_to_arena(centre + behind * 4.5)
 
 func _clamp_to_arena(pos: Vector3) -> Vector3:
-	var half: Vector2 = Arena.bounds_of(get_tree())
-	return Vector3(clampf(pos.x, -half.x + 2, half.x - 2), 0.0, clampf(pos.z, -half.y + 2, half.y - 2))
+	var clamped: Vector3 = Arena.clamp_point(get_tree(), pos, 2.0)
+	clamped.y = 0.0
+	return clamped
 
 ## A random spot `min_dist`..`max_dist` from the hero, at least `spacing` from every spot already used.
 func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacing: float) -> Vector3:
@@ -251,7 +258,23 @@ func _apply_modifiers(enemy: Enemy) -> void:
 	if size != 1.0 and enemy.visual != null:
 		enemy.visual.scale *= size
 
+## Starts watching the road as part of the world: its monsters are placed where the layout says and wait there. No banner, no timer.
+func attach_world(place: CryptRoad) -> void:
+	location = place
+	wave = 3 + TownState.jobs_done
+	Enemy.max_tokens = 3
+	place.spawn_encounters(self)
+
+## The hero is back on his feet in town: a fall can be reported again.
+func hero_returned() -> void:
+	_fell = false
+
 func _process(_delta: float) -> void:
+	if world_mode:
+		if player != null and player.dead and not _fell:
+			_fell = true
+			hero_fell.emit()
+		return
 	# A job run ends in the town: the hero fell, or the last wave is done (see _on_enemy_died).
 	if not job.is_empty() and not _ending and not selftest and player != null and player.dead:
 		_end_run(false)
@@ -297,6 +320,8 @@ func _end_run(completed: bool, walked_out: bool = false) -> void:
 
 func _on_enemy_died(actor: Actor) -> void:
 	kills += 1
+	if gold_per_kill > 0:
+		TownState.gold += gold_per_kill
 	player.on_enemy_killed(actor)
 	_drop_loot(actor)
 	await get_tree().process_frame

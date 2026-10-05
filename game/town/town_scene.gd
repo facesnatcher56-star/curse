@@ -1,11 +1,12 @@
 class_name TownScene
 extends Node3D
-## The hub between runs: a small walled plaza with the north gate, the healing stone, the trader's stall, the job board, a stash and
-## a handful of townspeople who live their own lives (see TownSim). Walk up to someone or something and click it, or press the
-## interact button, to open its panel. Walking through the gate starts the job you took at the board.
+## The whole world: a small walled plaza (the north gate, the healing stone, the trader's stall, the job board, a stash and a handful of
+## townspeople who live their own lives, see TownSim) with the Crypt Road laid end to end beyond its gate, all loaded at once, monsters
+## included. Walk out of the gate whenever you like; nothing loads and nothing has to be accepted. The board's quests are always active;
+## when one is met out there, Warden Hale has a reward for you when you come back. Walk up to someone or something and click it, or press
+## the interact button, to open its panel.
 
 const HALF := 22.0
-const MAIN_SCENE := "res://game/main.tscn"
 const LAYOUT_PATH := "res://game/town/town_layout.tscn"
 const SPOT_LABELS := {"stone": "Rest at the healing stone", "board": "Read the job board",
 	"stash": "Open the stash"}
@@ -28,10 +29,20 @@ var npcs: Dictionary = {}                 # id -> TownNpc
 var spots: Array[Dictionary] = []         # {key, kind, id, pos, label}: everything you can walk up to and use
 var world_environment: Environment
 var pending: String = ""                  # key of the spot the hero was sent to by a click
-var leaving: bool = false
 var near: Dictionary = {}                 # the spot the hero is standing at (empty when none)
+## The far end of the world. Tests that only need the plaza turn the road off before adding the scene (it takes a few seconds to build).
+var with_road: bool = true
+var crypt: CryptRoad
+var director: RunDirector
+var combat_hud: Hud
+var outside: bool = false                 # the hero is out beyond the town (an expedition: the clan has eaten, the loot is not yet stashed)
+var _world_nav: NavigationRegion3D        # one navigation mesh for the plaza and the road
+var _base_ambient: float = 0.7
+var _base_fog: float = 0.012
+var _announced_road: bool = false
 
 func _ready() -> void:
+	var built_at: int = Time.get_ticks_msec()
 	get_tree().paused = false
 	GameSettings.boot()
 	if TownState.npcs.is_empty():
@@ -40,6 +51,9 @@ func _ready() -> void:
 	stage = TownStage.new(self)
 	_build_world()
 	_build_town()
+	if with_road:
+		_build_road()
+	arena.bake_navigation()   # once, for the plaza and the road together
 	player = Player.new()
 	add_child(player)
 	player.position = Vector3(0, 0, 10.0)
@@ -53,8 +67,13 @@ func _ready() -> void:
 	rig.global_position = player.global_position
 	rig.set_zoom_now(2.6)   # the plaza is small: closer than a run's opening view
 	_build_ui()
+	if with_road:
+		_start_director()
 	_welcome_back()
+	_refresh_reward_marker()
 	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if args.has("--timing"):
+		print("[world] plaza and road built in %d ms" % (Time.get_ticks_msec() - built_at))
 	if args.has("--townshot"):
 		_screenshot(args)
 
@@ -78,6 +97,8 @@ func _build_world() -> void:
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.09, 0.09, 0.11)
 	environment.fog_density = 0.012
+	_base_ambient = environment.ambient_light_energy
+	_base_fog = environment.fog_density
 	env.environment = environment
 	world_environment = environment
 	add_child(env)
@@ -93,10 +114,13 @@ func _build_world() -> void:
 ## in Godot: TownProp markers under Props, Marker3Ds under Spots and Stations. This builds the ground, hands each prop to the arena
 ## (collision, light, navigation), then the glow, the people and the interactions. Metres, north is -z.
 func _build_town() -> void:
+	_world_nav = NavigationRegion3D.new()
+	add_child(_world_nav)
 	arena = Arena.new()
 	arena.half = HALF
 	arena.scatter = false
 	arena.build_perimeter_walls = false
+	arena.shared_region = _world_nav
 	add_child(arena)
 	arena.build(false)
 	_build_boundary()
@@ -109,7 +133,6 @@ func _build_town() -> void:
 	glow.position = Vector3(0, 1.3, -2.0)
 	add_child(glow)
 	glow.add_child(FlickerLight.new())
-	arena.bake_navigation()
 
 	for key in SPOT_LABELS:
 		var marker: Marker3D = layout.get_node("Spots/" + key)
@@ -125,7 +148,7 @@ func _build_town() -> void:
 		_register("npc:" + id, "npc", id, npc.position, "Talk to %s" % def.display_name)
 
 ## Solid walls on three sides and on the north side either side of a real opening (GATE_HALF_WIDTH wide on each side of the middle).
-## Beyond the opening is a trigger: walking through it leaves town. A backstop behind it stops anything walking off the ground.
+## Beyond the opening is the road (or, with the road off, a backstop that stops anything walking off the ground).
 func _place_layout() -> void:
 	layout = (load(LAYOUT_PATH) as PackedScene).instantiate()
 	add_child(layout)
@@ -149,7 +172,8 @@ func _build_boundary() -> void:
 	var north_len: float = HALF - GATE_HALF_WIDTH
 	for side in [-1.0, 1.0]:
 		rows.append([side * (GATE_HALF_WIDTH + north_len * 0.5), -HALF - 0.5, north_len, 1.0])
-	rows.append([0.0, -HALF - 3.0, GATE_HALF_WIDTH * 2.0 + 2.0, 1.0])   # backstop
+	if not with_road:
+		rows.append([0.0, -HALF - 3.0, GATE_HALF_WIDTH * 2.0 + 2.0, 1.0])   # backstop: nothing beyond the gate to walk onto
 	for row in rows:
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
@@ -169,22 +193,6 @@ func _build_boundary() -> void:
 	ward_shape.position = Vector3(0, 4.0, -HALF - 0.25)
 	ward.add_child(ward_shape)
 	arena.add_child(ward)
-	var trigger := Area3D.new()
-	trigger.collision_layer = 0
-	trigger.collision_mask = Actor.LAYER_PLAYER
-	trigger.monitoring = true
-	var zone := CollisionShape3D.new()
-	var zone_box := BoxShape3D.new()
-	zone_box.size = Vector3(GATE_HALF_WIDTH * 2.0, 4.0, 2.0)
-	zone.shape = zone_box
-	trigger.add_child(zone)
-	trigger.position = Vector3(0, 2.0, -HALF - 1.0)
-	trigger.body_entered.connect(_on_gate_entered)
-	add_child(trigger)
-
-func _on_gate_entered(entered: Node3D) -> void:
-	if entered == player and not leaving:
-		leave_through_gate()
 
 func _register(key: String, kind: String, id: String, pos: Vector3, label: String) -> void:
 	spots.append({"key": key, "kind": kind, "id": id, "pos": pos, "label": label})
@@ -193,6 +201,13 @@ func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
+	combat_hud = Hud.new()   # bars, hotbar and map: the hero can fight anywhere now, the plaza included
+	combat_hud.player = player
+	combat_hud.arena = arena
+	combat_hud.top_offset = 54.0   # the plaza's resource bar sits above its quest line
+	combat_hud.force_window = with_road
+	combat_hud.process_mode = Node.PROCESS_MODE_ALWAYS
+	layer.add_child(combat_hud)
 	hud = TownHud.new()
 	layer.add_child(hud)
 	panel = TownPanel.new()
@@ -228,8 +243,6 @@ func _welcome_back() -> void:
 # --- Frame ---------------------------------------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	if leaving:
-		return
 	TownState.potions = player.stats.potions
 	sim.tick(delta)
 	_show_barks()
@@ -238,6 +251,7 @@ func _process(delta: float) -> void:
 	hud.prompt = "" if panel.is_open() or near.is_empty() else "%s   %s" % [_interact_key(), near["label"]]
 	hud.gate_hint = "" if panel.is_open() or not _near_gate() else _gate_hint()
 	_update_feed()
+	_update_world(delta)
 	if not pending.is_empty() and not panel.is_open():
 		var spot: Dictionary = _spot(pending)
 		if spot.is_empty() or _flat_distance(spot) <= INTERACT_RANGE:
@@ -249,12 +263,14 @@ func _interact_key() -> String:
 	return "[A]" if Gamepad.active else "[E]"
 
 func _near_gate() -> bool:
-	return absf(player.global_position.x) <= GATE_HALF_WIDTH + 1.0 and player.global_position.z <= -HALF + 7.0
+	return absf(player.global_position.x) <= GATE_HALF_WIDTH + 1.0 and player.global_position.z <= -HALF + 7.0 and player.global_position.z >= -HALF - 12.0
 
 func _gate_hint() -> String:
 	if TownState.job.is_empty():
-		return "Choose a job at the board before leaving town"
-	return "%s — %s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.describe(TownState.job)]
+		return "The road beyond"
+	if TownState.has_reward():
+		return "%s: done. Warden Hale has your reward" % String(TownState.job.get("location", "The road")).capitalize()
+	return "%s — %s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.progress_text(TownState.job, {"stage": quest_stage()})]
 
 func _flat_distance(spot: Dictionary) -> float:
 	var offset: Vector3 = player.global_position - (spot["pos"] as Vector3)
@@ -301,7 +317,7 @@ func _update_feed() -> void:
 # --- Interaction ---------------------------------------------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if leaving or panel.is_open():
+	if panel.is_open():
 		return
 	if event.is_action_pressed("pause") and not pause_menu.is_open():
 		pause_menu.open()
@@ -361,21 +377,127 @@ func change_potions(delta: int) -> void:
 	player.stats.potions = clampi(player.stats.potions + delta, 0, 99)
 	TownState.potions = player.stats.potions
 
-## Out of the gate and into a run: the selected job is set, the clan eats, the town is saved.
-func leave_through_gate() -> void:
-	if leaving:
-		return
+# --- The world beyond the gate ------------------------------------------------------------------------------------------------
+
+## The road, laid end to end with the plaza (its south end flush with the plaza's north edge) on the one shared navigation mesh.
+func _build_road() -> void:
+	var road_arena: Arena = CryptRoad.make_world_arena(HALF, _world_nav)
+	add_child(road_arena)
+	road_arena.build(false)
+	crypt = CryptRoad.new()
+	add_child(crypt)
+	crypt.build(road_arena)
+	crypt.nest_destroyed.connect(_on_nest_destroyed)
+
+## The director spawns and tracks the monsters, drops the loot and pays the gold for kills; the road's monsters are placed as soon as the
+## navigation map really holds the road, a moment after the scene appears.
+func _start_director() -> void:
+	director = RunDirector.new()
+	director.player = player
+	director.hud = combat_hud
+	director.world_mode = true
+	director.gold_per_kill = 2
+	director.hero_fell.connect(_hero_fell)
+	add_child(director)
+	director.set_job(TownState.job)
+	await crypt.wait_for_navigation()
+	director.attach_world(crypt)
+
+## How far the quest has got, in its own terms (nests destroyed); a finished quest stays finished until it is handed in.
+func quest_stage() -> int:
+	if TownState.has_reward():
+		return int(JobObjective.stages(TownState.job))
+	return crypt.nests_destroyed if crypt != null else 0
+
+func _on_nest_destroyed(count: int, total: int) -> void:
+	if TownState.report_progress(CryptRoad.SITE_ID, count):
+		hud.show_banner("The last nest is gone\nWarden Hale will want to hear it", 5.0)
+		_refresh_reward_marker()
+	else:
+		hud.show_banner("Nest destroyed  %d / %d" % [count, total], 3.0)
+
+## The coin over Warden Hale's head while a finished quest waits for him to pay it.
+func _refresh_reward_marker() -> void:
+	for id in npcs:
+		var npc: TownNpc = npcs[id]
+		npc.set_reward_marker(TownDb.npc(id).role == "keeper" and TownState.has_reward())
+
+## Handing in: the keeper pays every finished quest, the next one is posted, and the road is corrupted afresh behind the hero.
+func claim_rewards() -> Dictionary:
+	var paid: Dictionary = TownState.claim_ready()
+	if int(paid["count"]) > 0:
+		_refresh_reward_marker()
+		hud.show_banner("Quest done. +%dg" % int(paid["gold"]), 4.0)
+		if director != null:
+			director.set_job(TownState.job)
+		if crypt != null:
+			crypt.regrow()
+	return paid
+
+## Every frame: where the hero is decides the light (colder, thicker fog out on the road), whether the clan has eaten (once per
+## expedition) and whether he has just come home (the bag goes to the stash, the gear is recorded).
+func _update_world(delta: float) -> void:
+	var z: float = player.global_position.z
+	var depth: float = clampf(inverse_lerp(-HALF - 2.0, -HALF - 40.0, z), 0.0, 1.0)
+	if with_road:
+		world_environment.ambient_light_energy = _base_ambient * lerpf(1.0, CryptRoad.AMBIENT_MULT, depth)
+		world_environment.fog_density = _base_fog * lerpf(1.0, CryptRoad.FOG_MULT, depth)
+	if not outside and z < -HALF - 10.0:
+		outside = true
+		TownState.begin_expedition()
+		if not _announced_road and not TownState.job.is_empty():
+			_announced_road = true
+			hud.show_banner("%s\n%s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.describe(TownState.job)], 4.0)
+	elif outside and z > -HALF + 1.5 and not player.dead:
+		outside = false
+		_arrive_in_town()
+	hud.quest_line = _quest_line()
+	hud.quest_ready = TownState.has_reward()
+	combat_hud.wave = 0
+	if director != null:
+		combat_hud.kills = director.kills
+		combat_hud.alive = get_tree().get_nodes_in_group("enemies").size()
+		combat_hud.objective = ""   # the quest has its own line in the corner of the town HUD
+
+func _quest_line() -> String:
 	if TownState.job.is_empty():
-		hud.show_banner("Choose a job before leaving town", 2.5)
-		return
-	leaving = true
-	TownState.potions = player.stats.potions   # the hero's count first, so the save that begin_job makes has it
-	TownState.begin_job(TownState.job)
-	LoadingScreen.go(get_tree(), MAIN_SCENE)
+		return ""
+	if TownState.has_reward():
+		return "%s: done" % String(TownState.job.get("name", "Quest"))
+	return "%s: %s" % [String(TownState.job.get("name", "Quest")), JobObjective.progress_text(TownState.job, {"stage": quest_stage()}).replace("Destroy nests: ", "")]
+
+## Back inside the walls: what the hero carries is recorded (gear worn, potions held) and the bag goes to the stash.
+func _arrive_in_town() -> void:
+	TownState.end_expedition()
+	TownState.take_gear(player.stats.equipment)
+	var carried: int = player.stats.bag.size()
+	for item in player.stats.bag:
+		TownState.stash_item(item)
+	player.stats.bag.clear()
+	TownState.potions = maxi(player.stats.potions, 0)
+	TownState.save()
+	if carried > 0:
+		hud.show_banner("Back in town. %d item%s in the stash" % [carried, "" if carried == 1 else "s"], 3.0)
+	elif TownState.has_reward():
+		hud.show_banner("Warden Hale has your reward", 3.0)
+
+## The hero fell out on the road: after a moment he is dragged back to the plaza, whole, with the monsters where they were.
+func _hero_fell() -> void:
+	hud.show_banner("You were dragged back", 3.0)
+	await get_tree().create_timer(3.2).timeout
+	player.revive_at(Vector3(0, 0, 10.0))
+	rig.global_position = player.global_position
+	outside = false
+	_arrive_in_town()
+	director.hero_returned()
 
 func _screenshot(args: PackedStringArray) -> void:
 	await get_tree().create_timer(3.0).timeout
 	for arg in args:
+		if arg == "--ready":   # developer tool: pretend the quest is done, to see Hale's coin and the HUD
+			TownState.board[0]["ready"] = true
+			TownState.job = (TownState.board[0] as Dictionary).duplicate(true)
+			_refresh_reward_marker()
 		if arg.begins_with("--zoom="):   # --zoom=n: pull the camera back (the plaza opens at 2.6)
 			rig.set_zoom_now(float(arg.substr(7)))
 		if arg.begins_with("--at="):   # --at=x,z: move the hero first
@@ -392,5 +514,7 @@ func _screenshot(args: PackedStringArray) -> void:
 				_:
 					panel.open_npc(what)
 			await get_tree().create_timer(0.8).timeout
+	if args.has("--timing"):
+		print("[world] %.0f fps with %d monsters, %d people" % [Performance.get_monitor(Performance.TIME_FPS), get_tree().get_nodes_in_group("enemies").size(), npcs.size()])
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_town.png")
 	get_tree().quit()

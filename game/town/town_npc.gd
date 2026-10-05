@@ -23,6 +23,8 @@ var home: Vector3 = Vector3.ZERO   # where they stand when they have nothing to 
 var busy: bool = false             # in the middle of a scene, so the stage gives them nothing else
 var _path: PackedVector3Array = PackedVector3Array()
 var _tween: Tween
+var _reward: Sprite3D   # the coin that floats over the head of someone who has something to hand over (see set_reward_marker)
+var _reward_clock: float = 0.0
 
 static func create(npc_def: NpcDef) -> TownNpc:
 	var npc := TownNpc.new()
@@ -149,12 +151,39 @@ func set_tag_visible(on: bool) -> void:
 	_tag_wanted = on
 	_refresh_tag()
 
+## A coin floating over the head: this person has a reward waiting for the hero (a finished quest). Always visible, never hidden by
+## distance or by the name tag, so it can be seen from across the plaza.
+func set_reward_marker(on: bool) -> void:
+	if on and _reward == null:
+		var icon: Texture2D = UiTheme.status_icon("gold")
+		if icon == null:
+			return
+		_reward = Sprite3D.new()
+		_reward.texture = icon
+		_reward.pixel_size = 0.0075
+		_reward.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_reward.shaded = false
+		_reward.no_depth_test = true   # drawn over whatever is between the camera and the head
+		_reward.render_priority = 5
+		_reward.position = Vector3(0, def.height + 1.15, 0)
+		add_child(_reward)
+	if _reward != null:
+		_reward.visible = on
+
+func has_reward_marker() -> bool:
+	return _reward != null and _reward.visible
+
 ## The name tag and the speech line take turns: the name hides while they talk, so the two never overlap.
 func _refresh_tag() -> void:
 	_tag.visible = _tag_wanted and not _bark.visible
 
 func _process(delta: float) -> void:
 	_walk(delta)
+	if _reward != null and _reward.visible:   # it bobs and pulses, so it reads as something to go and get
+		_reward_clock += delta
+		_reward.position.y = def.height + 1.15 + sin(_reward_clock * 3.0) * 0.08
+		var glow: float = 1.0 + 0.35 * (0.5 + 0.5 * sin(_reward_clock * 4.0))
+		_reward.modulate = Color(glow, glow * 0.95, glow * 0.8)
 	if _bark_left > 0.0:
 		_bark_left -= delta
 		if _bark_left <= 0.0:

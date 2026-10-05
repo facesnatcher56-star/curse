@@ -431,6 +431,36 @@ func _read_input(cursor: Vector3) -> void:
 func _on_death() -> void:
 	skills.drop_orb()
 
+## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
+## animation put away, and a moment of grace before anything can hurt him.
+func revive_at(pos: Vector3) -> void:
+	if not dead:
+		return
+	dead = false
+	if ragdoll != null and ragdoll.is_active():
+		ragdoll._finish()
+	set_physics_process(true)
+	for shape in find_children("*", "CollisionShape3D", false, false):
+		(shape as CollisionShape3D).set_deferred("disabled", false)
+	visual.visible = true
+	visual.rotation = Vector3(0.0, PI, 0.0)
+	health = max_health
+	stats.mana = stats.max_mana
+	stats.stamina = stats.max_stamina
+	stun_time = 0.0
+	hitpause = 0.0
+	invulnerable_time = 2.5
+	velocity = Vector3.ZERO
+	attack_target = null
+	attack_prop = null
+	skills.busy = false
+	skills.queued_skill = ""
+	movement.has_goal = false
+	global_position = pos
+	reset_physics_interpolation()
+	model.current = ""   # the death clip is over: the next loop() must really start the idle
+	model.loop("idle_alert")
+
 # --- Acting ------------------------------------------------------------------
 
 func _act(delta: float, cursor: Vector3) -> void:

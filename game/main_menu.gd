@@ -1,7 +1,7 @@
 extends Node3D
 ## Main menu: the knight standing in the ruins with zombies watching from the dark, plus Play / Settings / Quit.
 
-const GAME_SCENE := "res://game/town.tscn"   # Play starts in the town; its gate leads to the run
+const GAME_SCENE := "res://game/town.tscn"   # Play starts in the world: the town, with the Crypt Road already loaded beyond its gate
 const KNIGHT_DIR := "res://assets/models/knight2"
 const ZOMBIE_DIR := "res://assets/models/zombie"
 
