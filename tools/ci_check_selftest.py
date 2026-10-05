@@ -25,6 +25,16 @@ def main() -> int:
         for line in problems[:40]:
             print("  -", line.strip())
             # A workflow annotation, so the failure is readable on the run page without opening (or signing in to see) the log.
+            print("::error title=Self-test::" + " ".join(line.strip().replace("%", "%25").split()))
+        return 1
+    problems = [m.group(0) for m in BAD.finditer(text)]
+    if "SELFTEST done" not in text:
+        problems.append("the self-test never printed 'SELFTEST done' (crash, hang or timeout)")
+    if problems:
+        print("Self-test FAILED:")
+        for line in problems[:40]:
+            print("  -", line.strip())
+            # A workflow annotation, so the failure is readable on the run page without opening (or signing in to see) the log.
             print("::error title=Self-test::%s" % line.strip().replace("%", "%25").replace("", "").replace("
 ", " "))
         return 1
