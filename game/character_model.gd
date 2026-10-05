@@ -101,13 +101,16 @@ func _init() -> void:
 ## Parents a separately generated prop (upright, blade along +Y) to a hand bone.
 ## `grip` rotates the prop into the fist; `length` is the blade length in metres.
 func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: float, grip_offset: float,
-		hand_offset: Vector3 = Vector3.ZERO, thickness: float = 1.0) -> void:
+		hand_offset: Vector3 = Vector3.ZERO, thickness: float = 1.0, prop_basis: Basis = Basis(), tint_by_vertex: bool = false) -> void:
 	var skeleton: Skeleton3D = find_children("*", "Skeleton3D", true, false)[0]
 	var attachment := BoneAttachment3D.new()
 	attachment.bone_name = bone_name
 	skeleton.add_child(attachment)
 	var prop: Node3D = (load(scene_path) as PackedScene).instantiate()
-	var bounds: AABB = _bounds_of(prop)
+	if tint_by_vertex:
+		LootDrop._use_vertex_colours(prop)
+	# prop_basis stands a model that was built lying down (long axis X) up along Y, the way the grip expects.
+	var bounds: AABB = Transform3D(prop_basis, Vector3.ZERO) * _bounds_of(prop)
 	var scale_factor: float = length / maxf(bounds.size.y, 0.001)
 	# The skeleton is scaled (cm rig); counter it so the prop keeps its real size.
 	var rig_scale: float = skeleton.global_transform.basis.get_scale().x
@@ -123,7 +126,7 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 	attachment.add_child(holder)
 	# Pommel at the origin, grip_offset (fraction of length) up the blade sits in the hand.
 	# Thickness widens the blade (not its length) so the sword reads as a heavy piece of steel.
-	prop.scale = Vector3(thickness, 1.0, thickness)
+	prop.basis = Basis.from_scale(Vector3(thickness, 1.0, thickness)) * prop_basis
 	prop.position = Vector3(-bounds.get_center().x * thickness, -bounds.position.y - grip_offset * bounds.size.y,
 		-bounds.get_center().z * thickness)
 	holder.add_child(prop)
@@ -134,6 +137,14 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 	weapon_tip = Node3D.new()
 	weapon_tip.position = Vector3(0, bounds.size.y * 1.0 - grip_offset * bounds.size.y, 0)
 	holder.add_child(weapon_tip)
+
+## Takes the held weapon off (its model and the bone attachment holding it).
+func clear_weapon() -> void:
+	if weapon != null and is_instance_valid(weapon):
+		weapon.get_parent().queue_free()
+	weapon = null
+	weapon_base = null
+	weapon_tip = null
 
 ## Combined bounds of all meshes under `node`, in the node's own space (nested transforms included).
 func _process(delta: float) -> void:

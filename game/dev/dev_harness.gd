@@ -1597,9 +1597,8 @@ func _item_sheet() -> void:
 	player.global_position = Vector3.ZERO
 	var bases: Array = []
 	var drops: Array[LootDrop] = []
-	for slot in Items.BASES:
-		for base in Items.BASES[slot]:
-			bases.append([slot, base["name"]])
+	for def in ItemDb.all().values():
+		bases.append([def.slot, def.display_name])
 	for i in bases.size():
 		var item: Dictionary = Items.make(bases[i][0], i % 3, 1, "" if i % 3 == 0 else _any_affix(bases[i][0]), bases[i][1])
 		var drop: LootDrop = LootDrop.create(item)
@@ -2624,7 +2623,7 @@ func _test_pause_stops_game() -> void:
 func _test_town_sim() -> void:
 	TownState.persist = false
 	TownState.reset()
-	expect("four people live in town", TownState.present_ids().size() == 4)
+	expect("five people live in town", TownState.present_ids().size() == 5)
 	var sim := TownSim.new(11)
 	var marlow: Dictionary = sim.activity_weights("marlow")
 	var maren: Dictionary = sim.activity_weights("maren")
@@ -2664,7 +2663,7 @@ func _test_town_sim() -> void:
 	TownState.npcs["cutter"]["happiness"] = -90.0
 	sim.run_round()
 	expect("a wretched recruit leaves the clan", bool(TownState.npcs["cutter"]["left"]) and not bool(TownState.npcs["cutter"]["member"]))
-	expect("the others are shaken when someone leaves", TownState.present_ids().size() == 3)
+	expect("the others are shaken when someone leaves", TownState.present_ids().size() == 4)
 	# Hunger.
 	TownState.reset()
 	var mood: float = TownState.happiness("maren")
@@ -2710,8 +2709,60 @@ func _test_town_state() -> void:
 	TownState.reset()
 	var board_ok: bool = TownState.board.size() == 3
 	for offer in TownState.board:
-		board_ok = board_ok and int(offer["waves"]) >= 2 and int(offer["reward"]) > 0
+		board_ok = board_ok and JobObjective.stages(offer) >= 2 and offer.has("location") and int(offer["reward"]) > 0
 	expect("the board posts three jobs", board_ok)
+	# Saving: a version, the job and last run saved, old saves migrated, newer ones left alone, an abandoned run noticed.
+	TownState.gold = 77
+	TownState.job = TownState.board[0].duplicate(true)
+	TownState.last_run = {"kills": 5, "wave": 2, "completed": true, "died": false, "gold": 40}
+	var saved_town: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved_town))
+	expect("a saved town keeps its version, gold, job and last run", int(saved_town["save_version"]) == TownState.SAVE_VERSION and TownState.gold == 77
+		and JobObjective.stages(TownState.job) >= 2 and TownState.last_run.get("kills") == 5)
+	var legacy: Dictionary = {"gold": 12, "board": [{"name": "Clear Ash Ford", "waves": 3, "modifiers": [], "reward": 80}]}
+	var upgraded: Dictionary = TownState.migrate(legacy)
+	expect("a save from before versions is migrated", int(upgraded["save_version"]) == TownState.SAVE_VERSION
+		and JobObjective.stages(upgraded["board"][0]) == 3)
+	expect("a save from a newer build is refused, not overwritten", TownState.migrate({"save_version": TownState.SAVE_VERSION + 1}).is_empty())
+	# Items are definitions plus a small instance: saved as {def, tier, rarity, affix}, rebuilt from the data on load.
+	var made: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 3, "chain", "Greatsword")
+	var slim: Dictionary = Items.to_save(made)
+	var rebuilt: Dictionary = Items.from_save(JSON.parse_string(JSON.stringify(slim)))
+	expect("an item is saved as only its definition, tier, rarity and affix", slim.keys().size() == 4 and slim["def"] == "greatsword"
+		and rebuilt["name"] == made["name"] and is_equal_approx(float(rebuilt["stats"]["damage"]), float(made["stats"]["damage"])))
+	var def: ItemDef = ItemDb.get_def("greatsword")
+	var old_damage: float = float(def.stats["damage"])
+	def.stats["damage"] = 2.0
+	expect("changing a base's numbers changes saved copies too", is_equal_approx(float(Items.from_save(slim)["stats"]["damage"]), 2.0 * (1.0 + 0.08 * 2)))
+	def.stats["damage"] = old_damage
+	var old_form: Dictionary = {"slot": 0, "rarity": 1, "name": "Stormcalled Greatsword", "base": "Greatsword", "affix": "chain", "flavor": "",
+		"stats": {"damage": 1.35 * 1.16, "speed": 0.82}}
+	var from_old: Dictionary = Items.from_save(old_form)
+	expect("an item saved as a whole dictionary still loads, its tier worked out", from_old["def"] == "greatsword" and from_old["tier"] == 3)
+	expect("an item whose base or affix has gone is dropped", Items.from_save({"def": "vanished", "tier": 1, "rarity": 0, "affix": ""}).is_empty()
+		and Items.from_save({"def": "falchion", "tier": 1, "rarity": 1, "affix": "no_such_affix"}).is_empty())
+	var v1: Dictionary = TownState.migrate({"save_version": 1, "gear": {"0": old_form}, "stash": [old_form], "stock": [{"item": old_form, "price": 80}]})
+	expect("a version 1 save has its items rewritten as definitions", v1["gear"]["0"].has("def") and not v1["gear"]["0"].has("stats")
+		and v1["stash"][0]["def"] == "greatsword" and v1["stock"][0]["item"]["tier"] == 3)
+	TownState.run_in_progress = true
+	TownState.job = TownState.board[0].duplicate(true)
+	var mid_run: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.from_dict(TownState.migrate(mid_run))
+	expect("a game closed mid-run abandons that run", TownState.job.is_empty() and not TownState.run_in_progress
+		and bool(TownState.last_run.get("abandoned", false)))
+	TownState.reset()
+	var cost: int = TownState.food_cost()
+	var food_mood_before: float = TownState.happiness("marlow")
+	TownState.food = cost
+	TownState.begin_job(TownState.board[0])
+	expect("exactly enough food is not a shortage", TownState.food == 0 and is_equal_approx(TownState.happiness("marlow"), food_mood_before))
+	TownState.food = cost - 1
+	TownState.begin_job(TownState.board[0])
+	expect("too little food sours the clan", TownState.happiness("marlow") < food_mood_before)
+	var old_job: Dictionary = JobObjective.upgrade_legacy({"name": "Clear Ash Ford", "waves": 4, "modifiers": [], "reward": 90})
+	expect("a job saved with a wave count becomes an objective", JobObjective.stages(old_job) == 4 and old_job["location"] == "Ash Ford"
+		and JobObjective.describe(old_job) == "Clear 4 waves" and JobObjective.is_complete(old_job, {"stage": 4}) and not JobObjective.is_complete(old_job, {"stage": 3}))
 	var clash: bool = false
 	for seed_value in 120:
 		var rng := RandomNumberGenerator.new()
@@ -2726,7 +2777,7 @@ func _test_town_state() -> void:
 	TownState.reset()
 	# The food bill and the pay-out.
 	var food_before: int = TownState.food
-	var offer: Dictionary = {"name": "Test", "waves": 3, "modifiers": ["fog"], "reward": 100}
+	var offer: Dictionary = {"name": "Test", "objective": JobObjective.clear_waves(3), "modifiers": ["fog"], "reward": 100}
 	TownState.begin_job(offer)
 	expect("leaving costs the clan food", TownState.food == food_before - TownState.food_cost())
 	var gold_before: int = TownState.gold
@@ -2773,22 +2824,22 @@ func _test_town_state() -> void:
 	TownState.reset()
 
 ## Wave modifiers: more of what they favour, tougher or quicker enemies, a mood for the whole run, and a job that ends in town.
-func _test_wave_modifiers() -> void:
+func _test_run_modifiers() -> void:
 	var director: RunDirector = game.director
 	var zombie: EnemyDef = EnemyDb.get_def("zombie")
 	var ghoul: EnemyDef = EnemyDb.get_def("ghoul")
 	expect("all nine modifiers load", TownDb.modifiers().size() == 9)
 	var plain_zombies: int = director.modified_count(zombie, 3)
 	var plain_ghouls: int = director.modified_count(ghoul, 3)
-	director.set_job({"name": "Test", "waves": 3, "modifiers": ["swarming"], "reward": 50})
+	director.set_job({"name": "Test", "objective": JobObjective.clear_waves(3), "modifiers": ["swarming"], "reward": 50})
 	expect("Swarming brings more zombies and ghouls", director.modified_count(zombie, 3) > plain_zombies
 		and director.modified_count(ghoul, 3) > plain_ghouls)
 	expect("an enemy not in the wave stays out", director.modified_count(EnemyDb.get_def("priest"), 1) == 0)
-	director.set_job({"name": "Test", "waves": 3, "modifiers": ["cursed"], "reward": 50})
+	director.set_job({"name": "Test", "objective": JobObjective.clear_waves(3), "modifiers": ["cursed"], "reward": 50})
 	expect("Cursed only starts at its minimum wave", director.active_modifiers(1).is_empty() and director.active_modifiers(2).size() == 1)
 	var saved_wave: int = director.wave
 	director.wave = 3
-	director.set_job({"name": "Test", "waves": 3, "modifiers": ["gigantism", "fleet"], "reward": 50})
+	director.set_job({"name": "Test", "objective": JobObjective.clear_waves(3), "modifiers": ["gigantism", "fleet"], "reward": 50})
 	expect("modifiers stack", is_equal_approx(director.modifier_product("speed_mult"), 0.92 * 1.25)
 		and is_equal_approx(director.modifier_product("health_mult"), 1.5))
 	var big: Enemy = _spawn_enemy(Vector3(30, 0, 30), "zombie", 1.0)
@@ -2824,7 +2875,7 @@ func _test_town_scene() -> void:
 	await get_tree().process_frame
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	expect("the town has its four people", town.npcs.size() == 4)
+	expect("the town has its five people", town.npcs.size() == 5)
 	var kinds: Dictionary = {}
 	for spot in town.spots:
 		kinds[spot["kind"]] = true
@@ -2835,12 +2886,74 @@ func _test_town_scene() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	expect("standing at the gate offers it", town.near.get("kind") == "gate" and town.hud.prompt.contains("gate"))
+	# The gate is a real opening: the north edge is walled either side of it, and the opening itself is clear.
+	var space: PhysicsDirectSpaceState3D = town.get_world_3d().direct_space_state
+	var blocked_at: Callable = func(x: float) -> bool:
+		var query := PhysicsRayQueryParameters3D.create(Vector3(x, 1.0, -15.0), Vector3(x, 1.0, -TownScene.HALF - 1.0), Actor.LAYER_WORLD)
+		return not space.intersect_ray(query).is_empty()
+	expect("the town wall is solid beside the gate", blocked_at.call(-10.0) and blocked_at.call(10.0))
+	expect("the opening at the gate is clear of walls", not blocked_at.call(2.5) and not blocked_at.call(-2.5))
+	var ward_query := PhysicsRayQueryParameters3D.create(Vector3(0, 1.0, -TownScene.HALF - 2.0), Vector3(0, 1.0, -TownScene.HALF + 2.0), Actor.LAYER_ENEMY | Actor.LAYER_PLAYER)
+	expect("the gate is warded against monsters only", not space.intersect_ray(ward_query).is_empty()
+		and space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0, 1.0, -TownScene.HALF - 2.0), Vector3(0, 1.0, -TownScene.HALF + 2.0), town.player.collision_mask)).is_empty())
 	# A click on someone is found by where they are on screen.
 	town.player.global_position = Vector3(-8.0, 0, 0.0)
 	await get_tree().process_frame
 	var camera: Camera3D = town.get_viewport().get_camera_3d()
 	var on_screen: Vector2 = camera.unproject_position(town.npcs["marlow"].global_position + Vector3(0, 1.1, 0))
 	expect("a click on Marlow picks Marlow", town.pick_spot(on_screen).get("id") == "marlow")
+	# The sim's social life is acted out: a gossiper walks over to the other person, they face each other, and he goes home after.
+	TownStage.time_scale = 8.0
+	TownNpc.speed_scale = 8.0
+	town.player.global_position = Vector3(0, 0, -4.0)
+	var gossiper: TownNpc = town.npcs["marlow"]
+	var listener: TownNpc = town.npcs["hale"]
+	town.stage.handle({"id": "marlow", "text": "Did you hear?", "partner": "hale", "activity": "gossip"})
+	var met: bool = false
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if town.stage.events.has("gossip marlow"):
+			met = gossiper.global_position.distance_to(listener.global_position) < 2.4
+			break
+	expect("someone who gossips walks over to the other person", met)
+	expect("and the two turn to face each other", absf(angle_difference(gossiper.rotation.y, atan2(listener.global_position.x - gossiper.global_position.x, listener.global_position.z - gossiper.global_position.z))) < 0.5)
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if not gossiper.busy:
+			break
+	expect("afterwards he walks home and the stage lets him go", not gossiper.busy and gossiper.global_position.distance_to(gossiper.home) < 0.5)
+	town.stage.handle({"id": "marlow", "text": "Another.", "partner": "", "activity": "drink"})
+	var drank: bool = false
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if town.stage.events.has("drink marlow"):
+			drank = gossiper.global_position.distance_to(town.stations["drink"]) < 1.5
+			break
+	expect("drinking happens at the barrels", drank)
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if not gossiper.busy:
+			break
+	town.stage.handle({"id": "hale", "text": "That's it!", "partner": "marlow", "activity": "brawl"})
+	town.stage.handle({"id": "marlow", "text": "Come on, then.", "partner": "hale", "activity": "brawl_reply"})
+	var fought: bool = false
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if town.stage.events.has("brawl hale"):
+			fought = listener.global_position.distance_to(gossiper.global_position) < 2.4
+			break
+	expect("a brawl is fought face to face", fought)
+	for i in 200:
+		await get_tree().create_timer(0.05).timeout
+		if not listener.busy and not gossiper.busy:
+			break
+	expect("and everyone is home afterwards", not listener.busy and not gossiper.busy and listener.global_position.distance_to(listener.home) < 0.5)
+	TownStage.time_scale = 1.0
+	TownNpc.speed_scale = 1.0
+	town.player.global_position = Vector3(-8.0, 0, 0.0)
+	for each in town.npcs.values():   # let the lines die away
+		each._bark_left = 0.0
+		each._bark.visible = false
 	# A name tag and a speech line never show together.
 	var talker: TownNpc = town.npcs["marlow"]
 	talker.set_tag_visible(true)
@@ -2851,11 +2964,18 @@ func _test_town_scene() -> void:
 	await get_tree().create_timer(0.1).timeout
 	expect("the name comes back when they stop", talker._tag.visible and not talker._bark.visible)
 	# Panels.
-	for id in ["marlow", "hale", "maren", "cutter"]:
+	for id in ["marlow", "hale", "maren", "cutter", "dorn"]:
 		town.panel.open_npc(id)
 		await get_tree().process_frame
 		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= 2)
 		town.panel.close()
+	town.panel.open_npc("dorn")
+	await get_tree().process_frame
+	var smith_ok: bool = TownState.smith_stock.size() >= 2
+	for entry in TownState.smith_stock:
+		smith_ok = smith_ok and int(entry["item"]["slot"]) != Items.Slot.TRINKET
+	expect("the smith sells only weapons and armour", smith_ok)
+	town.panel.close()
 	town.panel.open_board()
 	await get_tree().process_frame
 	expect("the board lists the jobs", _count_buttons(town.panel) >= 4)
@@ -2953,11 +3073,9 @@ func _test_loot() -> void:
 	await get_tree().process_frame
 	# Every base item has its Blender model.
 	var missing: PackedStringArray = []
-	for slot in Items.BASES:
-		for base in Items.BASES[slot]:
-			var item: Dictionary = Items.make(slot, Items.Rarity.COMMON, 1, "", base["name"])
-			if not ResourceLoader.exists(Items.model_path(item)):
-				missing.append(base["name"])
+	for def in ItemDb.all().values():
+		if not ResourceLoader.exists(def.model_path):
+			missing.append(def.display_name)
 	expect("every base item has a dropped model (%s missing)" % ", ".join(missing), missing.is_empty())
 	# The odds: ordinary monsters mostly drop commons, a Brute never drops a common.
 	var common_brute: int = 0
@@ -2993,7 +3111,7 @@ func _test_loot() -> void:
 			and drop.global_position.distance_to(Vector3(24, 0, 24)) < 3.0)
 		expect("the drop can be seen: it has a model", drop.get_node_or_null("Model") != null)
 		drop.queue_free()
-	# Pickup: an upgrade is put on, anything else goes to the bag.
+	# Pickup: an empty slot is filled, anything else goes to the bag (rarity never swaps gear by itself).
 	var stats: PlayerStats = player.stats
 	var saved_equipment: Dictionary = stats.equipment.duplicate(true)
 	var saved_bag: Array[Dictionary] = stats.bag.duplicate(true)
@@ -3003,14 +3121,14 @@ func _test_loot() -> void:
 	stats.pickup(plain)
 	expect("an empty slot takes whatever is picked up", stats.equipment.get(Items.Slot.WEAPON, {}).get("name") == "Longsword" and stats.bag.is_empty())
 	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"))
-	expect("a second common weapon is not an upgrade: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 1)
+	expect("a second weapon goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 1)
 	var fancy: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")
 	for id in AffixDb.all():
 		if AffixDb.all()[id]["slot"] == Items.Slot.WEAPON and AffixDb.all()[id]["title"] != "":
 			fancy = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, id)
 			break
 	stats.pickup(fancy)
-	expect("a rarer weapon is put on and the old one goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == fancy["name"] and stats.bag.size() == 2)
+	expect("a rarer weapon is never swapped in on its own: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 2)
 	for i in 20:
 		stats.add_to_bag(Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1))
 	expect("the bag holds a dozen items", stats.bag.size() == PlayerStats.MAX_BAG)
@@ -3025,6 +3143,16 @@ func _test_loot() -> void:
 	await get_tree().create_timer(0.3).timeout
 	expect("walking over a drop picks it up", before and not is_instance_valid(walk) or walk.is_queued_for_deletion())
 	expect("and the armour is on", stats.equipment.get(Items.Slot.ARMOR, {}).get("name") == "Mail Hauberk" or stats.bag.size() >= 1)
+	# The hero holds what is equipped: each weapon shows its own model, and longer weapons are longer in the hand.
+	var held_length: Dictionary = {}
+	for base_name in ["Falchion", "Longsword", "Greatsword"]:
+		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base_name), false)
+		await get_tree().process_frame
+		var tip_y: float = player.model.weapon_tip.position.y
+		held_length[base_name] = tip_y
+		expect("equipping the %s puts its model in the hand" % base_name, player._held_path == Items.model_path(stats.equipment[Items.Slot.WEAPON])
+			and player.model.weapon != null and player._trail.tip_node == player.model.weapon_tip)
+	expect("a greatsword is longer in the hand than a falchion", held_length["Greatsword"] > held_length["Falchion"])
 	stats.equipment = saved_equipment
 	stats.bag = saved_bag
 	player.armor = stats.base_armor + stats.armor_stat("armor", 0.0)
@@ -3164,11 +3292,9 @@ func _test_fireball_cancel() -> void:
 ## Item pictures: every base item has an icon and a framed badge, a tile shows a tooltip card, and the Tab panel lists what is worn.
 func _test_item_icons() -> void:
 	var missing: PackedStringArray = []
-	for slot in Items.BASES:
-		for base in Items.BASES[slot]:
-			var item: Dictionary = Items.make(slot, Items.Rarity.RARE, 1, "", base["name"])
-			if ItemIcons.icon_for(item) == null:
-				missing.append(base["name"])
+	for def in ItemDb.all().values():
+		if ItemIcons.icon_for(Items.build(def, 1, Items.Rarity.RARE)) == null:
+			missing.append(def.display_name)
 	expect("every base item has an icon (%s missing)" % ", ".join(missing), missing.is_empty())
 	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.UNIQUE, 1, "", "Greatsword")
 	var badge: Texture2D = ItemIcons.badge(item)
@@ -3537,7 +3663,7 @@ func _wear(affix_id: String, slot: int) -> void:
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_wave_modifiers", "townscene": "_test_town_scene",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene",
 }
 
 var _failures: PackedStringArray = []
@@ -3609,7 +3735,7 @@ func _run_selftest() -> void:
 	await _test_loot_ui()
 	_test_town_sim()
 	_test_town_state()
-	await _test_wave_modifiers()
+	await _test_run_modifiers()
 	await _test_town_scene()
 
 	var zombies: Array[Enemy] = []

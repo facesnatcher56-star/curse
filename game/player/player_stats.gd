@@ -133,27 +133,21 @@ func attack_speed() -> float:
 func equip(item: Dictionary, announce: bool = true) -> void:
 	equipment[int(item["slot"])] = item
 	p.armor = base_armor + armor_stat("armor", 0.0)
+	if int(item["slot"]) == Items.Slot.WEAPON:
+		p.refresh_weapon_model()
 	if announce:
 		p._say("Equipped %s" % item["name"])
 
-## Whether `item` should replace what is worn in its slot: a higher rarity, or the same rarity but with an effect the worn one lacks.
-func is_upgrade(item: Dictionary) -> bool:
-	var current: Variant = equipment.get(int(item["slot"]))
-	if current == null:
-		return true
-	var worn: Dictionary = current
-	if int(item["rarity"]) != int(worn["rarity"]):
-		return int(item["rarity"]) > int(worn["rarity"])
-	return String(item["affix"]) != "" and String(worn["affix"]) == ""
+## Whether `item` would be put on at once when picked up: only into an empty slot. Rarity never decides it, because a rarer piece may
+## not fit the build; everything else goes to the bag and the player chooses.
+func takes_empty_slot(item: Dictionary) -> bool:
+	return equipment.get(int(item["slot"])) == null
 
-## Picks a dropped item up: an upgrade is put on at once (the old piece goes to the bag), anything else goes to the bag.
+## Picks a dropped item up: an empty slot is filled at once, anything else goes to the bag.
 func pickup(item: Dictionary) -> String:
 	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
 	var text: String
-	if is_upgrade(item):
-		var old: Variant = equipment.get(int(item["slot"]))
-		if old != null:
-			add_to_bag(old as Dictionary)
+	if takes_empty_slot(item):
 		equip(item, false)
 		text = "Equipped %s" % item["name"]
 	else:

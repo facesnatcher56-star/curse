@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="WaveModifierDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="RunModifierDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://game/data/wave_modifier_def.gd" id="1"]
+[ext_resource type="Script" path="res://game/data/run_modifier_def.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -15,5 +15,5 @@ size_mult = 1.0
 ambient_mult = 1.0
 fog_mult = 1.0
 reward_mult = 1.15
-min_wave = 1
+min_stage = 1
 excludes = Array[String]([])

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "plate_cuirass"
+display_name = "Plate Cuirass"
+slot = 1
+order = 5
+model_path = "res://assets/models/items/plate_cuirass/model.glb"
+icon_path = "res://assets/icons/items/plate_cuirass.png"
+stats = {
+"armor": 60.0,
+"roll_cost": 1.4,
+"roll_speed": 0.9
+}
+tier_mult = {}
+tier_add = {
+"armor": 6.0
+}

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "longsword"
+display_name = "Longsword"
+slot = 0
+order = 1
+model_path = "res://assets/models/items/longsword/model.glb"
+icon_path = "res://assets/icons/items/longsword.png"
+stats = {
+"damage": 1.0,
+"speed": 1.0
+}
+tier_mult = {
+"damage": 0.08
+}
+tier_add = {}

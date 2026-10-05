@@ -248,8 +248,8 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 			UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), mark + String(entry["text"]), 14, sign_color)
 	if for_drop:
 		y += 26.0
-		var upgrade: bool = player.stats.is_upgrade(item)
-		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it" if upgrade else "Walk over it: it goes in the bag", 14,
+		var upgrade: bool = player.stats.takes_empty_slot(item)
+		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
 			Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
 
 ## The dropped item the player is pointing at: under the mouse (by where it is on screen), or with a controller the nearest within reach.

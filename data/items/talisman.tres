@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "talisman"
+display_name = "Talisman"
+slot = 2
+order = 8
+model_path = "res://assets/models/items/talisman/model.glb"
+icon_path = "res://assets/icons/items/talisman.png"
+stats = {}
+tier_mult = {}
+tier_add = {}

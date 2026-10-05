@@ -29,7 +29,7 @@ const BRAWL_BELOW := 20.0
 const LEAVE_BELOW := -60.0
 
 var rng := RandomNumberGenerator.new()
-var barks: Array[Dictionary] = []    # {id, text, partner}: drained by the town scene
+var barks: Array[Dictionary] = []    # {id, text, partner, activity}: drained by the town scene, which acts them out (see TownStage)
 var history: Array[String] = []
 var _clock: float = 0.0
 var _event_clock: float = EVENT_TIME * 0.6
@@ -114,7 +114,7 @@ func perform(id: String, activity: String, partner: String = "") -> void:
 	var def: NpcDef = TownDb.npc(id)
 	if partner == "":
 		if activity in ["drink", "pray", "brood", "work"]:
-			_say(id, _line(def, activity, ""), "")
+			_say(id, _line(def, activity, ""), "", activity)
 		return
 	var other: float = float(spec["other"])
 	var rel: float = float(spec["rel"])
@@ -127,7 +127,7 @@ func perform(id: String, activity: String, partner: String = "") -> void:
 		rel += float(DISLIKED_PENALTY["rel"])
 	TownState.add_happiness(partner, other)
 	TownState.add_relation(id, partner, rel)
-	_say(id, _line(def, activity, partner), partner)
+	_say(id, _line(def, activity, partner), partner, activity)
 	if verdict != 0 or activity == "argue":
 		var mood_text: String = "enjoys" if verdict > 0 else "resents"
 		if activity == "argue":
@@ -194,8 +194,8 @@ func brawl(a: String, b: String) -> void:
 	TownState.add_happiness(b, -8.0)
 	TownState.add_relation(a, b, 8.0)   # the air is cleared, a little
 	history.append("%s and %s came to blows." % [_name(a), _name(b)])
-	_say(a, _line(TownDb.npc(a), "brawl", b), b)
-	_say(b, _line(TownDb.npc(b), "brawl", a), a)
+	_say(a, _line(TownDb.npc(a), "brawl", b), b, "brawl")
+	_say(b, _line(TownDb.npc(b), "brawl", a), a, "brawl_reply")
 
 func _leave(id: String) -> void:
 	TownState.npcs[id]["left"] = true
@@ -252,9 +252,9 @@ func _line(def: NpcDef, key: String, _partner: String) -> String:
 	var options: Array = def.lines[key]
 	return String(options[rng.randi() % options.size()])
 
-func _say(id: String, text: String, partner: String) -> void:
+func _say(id: String, text: String, partner: String, activity: String = "") -> void:
 	if text != "":
-		barks.append({"id": id, "text": text, "partner": partner})
+		barks.append({"id": id, "text": text, "partner": partner, "activity": activity})
 
 ## What an NPC says on a plain occasion ("greet", "idle", "return_ok", "return_dead", "hire").
 func line_for(id: String, key: String) -> String:

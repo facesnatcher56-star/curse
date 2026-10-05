@@ -232,5 +232,14 @@
   "lamp_post": {
     "preview": "01a10902-7466-7732-90c9-387cf50eec53",
     "refine": "01a10903-3ba2-720f-b559-cc1f977e0167"
+  },
+  "npc_smith": {
+    "preview": "01a10b70-8f2d-7041-8ae8-d943bdca7f90",
+    "refine": "01a10b71-b5fc-750a-8bbb-8c5104959ccf",
+    "rig": "01a10b73-96e1-7600-9b86-7e3618b8edd0",
+    "anims": {
+      "idle": "01a10b73-dbc7-7224-b3e0-ec385afb526a",
+      "calm": "01a10b73-dd18-7208-8abb-019f02d7e7ce"
+    }
   }
 }

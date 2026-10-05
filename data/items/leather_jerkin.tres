@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "leather_jerkin"
+display_name = "Leather Jerkin"
+slot = 1
+order = 3
+model_path = "res://assets/models/items/leather_jerkin/model.glb"
+icon_path = "res://assets/icons/items/leather_jerkin.png"
+stats = {
+"armor": 15.0,
+"roll_cost": 0.8,
+"roll_speed": 1.1
+}
+tier_mult = {}
+tier_add = {
+"armor": 6.0
+}

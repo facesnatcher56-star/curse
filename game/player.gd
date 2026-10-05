@@ -8,6 +8,7 @@ extends Actor
 ##  - Attacks and casts root the hero until the swing finishes (StandStillToCast).
 
 const MODEL_DIR := "res://assets/models/knight2"
+const HELD_SCALE := 0.85   # how much of a weapon's real length shows in the hand
 const SWORD_PATH := "res://assets/models/sword/model.glb"
 # Sword orientation in the hand bone: index into GRIPS (tuned by eye with --grip=N screenshots).
 const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Vector3(0, 0, 1), PI / 2),
@@ -49,6 +50,9 @@ func _init() -> void:
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
 
+var _grip_index: int = 3
+var _held_path: String = SWORD_PATH
+
 func _ready() -> void:
 	add_to_group("player")
 	display_name = "Knight"
@@ -63,17 +67,40 @@ func _ready() -> void:
 	_build_model(MODEL_DIR, CLIPS, 1.8, 0.4)
 	model.loop("idle_alert")
 	if ResourceLoader.exists(SWORD_PATH):
-		var grip: int = 3
 		for arg in OS.get_cmdline_user_args():
 			if arg.begins_with("--grip="):
-				grip = int(arg.substr(7))
-		model.attach_weapon(SWORD_PATH, "RightHand", GRIPS[grip], 1.25, 0.12, HAND_GRIP_POINT, 1.7)
+				_grip_index = int(arg.substr(7))
+		model.attach_weapon(SWORD_PATH, "RightHand", GRIPS[_grip_index], 1.25, 0.12, HAND_GRIP_POINT, 1.7)
 		_trail = WeaponTrail.new()
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
 		add_child(_trail)
 	for item in Items.starting_gear():
 		stats.equip(item, false)
+
+## The hero holds the model of the weapon that is equipped (the same models the weapons lie on the ground as), at a size that
+## follows the weapon; a base with no model keeps the old sword.
+func refresh_weapon_model() -> void:
+	if model == null or not ResourceLoader.exists(SWORD_PATH):
+		return
+	var worn: Variant = stats.equipment.get(Items.Slot.WEAPON)
+	var path: String = SWORD_PATH
+	if worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):
+		path = Items.model_path(worn as Dictionary)
+	if path == _held_path:
+		return
+	_held_path = path
+	model.clear_weapon()
+	if path == SWORD_PATH:
+		model.attach_weapon(SWORD_PATH, "RightHand", GRIPS[_grip_index], 1.25, 0.12, HAND_GRIP_POINT, 1.7)
+	else:
+		# Built lying down with the pommel at -X and the point at +X: turn it upright. About 0.85 of its real length in the hand.
+		var bounds: AABB = CharacterModel._bounds_of((load(path) as PackedScene).instantiate())
+		model.attach_weapon(path, "RightHand", GRIPS[_grip_index], bounds.size.x * HELD_SCALE, 0.11, HAND_GRIP_POINT, 1.8,
+			Basis(Vector3(0, 0, 1), PI * 0.5), true)
+	if _trail != null:
+		_trail.base_node = model.weapon_base
+		_trail.tip_node = model.weapon_tip
 
 func _physics_process(delta: float) -> void:
 	if _actor_tick(delta):

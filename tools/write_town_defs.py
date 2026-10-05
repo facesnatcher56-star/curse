@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Writes the town's data: res://data/npcs/*.tres (NpcDef), res://data/traits/*.tres (TraitDef) and
-res://data/modifiers/*.tres (WaveModifierDef). Edit the tables and re-run; the .tres files are what the game loads.
+res://data/modifiers/*.tres (RunModifierDef). Edit the tables and re-run; the .tres files are what the game loads.
 
 Design notes are in docs/zombasite-world-and-npcs.md (sections 3 and 6)."""
 from pathlib import Path
@@ -53,6 +53,17 @@ NPCS = {
                       "gossip": ["That trader waters his drink. And his wine."], "argue": ["Hmph."],
                       "praise": ["The light finds the faithful."], "joke": ["Wicked boy."], "small_talk": ["Cold wind tonight."],
                   }),
+    "dorn": dict(display_name="Dorn", title="Smith", role="smith", model_path="res://assets/models/npc_smith", height=1.8,
+                 home=(-15.8, -9.6), traits=["loyal", "gloomy"], start_happiness=12.0,
+                 lines={
+                     "greet": ["Steel doesn't care who carries it. Buy what you can swing.", "Mind the sparks."],
+                     "idle": ["Good iron's scarcer than good men.", "The forge never goes cold. Neither does my back.", "Can't beat a blade into shape in a hurry."],
+                     "return_ok": ["That edge held? Good.", "Back with all your fingers. Impressive."],
+                     "return_dead": ["I'll scrape what's left of your sword off the anvil."],
+                     "gossip": ["The trader sells scrap and swears it's steel."], "argue": ["You'd never last a day at the bellows."],
+                     "praise": ["You hold your ground. That counts."], "joke": ["A sword walks into a bar. Gets sheathed."],
+                     "small_talk": ["Cold for forging weather."], "work": ["Back to the anvil."],
+                 }),
     "cutter": dict(display_name="Cutter", title="Sellsword", role="recruit", model_path="res://assets/models/npc_recruit", height=1.8,
                    home=(11.0, 5.0), traits=["argumentative", "joker"], start_happiness=10.0, recruit_cost=60, clan_skill="forager",
                    lines={
@@ -65,12 +76,12 @@ NPCS = {
                    }),
 }
 
-# --- Wave modifiers: the rules a job's waves play by --------------------------------------------------------------------
+# --- Run modifiers: the rules a run plays by --------------------------------------------------------------------
 MODIFIERS = {
     "swarming": dict(display_name="Swarming", description="More of the small and fast. Fewer pieces of cover.",
                      spawn_weights={"zombie": 1.7, "ghoul": 1.8}, health_mult=0.9, reward_mult=1.15),
     "nest": dict(display_name="Spitters' Nest", description="The air is thick with spit and rot.",
-                 spawn_weights={"spitter": 3.0, "bloater": 1.6}, reward_mult=1.1, min_wave=2),
+                 spawn_weights={"spitter": 3.0, "bloater": 1.6}, reward_mult=1.1, min_stage=2),
     "gigantism": dict(display_name="Gigantism", description="Everything is bigger, slower and harder to put down.",
                       size_mult=1.25, health_mult=1.5, speed_mult=0.92, reward_mult=1.25),
     "fleet": dict(display_name="Fleet of Foot", description="They do not tire.", speed_mult=1.25, reward_mult=1.15),
@@ -81,9 +92,9 @@ MODIFIERS = {
     "fog": dict(display_name="Fog", description="A thick grey fog hides the pack until it is on you.",
                 fog_mult=3.2, ambient_mult=0.8, reward_mult=1.1, excludes=["moonlit"]),
     "cursed": dict(display_name="Cursed", description="The priests are many and the dead rise twice.",
-                   spawn_weights={"priest": 3.0, "brute": 1.4}, reward_mult=1.3, min_wave=2),
+                   spawn_weights={"priest": 3.0, "brute": 1.4}, reward_mult=1.3, min_stage=2),
     "brutal": dict(display_name="Brutal", description="Brutes, and plenty of them.",
-                   spawn_weights={"brute": 2.5}, health_mult=1.15, reward_mult=1.3, min_wave=2),
+                   spawn_weights={"brute": 2.5}, health_mult=1.15, reward_mult=1.3, min_stage=2),
 }
 
 
@@ -137,13 +148,13 @@ def main() -> None:
             ("recruit_cost", fmt(n.get("recruit_cost", 0))), ("clan_skill", fmt(n.get("clan_skill", ""))),
             ("lines", fmt(n["lines"]))])
     for mid, m in MODIFIERS.items():
-        write("modifiers", "wave_modifier_def.gd", "WaveModifierDef", mid, [
+        write("modifiers", "run_modifier_def.gd", "RunModifierDef", mid, [
             ("display_name", fmt(m["display_name"])), ("description", fmt(m["description"])),
             ("spawn_weights", fmt(m.get("spawn_weights", {}))), ("count_mult", fmt(float(m.get("count_mult", 1.0)))),
             ("health_mult", fmt(float(m.get("health_mult", 1.0)))), ("speed_mult", fmt(float(m.get("speed_mult", 1.0)))),
             ("size_mult", fmt(float(m.get("size_mult", 1.0)))), ("ambient_mult", fmt(float(m.get("ambient_mult", 1.0)))),
             ("fog_mult", fmt(float(m.get("fog_mult", 1.0)))), ("reward_mult", fmt(float(m.get("reward_mult", 1.0)))),
-            ("min_wave", fmt(int(m.get("min_wave", 1)))), ("excludes", typed_strings(m.get("excludes", [])))])
+            ("min_stage", fmt(int(m.get("min_stage", 1)))), ("excludes", typed_strings(m.get("excludes", [])))])
 
 
 if __name__ == "__main__":

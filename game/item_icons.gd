@@ -10,15 +10,15 @@ static var _badges: Dictionary = {}
 
 ## The bare icon for an item's base (a Falchion, a Plate Cuirass...), or null if there is none.
 static func icon_for(item: Dictionary) -> Texture2D:
-	var key: String = String(item["base"]).to_lower().replace(" ", "_")
+	var key: String = String(item["def"])
 	if not _icons.has(key):
-		var path: String = "%s%s.png" % [ICON_DIR, key]
+		var path: String = ItemDb.get_def(key).icon_path
 		_icons[key] = load(path) as Texture2D if ResourceLoader.exists(path) else null
 	return _icons[key]
 
 ## The icon on a dark tile with a rarity-coloured frame and a faint glow behind it, as a ready-made texture. Cached per base and rarity.
 static func badge(item: Dictionary, size: int = 96) -> Texture2D:
-	var key: String = "%s/%d/%d" % [item["base"], int(item["rarity"]), size]
+	var key: String = "%s/%d/%d" % [item["def"], int(item["rarity"]), size]
 	if _badges.has(key):
 		return _badges[key]
 	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]

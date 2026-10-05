@@ -309,5 +309,16 @@
     "polycount": 4000,
     "rig": false,
     "texture_resolution": "2k"
+  },
+  "npc_smith": {
+    "prompt": "Burly human blacksmith in his forties, bald with a short soot-dark beard, thick bare forearms scarred by burns, heavy scorched leather apron over a patched wool shirt, leather wrist guards, tired hard face, no weapon or tools in his hands, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 15000,
+    "rig": true,
+    "height": 1.8,
+    "animations": {
+      "idle": 0,
+      "calm": 11
+    }
   }
 }

@@ -24,6 +24,8 @@ var _nav_region: NavigationRegion3D
 ## The town reuses the arena's ground, walls, prop placement and navmesh with its own, smaller size and no random scatter.
 var half: float = HALF
 var scatter: bool = true
+## The invisible wall round the edge. The town turns it off and builds its own, with a real opening at the gate.
+var build_perimeter_walls: bool = true
 
 var _stage_ms: int = 0
 
@@ -40,7 +42,8 @@ func build(bake_navigation: bool = true) -> void:
 	add_child(_nav_region)
 	_build_ground()
 	_stage("ground")
-	_build_walls()
+	if build_perimeter_walls:
+		_build_walls()
 	_stage("walls")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -150,6 +153,8 @@ func bake_navigation() -> void:
 
 func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, height: float, collides: bool, lit: bool) -> void:
 	var prop: Node3D = scene.instantiate()
+	if prop_name.begins_with("town/"):   # Blender-made, painted on the vertices (tools/blender/make_town_props.py)
+		LootDrop._use_vertex_colours(prop)
 	var bounds: AABB = CharacterModel._bounds_of(prop)
 	var factor: float = height / maxf(bounds.size.y, 0.001)
 	var breakable: bool = collides and Destructible.STATS.has(prop_name)

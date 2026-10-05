@@ -3,7 +3,12 @@ extends Node3D
 ## A townsperson standing in the plaza: a rigged Meshy model on its idle loop, a solid body so the hero cannot walk through, a
 ## name tag that shows when the hero is close, and a speech line that appears when the sim has them say something.
 
+signal arrived
+
 const BARK_SECONDS := 4.0
+const WALK_SPEED := 1.7
+## Tests make everyone walk faster; nothing else touches it.
+static var speed_scale: float = 1.0
 
 var def: NpcDef
 var model: CharacterModel
@@ -14,6 +19,10 @@ var _bark_left: float = 0.0
 var _body: StaticBody3D
 var _look_at: Vector3 = Vector3.ZERO
 var _look_blend: float = 0.0
+var home: Vector3 = Vector3.ZERO   # where they stand when they have nothing to do
+var busy: bool = false             # in the middle of a scene, so the stage gives them nothing else
+var _path: PackedVector3Array = PackedVector3Array()
+var _tween: Tween
 
 static func create(npc_def: NpcDef) -> TownNpc:
 	var npc := TownNpc.new()
@@ -93,6 +102,49 @@ func face_toward(point: Vector3) -> void:
 	_look_at = point
 	_look_blend = 4.0
 
+## Walks to `target` round the props (along the navigation mesh, or straight if there is no path) and emits `arrived`.
+func walk_to(target: Vector3) -> void:
+	var map: RID = get_world_3d().navigation_map
+	var from: Vector3 = global_position
+	_path = NavigationServer3D.map_get_path(map, from, NavigationServer3D.map_get_closest_point(map, target), true)
+	if _path.is_empty():
+		_path = PackedVector3Array([target])
+	elif _path.size() > 1:
+		_path.remove_at(0)
+	if from.distance_to(target) < 0.3:
+		_path = PackedVector3Array()
+		arrived.emit.call_deferred()
+
+func is_walking() -> bool:
+	return not _path.is_empty()
+
+func walk_home() -> void:
+	walk_to(home)
+
+## Back at their place: turn to face the middle of the plaza again.
+func settle_at_home() -> void:
+	face_toward(Vector3(0, 0, -1))
+
+## A shove: a quick step in at `target` and back (the body stays put, only the model moves).
+func shove(target: Vector3) -> void:
+	_nudge((target - global_position).normalized() * 0.55, 0.12, 0.3)
+
+## Knocked back from `source`: a step away and a stagger back.
+func recoil(source: Vector3) -> void:
+	_nudge((global_position - source).normalized() * 0.7, 0.14, 0.5)
+
+func _nudge(offset: Vector3, out_time: float, back_time: float) -> void:
+	if model == null:
+		return
+	offset.y = 0.0
+	offset = global_transform.basis.inverse() * offset
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+	model.position = Vector3.ZERO
+	_tween = create_tween()
+	_tween.tween_property(model, "position", offset, out_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_tween.tween_property(model, "position", Vector3.ZERO, back_time).set_trans(Tween.TRANS_SINE)
+
 func set_tag_visible(on: bool) -> void:
 	_tag_wanted = on
 	_refresh_tag()
@@ -102,6 +154,7 @@ func _refresh_tag() -> void:
 	_tag.visible = _tag_wanted and not _bark.visible
 
 func _process(delta: float) -> void:
+	_walk(delta)
 	if _bark_left > 0.0:
 		_bark_left -= delta
 		if _bark_left <= 0.0:
@@ -113,3 +166,29 @@ func _process(delta: float) -> void:
 		if flat.length() > 0.1:
 			var want: float = atan2(flat.x, flat.z)
 			rotation.y = lerp_angle(rotation.y, want, 1.0 - exp(-6.0 * delta))
+
+func _walk(delta: float) -> void:
+	if _path.is_empty():
+		if model != null and model.current == "walk":
+			model.loop("idle", randf_range(0.9, 1.05))
+		return
+	var step: float = WALK_SPEED * speed_scale * delta
+	var done: bool = false
+	while step > 0.0 and not _path.is_empty():
+		var flat: Vector3 = _path[0] - global_position
+		flat.y = 0.0
+		var d: float = flat.length()
+		if d <= step:
+			global_position = Vector3(_path[0].x, global_position.y, _path[0].z)
+			step -= d
+			_path.remove_at(0)
+			done = _path.is_empty()
+		else:
+			global_position += flat / d * step
+			rotation.y = lerp_angle(rotation.y, atan2(flat.x, flat.z), 1.0 - exp(-10.0 * delta))
+			step = 0.0
+	_look_blend = 0.0
+	if model != null and not done:
+		model.loop("walk", minf(speed_scale, 3.0))
+	if done:
+		arrived.emit()

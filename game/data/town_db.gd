@@ -28,8 +28,8 @@ static func npc(id: String) -> NpcDef:
 static func trait_def(id: String) -> TraitDef:
 	return traits().get(id) as TraitDef
 
-static func modifier(id: String) -> WaveModifierDef:
-	return modifiers().get(id) as WaveModifierDef
+static func modifier(id: String) -> RunModifierDef:
+	return modifiers().get(id) as RunModifierDef
 
 ## Ids in a stable order (directory listings are not).
 static func sorted_ids(table: Dictionary) -> Array:

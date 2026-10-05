@@ -144,7 +144,7 @@ func _build_world() -> void:
 ## A job's modifiers set the mood of the whole run: darker, brighter, foggier.
 func _apply_job_mood(offer: Dictionary) -> void:
 	for id in offer.get("modifiers", []):
-		var def: WaveModifierDef = TownDb.modifier(String(id))
+		var def: RunModifierDef = TownDb.modifier(String(id))
 		if def != null:
 			world_environment.ambient_light_energy *= def.ambient_mult
 			world_environment.fog_density *= def.fog_mult

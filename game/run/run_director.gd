@@ -14,26 +14,26 @@ var _clear_pending: bool = false
 
 ## Seconds between a wave being cleared and the next one, for walking over what dropped.
 const LOOT_BREATHER := 6.0
-## A job taken from the town board: how many waves to survive and which rules apply (see WaveModifierDef). Empty for a free run.
+## A job taken from the town board: its objective (see JobObjective) and which rules apply (see RunModifierDef). Empty for a free run.
 var job: Dictionary = {}
-var modifiers: Array[WaveModifierDef] = []
+var modifiers: Array[RunModifierDef] = []
 var _ending: bool = false
 
-## Starts the run as the given job: its modifiers shape every wave, and clearing its last wave ends the run.
+## Starts the run as the given job: its modifiers shape every wave, and completing its objective ends the run.
 func set_job(offer: Dictionary) -> void:
 	job = offer
 	modifiers.clear()
 	for id in offer.get("modifiers", []):
-		var def: WaveModifierDef = TownDb.modifier(String(id))
+		var def: RunModifierDef = TownDb.modifier(String(id))
 		if def != null:
 			modifiers.append(def)
 
 ## The modifiers in force at this wave (some only start later).
-func active_modifiers(at_wave: int = -1) -> Array[WaveModifierDef]:
+func active_modifiers(at_wave: int = -1) -> Array[RunModifierDef]:
 	var w: int = wave if at_wave < 0 else at_wave
-	var out: Array[WaveModifierDef] = []
+	var out: Array[RunModifierDef] = []
 	for m in modifiers:
-		if m.min_wave <= w:
+		if m.min_stage <= w:
 			out.append(m)
 	return out
 
@@ -91,7 +91,7 @@ func start_wave() -> void:
 	if not modifiers.is_empty():
 		banner += "\n[%s]" % modifier_names()
 	if not job.is_empty():
-		banner += "\n%s: wave %d of %d" % [job.get("name", "Job"), wave, int(job.get("waves", 0))]
+		banner += "\n%s: %s" % [job.get("name", "Job"), JobObjective.progress_text(job, {"stage": wave})]
 	hud.show_banner(banner)
 	Enemy.max_tokens = 2 + wave / 5   # how many enemies may swing at the hero at once
 	# Packs and loners first, then the support enemies that hang back behind the packs.
@@ -263,7 +263,7 @@ func _on_enemy_died(actor: Actor) -> void:
 	_drop_loot(actor)
 	await get_tree().process_frame
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and not selftest and not player.dead:
-		if not job.is_empty() and wave >= int(job.get("waves", 0)):
+		if not job.is_empty() and JobObjective.is_complete(job, {"stage": wave}):
 			_end_run(true)
 		else:
 			_wave_cleared()

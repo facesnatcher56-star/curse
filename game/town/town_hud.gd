@@ -31,7 +31,7 @@ func _draw() -> void:
 	# The job taken, top right.
 	if not TownState.job.is_empty():
 		var job: Dictionary = TownState.job
-		var text: String = "Job: %s  (%d waves, %dg)" % [job["name"], int(job["waves"]), int(job["reward"])]
+		var text: String = "Job: %s  (%s, %dg)" % [job["name"], JobObjective.describe(job), int(job["reward"])]
 		UiTheme.draw_panel(self, Rect2(size_px.x - 484, 14, 470, 44), 0.8)
 		UiTheme.text(self, font, Vector2(size_px.x - 468, 43), text, 18, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, 440)
 	# Town news, left.

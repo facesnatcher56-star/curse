@@ -6,14 +6,21 @@ extends Node3D
 
 const HALF := 22.0
 const MAIN_SCENE := "res://game/main.tscn"
+const LAYOUT_PATH := "res://game/town/town_layout.tscn"
+const SPOT_LABELS := {"gate": "Go through the gate", "stone": "Rest at the healing stone", "board": "Read the job board",
+	"stash": "Open the stash"}
+const GATE_HALF_WIDTH := 4.5   # half the opening in the north palisade (the palisade halves start at 4.5 m)
 const INTERACT_RANGE := 3.4
 const TAG_RANGE := 8.0
 const BARK_RANGE := 16.0
 
 var arena: Arena
+var layout: Node3D                        # the town_layout.tscn instance (its Props are gone once placed)
+var stations: Dictionary = {}             # name -> position, from the layout's Stations markers: where people go (see TownStage)
 var player: Player
 var rig: CameraRig
 var sim: TownSim
+var stage: TownStage
 var hud: TownHud
 var panel: TownPanel
 var pause_menu: PauseMenu
@@ -30,6 +37,7 @@ func _ready() -> void:
 	if TownState.npcs.is_empty():
 		TownState.load_or_start()
 	sim = TownSim.new()
+	stage = TownStage.new(self)
 	_build_world()
 	_build_town()
 	player = Player.new()
@@ -81,54 +89,18 @@ func _build_world() -> void:
 	moon.directional_shadow_max_distance = 60.0
 	add_child(moon)
 
-## Layout, in metres (north is -z): the gate in the north wall, the healing stone in the middle of the plaza, the trader's stall to
-## the west and the job board to the east, the stash and the cottages south of the plaza, a palisade round the edge.
+## The static town (buildings, walls, lamps, props, the spots you use and the places people go) is the scene town_layout.tscn, edited
+## in Godot: TownProp markers under Props, Marker3Ds under Spots and Stations. This builds the ground, hands each prop to the arena
+## (collision, light, navigation), then the glow, the people and the interactions. Metres, north is -z.
 func _build_town() -> void:
 	arena = Arena.new()
 	arena.half = HALF
 	arena.scatter = false
+	arena.build_perimeter_walls = false
 	add_child(arena)
 	arena.build(false)
-	# (name, x, z, yaw degrees, height m, collides, lit)
-	var layout: Array = [
-		["town_gate", 0.0, -20.0, 0.0, 6.0, true, false],
-		["healthstone", 0.0, -2.0, 0.0, 2.3, true, false],
-		["market_stall", -9.5, -5.5, 35.0, 2.7, true, false],
-		["bulletin_board", 9.5, -8.0, -30.0, 2.8, true, false],
-		["stash_chest", 6.0, 8.0, -20.0, 0.9, true, false],
-		["cottage", -15.0, 5.0, 70.0, 5.0, true, false],
-		["cottage", 15.5, 0.0, -80.0, 5.0, true, false],
-		["cottage", -13.0, 15.5, 160.0, 5.0, true, false],
-		["lamp_post", -4.5, 4.0, 0.0, 3.2, true, true],
-		["lamp_post", 5.5, -2.5, 0.0, 3.2, true, true],
-		["lamp_post", -5.0, -13.0, 0.0, 3.2, true, true],
-		["lamp_post", 5.0, -14.0, 0.0, 3.2, true, true],
-		["brazier", -3.5, -17.0, 0.0, 1.5, true, true],
-		["brazier", 3.5, -17.0, 0.0, 1.5, true, true],
-		["barrel", -12.0, -6.5, 30.0, 1.0, true, false],
-		["barrel", -11.2, -7.4, 0.0, 1.0, true, false],
-		["wrecked_cart", 16.0, -10.0, 40.0, 1.9, true, false],
-		["dead_tree", 18.0, 14.0, 0.0, 5.5, true, false],
-		["dead_tree", -19.0, -10.0, 0.0, 5.0, true, false],
-		["rubble", 17.0, 18.0, 0.0, 1.1, true, false],
-	]
-	for entry in layout:
-		if ResourceLoader.exists(Arena.PROP_DIR + String(entry[0]) + "/model.glb"):
-			arena.place_prop(entry[0], Vector3(entry[1], 0, entry[2]), deg_to_rad(entry[3]), entry[4], entry[5], entry[6])
-	# A palisade all the way round, entirely inside the ground (which runs from -HALF to HALF): sections about 6.75 m long are laid in
-	# overlapping rows whose end sections stop exactly at the corners, so nothing sticks out past the edge. The north wall leaves the
-	# gate arch (about 9 m wide) open between its two halves.
-	if ResourceLoader.exists(Arena.PROP_DIR + "palisade/model.glb"):
-		var wall: float = HALF - 1.0             # the line the fence stands on
-		var end: float = HALF - 0.5 - 3.375      # the centre of the last section, so its far end is half a metre inside the edge
-		for k in 7:
-			var c: float = -end + 2.0 * end * float(k) / 6.0
-			arena.place_prop("palisade", Vector3(c, 0, wall), 0.0, 2.4)                       # south
-			arena.place_prop("palisade", Vector3(wall, 0, c), PI * 0.5, 2.4)                  # east
-			arena.place_prop("palisade", Vector3(-wall, 0, c), PI * 0.5, 2.4)                 # west
-		for side in [-1.0, 1.0]:                                                              # north, either side of the gate
-			for x in [7.9, 13.0, end]:
-				arena.place_prop("palisade", Vector3(side * x, 0, -wall), 0.0, 2.4)
+	_build_boundary()
+	_place_layout()
 	# The healing stone glows like embers.
 	var glow := OmniLight3D.new()
 	glow.light_color = Color(1.0, 0.5, 0.2)
@@ -139,10 +111,9 @@ func _build_town() -> void:
 	glow.add_child(FlickerLight.new())
 	arena.bake_navigation()
 
-	_register("gate", "gate", "", Vector3(0, 0, -17.5), "Go through the gate")
-	_register("stone", "stone", "", Vector3(0, 0, 0.2), "Rest at the healing stone")
-	_register("board", "board", "", Vector3(9.0, 0, -5.8), "Read the job board")
-	_register("stash", "stash", "", Vector3(6.0, 0, 6.2), "Open the stash")
+	for key in SPOT_LABELS:
+		var marker: Marker3D = layout.get_node("Spots/" + key)
+		_register(key, key, "", marker.position, SPOT_LABELS[key])
 	for id in TownDb.sorted_ids(TownDb.npcs()):
 		var def: NpcDef = TownDb.npc(id)
 		var npc: TownNpc = TownNpc.create(def)
@@ -150,7 +121,70 @@ func _build_town() -> void:
 		npc.position = Vector3(def.home.x, 0, def.home.y)
 		npc.rotation.y = atan2(-def.home.x, -def.home.y - 1.0)   # toward the middle of the plaza
 		npcs[id] = npc
+		npc.home = npc.position
 		_register("npc:" + id, "npc", id, npc.position, "Talk to %s" % def.display_name)
+
+## Solid walls on three sides and on the north side either side of a real opening (GATE_HALF_WIDTH wide on each side of the middle).
+## Beyond the opening is a trigger: walking through it leaves town. A backstop behind it stops anything walking off the ground.
+func _place_layout() -> void:
+	layout = (load(LAYOUT_PATH) as PackedScene).instantiate()
+	add_child(layout)
+	var props: Node = layout.get_node("Props")
+	for node in props.get_children():
+		var prop := node as TownProp
+		if prop != null and ResourceLoader.exists(Arena.PROP_DIR + prop.model_name + "/model.glb"):
+			arena.place_prop(prop.model_name, prop.position, prop.rotation.y, prop.height, prop.collides, prop.lit)
+	props.queue_free()   # the markers have done their job
+	for marker in layout.get_node("Stations").get_children():
+		stations[String(marker.name)] = (marker as Marker3D).position
+
+func _build_boundary() -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Actor.LAYER_WORLD
+	var rows: Array = [   # centre x, centre z, size x, size z
+		[0.0, HALF + 0.5, HALF * 2.0, 1.0],
+		[HALF + 0.5, 0.0, 1.0, HALF * 2.0],
+		[-HALF - 0.5, 0.0, 1.0, HALF * 2.0],
+	]
+	var north_len: float = HALF - GATE_HALF_WIDTH
+	for side in [-1.0, 1.0]:
+		rows.append([side * (GATE_HALF_WIDTH + north_len * 0.5), -HALF - 0.5, north_len, 1.0])
+	rows.append([0.0, -HALF - 3.0, GATE_HALF_WIDTH * 2.0 + 2.0, 1.0])   # backstop
+	for row in rows:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(row[2], 8.0, row[3])
+		shape.shape = box
+		shape.position = Vector3(row[0], 4.0, row[1])
+		body.add_child(shape)
+	arena.add_child(body)
+	# Monsters never enter town (yet): a ward across the opening on the player's layer, which enemies collide with and the hero does not.
+	var ward := StaticBody3D.new()
+	ward.collision_layer = Actor.LAYER_PLAYER
+	ward.collision_mask = 0
+	var ward_shape := CollisionShape3D.new()
+	var ward_box := BoxShape3D.new()
+	ward_box.size = Vector3(GATE_HALF_WIDTH * 2.0, 8.0, 0.5)
+	ward_shape.shape = ward_box
+	ward_shape.position = Vector3(0, 4.0, -HALF - 0.25)
+	ward.add_child(ward_shape)
+	arena.add_child(ward)
+	var trigger := Area3D.new()
+	trigger.collision_layer = 0
+	trigger.collision_mask = Actor.LAYER_PLAYER
+	trigger.monitoring = true
+	var zone := CollisionShape3D.new()
+	var zone_box := BoxShape3D.new()
+	zone_box.size = Vector3(GATE_HALF_WIDTH * 2.0, 4.0, 2.0)
+	zone.shape = zone_box
+	trigger.add_child(zone)
+	trigger.position = Vector3(0, 2.0, -HALF - 1.0)
+	trigger.body_entered.connect(_on_gate_entered)
+	add_child(trigger)
+
+func _on_gate_entered(entered: Node3D) -> void:
+	if entered == player and not leaving:
+		leave_through_gate()
 
 func _register(key: String, kind: String, id: String, pos: Vector3, label: String) -> void:
 	spots.append({"key": key, "kind": kind, "id": id, "pos": pos, "label": label})
@@ -181,6 +215,8 @@ func _welcome_back() -> void:
 	var line: String = "You are back. +%dg" % int(result.get("gold", 0))
 	if bool(result.get("completed", false)):
 		line = "Job done. +%dg" % int(result.get("gold", 0))
+	elif bool(result.get("abandoned", false)):
+		line = "The last run was cut short. Nothing earned, nothing lost."
 	elif died:
 		line = "You were dragged back. +%dg" % int(result.get("gold", 0))
 	hud.show_banner(line, 4.0)
@@ -238,15 +274,12 @@ func _update_tags() -> void:
 
 func _show_barks() -> void:
 	while not sim.barks.is_empty():
-		var bark: Dictionary = sim.barks.pop_front()
-		var npc: TownNpc = npcs.get(bark["id"])
-		if npc == null or player.global_position.distance_to(npc.global_position) > BARK_RANGE:
-			continue
-		npc.say(String(bark["text"]))
-		var partner: TownNpc = npcs.get(bark["partner"]) if bark["partner"] != "" else null
-		if partner != null:
-			npc.face_toward(partner.global_position)
-			partner.face_toward(npc.global_position)
+		stage.handle(sim.barks.pop_front())
+	stage.update(get_process_delta_time())
+	for id in npcs:   # people who have walked off are found where they are now
+		var spot: Dictionary = _spot("npc:" + id)
+		if not spot.is_empty():
+			spot["pos"] = (npcs[id] as TownNpc).position
 
 func _update_feed() -> void:
 	var count: int = sim.history.size()
@@ -318,6 +351,8 @@ func leave_through_gate() -> void:
 func _screenshot(args: PackedStringArray) -> void:
 	await get_tree().create_timer(3.0).timeout
 	for arg in args:
+		if arg.begins_with("--zoom="):   # --zoom=n: pull the camera back (the plaza opens at 2.6)
+			rig.set_zoom_now(float(arg.substr(7)))
 		if arg.begins_with("--at="):   # --at=x,z: move the hero first
 			var parts: PackedStringArray = arg.substr(5).split(",")
 			player.global_position = Vector3(float(parts[0]), 0, float(parts[1]))

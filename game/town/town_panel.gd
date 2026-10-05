@@ -142,6 +142,8 @@ func _page_npc(id: String) -> void:
 	match def.role:
 		"vendor":
 			_page_vendor(id)
+		"smith":
+			_page_smith(id)
 		"keeper":
 			_page_jobs()
 			_page_report()
@@ -180,6 +182,77 @@ func _page_vendor(id: String) -> void:
 			var item: Dictionary = TownState.stash[i]
 			var offer: int = int(TownState.item_price(item) / 2)
 			sells.add_child(_item_card(item, "Sell  %dg" % offer, TownState.vendor_gold < offer, func() -> void: _sell(i, offer)))
+
+## The smith sells weapons and armour only (never trinkets or supplies) and buys the same from the stash. Later: reforging,
+## repairs, salvage.
+func _page_smith(id: String) -> void:
+	var price_mult: float = TownSim.mood_price_mult(id)
+	_text("Gold: %d      Smith's coin: %d" % [TownState.gold, TownState.smith_gold], UiTheme.ACCENT)
+	if price_mult != 1.0:
+		_text("Prices are %s today." % ("lower" if price_mult < 1.0 else "higher"), UiTheme.TEXT_DIM)
+	if TownState.smith_stock.is_empty():
+		_restock_smith()
+	var wares := HFlowContainer.new()
+	wares.add_theme_constant_override("h_separation", 18)
+	_box.add_child(wares)
+	for i in TownState.smith_stock.size():
+		var entry: Dictionary = TownState.smith_stock[i]
+		var price: int = int(round(int(entry["price"]) * price_mult))
+		wares.add_child(_item_card(entry["item"], "Buy  %dg" % price, TownState.gold < price, func() -> void: _smith_buy(i, price, id)))
+	var sellable: Array[int] = []
+	for i in TownState.stash.size():
+		if int(TownState.stash[i]["slot"]) != Items.Slot.TRINKET:
+			sellable.append(i)
+	if not sellable.is_empty():
+		_text("Sell weapons and armour from your stash (half price, while his coin lasts):", UiTheme.TEXT_DIM)
+		var sells := HFlowContainer.new()
+		sells.add_theme_constant_override("h_separation", 18)
+		_box.add_child(sells)
+		for i in sellable:
+			var item: Dictionary = TownState.stash[i]
+			var offer: int = int(TownState.item_price(item) / 2)
+			sells.add_child(_item_card(item, "Sell  %dg" % offer, TownState.smith_gold < offer, func() -> void: _smith_sell(i, offer)))
+
+func _restock_smith() -> void:
+	TownState.smith_stock = []
+	var none: Array[String] = []
+	var names: Array[String] = []
+	var rare_chance: float = minf(0.25 + 0.1 * TownState.jobs_done, 0.6)
+	for attempt in 80:
+		if TownState.smith_stock.size() >= 4:
+			break
+		var item: Dictionary = Items.roll_one(1 + TownState.jobs_done, 0.0, rare_chance, none)
+		if int(item["slot"]) == Items.Slot.TRINKET or String(item["name"]) in names:
+			continue
+		names.append(String(item["name"]))
+		TownState.smith_stock.append({"item": item, "price": TownState.item_price(item)})
+
+func _smith_buy(index: int, price: int, id: String) -> void:
+	if index >= TownState.smith_stock.size() or TownState.gold < price:
+		return
+	var item: Dictionary = (TownState.smith_stock[index] as Dictionary)["item"]
+	TownState.gold -= price
+	TownState.smith_gold += price
+	TownState.smith_stock.remove_at(index)
+	var old: Variant = TownState.gear.get(int(item["slot"]))
+	if old != null:
+		TownState.stash_item(old as Dictionary)
+	TownState.gear[int(item["slot"])] = item
+	TownState.add_happiness(id, 1.0)
+	notice = "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
+	TownState.save()
+	_rebuild()
+
+func _smith_sell(index: int, offer: int) -> void:
+	if index >= TownState.stash.size() or TownState.smith_gold < offer:
+		return
+	var item: Dictionary = TownState.stash[index]
+	TownState.stash.remove_at(index)
+	TownState.smith_gold -= offer
+	TownState.gold += offer
+	notice = "Sold %s for %dg." % [item["name"], offer]
+	TownState.save()
+	_rebuild()
 
 func _restock() -> void:
 	TownState.stock = []
@@ -238,7 +311,7 @@ func _page_jobs() -> void:
 		var mods: Array[String] = []
 		for m in offer["modifiers"]:
 			mods.append(TownDb.modifier(m).display_name)
-		var title: String = "%s  -  %d waves  -  %dg" % [offer["name"], int(offer["waves"]), int(offer["reward"])]
+		var title: String = "%s  -  %s  -  %dg" % [offer["name"], JobObjective.describe(offer), int(offer["reward"])]
 		var detail: String = ("Rules: " + ", ".join(mods)) if not mods.is_empty() else "No special rules."
 		var chosen: bool = not accepted.is_empty() and accepted.get("name") == offer["name"]
 		_row(title + "\n" + detail, "Taken" if chosen else "Take job", chosen, func() -> void: _take_job(offer))
@@ -247,6 +320,7 @@ func _page_jobs() -> void:
 
 func _take_job(offer: Dictionary) -> void:
 	TownState.job = offer.duplicate(true)
+	TownState.save()
 	notice = "Job taken: %s. Leave through the north gate when you are ready." % offer["name"]
 	_rebuild()
 
@@ -344,7 +418,7 @@ func _page_gate() -> void:
 	if job.is_empty():
 		_text("No job taken. You can go out and fight for kills alone (2g each), but the board pays better.", UiTheme.TEXT_DIM)
 	else:
-		_text("Job: %s  -  %d waves  -  %dg" % [job["name"], int(job["waves"]), int(job["reward"])], UiTheme.ACCENT)
+		_text("Job: %s  -  %s  -  %dg" % [job["name"], JobObjective.describe(job), int(job["reward"])], UiTheme.ACCENT)
 		for m in job["modifiers"]:
 			_text("  %s: %s" % [TownDb.modifier(m).display_name, TownDb.modifier(m).description], UiTheme.TEXT_DIM)
 	_text("The clan eats %d food when you go (you have %d)." % [TownState.food_cost(), TownState.food], UiTheme.TEXT_DIM)

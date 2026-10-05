@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/npc_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dorn"
+display_name = "Dorn"
+role = "smith"
+title = "Smith"
+model_path = "res://assets/models/npc_smith"
+height = 1.8
+home = Vector2(-15.8, -9.6)
+traits = Array[String](["loyal", "gloomy"])
+start_happiness = 12.0
+recruit_cost = 0
+clan_skill = ""
+lines = {
+"greet": ["Steel doesn't care who carries it. Buy what you can swing.", "Mind the sparks."],
+"idle": ["Good iron's scarcer than good men.", "The forge never goes cold. Neither does my back.", "Can't beat a blade into shape in a hurry."],
+"return_ok": ["That edge held? Good.", "Back with all your fingers. Impressive."],
+"return_dead": ["I'll scrape what's left of your sword off the anvil."],
+"gossip": ["The trader sells scrap and swears it's steel."],
+"argue": ["You'd never last a day at the bellows."],
+"praise": ["You hold your ground. That counts."],
+"joke": ["A sword walks into a bar. Gets sheathed."],
+"small_talk": ["Cold for forging weather."],
+"work": ["Back to the anvil."]
+}

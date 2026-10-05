@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "falchion"
+display_name = "Falchion"
+slot = 0
+order = 0
+model_path = "res://assets/models/items/falchion/model.glb"
+icon_path = "res://assets/icons/items/falchion.png"
+stats = {
+"damage": 0.9,
+"speed": 1.18
+}
+tier_mult = {
+"damage": 0.08
+}
+tier_add = {}
