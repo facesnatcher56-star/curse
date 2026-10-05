@@ -7,7 +7,7 @@ reported by the test code ("[FAIL]" lines or "SELFTEST FAILED").
 import re
 import sys
 
-BAD = re.compile(r"^(SCRIPT ERROR|ERROR:|USER ERROR|.*Parse Error|.*\[FAIL\]|SELFTEST FAILED)", re.M)
+BAD = re.compile(r"^(?:SCRIPT ERROR|ERROR:|USER ERROR|.*Parse Error|.*\[FAIL\]|SELFTEST FAILED).*$", re.M)
 
 
 def main() -> int:
