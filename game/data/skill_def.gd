@@ -22,7 +22,7 @@ extends Resource
 @export var clip_end: float = 0.0
 
 @export_group("Effect")
-## "melee", "cleave", "projectile", "charge", "leap", "potion" or "dodge": which code path runs it.
+## "melee", "projectile", "charge", "leap", "potion" or "dodge": which code path runs it.
 @export var kind: String = "melee"
 @export var range: float = 2.4
 @export var mult: float = 1.0

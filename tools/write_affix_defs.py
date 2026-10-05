@@ -14,7 +14,7 @@ AFFIXES = [
     ("kindling", "Kindling", 0, "Hits on burning enemies deal 50% more damage and spread the fire to enemies next to them."),
     ("juggler", "Juggler's", 0, "Hits on enemies in mid-air deal 80% more damage and knock them back up."),
     ("breaker", "Breaker's", 0, "Hits on stunned or knocked-down enemies are always critical hits."),
-    ("maelstrom", "Maelstrom", 0, "Cleave stuns every enemy it hits for 1 second."),
+    ("maelstrom", "Maelstrom", 0, "Your combo finisher stuns every enemy it hits for 1 second."),
     ("impaler", "Impaler's", 0, "Enemies kicked off your Skewer burst where they land, hurting everything around them."),
     # Armor
     ("shock_roll", "Thunderstep", 1, "Starting a dodge roll blasts nearby enemies away and hurts them."),
@@ -24,7 +24,6 @@ AFFIXES = [
     ("smouldering", "Smouldering", 1, "When you are hit, every enemy close to you catches fire."),
     # Trinkets
     ("twin_flame", "Twin-Flame", 2, "Fireball launches a second fireball at an angle."),
-    ("whirlpool", "Whirling", 2, "Cleave first drags nearby enemies in toward you."),
     ("quickening", "Quickened", 2, "12% of kills reset all your skill cooldowns."),
     ("wildfire", "Wildfire", 2, "A Fireball that catches three or more enemies in its blast has 3 seconds taken off its cooldown."),
     ("virtuoso", "Virtuoso's", 2, "Using a different skill than your last adds 20% damage (up to 3 stacks, for 4 seconds). Repeating a skill drops the stacks."),

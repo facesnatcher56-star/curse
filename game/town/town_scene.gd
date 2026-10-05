@@ -2,12 +2,12 @@ class_name TownScene
 extends Node3D
 ## The hub between runs: a small walled plaza with the north gate, the healing stone, the trader's stall, the job board, a stash and
 ## a handful of townspeople who live their own lives (see TownSim). Walk up to someone or something and click it, or press the
-## interact button, to open its panel. The gate starts the job you took, or a free run.
+## interact button, to open its panel. Walking through the gate starts the job you took at the board.
 
 const HALF := 22.0
 const MAIN_SCENE := "res://game/main.tscn"
 const LAYOUT_PATH := "res://game/town/town_layout.tscn"
-const SPOT_LABELS := {"gate": "Go through the gate", "stone": "Rest at the healing stone", "board": "Read the job board",
+const SPOT_LABELS := {"stone": "Rest at the healing stone", "board": "Read the job board",
 	"stash": "Open the stash"}
 const GATE_HALF_WIDTH := 4.5   # half the opening in the north palisade (the palisade halves start at 4.5 m)
 const INTERACT_RANGE := 3.4
@@ -197,7 +197,6 @@ func _build_ui() -> void:
 	layer.add_child(hud)
 	panel = TownPanel.new()
 	panel.town = self
-	panel.leave_requested.connect(leave_through_gate)
 	layer.add_child(panel)
 	pause_menu = PauseMenu.new()
 	pause_menu.restart_requested.connect(func() -> void: get_tree().reload_current_scene())
@@ -237,6 +236,7 @@ func _process(delta: float) -> void:
 	_update_near()
 	_update_tags()
 	hud.prompt = "" if panel.is_open() or near.is_empty() else "%s   %s" % [_interact_key(), near["label"]]
+	hud.gate_hint = "" if panel.is_open() or not _near_gate() else _gate_hint()
 	_update_feed()
 	if not pending.is_empty() and not panel.is_open():
 		var spot: Dictionary = _spot(pending)
@@ -247,6 +247,14 @@ func _process(delta: float) -> void:
 
 func _interact_key() -> String:
 	return "[A]" if Gamepad.active else "[E]"
+
+func _near_gate() -> bool:
+	return absf(player.global_position.x) <= GATE_HALF_WIDTH + 1.0 and player.global_position.z <= -HALF + 7.0
+
+func _gate_hint() -> String:
+	if TownState.job.is_empty():
+		return "Choose a job at the board before leaving town"
+	return "%s — %s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.describe(TownState.job)]
 
 func _flat_distance(spot: Dictionary) -> float:
 	var offset: Vector3 = player.global_position - (spot["pos"] as Vector3)
@@ -335,8 +343,6 @@ func interact(spot: Dictionary) -> void:
 			panel.open_board()
 		"stash":
 			panel.open_stash()
-		"gate":
-			panel.open_gate()
 		"stone":
 			player.health = player.max_health
 			hud.show_banner("The stone is warm. You feel whole.", 2.5)
@@ -355,9 +361,12 @@ func change_potions(delta: int) -> void:
 	player.stats.potions = clampi(player.stats.potions + delta, 0, 99)
 	TownState.potions = player.stats.potions
 
-## Out of the gate and into a run: the job (if any) is set, the clan eats, the town is saved.
+## Out of the gate and into a run: the selected job is set, the clan eats, the town is saved.
 func leave_through_gate() -> void:
 	if leaving:
+		return
+	if TownState.job.is_empty():
+		hud.show_banner("Choose a job before leaving town", 2.5)
 		return
 	leaving = true
 	TownState.potions = player.stats.potions   # the hero's count first, so the save that begin_job makes has it
@@ -373,15 +382,13 @@ func _screenshot(args: PackedStringArray) -> void:
 			var parts: PackedStringArray = arg.substr(5).split(",")
 			player.global_position = Vector3(float(parts[0]), 0, float(parts[1]))
 			await get_tree().create_timer(1.0).timeout
-		if arg.begins_with("--panel="):   # --panel=marlow | board | stash | gate: open that panel first
+		if arg.begins_with("--panel="):   # --panel=marlow | board | stash: open that panel first
 			var what: String = arg.substr(8)
 			match what:
 				"board":
 					panel.open_board()
 				"stash":
 					panel.open_stash()
-				"gate":
-					panel.open_gate()
 				_:
 					panel.open_npc(what)
 			await get_tree().create_timer(0.8).timeout

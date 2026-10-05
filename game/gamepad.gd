@@ -6,9 +6,9 @@ extends RefCounted
 ##   Right stick  camera: left/right turns it, up/down zooms. While an aimed skill (Fireball) is held it slides the target area instead.
 ##                The target is always the enemy nearest to where the hero faces; holding A attacks it.
 ##   A            attack the target (hold to keep attacking)         B   dodge roll
-##   X / Y        skills 1 / 2 (Power Strike, Cleave)                RB  skill 3 (Fireball: hold to aim, release to cast)
-##   LB           skill 4 (potion)                                   RT  skill 5 (Skewer)        LT  skill 6 (Leap)
-##   R3 (press the right stick)  skill 7: the ultimate, Earthshatter
+##   X / Y        Power Strike / Fireball (hold to aim, release)     RB  potion
+##   LB           Skewer                                             RT  Leap
+##   R3 (press the right stick)  Earthshatter
 ##   D-pad up/down  camera zoom       L3  stand still (hold)         Back  gear (hold)           Start  pause
 ## The buttons are ordinary input actions (see InputSetup), so they also work in menus and on the reward screen.
 
@@ -114,6 +114,6 @@ static func label_for(action: String) -> String:
 static func help_text() -> String:
 	var move: String = "R-stick" if GameSettings.swap_sticks else "L-stick"
 	var aim: String = "L-stick" if GameSettings.swap_sticks else "R-stick"
-	return "%s move   %s camera (aim while holding Fireball)   %s attack   %s/%s/%s/%s/%s/%s skills   %s ultimate   %s dodge   %s gear   %s pause" % [move, aim,
+	return "%s move   %s camera (aim while holding Fireball)   %s attack   %s/%s/%s/%s/%s skills   %s ultimate   %s dodge   %s gear   %s pause" % [move, aim,
 		label_for("alt_skill"), label_for("skill_1"), label_for("skill_2"), label_for("skill_3"), label_for("skill_4"),
-		label_for("skill_5"), label_for("skill_6"), label_for("skill_7"), label_for("dodge"), label_for("gear"), label_for("pause")]
+		label_for("skill_5"), label_for("skill_6"), label_for("dodge"), label_for("gear"), label_for("pause")]

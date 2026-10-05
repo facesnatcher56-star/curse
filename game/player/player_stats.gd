@@ -19,7 +19,7 @@ func skill_has_modifier(id: String) -> bool:
 func skill_damage_text(id: String) -> String:
 	var skill: Dictionary = SkillDb.all()[id]
 	match String(skill["kind"]):
-		"melee", "cleave":
+		"melee":
 			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * float(skill["mult"])
 			if id == "basic":
 				return "Damage %d-%d per hit" % [int(weapon_min * factor), int(weapon_max * factor)]

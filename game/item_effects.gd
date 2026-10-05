@@ -57,7 +57,7 @@ static func on_skill_start(player: Player, id: String) -> void:
 	if stats.chain_stacks > 0:
 		Fx.text_at(player, player.global_position + Vector3(0, 2.7, 0), "Virtuoso x%d" % stats.chain_stacks, Color(1.0, 0.85, 0.4), 40)
 
-## Every hit the player lands (melee, cleave, fireball, even kills) passes through here.
+## Every hit the player lands (melee, fireball, even kills) passes through here.
 static func on_dealt_hit(player: Player, target: Actor, result: Dictionary) -> void:
 	if result.get("secondary", false):
 		return
@@ -75,7 +75,7 @@ static func on_dealt_hit(player: Player, target: Actor, result: Dictionary) -> v
 	if player.stats.has_affix("chain") and randf() < 0.25:
 		_chain_lightning(player, target, result)
 	if player.stats.has_affix("cleaving") and result.get("finisher", false):
-		_cleave_arc(player, target, result)
+		_finisher_arc(player, target, result)
 
 ## Kindling: the fire on a burning enemy you hit jumps to the ones standing next to it.
 static func _spread_burn(player: Player, target: Actor) -> void:
@@ -126,7 +126,7 @@ static func _chain_lightning(player: Player, target: Actor, result: Dictionary) 
 	arc["secondary"] = true
 	other.receive(arc, target.global_position)
 
-static func _cleave_arc(player: Player, target: Actor, result: Dictionary) -> void:
+static func _finisher_arc(player: Player, target: Actor, result: Dictionary) -> void:
 	var facing: Vector3 = target.global_position - player.global_position
 	facing.y = 0.0
 	facing = facing.normalized()
@@ -288,20 +288,6 @@ static func power_shockwave(player: Player, direction: Vector3) -> void:
 			var wave: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(1.0), Combat.DamageType.PHYSICAL, false, 1.8)
 			wave["secondary"] = true
 			e.receive(wave, player.global_position)
-
-## Whirlpool: Cleave drags enemies in before it lands.
-static func pull_for_cleave(player: Player) -> void:
-	if not player.stats.has_affix("whirlpool"):
-		return
-	SkillFx.whirlpool(player, 5.0)
-	for node in player.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or e.flat_distance_to(player) > 5.0:
-			continue
-		var toward: Vector3 = player.global_position - e.global_position
-		toward.y = 0.0
-		e.knock += toward.normalized() * 7.0 * (1.0 - e.knock_resist)
-		SkillFx.whirlpool_tug(player, e)
 
 ## Wildfire: a Fireball that catches three or more enemies in its blast gets three seconds off its cooldown.
 static func on_fireball_blast(player: Player, caught: int) -> void:

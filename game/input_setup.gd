@@ -14,7 +14,7 @@ static func apply() -> void:
 	_key("gear", KEY_TAB)
 	_key("pause", KEY_ESCAPE)
 	_key("interact", KEY_E)
-	for i in 7:
+	for i in 6:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()
 
@@ -30,8 +30,7 @@ static func _apply_gamepad() -> void:
 	_pad_button("skill_3", JOY_BUTTON_RIGHT_SHOULDER)
 	_pad_button("skill_4", JOY_BUTTON_LEFT_SHOULDER)
 	_pad_trigger("skill_5", JOY_AXIS_TRIGGER_RIGHT)
-	_pad_trigger("skill_6", JOY_AXIS_TRIGGER_LEFT)
-	_pad_button("skill_7", JOY_BUTTON_RIGHT_STICK)
+	_pad_button("skill_6", JOY_BUTTON_RIGHT_STICK)
 	_pad_button("stand_still", JOY_BUTTON_LEFT_STICK)
 	_pad_button("gear", JOY_BUTTON_BACK)
 	_pad_button("pause", JOY_BUTTON_START)

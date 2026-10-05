@@ -118,7 +118,7 @@ func _draw() -> void:
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, 50), "enemies", str(alive), 24.0, 18)
 	# The control hints fade to a whisper after the first half minute.
 	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
-	UiTheme.text(self, font, Vector2(24, 100), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
+	UiTheme.text(self, font, Vector2(24, 100), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
 		14, Color(1, 1, 1, 0.5 * hint_alpha))
 
 	_draw_minimap(size_px, font)
@@ -240,7 +240,9 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 	var pad: float = 14.0
 	var inner: float = width - pad * 2.0
 	var lines: Array[String] = Items.lines(item)
-	var compare: Array[Dictionary] = Items.compare(item, worn) if with_compare else []
+	var compare: Array[Dictionary] = []
+	if with_compare:
+		compare = Items.compare(item, worn)
 	var height: float = pad * 2.0 + 54.0
 	for line in lines:
 		height += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 4.0

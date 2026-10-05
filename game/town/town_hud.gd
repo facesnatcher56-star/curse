@@ -4,6 +4,7 @@ extends Control
 ## and a short feed of what has been happening in town.
 
 var prompt: String = ""
+var gate_hint: String = ""
 var feed: Array[String] = []
 var banner: String = ""
 var banner_time: float = 0.0
@@ -55,6 +56,11 @@ func _draw() -> void:
 		var box := Rect2(size_px.x * 0.5 - width * 0.5 - 24, size_px.y - 124, width + 48, 50)
 		UiTheme.draw_panel(self, box, 0.9)
 		UiTheme.text(self, font, Vector2(box.position.x + 24, box.position.y + 34), prompt, 24, UiTheme.TEXT)
+	if gate_hint != "":
+		var width: float = font.get_string_size(gate_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
+		var box := Rect2(size_px.x * 0.5 - width * 0.5 - 20, size_px.y - 124, width + 40, 46)
+		UiTheme.draw_panel(self, box, 0.85)
+		UiTheme.text(self, font, Vector2(box.position.x + 20, box.position.y + 31), gate_hint, 19, UiTheme.TEXT)
 	if banner_time > 0.0:
 		var alpha: float = clampf(banner_time, 0.0, 1.0)
 		draw_rect(Rect2(0, 100, size_px.x, 72), Color(0, 0, 0, 0.4 * alpha))

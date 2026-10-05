@@ -208,7 +208,7 @@ static func gravewarden_wave(player: Player, dir: Vector3) -> void:
 	Fx.text_at(player, origin + Vector3(0, 2.7, 0), "Gravewarden", Color(0.95, 0.8, 0.5), 40)
 	Fx.shake(player, 0.2)
 
-# --- Cleave ------------------------------------------------------------------------------
+# --- Reserved spinning-weapon effects ----------------------------------------------------
 
 ## The whirling blow: a full-circle slash disc at chest height, a dust ring and outward sparks.
 static func cleave_burst(player: Player, radius: float) -> void:

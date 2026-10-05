@@ -1,18 +1,17 @@
 class_name TownPanel
 extends Control
 ## The window that opens when the hero talks to someone or uses something in town: the trader's wares, the job board, the healer,
-## the recruit, the stash and the gate. Built in code from TownState; every button is an ordinary focusable Button, so a controller's
+## the recruit and the stash. Built in code from TownState; every button is an ordinary focusable Button, so a controller's
 ## D-pad and A/B drive it. The world is paused while it is open.
 
 signal closed
-signal leave_requested   # the hero chose to walk out of the gate
 
 const POTION_PRICE := 15
 const FOOD_PRICE := 6
 const FOOD_PACK := 3
 
 var town: Node            # the TownScene (for its sim and the hero)
-var current: String = ""  # which page is showing: "npc:<id>", "board", "stash", "gate"
+var current: String = ""  # which page is showing: "npc:<id>", "board", "stash"
 var notice: String = ""
 
 var _dim: ColorRect
@@ -70,11 +69,6 @@ func open_stash() -> void:
 	notice = ""
 	_show()
 
-func open_gate() -> void:
-	current = "gate"
-	notice = ""
-	_show()
-
 func close() -> void:
 	if not visible:
 		return
@@ -106,8 +100,6 @@ func _rebuild() -> void:
 		_page_board()
 	elif current == "stash":
 		_page_stash()
-	elif current == "gate":
-		_page_gate()
 	for child in _footer.get_children():
 		_footer.remove_child(child)
 		child.queue_free()
@@ -408,24 +400,6 @@ func _wear(index: int) -> void:
 	notice = "Now wearing %s." % item["name"]
 	TownState.save()
 	_rebuild()
-
-func _page_gate() -> void:
-	_box.add_child(UiTheme.title_label("The North Gate", 38))
-	var job: Dictionary = TownState.job
-	if job.is_empty():
-		_text("No job taken. You can go out and fight for kills alone (2g each), but the board pays better.", UiTheme.TEXT_DIM)
-	else:
-		_text("Job: %s  -  %s  -  %dg" % [job["name"], JobObjective.describe(job), int(job["reward"])], UiTheme.ACCENT)
-		for m in job["modifiers"]:
-			_text("  %s: %s" % [TownDb.modifier(m).display_name, TownDb.modifier(m).description], UiTheme.TEXT_DIM)
-	_text("The clan eats %d food when you go (you have %d)." % [TownState.food_cost(), TownState.food], UiTheme.TEXT_DIM)
-	if TownState.food < TownState.food_cost():
-		_text("Not enough food. The clan will go hungry and unhappy.", Color(0.85, 0.45, 0.35))
-	var go := UiTheme.button("Walk out into the dark", 320.0)
-	go.pressed.connect(func() -> void:
-		close()
-		leave_requested.emit())
-	_box.add_child(go)
 
 # --- Building blocks -----------------------------------------------------------------------------------------------------
 

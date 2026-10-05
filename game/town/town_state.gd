@@ -23,7 +23,7 @@ static var stash: Array = []              # spare items
 static var npcs: Dictionary = {}          # id -> {happiness: float, traits: [id], member: bool, left: bool}
 static var relations: Dictionary = {}     # "a|b" (ids sorted) -> 0..100, 50 is neutral
 static var board: Array = []              # job offers: {name, location, objective, modifiers: [id], reward} (see JobObjective)
-static var job: Dictionary = {}           # the job being run (empty: a free arena run)
+static var job: Dictionary = {}           # the chosen job (empty: no gate travel)
 static var last_run: Dictionary = {}      # {kills, wave, completed, died, gold} of the run just finished (abandoned: true if the game was closed mid-run)
 ## Saving is a conscious choice: the job taken and the last run's result are saved, but a run itself is not (no mid-run saves yet).
 ## `run_in_progress` is saved when the hero leaves the gate and cleared when the run ends, so a town that loads with it still set knows

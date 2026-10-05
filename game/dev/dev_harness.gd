@@ -49,8 +49,6 @@ func run_from_args() -> bool:
 		_gib_shots()
 	elif OS.get_cmdline_user_args().has("--skillshot=power"):
 		_melee_shots("power")
-	elif OS.get_cmdline_user_args().has("--skillshot=cleave"):
-		_melee_shots("cleave")
 	elif OS.get_cmdline_user_args().has("--aimshot"):
 		_aim_shot()
 	elif OS.get_cmdline_user_args().has("--pauseshot"):
@@ -69,6 +67,8 @@ func run_from_args() -> bool:
 		_pose_sheet()
 	elif _clip_arg() != "":
 		_clip_sheet(_clip_arg())
+	elif OS.get_cmdline_user_args().has("--roadreturn=clear") or OS.get_cmdline_user_args().has("--roadreturn=skipped"):
+		_measure_road_return()
 	elif OS.get_cmdline_user_args().has("--selftest"):
 		_run_selftest()
 	elif OS.get_cmdline_user_args().has("--shot"):
@@ -77,6 +77,57 @@ func run_from_args() -> bool:
 	else:
 		return false
 	return true
+
+## Developer measurement: time the normal click-to-move return from the third nest to the road gate.
+## Run with --crypt --roadreturn=clear|skipped; the skipped case leaves three groups on the route.
+func _measure_road_return() -> void:
+	var scenario: String = "skipped" if OS.get_cmdline_user_args().has("--roadreturn=skipped") else "clear"
+	var place: CryptRoad = game.location
+	if place == null:
+		push_error("Road return measurement needs --crypt")
+		get_tree().quit(1)
+		return
+	await place.wait_for_navigation()
+	game.director.start_location(place)
+	for i in 2:
+		place.nests[i].hit(999.0, Vector3.FORWARD)
+	await get_tree().physics_frame
+	player.global_position = Nav.snap(player, place.nests[2].global_position + Vector3(4.0, 0.0, 0.0))
+	player.reset_physics_interpolation()
+	place.nests[2].hit(999.0, Vector3.FORWARD)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if scenario == "clear" or enemy.group_id not in [1, 9, 11, 103]:
+			enemy.queue_free()
+	await get_tree().physics_frame
+	player.attack_target = null
+	player.attack_prop = null
+	player.skills.queued_skill = ""
+	var waypoints: Array[Vector3] = [Vector3(0.0, 0.0, -98.0), Vector3(0.0, 0.0, -40.0), Vector3(0.0, 0.0, 20.0),
+		Vector3(0.0, 0.0, 92.0), Vector3(0.0, 0.0, 150.0), Vector3(0.0, 0.0, CryptRoad.EXIT_Z)]
+	var waypoint_index: int = 0
+	player.movement.goal = waypoints[waypoint_index]
+	player.movement.has_goal = true
+	var start: Vector3 = player.global_position
+	var elapsed: float = 0.0
+	var next_report: float = 15.0
+	print("ROAD RETURN %s start=%s exit_z=%.1f speed=%.1f enemies=%d" % [scenario, start, CryptRoad.EXIT_Z,
+		player.stats.run_speed, get_tree().get_nodes_in_group("enemies").size()])
+	while elapsed < 140.0 and not player.dead and not game.director.is_ending():
+		await get_tree().physics_frame
+		elapsed += 1.0 / float(Engine.physics_ticks_per_second)
+		if player.global_position.distance_to(waypoints[waypoint_index]) < 2.0 and waypoint_index < waypoints.size() - 1:
+			waypoint_index += 1
+			player.movement.goal = waypoints[waypoint_index]
+			player.movement.has_goal = true
+			print("ROAD RETURN %s waypoint=%d t=%.1f pos=%s" % [scenario, waypoint_index, elapsed, player.global_position])
+		if elapsed >= next_report:
+			print("ROAD RETURN %s t=%.1f z=%.1f x=%.1f hp=%.0f stamina=%.0f" % [scenario, elapsed,
+				player.global_position.z, player.global_position.x, player.health, player.stats.stamina])
+			next_report += 15.0
+	print("ROAD RETURN %s RESULT t=%.2f reached=%s dead=%s z=%.1f hp=%.0f stamina=%.0f" % [scenario,
+		elapsed, game.director.is_ending(), player.dead, player.global_position.z, player.health, player.stats.stamina])
+	get_tree().quit(0 if game.director.is_ending() else 1)
 
 ## Skewer: a Brute in the lane is staggered (not impaled); three zombies are impaled, ragdoll, get kicked off and
 ## thrown trailing blood, lie limp, then get back up. A fourth zombie is only shoved aside.
@@ -656,7 +707,7 @@ func _test_gamepad() -> void:
 	await get_tree().process_frame
 	# Every action has its pad button.
 	var wanted: Dictionary = {"alt_skill": true, "dodge": true, "skill_1": true, "skill_2": true, "skill_3": true, "skill_4": true,
-		"skill_5": true, "skill_6": true, "skill_7": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
+		"skill_5": true, "skill_6": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
 	var missing: PackedStringArray = []
 	for action in wanted:
 		var has_pad: bool = false
@@ -833,14 +884,14 @@ func _test_swarm() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.health = player.max_health
-	player.skills.start_skill("cleave", null, player.global_position + Vector3(0, 0, 2))
+	player.skills.start_skill("power", zs[0], zs[0].global_position)
 	var cast: float = 0.0
 	var interrupted: bool = false
 	while player.skills.busy and cast < 3.0:
 		await get_tree().physics_frame
 		cast += 1.0 / 60.0
-	expect("a cleave in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
-	print("  cleave inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
+	expect("a Power Strike in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
+	print("  Power Strike inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
 	for z in zs:
 		if is_instance_valid(z):
 			z.queue_free()
@@ -1323,7 +1374,6 @@ func _test_items() -> void:
 		ItemEffects.on_kill(player, target)
 		ItemEffects.on_roll_start(player)
 		ItemEffects.power_shockwave(player, Vector3(1, 0, 0))
-		ItemEffects.pull_for_cleave(player)
 		var incoming: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 10.0, "weight": 1.0}
 		ItemEffects.filter_incoming(player, incoming)
 		for d in dummies:
@@ -1420,7 +1470,7 @@ func _gib_shots() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_gib_%d.png" % i)
 	get_tree().quit()
 
-## `-- --skillshot=power|cleave [--mods]`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
+## `-- --skillshot=power [--mods]`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
 ## With --mods the hero wears every skill-modifying affix so their effects show too.
 func _melee_shots(which: String) -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1428,7 +1478,7 @@ func _melee_shots(which: String) -> void:
 	player.stats.mana = player.stats.max_mana
 	player.set_physics_process(true)
 	if OS.get_cmdline_user_args().has("--mods"):
-		for affix in ["gravewarden", "whirlpool", "searing", "executioner", "chain", "cleaving", "kindling", "juggler", "breaker", "maelstrom"]:
+		for affix in ["gravewarden", "searing", "executioner", "chain", "cleaving", "kindling", "juggler", "breaker", "maelstrom"]:
 			player.stats.equipment["mod_" + affix] = {"affix": affix, "name": affix, "rarity": 1, "slot": 0}
 	var targets: Array[Enemy] = []
 	for pos in [Vector3(0.0, 0, -2.4), Vector3(1.2, 0, -2.9), Vector3(-1.3, 0, -2.2), Vector3(0.4, 0, -4.2), Vector3(2.0, 0, -1.0), Vector3(-2.2, 0, 0.8)]:
@@ -1565,11 +1615,11 @@ func _aim_shot() -> void:
 ## `-- --hudshot`: put skills on cooldown (and drain mana) to check the hotbar cooldown display.
 func _hud_shot() -> void:
 	player.set_physics_process(false)
-	player.stats.cooldowns = {"power": 1.1, "cleave": 2.0, "fireball": 0.3, "dodge": 0.6}
+	player.stats.cooldowns = {"power": 1.1, "fireball": 0.3, "dodge": 0.6}
 	player.stats.mana = 9.0
 	await get_tree().create_timer(0.15).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_0.png")
-	player.stats.cooldowns = {"power": 0.0, "cleave": 0.9, "fireball": 0.0, "dodge": 0.0}
+	player.stats.cooldowns = {"power": 0.0, "fireball": 0.0, "dodge": 0.0}
 	await get_tree().create_timer(0.1).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
@@ -1734,7 +1784,7 @@ func _pose_sheet() -> void:
 		["kick", 0.6], ["kick", 0.75], ["kick", 0.9], ["kick", 1.1], ["kick", 1.3], ["charge", 2.0]]
 	if OS.get_cmdline_user_args().has("--oldposes"):
 		poses = [["idle_alert", 1.0], ["slash_r", 0.73], ["slash_l", 1.37], ["thrust", 1.57], ["power", 1.23],
-			["cleave", 1.73], ["cleave", 2.4], ["combo_end", 1.37], ["cast", 0.53], ["roll", 0.8], ["hit", 0.3], ["run", 0.3]]
+			["combo_end", 1.37], ["cast", 0.53], ["roll", 0.8], ["hit", 0.3], ["run", 0.3]]
 	for i in poses.size():
 		player.model.manual(poses[i][0])
 		player.model.scrub(poses[i][1])
@@ -2089,10 +2139,6 @@ func _test_sword_sound() -> void:
 	enemy.receive(secondary, player.global_position)
 	expect("splash damage is not a sword hit either", Sfx.played_log.size() == 2)
 	await get_tree().create_timer(0.1).timeout
-	var cleave: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
-	cleave["skill_id"] = "cleave"
-	enemy.receive(cleave, player.global_position)
-	expect("every sword skill makes it", _logged("sword_hit") == 2)
 	# The four swing recordings are all used, never the same twice running.
 	Sfx.played_log.clear()
 	var repeats: bool = false
@@ -2109,7 +2155,7 @@ func _test_sword_sound() -> void:
 	enemy.queue_free()
 	await get_tree().process_frame
 
-## Any time the sword swings and finds nothing, a swing sound plays: a swing at a target that is out of reach, a Cleave with nobody
+## Any time the sword swings and finds nothing, a swing sound plays: a swing at a target that is out of reach, a Power Strike with nobody
 ## around, a Leap chop on open ground.
 func _test_sword_miss_in_air() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -2135,16 +2181,16 @@ func _test_sword_miss_in_air() -> void:
 	expect("a swing that cannot reach its target makes the swing sound", _logged("sword_miss") == 1 and _logged("sword_hit") == 0)
 	far.queue_free()
 	await get_tree().process_frame
-	# A Cleave with nobody in range.
+	# A Power Strike with nobody in range.
 	await get_tree().create_timer(0.2).timeout
 	Sfx._last_played.clear()
 	Sfx.played_log.clear()
-	player.skills.start_skill("cleave", null, player.global_position + Vector3(0, 0, -3))
+	player.skills.start_skill("power", null, player.global_position + Vector3(0, 0, -3))
 	t = 0.0
 	while player.skills.busy and t < 3.0:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
-	expect("a Cleave through empty air makes the swing sound", _logged("sword_miss") == 1)
+	expect("a Power Strike through empty air makes the swing sound", _logged("sword_miss") == 1)
 	# A Leap chop onto open ground.
 	player.stats.cooldowns.clear()
 	Sfx._last_played.clear()
@@ -2166,7 +2212,7 @@ func _test_sword_miss_in_air() -> void:
 		player.stats.cooldowns.clear()
 		Sfx._last_played.clear()
 		Sfx.played_log.clear()
-		player.skills.start_skill("cleave", null, near.global_position)
+		player.skills.start_skill("power", near, near.global_position)
 		t = 0.0
 		while player.skills.busy and t < 3.0:
 			await get_tree().physics_frame
@@ -2174,7 +2220,7 @@ func _test_sword_miss_in_air() -> void:
 		if _logged("sword_hit") >= 1:
 			break
 		await get_tree().create_timer(0.1).timeout
-	expect("a Cleave that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
+	expect("a Power Strike that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
 	near.queue_free()
 	Sfx.enabled = was_enabled
 	await get_tree().process_frame
@@ -2883,13 +2929,18 @@ func _test_town_scene() -> void:
 	var kinds: Dictionary = {}
 	for spot in town.spots:
 		kinds[spot["kind"]] = true
-	expect("the town has a gate, stone, board, stash and people", kinds.has("gate") and kinds.has("stone") and kinds.has("board")
+	expect("the town has interactive stone, board, stash and people, but no gate menu", not kinds.has("gate") and kinds.has("stone") and kinds.has("board")
 		and kinds.has("stash") and kinds.has("npc"))
-	# Standing near the gate offers it.
+	# Standing near the gate shows travel information, without an interaction prompt or a free run.
 	town.player.global_position = Vector3(0, 0, -16.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("standing at the gate offers it", town.near.get("kind") == "gate" and town.hud.prompt.contains("gate"))
+	expect("the gate asks for a job without offering an interaction", town.near.is_empty() and town.hud.prompt == ""
+		and town.hud.gate_hint.contains("Choose a job"))
+	var food_before_gate: int = TownState.food
+	town._on_gate_entered(town.player)
+	expect("walking through the gate without a job stays in town and spends no food", not town.leaving
+		and not TownState.run_in_progress and TownState.food == food_before_gate)
 	# The gate is a real opening: the north edge is walled either side of it, and the opening itself is clear.
 	var space: PhysicsDirectSpaceState3D = town.get_world_3d().direct_space_state
 	var blocked_at: Callable = func(x: float) -> bool:
@@ -2987,12 +3038,13 @@ func _test_town_scene() -> void:
 	town.panel._take_job(offer)
 	expect("taking a job sets it", TownState.job.get("name") == offer["name"])
 	town.panel.close()
+	town.player.global_position = Vector3(0, 0, -16.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("near the gate, the chosen destination and objective appear without a button", town.hud.gate_hint.contains(String(offer["location"]).capitalize())
+		and town.hud.gate_hint.contains(JobObjective.describe(offer)) and town.hud.prompt == "")
 	town.panel.open_stash()
 	await get_tree().process_frame
-	town.panel.close()
-	town.panel.open_gate()
-	await get_tree().process_frame
-	expect("the gate page names the job", town.panel.visible and _label_text(town.panel).contains(String(offer["name"])))
 	town.panel.close()
 	expect("closing a panel unpauses the world", not get_tree().paused)
 	# Shopping.
@@ -3331,6 +3383,11 @@ func _test_item_icons() -> void:
 	Input.action_press("gear")
 	await get_tree().create_timer(0.3).timeout
 	expect("the Tab panel has a picture for what is worn", not hud._gear_hits.is_empty())
+	if not hud._gear_hits.is_empty():
+		hud.mouse_override = (hud._gear_hits[0]["rect"] as Rect2).get_center()
+		hud.queue_redraw()
+		await get_tree().process_frame   # drawing a worn item's card uses the empty typed comparison list
+		hud.mouse_override = Vector2(-1.0, -1.0)
 	Input.action_release("gear")
 	await get_tree().process_frame
 
@@ -3488,13 +3545,15 @@ func _test_new_affixes() -> void:
 		described = described and String(entry["desc"]) != ""
 		if String(entry["title"]) != "":
 			counts[int(entry["slot"])] += 1
-	expect("9 weapon, 5 armor and 7 trinket affixes can roll on rares", counts[0] == 9 and counts[1] == 5 and counts[2] == 7)
+	expect("9 weapon, 5 armor and 6 trinket affixes can roll on rares", counts[0] == 9 and counts[1] == 5 and counts[2] == 6)
 	expect("every affix is described", described)
 	var pips_ok: bool = true
 	for skill_id in SkillDb.all():
 		for affix_id in SkillDb.modifier_affixes(skill_id):
 			pips_ok = pips_ok and AffixDb.all().has(affix_id)
 	expect("every skill's list of affixes that change it names real ones", pips_ok)
+	expect("Cleave and Whirling are absent from playable definitions and loot", not SkillDb.all().has("cleave") and not AffixDb.all().has("whirlpool")
+		and not player.skills.hotbar.has("cleave") and player.skills.hotbar.size() == 6)
 
 	var saved: Dictionary = player.stats.equipment.duplicate()
 	player.global_position = Vector3(0, 0, 0)
@@ -3546,20 +3605,22 @@ func _test_new_affixes() -> void:
 	expect("a knocked-down one is", ItemEffects.guaranteed_crit(player, far))
 	await get_tree().create_timer(3.0).timeout
 
-	# Maelstrom: Cleave stuns everything it hits.
-	_wear("maelstrom", 0)
+	# Maelstrom: the Greatsword finisher stuns its target and another enemy caught by the slam.
+	player.stats.equipment = {}
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "maelstrom", "Greatsword"), false)
 	for e in [a, b]:
-		e.global_position = player.global_position + Vector3(1.4 if e == a else -1.4, 0, 0)
+		e.global_position = player.global_position + (Vector3(0, 0, 1.4) if e == a else Vector3(0.6, 0, 2.0))
 		e.stun_time = 0.0
 	await get_tree().process_frame
-	player.skills.start_skill("cleave", a, null)
+	player.skills.combo_step = 2
+	player.skills.start_skill("basic", a, a.global_position)
 	var longest: float = 0.0
 	var t: float = 0.0
 	while t < 1.8:
 		await get_tree().physics_frame
 		t += 1.0 / 60.0
 		longest = maxf(longest, minf(a.stun_time, b.stun_time))
-	expect("Cleave stuns everything it catches for about a second (%.2f)" % longest, longest >= 0.8)
+	expect("Maelstrom stuns the Greatsword finisher target and its slam victim for about a second (%.2f)" % longest, longest >= 0.8)
 	await get_tree().create_timer(1.5).timeout
 	for e in [a, b]:
 		e.global_position = Vector3(6, 0, 0) if e == a else Vector3(7.2, 0, 0)
@@ -3625,7 +3686,7 @@ func _test_new_affixes() -> void:
 	player.stats.chain_last = ""
 	ItemEffects.on_skill_start(player, "power")
 	expect("the first skill starts the streak with no bonus", player.stats.chain_stacks == 0 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.0))
-	ItemEffects.on_skill_start(player, "cleave")
+	ItemEffects.on_skill_start(player, "basic")
 	expect("a different second skill gives +20%", player.stats.chain_stacks == 1 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.2))
 	ItemEffects.on_skill_start(player, "fireball")
 	ItemEffects.on_skill_start(player, "skewer")
@@ -3634,7 +3695,7 @@ func _test_new_affixes() -> void:
 	ItemEffects.on_skill_start(player, "leap")
 	expect("repeating a skill drops them", player.stats.chain_stacks == 0)
 	ItemEffects.on_skill_start(player, "power")
-	ItemEffects.on_skill_start(player, "cleave")
+	ItemEffects.on_skill_start(player, "basic")
 	player.stats.chain_time = 0.0
 	player._physics_process(0.016)
 	expect("the streak ends when its time runs out", player.stats.chain_stacks == 0)
@@ -3677,156 +3738,9 @@ func _wear(affix_id: String, slot: int) -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-	"weaponcompare": "_test_weapon_compare", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+"townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
-
-## REPORT ONLY (no expectations, so it never fails CI): the Greatsword's basic combo against Cleave on five zombies, in two formations
-## (all round the hero, all packed in front). Part A applies one action at a time to passive zombies, many trials, so hits, damage,
-## stagger and knockback are not blurred by the enemies' own movement. Part B plays whole fights and reports time, damage taken and
-## mana. Run it with `--only=weaponcompare` and read the printed table; it informs balance, it does not guard it.
-func _compare_group(formation: String, tough: bool, passive: bool) -> Array[Enemy]:
-	var group: Array[Enemy] = []
-	for i in 5:
-		var angle: float = TAU * float(i) / 5.0 if formation == "ring" else deg_to_rad(-52.0 + 26.0 * i)
-		var radius: float = 1.9 if formation == "ring" else 2.1 + 0.3 * (i % 2)
-		var z: Enemy = _spawn_enemy(Vector3(sin(angle), 0.0, cos(angle)) * radius)
-		z.alert_delay = 999.0 if passive else 0.0
-		if tough:
-			z.max_health = 5000.0
-			z.health = 5000.0
-		group.append(z)
-	return group
-
-## One action's effect on a fresh group, averaged over `trials`: {hit, damage, stun, push}.
-func _compare_action(formation: String, action: String, trials: int) -> Dictionary:
-	var skills: SkillController = player.skills
-	var total := {"hit": 0.0, "damage": 0.0, "stun": 0.0, "push": 0.0}
-	var combo: Array = SkillDb.basic_combo()
-	for trial in trials:
-		for node in get_tree().get_nodes_in_group("enemies"):
-			node.queue_free()
-		await get_tree().process_frame
-		player.global_position = Vector3.ZERO
-		player.reset_physics_interpolation()
-		player.visual.rotation.y = 0.0
-		var group: Array[Enemy] = _compare_group(formation, true, true)
-		var starts: Array[Vector3] = []
-		for z in group:
-			starts.append(z.global_position)
-		var target: Enemy = group[2]
-		for z in group:
-			if z.global_position.length() < target.global_position.length():
-				target = z
-		var skill: Dictionary = SkillDb.all()["cleave" if action == "cleave" else "basic"].duplicate()
-		match action:
-			"swing1": skill.merge(combo[0][0], true)
-			"swing2": skill.merge(combo[1][0], true)
-			"finisher": skill.merge(combo[2][0], true)
-		skills.busy_skill = "cleave" if action == "cleave" else "basic"
-		skills.busy_target = target
-		skills.busy_aim = target.global_position
-		skills._apply_skill(skill)
-		var stun: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
-		var push: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
-		for frame in 24:   # 0.4 s: long enough for knock-back to play out, short enough that they have not walked far
-			await get_tree().physics_frame
-			for i in 5:
-				stun[i] = maxf(stun[i], group[i].stun_time)
-				push[i] = maxf(push[i], group[i].global_position.distance_to(starts[i]))
-		for i in 5:
-			var lost: float = 5000.0 - group[i].health
-			total["hit"] += 1.0 if lost > 0.5 else 0.0
-			total["damage"] += lost
-			total["stun"] += stun[i]
-			total["push"] += push[i]
-	for key in total:
-		total[key] = float(total[key]) / trials
-	return total
-
-## One whole fight against five normal zombies; the hero attacks the nearest, using Cleave whenever it is ready if `use_cleave`.
-func _compare_fight(use_cleave: bool, formation: String) -> Dictionary:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	player.global_position = Vector3.ZERO
-	player.reset_physics_interpolation()
-	player.visual.rotation.y = 0.0
-	player.health = player.max_health
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns.clear()
-	player.skills.combo_step = 0
-	var group: Array[Enemy] = _compare_group(formation, false, false)
-	var skills: SkillController = player.skills
-	var hp_start: float = player.health
-	var t: float = 0.0
-	var mana_spent: float = 0.0
-	var cleaves: int = 0
-	var swings: int = 0
-	var killed_by_6: int = 0
-	var cleared: float = -1.0
-	while t < 40.0 and not player.dead:
-		await get_tree().physics_frame
-		t += (1.0 / 60.0) * Engine.time_scale
-		var alive: Array[Enemy] = []
-		for z in group:
-			if is_instance_valid(z) and not z.dead:
-				alive.append(z)
-		if t >= 6.0 and killed_by_6 == 0:
-			killed_by_6 = 5 - alive.size() + 1000
-		if alive.is_empty():
-			cleared = t
-			break
-		if not skills.busy:
-			var target: Enemy = alive[0]
-			for z in alive:
-				if z.global_position.length() < target.global_position.length():
-					target = z
-			if use_cleave and float(player.stats.cooldowns.get("cleave", 0.0)) <= 0.0 and player.stats.mana >= 12.0:
-				skills.start_skill("cleave", target)
-				cleaves += 1
-				mana_spent += 12.0
-			else:
-				skills.start_skill("basic", target)
-			swings += 1
-	var out: Dictionary = {"t": cleared if cleared >= 0.0 else 40.0, "cleared": cleared >= 0.0, "taken": hp_start - player.health,
-		"mana": mana_spent, "cleaves": cleaves, "swings": swings, "kills6": (killed_by_6 - 1000) if killed_by_6 >= 1000 else 5, "died": player.dead}
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	return out
-
-func _test_weapon_compare() -> void:
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"), false)
-	print("WC Greatsword, five zombies (60 hp each), hero 120 hp / 80 mana. Cleave: 12 mana, 3.5 s cooldown, %.2f s per cast at this weapon's speed." % [
-		float(SkillDb.all()["cleave"]["time"]) / player.stats.attack_speed()])
-	print("WC PART A: one action on passive zombies (avg of 12 trials). hit = enemies damaged of 5; stagger = total seconds of stun; push = total metres moved in 0.4 s")
-	for formation in ["ring", "front"]:
-		for action in ["swing1", "swing2", "finisher", "cleave"]:
-			var r: Dictionary = await _compare_action(formation, action, 12)
-			print("WC   %-5s %-9s hit %.1f of 5   damage %5.1f   stagger %.2f s   push %.1f m" % [formation, action, r["hit"], r["damage"], r["stun"], r["push"]])
-	print("WC PART B: whole fights, five normal zombies, 3 fights each")
-	for formation in ["ring", "front"]:
-		for use_cleave in [false, true]:
-			var times: Array[float] = []
-			var lost: Array[float] = []
-			var spent: float = 0.0
-			var swings: float = 0.0
-			var kills6: float = 0.0
-			var cleaves: float = 0.0
-			var deaths: int = 0
-			for n in 3:
-				var f: Dictionary = await _compare_fight(use_cleave, formation)
-				times.append(f["t"])
-				lost.append(f["taken"])
-				spent += f["mana"]
-				swings += f["swings"]
-				kills6 += f["kills6"]
-				cleaves += f["cleaves"]
-				deaths += 1 if f["died"] else 0
-			print("WC   %-5s %-16s clear in %s s   hero lost %s hp   %.1f swings, %.1f cleaves, %.0f mana   %.1f of 5 dead by 6 s%s" % [formation,
-				"Cleave when ready" if use_cleave else "basic combo only", times.map(func(v: float) -> String: return "%.1f" % v), lost.map(func(v: float) -> String: return "%.0f" % v),
-				swings / 3.0, cleaves / 3.0, spent / 3.0, kills6 / 3.0, (" (%d deaths)" % deaths) if deaths > 0 else ""])
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
 
 ## Nothing in the town may clip into anything else: no solid prop overlaps another or the palisade, none stands beyond the wall, and
 ## nobody's spot or station is inside one. Footprints are each model's bounds, scaled to its height, as a rotated rectangle.
@@ -4195,7 +4109,7 @@ func _run_selftest() -> void:
 	player.stats.mana = player.stats.max_mana
 	await get_tree().create_timer(0.5).timeout
 	# Exercise hotbar skills directly on the nearest zombie.
-	for id in ["power", "cleave", "fireball"]:
+	for id in ["power", "fireball"]:
 		var target: Actor = player.enemy_near(player.global_position, 20.0)
 		if target == null:
 			break

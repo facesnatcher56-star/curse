@@ -8,7 +8,7 @@ func _init(player: Player) -> void:
 	p = player
 
 const COMBO_WINDOW := 0.9
-var hotbar: Array[String] = ["power", "cleave", "fireball", "potion", "skewer", "leap", "earthshatter"]
+var hotbar: Array[String] = ["power", "fireball", "potion", "skewer", "leap", "earthshatter"]
 var right_click_skill: String = "basic"
 var _glow_light: OmniLight3D
 var _haste_fx: CPUParticles3D
@@ -40,7 +40,7 @@ var _highlighted: Array[Actor] = []
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
 	var kind: String = String(busy_def.get("kind", ""))
-	if kind != "melee" and kind != "cleave":
+	if kind != "melee":
 		return false
 	return busy_skill == "basic" or busy_hit_done
 
@@ -307,8 +307,6 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		skill = _next_basic()
 	busy_def = skill
 	busy_time = float(skill["time"]) / p.stats.attack_speed()
-	if String(skill["kind"]) == "cleave":
-		ItemEffects.pull_for_cleave(p)
 	if id == "power" and p.stats.vault_time > 0.0:
 		p.stats.vault_time = 0.0   # Vaultborn: this one is free
 	else:
@@ -340,7 +338,7 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
 
-## Blade ribbon colour and length per skill: plain steel for the combo, hot orange for Power Strike, icy white for Cleave.
+## Blade ribbon colour and length per skill: plain steel for the combo, hot orange for Power Strike.
 func _style_trail(id: String) -> void:
 	if p._trail == null:
 		return
@@ -349,10 +347,6 @@ func _style_trail(id: String) -> void:
 			p._trail.tint = Color(1.0, 0.62, 0.25)
 			p._trail.max_age = 0.34
 			p._trail.strength = 0.85
-		"cleave":
-			p._trail.tint = Color(0.75, 0.92, 1.0)
-			p._trail.max_age = 0.4
-			p._trail.strength = 0.8
 		_:
 			p._trail.tint = Color(1.0, 0.92, 0.75)
 			p._trail.max_age = WeaponTrail.DEFAULT_AGE
@@ -374,7 +368,7 @@ func _blade_glow(u: float, hit_frac: float) -> void:
 
 ## Gear buffs you can see: a haste wake behind you.
 func update_buff_visuals() -> void:
-	if _glow_light != null and not (busy and (busy_skill == "power" or busy_skill == "cleave")):
+	if _glow_light != null and not (busy and busy_skill == "power"):
 		_glow_light.light_energy = 0.0
 	if _haste_fx == null and p.stats.haste_time > 0.0:
 		_haste_fx = _make_haste_fx()
@@ -451,11 +445,11 @@ func tick_busy(delta: float) -> void:
 		busy_t += delta * (float(p.stats.weapon_profile("recovery", 1.0)) - 1.0)
 	var u: float = busy_t / duration
 	var hf: float = hit_fraction(skill)
-	if busy_skill == "power" or busy_skill == "cleave":
+	if busy_skill == "power":
 		_blade_glow(u, hf)
 	if p._trail != null:
-		p._trail.active = String(skill["kind"]) in ["melee", "cleave"] and u > hf - 0.35 and u < hf + 0.22
-	if String(skill["kind"]) in ["melee", "cleave"]:
+		p._trail.active = String(skill["kind"]) == "melee" and u > hf - 0.35 and u < hf + 0.22
+	if String(skill["kind"]) == "melee":
 		# Coil back while gathering the swing, then throw the weight forward through the strike.
 		var heft: float = clampf(float(skill["weight"]), 0.8, 1.7)
 		if u < hf:
@@ -500,9 +494,9 @@ func _tick_charged(skill: Dictionary) -> void:
 
 ## Weight of the blow itself, independent of whether it connects: camera punch, dust, ground shock.
 func _strike_fx(skill: Dictionary) -> void:
-	if not (String(skill["kind"]) in ["melee", "cleave"]):
+	if String(skill["kind"]) != "melee":
 		return
-	if busy_skill == "power" or busy_skill == "cleave":
+	if busy_skill == "power":
 		return   # these have their own, much bigger impact effects (SkillFx)
 	var weight: float = float(skill["weight"])
 	var dir: Vector3 = busy_aim - p.global_position
@@ -578,6 +572,8 @@ func _apply_skill(skill: Dictionary) -> void:
 				result["skill_id"] = busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				busy_target.receive(result, p.global_position)
+				if busy_skill == "basic" and bool(skill.get("finisher", false)) and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
+					_stun_finisher_hit(busy_target)
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
 			if busy_skill == "basic":
@@ -585,26 +581,6 @@ func _apply_skill(skill: Dictionary) -> void:
 			_smash_props(mult, 1.4 + (1.0 if busy_skill == "power" else 0.0), 1.0 + (0.5 if busy_skill == "power" else 0.0))
 			if busy_skill == "power":
 				_power_impact()
-		"cleave":
-			var cleave_hits: int = 0
-			for node in p.get_tree().get_nodes_in_group("enemies"):
-				var e := node as Actor
-				if e != null and not e.dead and p.flat_distance_to(e) - e.body_radius <= float(skill["range"]):
-					var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * ItemEffects.outgoing_multiplier(p, e),
-						Combat.DamageType.PHYSICAL, true, float(skill["weight"]), ItemEffects.guaranteed_crit(p, e))
-					swing["skill_id"] = busy_skill
-					e.receive(swing, p.global_position)
-					if p.stats.has_affix("maelstrom") and is_instance_valid(e) and not e.dead:
-						e.interrupt(1.0)   # Maelstrom: the sweep stuns everything it catches
-					cleave_hits += 1
-					SkillFx.cleave_hit(p, e)
-			SkillFx.cleave_burst(p, float(skill["range"]))
-			Destructible.blast(p.get_tree(), p.global_position, float(skill["range"]), p.stats.weapon_damage(mult) * 1.5, Vector3.ZERO, 1.2, Destructible.HERO)
-			if cleave_hits == 0:
-				Sfx.sword_miss(p)
-			if cleave_hits > 0:
-				Fx.hitstop(p, 0.05)
-				Fx.punch(p, 1.2 + 0.4 * minf(cleave_hits, 4))
 		"projectile":
 			Sfx.sample(p, "fireball_cast", -1.0, 1.0)   # the cast burst lands exactly as the fireball leaves the hands
 			var ball := Projectile.new()
@@ -661,6 +637,8 @@ func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
 		swing["skill_id"] = busy_skill
 		swing["secondary"] = true
 		e.receive(swing, p.global_position)
+		if bool(skill.get("finisher", false)) and swing["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
+			_stun_finisher_hit(e)
 		if in_slam and is_instance_valid(e) and not e.dead:
 			e.interrupt(0.7)
 		swept += 1
@@ -675,6 +653,10 @@ func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
 		Fx.punch(p, 0.8 + 0.2 * minf(swept, 3))
 
 const SLAM_RADIUS := 3.2
+
+func _stun_finisher_hit(enemy: Actor) -> void:
+	if p.stats.has_affix("maelstrom") and is_instance_valid(enemy) and not enemy.dead:
+		enemy.interrupt(1.0)
 
 ## A swing also breaks a barrel in front of the hero (only barrels, for now), so one can be attacked like an enemy.
 func _smash_props(mult: float, reach: float, force: float) -> void:
