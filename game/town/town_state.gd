@@ -357,6 +357,8 @@ static func load_or_start() -> void:
 				_back_up("newer")
 			else:
 				from_dict(data)
+				if bool(last_run.get("abandoned", false)):
+					save()   # the interrupted run is now settled: write that down so it is not found again
 		else:
 			_back_up("unreadable")
 	start_if_needed()

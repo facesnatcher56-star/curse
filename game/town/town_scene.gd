@@ -211,6 +211,7 @@ func _welcome_back() -> void:
 		hud.show_banner("The Last Hearth")
 		return
 	TownState.last_run = {}
+	TownState.save()   # the result is told once: the save must not still hold it
 	var died: bool = bool(result.get("died", false))
 	var line: String = "You are back. +%dg" % int(result.get("gold", 0))
 	if bool(result.get("completed", false)):
@@ -230,6 +231,7 @@ func _welcome_back() -> void:
 func _process(delta: float) -> void:
 	if leaving:
 		return
+	TownState.potions = player.stats.potions
 	sim.tick(delta)
 	_show_barks()
 	_update_near()
@@ -339,13 +341,27 @@ func interact(spot: Dictionary) -> void:
 			player.health = player.max_health
 			hud.show_banner("The stone is warm. You feel whole.", 2.5)
 
+## The one way gear changes in town: what is worn is recorded in TownState and put on the hero standing here, so the weapon in his
+## hand (and his armour) is what the shop or stash just gave him. Returns what was worn in that slot before, or null.
+func equip_town_item(item: Dictionary) -> Variant:
+	var old: Variant = TownState.gear.get(int(item["slot"]))
+	TownState.gear[int(item["slot"])] = item
+	player.stats.equip(item, false)
+	return old
+
+## The one way the potion count changes in town. The hero's own count is the live one (he can drink in town), TownState mirrors it
+## every frame; buying changes the hero's and records it at once.
+func change_potions(delta: int) -> void:
+	player.stats.potions = clampi(player.stats.potions + delta, 0, 99)
+	TownState.potions = player.stats.potions
+
 ## Out of the gate and into a run: the job (if any) is set, the clan eats, the town is saved.
 func leave_through_gate() -> void:
 	if leaving:
 		return
 	leaving = true
+	TownState.potions = player.stats.potions   # the hero's count first, so the save that begin_job makes has it
 	TownState.begin_job(TownState.job)
-	TownState.potions = player.stats.potions
 	LoadingScreen.go(get_tree(), MAIN_SCENE)
 
 func _screenshot(args: PackedStringArray) -> void:

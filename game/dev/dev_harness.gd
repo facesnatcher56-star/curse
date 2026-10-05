@@ -287,6 +287,7 @@ func _test_skewer() -> void:
 	var killed_mid_carry: Enemy = null
 	var corpse_checked: bool = false
 	var corpse_ok: bool = false
+	var farthest: float = 0.0   # how far from the hero any victim got: they are hit, so they walk back once they are up again
 	var elapsed: float = 0.0
 	while elapsed < 9.0:
 		await get_tree().physics_frame
@@ -320,6 +321,7 @@ func _test_skewer() -> void:
 			if z.is_ragdolled():
 				any_ragdoll = true
 				ragdoll_states[z.ragdoll.state] = true
+				farthest = maxf(farthest, z.global_position.distance_to(player.global_position))
 		if player.skewer.skewer_phase == 0 and not any_ragdoll and elapsed > 1.5:
 			break
 	await get_tree().create_timer(0.5).timeout
@@ -332,6 +334,8 @@ func _test_skewer() -> void:
 			recovered += 1
 		if z.global_position.distance_to(player.global_position) > 4.0:
 			flung += 1
+	if farthest > 4.0:
+		flung = maxi(flung, 1)
 	expect("corpse impaled then kicked ends lying on the ground", corpse_ok)
 	print("  skewer corpse (died while impaled): kicked away and ended lying on the ground=", corpse_ok)
 	var states: Array = ragdoll_states.keys()
@@ -340,7 +344,7 @@ func _test_skewer() -> void:
 	expect("skewered enemies recover", recovered >= 2)
 	expect("skewered enemies are flung", flung >= 1)
 	print("  skewer: impaled=", max_impaled, " phases=", phases, " ragdoll states seen=", states, " (1 hang,2 flight,3 lying,4 rising)",
-		" recovered=", recovered, " flung>4m=", flung)
+		" recovered=", recovered, " flung>4m=", flung, " farthest=", snappedf(farthest, 0.1))
 	expect("a Brute is not impaled", not brute_impaled)
 	expect("a Brute is staggered by the charge", brute_stunned)
 	expect("collision mask restored after skewer", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY))
@@ -3003,9 +3007,19 @@ func _test_town_scene() -> void:
 	town.panel._buy(0, price)
 	expect("buying costs gold and puts the item on", TownState.gold == gold - price and TownState.vendor_gold == vendor_gold + price
 		and String(TownState.gear[int(ware["slot"])]["name"]) == String(ware["name"]))
+	expect("buying gear puts it on the hero standing in town", town.player.stats.equipment[int(ware["slot"])]["name"] == ware["name"])
 	var potions: int = TownState.potions
 	town.panel._buy_supply("potion", 15)
-	expect("buying a potion adds one", TownState.potions == potions + 1)
+	expect("buying a potion adds one, to the hero too", TownState.potions == potions + 1 and town.player.stats.potions == potions + 1)
+	town.panel.close()   # (the town is paused while a panel is open)
+	town.player.stats.potions -= 1   # he drinks one in town
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("a potion drunk in town is not bought back by the town's count", TownState.potions == potions)
+	TownState.stash.append(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"))
+	town.panel._wear(TownState.stash.size() - 1)
+	expect("wearing from the stash puts it on the hero too", town.player.stats.equipment[Items.Slot.WEAPON]["base"] == "Greatsword"
+		and town.player._held_path == Items.model_path(town.player.stats.equipment[Items.Slot.WEAPON]))
 	# Hiring.
 	town.panel.close()
 	town.panel.open_npc("cutter")
@@ -3663,7 +3677,7 @@ func _wear(affix_id: String, slot: int) -> void:
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
 
 var _failures: PackedStringArray = []

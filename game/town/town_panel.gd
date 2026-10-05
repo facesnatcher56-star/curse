@@ -234,10 +234,9 @@ func _smith_buy(index: int, price: int, id: String) -> void:
 	TownState.gold -= price
 	TownState.smith_gold += price
 	TownState.smith_stock.remove_at(index)
-	var old: Variant = TownState.gear.get(int(item["slot"]))
+	var old: Variant = town.equip_town_item(item)
 	if old != null:
 		TownState.stash_item(old as Dictionary)
-	TownState.gear[int(item["slot"])] = item
 	TownState.add_happiness(id, 1.0)
 	notice = "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
 	TownState.save()
@@ -270,10 +269,9 @@ func _buy(index: int, price: int) -> void:
 	TownState.gold -= price
 	TownState.vendor_gold += price
 	TownState.stock.remove_at(index)
-	var old: Variant = TownState.gear.get(int(item["slot"]))
+	var old: Variant = town.equip_town_item(item)
 	if old != null:
 		TownState.stash_item(old as Dictionary)
-	TownState.gear[int(item["slot"])] = item
 	TownState.add_happiness("marlow", 1.0)
 	notice = "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
 	TownState.save()
@@ -299,7 +297,7 @@ func _buy_supply(kind: String, price: int) -> void:
 		TownState.food += FOOD_PACK
 		notice = "Food +%d." % FOOD_PACK
 	else:
-		TownState.potions += 1
+		town.change_potions(1)
 		notice = "Potion +1."
 	TownState.save()
 	_rebuild()
@@ -404,10 +402,9 @@ func _wear(index: int) -> void:
 		return
 	var item: Dictionary = TownState.stash[index]
 	TownState.stash.remove_at(index)
-	var old: Variant = TownState.gear.get(int(item["slot"]))
+	var old: Variant = town.equip_town_item(item)
 	if old != null:
 		TownState.stash.append(old)
-	TownState.gear[int(item["slot"])] = item
 	notice = "Now wearing %s." % item["name"]
 	TownState.save()
 	_rebuild()
