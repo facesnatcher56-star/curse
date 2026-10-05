@@ -67,6 +67,30 @@ static func text(ci: CanvasItem, font: Font, pos: Vector2, label: String, size: 
 	ci.draw_string(font, pos, label, align, width, size, color)
 
 ## A worn-metal plate: shadow, dark fill with a faint sheen, a dark edge, a bronze inner line and small rivets in the corners.
+## The small status icons the HUDs draw instead of labels (rendered in Blender by tools/blender/make_ui_icons.py; "potion" is the
+## hotbar's own icon). Cached; null when the file is missing so a HUD still draws its numbers.
+static var _status_icons: Dictionary = {}
+
+static func status_icon(id: String) -> Texture2D:
+	if not _status_icons.has(id):
+		var path: String = "res://assets/icons/potion.png" if id == "potion" else "res://assets/icons/ui/%s.png" % id
+		_status_icons[id] = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	return _status_icons[id]
+
+## How wide one status (an icon and its number) is.
+static func stat_width(font: Font, value: String, icon_px: float, font_size: int) -> float:
+	return icon_px + 6.0 + font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+
+## An icon with its number beside it, the icon's top left at `at`, the number centred on it. `tint` colours both a warning
+## (the food icon goes red when there is not enough). Returns the width used.
+static func draw_stat(ci: CanvasItem, font: Font, at: Vector2, icon_id: String, value: String, icon_px: float = 30.0, font_size: int = 22,
+		tint: Color = Color.WHITE, text_color: Color = Color(0.95, 0.9, 0.78)) -> float:
+	var icon: Texture2D = status_icon(icon_id)
+	if icon != null:
+		ci.draw_texture_rect(icon, Rect2(at, Vector2(icon_px, icon_px)), false, tint)
+	text(ci, font, Vector2(at.x + icon_px + 6.0, at.y + icon_px * 0.5 + font_size * 0.36), value, font_size, text_color)
+	return stat_width(font, value, icon_px, font_size)
+
 static func draw_panel(ci: CanvasItem, rect: Rect2, alpha: float = 0.9, rivets: bool = true) -> void:
 	ci.draw_rect(rect.grow(4.0), Color(0, 0, 0, 0.28))
 	ci.draw_rect(rect, Color(0.07, 0.066, 0.08, alpha))

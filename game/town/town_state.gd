@@ -33,7 +33,9 @@ static var smith_gold: int = 120
 static var smith_stock: Array = []        # the smith's weapons and armour for sale: {item, price}
 static var stock: Array = []              # the vendor's items for sale: {item, price}
 
-const JOB_NAMES: Array[String] = ["the Crypt Road", "Marrow Fields", "the Drowned Chapel", "Ashen Hollow", "the Old Tannery",
+## The one authored location so far (see CryptRoad): its job is always on the board, in the first slot. The other places are still the wave arena.
+const CRYPT_ROAD := "the Crypt Road"
+const JOB_NAMES: Array[String] = ["Marrow Fields", "the Drowned Chapel", "Ashen Hollow", "the Old Tannery",
 	"Gallows Hill", "the Bone Orchard", "Saltgrave Bridge", "the Rotwood"]
 
 # --- Setup ---------------------------------------------------------------------------------------------------------------
@@ -149,6 +151,9 @@ static func roll_board(rng: RandomNumberGenerator = null) -> void:
 	var names: Array[String] = JOB_NAMES.duplicate()
 	var ids: Array = TownDb.sorted_ids(TownDb.modifiers())
 	for i in 3:
+		if i == 0:
+			board.append(crypt_road_offer())
+			continue
 		var waves: int = 2 + i + (1 if jobs_done >= 3 else 0)
 		var chosen: Array[String] = []
 		var wanted: int = [0, 1, 2][clampi(i + (1 if jobs_done >= 2 else 0), 0, 2)]
@@ -165,6 +170,11 @@ static func roll_board(rng: RandomNumberGenerator = null) -> void:
 			mult *= TownDb.modifier(id).reward_mult
 		board.append({"name": ("Clear " if i == 0 else "Hold ") + place, "location": place, "objective": JobObjective.clear_waves(waves), "modifiers": chosen,
 			"reward": int(round((35.0 + 25.0 * waves) * mult))})
+
+## "Cleanse the Crypt Road": destroy its three corrupted nests; no waves, no timer (see JobObjective.DESTROY_NEST).
+static func crypt_road_offer() -> Dictionary:
+	return {"name": "Cleanse " + CRYPT_ROAD, "location": CRYPT_ROAD, "site": CryptRoad.SITE_ID, "objective": JobObjective.destroy_nest(3),
+		"modifiers": [], "reward": 150 + 20 * mini(jobs_done, 10)}
 
 static func _compatible(id: String, chosen: Array[String]) -> bool:
 	var def: RunModifierDef = TownDb.modifier(id)
@@ -279,6 +289,11 @@ static func from_dict(data: Dictionary) -> void:
 	board = []
 	for offer in data.get("board", []):
 		board.append(JobObjective.upgrade_legacy(offer))
+	var has_site: bool = false
+	for offer in board:
+		has_site = has_site or String(offer.get("site", "")) == CryptRoad.SITE_ID
+	if not board.is_empty() and not has_site:   # a board posted before the Crypt Road existed: its first offer becomes the Crypt Road job
+		board[0] = crypt_road_offer()
 	stock = _stock_from_save(data.get("stock", []))
 	var saved_job: Dictionary = data.get("job", {})
 	job = JobObjective.upgrade_legacy(saved_job) if not saved_job.is_empty() else {}

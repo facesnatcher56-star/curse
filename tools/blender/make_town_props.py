@@ -301,4 +301,5 @@ def main():
         mi.export(obj, name)
 
 
-main()
+if __name__ == "__main__":
+    main()

@@ -3,8 +3,6 @@ extends Node3D
 ## The run itself: wave composition and spawning, kill tracking, and what the dead drop (see LootDrop).
 ## Main builds the world and the hero; this decides what comes at them and what they get for surviving.
 
-const ARENA_HALF := Arena.HALF
-
 var player: Player
 var hud: Hud
 var wave: int = 0
@@ -18,6 +16,8 @@ const LOOT_BREATHER := 6.0
 var job: Dictionary = {}
 var modifiers: Array[RunModifierDef] = []
 var _ending: bool = false
+## Set for a job played in an authored location (see CryptRoad) instead of the wave loop: the monsters are already out there.
+var location: CryptRoad
 
 ## Starts the run as the given job: its modifiers shape every wave, and completing its objective ends the run.
 func set_job(offer: Dictionary) -> void:
@@ -63,6 +63,42 @@ func modifier_names() -> String:
 
 func _ready() -> void:
 	add_to_group("director")   # lets enemies that summon reinforcements find it
+
+func is_ending() -> bool:
+	return _ending
+
+## Where the job stands, in the objective's own terms (see JobObjective): the wave number for waves, nests destroyed for nests.
+func progress() -> Dictionary:
+	return {"stage": location.nests_destroyed if location != null else wave}
+
+## The line for the HUD while a job in a location is on: "Destroy nests: 1 / 3" ("" for the wave loop, which shows its wave).
+func objective_line() -> String:
+	if location == null or job.is_empty():
+		return ""
+	return JobObjective.progress_text(job, progress())
+
+## Monster level in an authored location: what a few waves in would be, rising a little with every job done.
+func level_for_location() -> float:
+	return 1.0 + 0.12 * (wave - 1)
+
+## Starts the job in an authored location: every group is already there, doing its own thing, so there is no wave and no timer.
+func start_location(place: CryptRoad) -> void:
+	location = place
+	wave = 3 + TownState.jobs_done   # only sets how good the drops are (Items.roll_drop) and how tough the monsters are
+	Enemy.max_tokens = 3
+	place.nest_destroyed.connect(_on_nest_destroyed)
+	hud.show_banner("%s\n%s" % [String(job.get("location", "The road")).capitalize(), JobObjective.describe(job)], 4.0)
+	place.spawn_encounters(self)
+
+func _on_nest_destroyed(count: int, total: int) -> void:
+	if count >= total:
+		hud.show_banner("The last nest is destroyed\nGo back to the gate to hand it in, or keep exploring", 5.0)
+	else:
+		hud.show_banner("Nest destroyed\n%s" % JobObjective.progress_text(job, progress()), 3.0)
+
+## The hero walked out through the gate: the job is handed in if its objective is done, abandoned if not.
+func request_exit() -> void:
+	_end_run(JobObjective.is_complete(job, progress()), true)
 
 ## Wave over: a short breather to pick up what dropped, then the next wave.
 func _wave_cleared() -> void:
@@ -155,7 +191,8 @@ func _support_point(centres: Array[Vector3]) -> Vector3:
 	return _clamp_to_arena(centre + behind * 4.5)
 
 func _clamp_to_arena(pos: Vector3) -> Vector3:
-	return Vector3(clampf(pos.x, -ARENA_HALF + 2, ARENA_HALF - 2), 0.0, clampf(pos.z, -ARENA_HALF + 2, ARENA_HALF - 2))
+	var half: Vector2 = Arena.bounds_of(get_tree())
+	return Vector3(clampf(pos.x, -half.x + 2, half.x - 2), 0.0, clampf(pos.z, -half.y + 2, half.y - 2))
 
 ## A random spot `min_dist`..`max_dist` from the hero, at least `spacing` from every spot already used.
 func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacing: float) -> Vector3:
@@ -243,11 +280,12 @@ func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	return drop
 
 ## Back to town: the run's gold, gear and potions are handed over and the town takes it from there.
-func _end_run(completed: bool) -> void:
+func _end_run(completed: bool, walked_out: bool = false) -> void:
 	if _ending:
 		return
 	_ending = true
-	hud.show_banner("Job complete" if completed else "You have fallen", 3.0)
+	var banner: String = "Job complete" if completed else ("Job abandoned" if walked_out else "You have fallen")
+	hud.show_banner(banner, 3.0)
 	await get_tree().create_timer(3.2).timeout
 	TownState.take_gear(player.stats.equipment)
 	for item in player.stats.bag:
@@ -262,6 +300,8 @@ func _on_enemy_died(actor: Actor) -> void:
 	player.on_enemy_killed(actor)
 	_drop_loot(actor)
 	await get_tree().process_frame
+	if location != null:
+		return   # an authored location has no waves: the job ends when the hero walks out through the gate
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and not selftest and not player.dead:
 		if not job.is_empty() and JobObjective.is_complete(job, {"stage": wave}):
 			_end_run(true)

@@ -381,10 +381,10 @@ func _read_input(cursor: Vector3) -> void:
 			attack_target = hover
 			attack_prop = null
 			movement.has_goal = false
-		elif Destructible.near(get_tree(), cursor, 0.35, "barrel") != null:
+		elif Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null:
 			click_mode = 3
 			attack_target = null
-			attack_prop = Destructible.near(get_tree(), cursor, 0.35, "barrel")
+			attack_prop = Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO)
 			movement.has_goal = false
 		else:
 			attack_prop = null

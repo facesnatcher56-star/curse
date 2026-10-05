@@ -24,6 +24,21 @@ var _attacking: bool = false
 
 var _nav_state: Dictionary = {}
 var _aggro: bool = false
+
+## What it does before it notices anyone (see _idle_tick): "" stands still, "wander" strolls about `home` (or round `patrol`, a loop
+## of points), "feed" hunches over `feed_at`. Monsters placed by hand in a location use these; a wave's arrivals just stand.
+## `group_id` ties a placed group together: when one of them notices the hero, all of them do.
+var idle_mode: String = ""
+var home: Vector3 = Vector3.ZERO
+var idle_radius: float = 4.0
+var patrol: Array[Vector3] = []
+var feed_at: Vector3 = Vector3.ZERO
+var group_id: int = -1
+var _idle_goal: Vector3 = Vector3.ZERO
+var _idle_wait: float = 0.0
+var _patrol_index: int = 0
+var _idle_clock: float = 0.0
+var _notice_timer: float = 0.0
 ## Seconds left before it notices anything (set by the wave director; gives the hero a moment to get their bearings).
 var alert_delay: float = 0.0
 var _was_stunned: bool = false
@@ -101,10 +116,14 @@ func _physics_process(delta: float) -> void:
 		return
 	var dist: float = flat_distance_to(target)
 	if not _aggro and dist < aggro_range:
-		_aggro = true
+		_notice_timer -= delta
+		if _notice_timer <= 0.0:
+			_notice_timer = 0.25
+			# Close by it just notices; farther off it needs a clear line (a wall or a tree hides the hero).
+			if dist < aggro_range * 0.45 or has_line_to(target):
+				wake()
 	if not _aggro:
-		move_with(Vector3.ZERO)
-		model.loop("idle")
+		_idle_tick(delta)
 		return
 	_orbit_flip -= delta
 	if _orbit_flip <= 0.0:
@@ -115,9 +134,64 @@ func _physics_process(delta: float) -> void:
 ## Anything the hero hits turns on them at once, however far away it was and whether or not it had noticed them.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if not dead and result.get("source") is Player:
-		_aggro = true
 		alert_delay = 0.0
+		wake()
 	super.receive(result, source_pos)
+
+## It has noticed the hero (or been hit): stop what it was doing, and call the rest of its group.
+func wake() -> void:
+	if _aggro:
+		return
+	_aggro = true
+	if visual != null:
+		visual.rotation.x = 0.0   # standing up from a corpse
+	if group_id < 0:
+		return
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var mate := node as Enemy
+		if mate != null and mate != self and mate.group_id == group_id and not mate.dead and not mate._aggro:
+			mate.alert_delay = randf_range(0.1, 0.7)   # a beat behind the one that saw, so a group does not move as one
+			mate.wake()
+
+# --- before it notices anyone --------------------------------------------------------------
+
+func _idle_tick(delta: float) -> void:
+	_idle_clock += delta
+	match idle_mode:
+		"feed":
+			move_with(Vector3.ZERO)
+			face(feed_at, 0.15)
+			model.loop("idle", 0.45)
+			if visual != null:   # hunched over the body, rocking a little as it tears
+				visual.rotation.x = 0.5 + sin(_idle_clock * 2.6 + float(get_instance_id() % 7)) * 0.07
+		"wander":
+			_wander(delta)
+		_:
+			move_with(Vector3.ZERO)
+			model.loop("idle")
+
+## A slow stroll: to the next patrol point (or a random spot near home), a pause, and on.
+func _wander(delta: float) -> void:
+	if _idle_wait > 0.0:
+		_idle_wait -= delta
+		move_with(Vector3.ZERO)
+		model.loop("idle")
+		return
+	if _idle_goal == Vector3.ZERO:
+		if not patrol.is_empty():
+			_idle_goal = patrol[_patrol_index % patrol.size()]
+			_patrol_index += 1
+		else:
+			var spot := Vector2.from_angle(randf() * TAU) * randf_range(1.0, idle_radius)
+			_idle_goal = Nav.snap(self, home + Vector3(spot.x, 0.0, spot.y))
+	var gap: float = Vector2(_idle_goal.x - global_position.x, _idle_goal.z - global_position.z).length()
+	if gap < 0.9:
+		_idle_goal = Vector3.ZERO
+		_idle_wait = randf_range(1.5, 4.5) if patrol.is_empty() else randf_range(0.0, 1.5)
+		return
+	walk_to(_idle_goal, delta, 0.32)
+	if has_clip("walk"):
+		model.loop("walk", 0.9)
 
 # --- movement helpers shared by behaviours ------------------------------------------------
 

@@ -125,9 +125,9 @@ func toss_from(origin: Vector3) -> void:
 	var angle: float = randf() * TAU
 	_start = Vector3(origin.x, maxf(origin.y, 0.0) + 1.0, origin.z)
 	_end = Vector3(origin.x + cos(angle) * randf_range(0.6, 1.8), 0.0, origin.z + sin(angle) * randf_range(0.6, 1.8))
-	var half: float = Arena.HALF - 1.0
-	_end.x = clampf(_end.x, -half, half)
-	_end.z = clampf(_end.z, -half, half)
+	var half: Vector2 = Arena.bounds_of(get_tree()) - Vector2(1.0, 1.0)
+	_end.x = clampf(_end.x, -half.x, half.x)
+	_end.z = clampf(_end.z, -half.y, half.y)
 	global_position = _start
 
 func _process(delta: float) -> void:

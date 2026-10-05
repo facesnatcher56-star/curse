@@ -18,3 +18,6 @@ tier_mult = {
 "damage": 0.08
 }
 tier_add = {}
+profile = {
+"style": "Balanced"
+}

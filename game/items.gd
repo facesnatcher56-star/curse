@@ -182,6 +182,9 @@ static func lines(item: Dictionary) -> Array[String]:
 	match int(item["slot"]):
 		Slot.WEAPON:
 			out.append("Damage x%.2f    Speed x%.2f" % [stats["damage"], stats["speed"]])
+			var style: String = String(ItemDb.get_def(String(item["def"])).profile.get("style", ""))
+			if style != "":
+				out.append(style)
 		Slot.ARMOR:
 			out.append("Armor %d    Roll cost x%.1f    Roll speed x%.1f" % [stats["armor"], stats["roll_cost"], stats["roll_speed"]])
 		Slot.TRINKET:

@@ -123,6 +123,14 @@ func _stat(slot: int, key: String, fallback: float) -> float:
 func weapon_stat(key: String, fallback: float) -> float:
 	return _stat(Items.Slot.WEAPON, key, fallback)
 
+## One entry of the wielded weapon's profile (ItemDef.profile), `fallback` when it has none or nothing is wielded.
+func weapon_profile(key: String, fallback: Variant = 0.0) -> Variant:
+	var item: Variant = equipment.get(Items.Slot.WEAPON)
+	if item == null:
+		return fallback
+	var def: ItemDef = ItemDb.get_def(String((item as Dictionary).get("def", "")))
+	return def.profile.get(key, fallback) if def != null else fallback
+
 func armor_stat(key: String, fallback: float) -> float:
 	return _stat(Items.Slot.ARMOR, key, fallback)
 

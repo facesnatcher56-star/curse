@@ -38,19 +38,19 @@ model_name = "stash_chest"
 height = 0.9
 
 [node name="Cottage1" type="Node3D" parent="Props"]
-transform = Transform3D(0.34202, 0, 0.93969, 0, 1, 0, -0.93969, 0, 0.34202, -15, 0, 5)
+transform = Transform3D(0.34202, 0, 0.93969, 0, 1, 0, -0.93969, 0, 0.34202, -14.8, 0, 4.5)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
 
 [node name="Cottage2" type="Node3D" parent="Props"]
-transform = Transform3D(0.17365, 0, -0.98481, 0, 1, 0, 0.98481, 0, 0.17365, 15.5, 0, 0)
+transform = Transform3D(0.17365, 0, -0.98481, 0, 1, 0, 0.98481, 0, 0.17365, 13.5, 0, 0.35)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
 
 [node name="Cottage3" type="Node3D" parent="Props"]
-transform = Transform3D(-0.93969, 0, 0.34202, 0, 1, 0, -0.34202, 0, -0.93969, -13, 0, 15.5)
+transform = Transform3D(-0.93969, 0, 0.34202, 0, 1, 0, -0.34202, 0, -0.93969, -12.9, 0, 17)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
@@ -104,7 +104,7 @@ model_name = "barrel"
 height = 1.0
 
 [node name="Barrel2" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -11.2, 0, -7.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -10.45, 0, -7.9)
 script = ExtResource("1_prop")
 model_name = "barrel"
 height = 1.0
@@ -128,7 +128,7 @@ model_name = "town/anvil"
 height = 1.0
 
 [node name="Brazier3" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -12.6, 0, -11.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -12.6, 0, -11.05)
 script = ExtResource("1_prop")
 model_name = "brazier"
 height = 1.5
@@ -153,32 +153,32 @@ model_name = "town/inn"
 height = 8.2
 
 [node name="Barrel3" type="Node3D" parent="Props"]
-transform = Transform3D(0.93969, 0, 0.34202, 0, 1, 0, -0.34202, 0, 0.93969, 10, 0, -11.4)
+transform = Transform3D(0.93969, 0, 0.34202, 0, 1, 0, -0.34202, 0, 0.93969, 9.1, 0, -10.4)
 script = ExtResource("1_prop")
 model_name = "barrel"
 height = 1.0
 
 [node name="Barrel4" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 10.9, 0, -10.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 10.5, 0, -9.3)
 script = ExtResource("1_prop")
 model_name = "barrel"
 height = 1.0
 
 [node name="LampPost5" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 14.8, 0, -11.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 14.8, 0, -10.4)
 script = ExtResource("1_prop")
 model_name = "lamp_post"
 height = 3.2
 lit = true
 
 [node name="Chapel1" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -6, 0, 16.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -6, 0, 16.2)
 script = ExtResource("1_prop")
 model_name = "town/chapel"
 height = 6.9
 
 [node name="LampPost6" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -3, 0, 11.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -3, 0, 11.15)
 script = ExtResource("1_prop")
 model_name = "lamp_post"
 height = 3.2
@@ -197,25 +197,25 @@ model_name = "town/crate_stack"
 height = 1.45
 
 [node name="CrateStack2" type="Node3D" parent="Props"]
-transform = Transform3D(0.96593, 0, -0.25882, 0, 1, 0, 0.25882, 0, 0.96593, -12.2, 0, -3.9)
+transform = Transform3D(0.96593, 0, -0.25882, 0, 1, 0, 0.25882, 0, 0.96593, -12.4, 0, -3.75)
 script = ExtResource("1_prop")
 model_name = "town/crate_stack"
 height = 1.45
 
 [node name="Cottage4" type="Node3D" parent="Props"]
-transform = Transform3D(0.15643, 0, 0.98769, 0, 1, 0, -0.98769, 0, 0.15643, -19.5, 0, -3)
+transform = Transform3D(0.15643, 0, 0.98769, 0, 1, 0, -0.98769, 0, 0.15643, -17.55, 0, -3)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
 
 [node name="Cottage5" type="Node3D" parent="Props"]
-transform = Transform3D(0.15643, 0, -0.98769, 0, 1, 0, 0.98769, 0, 0.15643, 19.8, 0, -3)
+transform = Transform3D(0.15643, 0, -0.98769, 0, 1, 0, 0.98769, 0, 0.15643, 17.6, 0, -3.2)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
 
 [node name="Cottage6" type="Node3D" parent="Props"]
-transform = Transform3D(-0.48481, 0, 0.87462, 0, 1, 0, -0.87462, 0, -0.48481, -19.5, 0, 11)
+transform = Transform3D(-0.48481, 0, 0.87462, 0, 1, 0, -0.87462, 0, -0.48481, -16.8, 0, 11.15)
 script = ExtResource("1_prop")
 model_name = "cottage"
 height = 5.0
@@ -234,37 +234,37 @@ height = 2.0
 collides = false
 
 [node name="Gravestone1" type="Node3D" parent="Props"]
-transform = Transform3D(0.98481, 0, 0.17365, 0, 1, 0, -0.17365, 0, 0.98481, 14, 0, 16.3)
+transform = Transform3D(0.98481, 0, 0.17365, 0, 1, 0, -0.17365, 0, 0.98481, 12.8, 0, 15.4)
 script = ExtResource("1_prop")
 model_name = "gravestone"
-height = 1.3
+height = 0.32
 
 [node name="Gravestone2" type="Node3D" parent="Props"]
-transform = Transform3D(0.96593, 0, -0.25882, 0, 1, 0, 0.25882, 0, 0.96593, 15.6, 0, 18.8)
+transform = Transform3D(0.96593, 0, -0.25882, 0, 1, 0, 0.25882, 0, 0.96593, 15.2, 0, 19.2)
 script = ExtResource("1_prop")
 model_name = "gravestone"
-height = 1.3
+height = 0.32
 
 [node name="Gravestone3" type="Node3D" parent="Props"]
-transform = Transform3D(0.90631, 0, 0.42262, 0, 1, 0, -0.42262, 0, 0.90631, 18.8, 0, 17.6)
+transform = Transform3D(0.90631, 0, 0.42262, 0, 1, 0, -0.42262, 0, 0.90631, 15.8, 0, 16.2)
 script = ExtResource("1_prop")
 model_name = "gravestone"
-height = 1.3
+height = 0.32
 
 [node name="Gravestone4" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 19.4, 0, 19.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 18.4, 0, 19.6)
 script = ExtResource("1_prop")
 model_name = "gravestone"
-height = 1.3
+height = 0.32
 
 [node name="Gravestone5" type="Node3D" parent="Props"]
-transform = Transform3D(0.86603, 0, -0.5, 0, 1, 0, 0.5, 0, 0.86603, 12.6, 0, 19.2)
+transform = Transform3D(0.86603, 0, -0.5, 0, 1, 0, 0.5, 0, 0.86603, 12.5, 0, 19)
 script = ExtResource("1_prop")
 model_name = "gravestone"
-height = 1.3
+height = 0.32
 
 [node name="Bones1" type="Node3D" parent="Props"]
-transform = Transform3D(0.34202, 0, 0.93969, 0, 1, 0, -0.93969, 0, 0.34202, 16.5, 0, 16.8)
+transform = Transform3D(0.34202, 0, 0.93969, 0, 1, 0, -0.93969, 0, 0.34202, 13, 0, 16.8)
 script = ExtResource("1_prop")
 model_name = "bones"
 height = 0.35
@@ -284,13 +284,13 @@ model_name = "dead_tree"
 height = 5.5
 
 [node name="DeadTree2" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -19, 0, -10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -18.5, 0, -8.6)
 script = ExtResource("1_prop")
 model_name = "dead_tree"
 height = 5.0
 
 [node name="Rubble1" type="Node3D" parent="Props"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 17, 0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 18.6, 0, 17.6)
 script = ExtResource("1_prop")
 model_name = "rubble"
 height = 1.1

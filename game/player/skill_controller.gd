@@ -307,6 +307,8 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		skill = _next_basic()
 	busy_def = skill
 	busy_time = float(skill["time"]) / p.stats.attack_speed()
+	if id == "basic":
+		busy_time /= float(p.stats.weapon_profile("swing", 1.0))
 	if String(skill["kind"]) == "cleave":
 		ItemEffects.pull_for_cleave(p)
 	if id == "power" and p.stats.vault_time > 0.0:
@@ -418,6 +420,8 @@ func _next_basic() -> Dictionary:
 	var skill: Dictionary = SkillDb.all()["basic"].duplicate()
 	skill.merge(variants[randi() % variants.size()], true)
 	combo_step = (combo_step + 1) % SkillDb.basic_combo().size()
+	if bool(skill.get("finisher", false)):   # a falchion's finisher is over sooner than a greatsword's
+		skill["time"] = float(skill["time"]) * float(p.stats.weapon_profile("finisher_time", 1.0))
 	combo_timer = COMBO_WINDOW + float(skill["time"])
 	return skill
 
@@ -445,6 +449,8 @@ func tick_busy(delta: float) -> void:
 		_apply_skill(skill)
 		_lunge(float(skill["lunge"]))
 		_strike_fx(skill)
+	if busy_hit_done and busy_skill == "basic":   # the weapon decides how quickly the blade comes back (a falchion fast, a greatsword slowly)
+		busy_t += delta * (float(p.stats.weapon_profile("recovery", 1.0)) - 1.0)
 	var u: float = busy_t / duration
 	var hf: float = hit_fraction(skill)
 	if busy_skill == "power" or busy_skill == "cleave":
@@ -538,7 +544,7 @@ func _power_impact() -> void:
 		point = busy_target.global_position
 	point.y = 0.0
 	SkillFx.power_impact(p, point, dir, p.stats.has_affix("gravewarden"))
-	Destructible.blast(p.get_tree(), point, 2.4, 60.0, dir, 1.7, "barrel")
+	Destructible.blast(p.get_tree(), point, 2.4, 60.0, dir, 1.7, Destructible.HERO)
 	Fx.hitstop(p, 0.08)
 	if busy_target != null and is_instance_valid(busy_target) and not busy_target.dead:
 		busy_target.interrupt(0.7)
@@ -563,17 +569,21 @@ func _apply_skill(skill: Dictionary) -> void:
 	var mult: float = skill["mult"]
 	match String(skill["kind"]):
 		"melee":
+			# The basic combo's stagger and knockback follow the weapon: light for a falchion, heavy for a greatsword.
+			var weight: float = float(skill["weight"]) * (float(p.stats.weapon_profile("weight", 1.0)) if busy_skill == "basic" else 1.0)
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
 				var guaranteed_crit: bool = ItemEffects.guaranteed_crit(p, busy_target)
 				var damage: float = p.stats.weapon_damage(mult) * ItemEffects.outgoing_multiplier(p, busy_target)
 				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL,
-					not guaranteed_crit, float(skill["weight"]), guaranteed_crit)
+					not guaranteed_crit, weight, guaranteed_crit)
 				result["skill_id"] = busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				busy_target.receive(result, p.global_position)
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
+			if busy_skill == "basic":
+				_weapon_style_hits(skill, mult, weight)
 			_smash_props(mult, 1.4 + (1.0 if busy_skill == "power" else 0.0), 1.0 + (0.5 if busy_skill == "power" else 0.0))
 			if busy_skill == "power":
 				_power_impact()
@@ -591,7 +601,7 @@ func _apply_skill(skill: Dictionary) -> void:
 					cleave_hits += 1
 					SkillFx.cleave_hit(p, e)
 			SkillFx.cleave_burst(p, float(skill["range"]))
-			Destructible.blast(p.get_tree(), p.global_position, float(skill["range"]), p.stats.weapon_damage(mult) * 1.5, Vector3.ZERO, 1.2, "barrel")
+			Destructible.blast(p.get_tree(), p.global_position, float(skill["range"]), p.stats.weapon_damage(mult) * 1.5, Vector3.ZERO, 1.2, Destructible.HERO)
 			if cleave_hits == 0:
 				Sfx.sword_miss(p)
 			if cleave_hits > 0:
@@ -624,12 +634,56 @@ func _apply_skill(skill: Dictionary) -> void:
 				p.get_tree().current_scene.add_child(twin)
 				twin.global_position = ball.global_position
 
+## What the wielded weapon adds to a basic swing. A wide weapon (the greatsword) also hits the other enemies inside its arc, for a
+## share of the damage; a slam finisher drives the blade into the ground and throws a shockwave through everything in front.
+func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
+	var arc: float = float(p.stats.weapon_profile("arc", 0.0))
+	var slam: bool = bool(skill.get("finisher", false)) and String(p.stats.weapon_profile("finisher", "")) == "slam"
+	if arc <= 0.0 and not slam:
+		return
+	var dir: Vector3 = busy_aim - p.global_position
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
+	var reach: float = float(skill["range"]) + 0.3
+	var share: float = float(p.stats.weapon_profile("arc_damage", 0.6))
+	var swept: int = 0
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead or e == busy_target:
+			continue
+		var offset: Vector3 = e.global_position - p.global_position
+		offset.y = 0.0
+		var in_arc: bool = arc > 0.0 and offset.length() - e.body_radius <= reach and absf(dir.angle_to(offset)) <= deg_to_rad(arc * 0.5)
+		var in_slam: bool = slam and offset.length() - e.body_radius <= SLAM_RADIUS and absf(dir.angle_to(offset)) <= deg_to_rad(100.0)
+		if not (in_arc or in_slam):
+			continue
+		var frac: float = share if in_arc and not in_slam else 0.8
+		var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * frac * ItemEffects.outgoing_multiplier(p, e),
+			Combat.DamageType.PHYSICAL, true, weight * (1.6 if in_slam else 1.0), false)
+		swing["skill_id"] = busy_skill
+		swing["secondary"] = true
+		e.receive(swing, p.global_position)
+		if in_slam and is_instance_valid(e) and not e.dead:
+			e.interrupt(0.7)
+		swept += 1
+	if slam:
+		var at: Vector3 = p.global_position + dir * 1.8
+		Fx.ring(p, at + Vector3(0, 0.05, 0), 2.4, Color(0.55, 0.5, 0.42))
+		Fx.burst(p, at + Vector3(0, 0.2, 0), Vector3.UP, Color(0.34, 0.31, 0.27), 16, 4.0, 0.045)
+		Fx.shake(p, 0.1)
+		Fx.hitstop(p, 0.06)
+		Destructible.blast(p.get_tree(), at, SLAM_RADIUS - 0.6, p.stats.weapon_damage(mult) * 1.5, dir, 1.8, Destructible.HERO)
+	elif swept > 0:
+		Fx.punch(p, 0.8 + 0.2 * minf(swept, 3))
+
+const SLAM_RADIUS := 3.2
+
 ## A swing also breaks a barrel in front of the hero (only barrels, for now), so one can be attacked like an enemy.
 func _smash_props(mult: float, reach: float, force: float) -> void:
 	var dir: Vector3 = busy_aim - p.global_position
 	dir.y = 0.0
 	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	Destructible.blast(p.get_tree(), p.global_position + dir * 1.2, reach, p.stats.weapon_damage(mult) * 1.5, dir, force, "barrel")
+	Destructible.blast(p.get_tree(), p.global_position + dir * 1.2, reach, p.stats.weapon_damage(mult) * 1.5, dir, force, Destructible.HERO)
 
 ## Where the second Twin Flame fireball goes: at a second enemy (the nearest one to the first fireball's target that is not the
 ## target itself, preferring one outside the first blast); with only one enemy about, right next to it.

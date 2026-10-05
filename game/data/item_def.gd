@@ -18,6 +18,11 @@ extends Resource
 ## How a stat grows with tier: `tier_mult` {key: fraction per tier above 1} multiplies, `tier_add` {key: amount per tier above 1} adds.
 @export var tier_mult: Dictionary = {}
 @export var tier_add: Dictionary = {}
+## How a weapon fights beyond its damage and speed (read through PlayerStats.weapon_profile; empty means the baseline longsword style):
+## "swing" speeds the basic combo, "recovery" speeds (or slows) the tail after each blow, "weight" scales the stagger and knockback of
+## the basic combo, "arc" is the width in degrees in which a basic swing also hits other enemies (for "arc_damage" of the damage),
+## "finisher_time" scales the combo finisher's length, "finisher" = "slam" makes it shake the ground, "style" is the tooltip line.
+@export var profile: Dictionary = {}
 
 func stats_at(tier: int) -> Dictionary:
 	var out: Dictionary = {}

@@ -3677,9 +3677,287 @@ func _wear(affix_id: String, slot: int) -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+	"townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
 }
+
+## Nothing in the town may clip into anything else: no solid prop overlaps another or the palisade, none stands beyond the wall, and
+## nobody's spot or station is inside one. Footprints are each model's bounds, scaled to its height, as a rotated rectangle.
+func _town_footprint(node: Node3D, prop: TownProp) -> Dictionary:
+	var inst: Node3D = (load("res://assets/models/%s/model.glb" % prop.model_name) as PackedScene).instantiate()
+	var b: AABB = CharacterModel._bounds_of(inst)
+	var f: float = prop.height / maxf(b.size.y, 0.001)
+	inst.free()
+	return {"name": node.name, "model": prop.model_name, "c": Vector2(node.position.x, node.position.z),
+		"h": Vector2(b.size.x * f * 0.5, b.size.z * f * 0.5), "yaw": node.rotation.y, "solid": prop.collides}
+
+func _town_corners(o: Dictionary) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	var c: float = cos(o["yaw"])
+	var s: float = sin(o["yaw"])
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var p := Vector2(sx * o["h"].x, sz * o["h"].y)
+			out.append(o["c"] + Vector2(p.x * c + p.y * s, -p.x * s + p.y * c))
+	return out
+
+## How deep two footprints overlap (0 when apart), by the separating-axis test.
+func _town_overlap(a: Dictionary, b: Dictionary) -> float:
+	var best: float = INF
+	for o in [a, b]:
+		var c: float = cos(o["yaw"])
+		var s: float = sin(o["yaw"])
+		for axis in [Vector2(c, -s), Vector2(s, c)]:
+			var ra := Vector2(INF, -INF)
+			var rb := Vector2(INF, -INF)
+			for p in _town_corners(a):
+				ra = Vector2(minf(ra.x, p.dot(axis)), maxf(ra.y, p.dot(axis)))
+			for p in _town_corners(b):
+				rb = Vector2(minf(rb.x, p.dot(axis)), maxf(rb.y, p.dot(axis)))
+			var depth: float = minf(ra.y, rb.y) - maxf(ra.x, rb.x)
+			if depth <= 0.0:
+				return 0.0
+			best = minf(best, depth)
+	return best
+
+func _test_town_layout() -> void:
+	var layout: Node = (load("res://game/town/town_layout.tscn") as PackedScene).instantiate()
+	var props: Array[Dictionary] = []
+	for node in layout.get_node("Props").get_children():
+		if node is TownProp and (node as TownProp).model_name != "":
+			props.append(_town_footprint(node, node))
+	var clashes: PackedStringArray = []
+	var beyond: PackedStringArray = []
+	for i in props.size():
+		var a: Dictionary = props[i]
+		if a["model"] != "palisade":
+			for corner in _town_corners(a):
+				if absf(corner.x) > TownScene.HALF + 0.3 or absf(corner.y) > TownScene.HALF + 0.3:
+					beyond.append(String(a["name"]))
+					break
+		for j in range(i + 1, props.size()):
+			var b: Dictionary = props[j]
+			if (a["model"] == "palisade" and b["model"] == "palisade") or a["model"] == "town_gate" or b["model"] == "town_gate":
+				continue
+			if (a["solid"] or b["solid"]) and _town_overlap(a, b) > 0.05:
+				clashes.append("%s x %s" % [a["name"], b["name"]])
+	expect("no town prop clips into another or into the palisade: " + ", ".join(clashes), clashes.is_empty())
+	expect("no town prop stands beyond the wall: " + ", ".join(beyond), beyond.is_empty())
+	var stood_in: PackedStringArray = []
+	for group in ["Spots", "Stations"]:
+		for marker in layout.get_node(group).get_children():
+			var at := Vector2(marker.position.x, marker.position.z)
+			for o in props:
+				if not o["solid"] or o["model"] == "palisade":
+					continue
+				var local: Vector2 = at - o["c"]
+				var c: float = cos(o["yaw"])
+				var s: float = sin(o["yaw"])
+				if absf(local.x * c - local.y * s) < o["h"].x + 0.4 and absf(local.x * s + local.y * c) < o["h"].y + 0.4:
+					stood_in.append("%s in %s" % [marker.name, o["name"]])
+	expect("nobody's spot or station is inside a solid prop: " + ", ".join(stood_in), stood_in.is_empty())
+	layout.free()
+
+## Weapons have a moveset of their own: the falchion recovers fast, staggers lightly and finishes its combo quickly; the longsword is the
+## baseline; the greatsword hits a wide arc, staggers and knocks back harder, recovers slowly and finishes with a slam.
+func _test_weapon_styles() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var skills: SkillController = player.skills
+	var swing_time: Dictionary = {}
+	var finisher_time: Dictionary = {}
+	var weights: Dictionary = {}
+	var swept: Dictionary = {}
+	var slammed: Dictionary = {}
+	var base_time: float = float(SkillDb.basic_combo()[2][0]["time"])
+	for base in ["Falchion", "Longsword", "Greatsword"]:
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		# How long a first swing takes from start to recovered (stepped by hand so engine time cannot blur it).
+		var far: Enemy = _spawn_enemy(Vector3(0, 0, 14))
+		far.alert_delay = 999.0
+		skills.combo_step = 0
+		skills.start_skill("basic", far)
+		var steps: int = 0
+		while skills.busy and steps < 900:
+			skills.tick_busy(1.0 / 60.0)
+			steps += 1
+		swing_time[base] = steps / 60.0
+		far.queue_free()
+		skills.combo_step = 2
+		finisher_time[base] = float(skills._next_basic()["time"])
+		# What one swing does to enemies around the target (the timed swing above lunged the hero forward: back to the origin).
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+		var target: Enemy = _spawn_enemy(Vector3(0, 0, 1.6))
+		var left: Enemy = _spawn_enemy(Vector3(1.4, 0, 1.2))
+		var right: Enemy = _spawn_enemy(Vector3(-1.3, 0, 1.3))
+		var behind: Enemy = _spawn_enemy(Vector3(0, 0, -1.5))
+		var group: Array[Enemy] = [target, left, right, behind]
+		for e in group:
+			e.alert_delay = 999.0
+			e.max_health = 5000.0
+			e.health = 5000.0
+			e.defense = 0.0   # a swing can still miss (5%) or be blocked, so each is tried a few times
+			e.block_chance = 0.0
+		skills.busy_skill = "basic"
+		skills.busy_target = target
+		skills.busy_aim = target.global_position
+		var plain: Dictionary = SkillDb.all()["basic"].duplicate()
+		plain.merge(SkillDb.basic_combo()[0][0], true)
+		weights[base] = 0.0
+		for attempt in 8:
+			skills._apply_skill(plain)
+			if not target.last_result.is_empty():
+				weights[base] = float(target.last_result.get("weight", 0.0))
+		swept[base] = int(left.health < 5000.0) + int(right.health < 5000.0) + int(behind.health < 5000.0)
+		for e in group:
+			e.health = 5000.0
+			e.stun_time = 0.0
+		var finisher: Dictionary = SkillDb.all()["basic"].duplicate()
+		finisher.merge(SkillDb.basic_combo()[2][0], true)
+		skills._apply_skill(finisher)
+		slammed[base] = int(left.stun_time > 0.0) + int(right.stun_time > 0.0) + int(behind.stun_time > 0.0)
+		for e in group:
+			e.queue_free()
+		await get_tree().process_frame
+	expect("a falchion recovers faster than a longsword, a greatsword slower", swing_time["Falchion"] < swing_time["Longsword"] - 0.1
+		and swing_time["Greatsword"] > swing_time["Longsword"] + 0.1)
+	expect("a falchion's finisher is short and a greatsword's is not", finisher_time["Falchion"] < base_time * 0.8 and absf(finisher_time["Longsword"] - base_time) < 0.001
+		and absf(finisher_time["Greatsword"] - base_time) < 0.001)
+	expect("stagger weight rises falchion < longsword < greatsword", weights["Falchion"] < weights["Longsword"] - 0.15 and weights["Greatsword"] > weights["Longsword"] + 0.3)
+	expect("only the greatsword's swing reaches the others in an arc in front (not behind)", swept["Falchion"] == 0 and swept["Longsword"] == 0 and swept["Greatsword"] == 2)
+	expect("only the greatsword's finisher slams the ground in front", slammed["Falchion"] == 0 and slammed["Longsword"] == 0 and slammed["Greatsword"] >= 2)
+	expect("the tooltip says how the weapon fights", Items.lines(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")).any(
+		func(line: String) -> bool: return line.contains("slam")))
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+
+## The Crypt Road: the objective's bookkeeping, an elongated authored layout with three reachable nests, monsters that exist from the
+## start and do their own thing until noticed (a group wakes together), and what destroying a nest does.
+func _test_crypt_road() -> void:
+	var offer: Dictionary = TownState.crypt_road_offer()
+	var objective: Dictionary = offer["objective"]
+	expect("a destroy_nest job reads as nests, not waves", JobObjective.describe(offer) == "Destroy 3 corrupted nests"
+		and JobObjective.progress_text(offer, {"stage": 1}) == "Destroy nests: 1 / 3" and not JobObjective.uses_waves(offer)
+		and not JobObjective.ends_run_when_complete(offer) and int(objective["count"]) == 3)
+	expect("it completes at the third nest only", not JobObjective.is_complete(offer, {"stage": 2}) and JobObjective.is_complete(offer, {"stage": 3}))
+	expect("a wave job still uses waves", JobObjective.uses_waves(JobObjective.upgrade_legacy({"name": "x", "waves": 3})))
+	# Swap the wave arena for the location, as Main does for this job.
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var place_arena: Arena = CryptRoad.make_arena()
+	game.add_child(place_arena)
+	place_arena.build(false)
+	var place := CryptRoad.new()
+	game.add_child(place)
+	place.build(place_arena)
+	player.global_position = CryptRoad.START
+	player.reset_physics_interpolation()
+	var footprint: float = place_arena.half_x * place_arena.half_z * 4.0
+	expect("it is 3-5 times the old arena and long rather than square", footprint >= Arena.HALF * Arena.HALF * 4.0 * 3.0
+		and footprint <= Arena.HALF * Arena.HALF * 4.0 * 5.0 and place_arena.half_z >= place_arena.half_x * 4.0)
+	expect("it holds three nests", place.nests.size() == 3)
+	var inside: bool = true
+	for entry in place.placed:
+		var pos: Vector3 = entry["pos"]
+		inside = inside and absf(pos.x) < place_arena.half_x and absf(pos.z) < place_arena.half_z
+	expect("everything placed is inside the walls", inside and place.placed.size() > 150)
+	expect("the middle of the road is clear of solid props", place.road_distance(0.0, 100.0) < 3.0
+		and not place.placed.any(func(e: Dictionary) -> bool: return e["name"] == "dead_tree" and place.road_distance(e["pos"].x, e["pos"].z) < CryptRoad.ROAD_HALF_WIDTH))
+	await place.wait_for_navigation()
+	expect("the navigation map takes the whole road", place.navigation_ready())
+	var map: RID = game.get_world_3d().navigation_map
+	var reachable: int = 0
+	for nest in place.nests:
+		var path: PackedVector3Array = NavigationServer3D.map_get_path(map, CryptRoad.START, nest.global_position, true)
+		var gap: float = path[path.size() - 1].distance_to(nest.global_position) if not path.is_empty() else -1.0
+		if gap >= 0.0 and gap < 4.5:
+			reachable += 1
+		else:
+			print("  nest at ", nest.global_position, " path points ", path.size(), " ends ", gap, " m from it")
+	expect("every nest can be walked to from the start", reachable == 3)
+	var crypt_path: PackedVector3Array = NavigationServer3D.map_get_path(map, CryptRoad.START, Vector3(0, 0, -150), true)
+	expect("the road runs the whole length, to the crypt courtyard", not crypt_path.is_empty() and crypt_path[crypt_path.size() - 1].z < -140.0)
+	# The monsters.
+	var run: RunDirector = game.director
+	run.set_job(offer)
+	run.start_location(place)
+	await get_tree().process_frame
+	var all: Array = get_tree().get_nodes_in_group("enemies")
+	var near_start: int = 0
+	var awake: int = 0
+	var kinds: Dictionary = {}
+	for node in all:
+		var e: Enemy = node
+		near_start += 1 if e.global_position.distance_to(CryptRoad.START) < 12.0 else 0
+		awake += 1 if e._aggro else 0
+		kinds[e.variant] = true
+	print("  monsters ", all.size(), " awake ", awake, " within 12 m of the start ", near_start)
+	expect("monsters already exist across the road, none awake and none on the hero", all.size() >= 40 and awake == 0 and near_start == 0)
+	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes", kinds.size() == 6)
+	var feeder: Enemy = null
+	var spitter: Enemy = null
+	var melee_front: float = -INF
+	for node in all:
+		var e: Enemy = node
+		if e.idle_mode == "feed" and feeder == null:
+			feeder = e
+		if e.variant == "spitter" and e.global_position.z < 80.0 and e.global_position.z > 60.0:
+			spitter = e
+		if e.variant == "zombie" and e.group_id == 7:
+			melee_front = maxf(melee_front, e.global_position.z)
+	expect("some are feeding at a corpse", feeder != null)
+	expect("the cottage spitters stand behind its melee line (farther from the way in)", spitter != null and spitter.global_position.z < melee_front - 4.0)
+	await get_tree().create_timer(1.0).timeout
+	expect("a feeder is hunched over, a sleeper has not walked off", feeder.visual.rotation.x > 0.3 and not feeder._aggro)
+	var walker: Enemy = null
+	for node in all:
+		if (node as Enemy).group_id == 1:
+			walker = node
+	var walked_from: Vector3 = walker.global_position
+	await get_tree().create_timer(2.0).timeout
+	expect("a walker strolls about on its own", walker.global_position.distance_to(walked_from) > 0.6 and not walker._aggro)
+	# Noticing one wakes its group.
+	var mates: Array[Enemy] = []
+	for node in all:
+		if (node as Enemy).group_id == 6:
+			mates.append(node)
+	mates[0].wake()
+	var all_awake: bool = true
+	for m in mates:
+		all_awake = all_awake and m._aggro
+	expect("when one of a group notices the hero the whole group does", mates.size() >= 3 and all_awake)
+	# The nests.
+	var count_before: int = get_tree().get_nodes_in_group("enemies").size()
+	var first: Destructible = place.nests[0]
+	var nearby: Enemy = null
+	for node in all:
+		var e: Enemy = node
+		if not e._aggro and e.global_position.distance_to(first.global_position) < 20.0:
+			nearby = e
+	first.hit(999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	expect("the hero's own swings can break a nest (and a click picks it)", Destructible.near(get_tree(), place.nests[1].global_position, 3.0, Destructible.HERO) == place.nests[1])
+	expect("destroying a nest counts once and shows on the HUD line", place.nests_destroyed == 1 and run.progress()["stage"] == 1
+		and run.objective_line() == "Destroy nests: 1 / 3")
+	expect("it stirs up what lived nearby", nearby == null or nearby._aggro)
+	expect("something climbs out of the broken nest", get_tree().get_nodes_in_group("enemies").size() >= count_before + 3)
+	expect("there is no wave, and the run does not end when the field is cleared", run.location == null or run.wave >= 3)
+	place.nests[1].hit(999.0, Vector3.FORWARD)
+	place.nests[2].hit(999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	expect("three nests complete the job", JobObjective.is_complete(offer, run.progress()) and run.objective_line() == "Destroy nests: 3 / 3")
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	# Walking out through the road gate with the job done hands it in.
+	player.global_position = Vector3(0, 0, CryptRoad.EXIT_Z)
+	player.reset_physics_interpolation()
+	await get_tree().create_timer(1.2).timeout
+	expect("walking out through the gate with the nests gone ends the run", run.is_ending())
 
 var _failures: PackedStringArray = []
 

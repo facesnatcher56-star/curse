@@ -1,6 +1,6 @@
 class_name TownHud
 extends Control
-## What the town screen shows outside the panels: gold and food, the job you have taken, what the hero is near ("E  Talk to Marlow"),
+## What the town screen shows outside the panels: gold, food and potions (icons and numbers), the job you have taken, what the hero is near ("E  Talk to Marlow"),
 ## and a short feed of what has been happening in town.
 
 var prompt: String = ""
@@ -23,11 +23,21 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var font: Font = ThemeDB.fallback_font
 	var size_px: Vector2 = get_viewport_rect().size
-	# Resources, top left.
-	var line: String = "Gold %d      Food %d%s      Potions %d" % [TownState.gold, TownState.food,
-		" (rationing)" if TownState.rationing() else "", TownState.potions]
-	UiTheme.draw_panel(self, Rect2(14, 14, 470, 44), 0.8)
-	UiTheme.text(self, font, Vector2(30, 43), line, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
+	# Resources, top left: an icon and a number each (coins, bread, potions). The bread goes red when the clan is on short rations.
+	var short: bool = TownState.rationing()
+	var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
+	var ids: Array[String] = ["gold", "food", "potion"]
+	var icon_px: float = 32.0
+	var gap: float = 26.0
+	var bar_width: float = 28.0
+	for i in 3:
+		bar_width += UiTheme.stat_width(font, values[i], icon_px, 22) + (gap if i < 2 else 0.0)
+	UiTheme.draw_panel(self, Rect2(14, 14, bar_width, 46), 0.8)
+	var x: float = 28.0
+	for i in 3:
+		var warn: bool = i == 1 and short
+		x += UiTheme.draw_stat(self, font, Vector2(x, 21.0), ids[i], values[i], icon_px, 22,
+			Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
 	# The job taken, top right.
 	if not TownState.job.is_empty():
 		var job: Dictionary = TownState.job

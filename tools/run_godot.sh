@@ -21,13 +21,13 @@ start=$SECONDS
 while kill -0 "$pid" 2>/dev/null; do
 	if grep -qE "$ERRORS" "$LOG"; then
 		sleep 0.3   # let the rest of the message land
-		kill "$pid" 2>/dev/null; taskkill //F //PID "$pid" > /dev/null 2>&1
+		kill "$pid" 2>/dev/null; command -v taskkill >/dev/null && taskkill //F //PID "$pid" > /dev/null 2>&1
 		echo "STOPPED ON ERROR:"
 		grep -E -A2 "$ERRORS" "$LOG" | head -20
 		exit 2
 	fi
 	if (( SECONDS - start >= LIMIT )); then
-		kill "$pid" 2>/dev/null; taskkill //F //PID "$pid" > /dev/null 2>&1
+		kill "$pid" 2>/dev/null; command -v taskkill >/dev/null && taskkill //F //PID "$pid" > /dev/null 2>&1
 		echo "TIMED OUT after ${LIMIT}s"
 		exit 124
 	fi

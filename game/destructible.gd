@@ -7,12 +7,20 @@ extends Node3D
 ## The arena builds one of these for every prop named in STATS (see Arena._place); the shared `blast()` is how skills break them.
 
 ## prop -> hit points, what it is made of (decides the pieces), how many pieces, and what it may drop.
+## "hero": the hero's own swings and skills break it (and clicking it sends them to swing at it), not only the big effects.
 const STATS := {
-	"barrel": {"hp": 10.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0},
+	"barrel": {"hp": 10.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true},
 	"wrecked_cart": {"hp": 45.0, "material": "wood", "chunks": 26, "orb": 0.0, "potion": 0.2, "item": 0.12},
 	"gravestone": {"hp": 40.0, "material": "stone", "chunks": 13, "orb": 0.0, "potion": 0.0, "item": 0.14},
 	"brazier": {"hp": 30.0, "material": "iron", "chunks": 12, "orb": 0.0, "potion": 0.0, "item": 0.0},
+	# A corrupted nest (the Crypt Road's objective): tough, bursts into gore and a green cloud, and pays out well.
+	"nest": {"hp": 140.0, "material": "flesh", "chunks": 24, "orb": 0.4, "potion": 0.25, "item": 0.4, "hero": true},
 }
+## Pass as `only_kind` to limit a blast or a search to the props the hero's own attacks break.
+const HERO := "hero"
+
+## Sent once when it is broken, with the prop (the Crypt Road counts its nests this way).
+signal destroyed(prop: Destructible)
 
 var prop_name: String = ""
 var hp: float = 1.0
@@ -41,18 +49,25 @@ func configure(owner_arena: Arena, name_of_prop: String, visual: Node3D, body: S
 	max_hp = float(STATS[name_of_prop]["hp"])
 	hp = max_hp
 	add_to_group("destructibles")
+	if name_of_prop == "nest":
+		add_to_group("nests")
+
+func _is_kind(only_kind: String) -> bool:
+	if only_kind == "" or only_kind == prop_name:
+		return true
+	return only_kind == HERO and bool(STATS[prop_name].get("hero", false))
 
 # --- Breaking things -----------------------------------------------------------------------------------------------------------
 
 ## Every unbroken prop within `radius` (measured from the edge of its footprint) takes `damage`. `dir` is the way things are moving
 ## (zero: outward from `center`) and `force` how hard they are thrown: about 1 for a swing, 2 or more for a charge or a leap.
-## `only_kind` limits it to one kind of prop (the hero's own swings only break barrels for now). Returns how many were broken.
+## `only_kind` limits it to one kind of prop, or to `HERO` (what the hero's own swings break: barrels and nests). Returns how many were broken.
 static func blast(tree: SceneTree, center: Vector3, blast_radius: float, damage: float, dir: Vector3 = Vector3.ZERO, force: float = 1.0,
 		only_kind: String = "") -> int:
 	var broken_count: int = 0
 	for node in tree.get_nodes_in_group("destructibles"):
 		var prop := node as Destructible
-		if prop == null or prop.broken or (only_kind != "" and prop.prop_name != only_kind):
+		if prop == null or prop.broken or not prop._is_kind(only_kind):
 			continue
 		var offset: Vector3 = prop.global_position - center
 		offset.y = 0.0
@@ -72,7 +87,7 @@ static func near(tree: SceneTree, point: Vector3, margin: float, only_kind: Stri
 	var best_gap: float = margin
 	for node in tree.get_nodes_in_group("destructibles"):
 		var prop := node as Destructible
-		if prop == null or prop.broken or (only_kind != "" and prop.prop_name != only_kind):
+		if prop == null or prop.broken or not prop._is_kind(only_kind):
 			continue
 		var offset: Vector3 = prop.global_position - point
 		offset.y = 0.0
@@ -126,8 +141,13 @@ func shatter(dir: Vector3, force: float = 1.0) -> void:
 		Fx.light_flash(self, centre + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.5, 0.35)
 	if String(stats["material"]) == "stone":
 		Fx.ring(self, centre + Vector3(0, 0.05, 0), 0.9 + force * 0.25, Color(0.6, 0.58, 0.52))
+	if String(stats["material"]) == "flesh":   # the sacs burst: a cloud of the sickly green the spitters use, and a dying glow
+		Fx.burst(self, centre + Vector3(0, height * 0.7, 0), Vector3.UP, Color(0.4, 0.5, 0.15), 26, 4.5, 0.05)
+		Fx.light_flash(self, centre + Vector3(0, 1.2, 0), Color(0.5, 0.75, 0.2), 2.2, 0.5)
+		Fx.ring(self, centre + Vector3(0, 0.05, 0), 1.6 + force * 0.25, Color(0.3, 0.38, 0.12))
 	Fx.shake(self, 0.03 + 0.03 * force)
 	_drop_loot(stats)
+	destroyed.emit(self)
 	if arena != null:
 		arena.obstacles.erase(obstacle)
 		arena.request_nav_refresh()
@@ -146,6 +166,8 @@ func _dust_color() -> Color:
 			return Color(0.34, 0.33, 0.31)
 		"iron":
 			return Color(0.2, 0.19, 0.18)
+		"flesh":
+			return Color(0.22, 0.12, 0.09)
 	return Color(0.28, 0.2, 0.12)
 
 ## One flying piece, made to look like what broke: splintered planks, jagged stone, scraps of iron (a few still glowing).
@@ -163,6 +185,13 @@ func _spawn_chunk(dir: Vector3, force: float, scale_factor: float) -> void:
 			size = Vector3(randf_range(0.04, 0.16), randf_range(0.03, 0.1), randf_range(0.04, 0.14)) * scale_factor
 			color = Color(0.17, 0.15, 0.14) * randf_range(0.7, 1.2)
 			glow = randf() < 0.18
+		"flesh":   # clots of gore, and now and then a splinter of bone
+			if randf() < 0.25:
+				size = Vector3(0.03, 0.03, randf_range(0.18, 0.4)) * scale_factor
+				color = Color(0.55, 0.5, 0.4) * randf_range(0.7, 1.0)
+			else:
+				size = Vector3(randf_range(0.08, 0.2), randf_range(0.06, 0.14), randf_range(0.08, 0.2)) * scale_factor
+				color = Color(0.24, 0.09, 0.08) * randf_range(0.6, 1.2)
 		_:
 			if prop_name == "barrel" and randf() < 0.2:
 				size = Vector3(0.025, 0.02, randf_range(0.25, 0.4)) * scale_factor     # a bent iron hoop
@@ -172,7 +201,7 @@ func _spawn_chunk(dir: Vector3, force: float, scale_factor: float) -> void:
 				color = Color(0.3, 0.2, 0.11) * randf_range(0.65, 1.1)
 	chunk.setup(size, color, glow)
 	if arena != null:
-		chunk.limit = arena.half - 0.6
+		chunk.limit = Vector2(arena.half_x, arena.half_z) - Vector2(0.6, 0.6)
 	get_tree().current_scene.add_child(chunk)
 	var start := global_position + Vector3(randf_range(-radius, radius) * 0.6, randf_range(0.1, maxf(height, 0.4)), randf_range(-radius, radius) * 0.6)
 	chunk.global_position = start

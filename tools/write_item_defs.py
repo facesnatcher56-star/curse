@@ -23,6 +23,16 @@ ITEMS = [
 ]
 
 
+# Weapons beyond damage and speed (see ItemDef.profile). The longsword is the baseline: its moveset is what the game always had.
+PROFILES = {
+    "falchion": {"swing": 1.1, "recovery": 1.7, "weight": 0.7, "finisher_time": 0.72,
+                 "style": "Fast combo and recovery, light stagger"},
+    "longsword": {"style": "Balanced"},
+    "greatsword": {"recovery": 0.85, "weight": 1.5, "arc": 130.0, "arc_damage": 0.6, "finisher": "slam",
+                   "style": "Wide arc, heavy stagger and knockback, slam finisher"},
+}
+
+
 def fmt(v) -> str:
     if isinstance(v, str):
         return '"%s"' % v
@@ -47,6 +57,8 @@ def main() -> None:
             'model_path = "res://assets/models/items/%s/model.glb"' % ident, 'icon_path = "res://assets/icons/items/%s.png"' % ident,
             "stats = %s" % fmt(stats), "tier_mult = %s" % fmt(mult), "tier_add = %s" % fmt(add),
         ]
+        if ident in PROFILES:
+            lines.append("profile = %s" % fmt(PROFILES[ident]))
         (OUT / (ident + ".tres")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     for old in OUT.glob("*.tres"):
         if old.name not in wanted:

@@ -8,6 +8,7 @@ var hud: Hud
 var pause_menu: PauseMenu
 var rig: CameraRig
 var director: RunDirector
+var location: CryptRoad   # set when the job is played in an authored location instead of the wave arena
 var world_environment: Environment
 
 var _boot_ms: int = 0
@@ -21,6 +22,8 @@ func _mark(label: String) -> void:
 
 func _ready() -> void:
 	_boot_ms = Time.get_ticks_msec()
+	if OS.get_cmdline_user_args().has("--crypt") and TownState.job.is_empty():   # developer shortcut: straight into the Crypt Road
+		TownState.job = TownState.crypt_road_offer()
 	# Pausing (the pause menu) must freeze the whole world, so this node and everything under it is pausable. The
 	# menus and HUD (the CanvasLayer below) and the input relay keep running while paused.
 	get_tree().paused = false
@@ -38,6 +41,12 @@ func _ready() -> void:
 	player = Player.new()
 	add_child(player)
 	TownScene._apply_run_gear(player)   # what the town holds (nothing, for a run that did not come from town)
+	if location != null:
+		player.global_position = CryptRoad.START
+		for arg in OS.get_cmdline_user_args():   # `-- --crypt --at=x,z`: start somewhere along the road (developer tool)
+			if arg.begins_with("--at="):
+				var xz: PackedStringArray = arg.substr(5).split(",")
+				player.global_position = Vector3(float(xz[0]), 0.0, float(xz[1]))
 	_mark("hero model")
 	var torch := OmniLight3D.new()
 	torch.light_color = Color(1.0, 0.72, 0.45)
@@ -89,8 +98,13 @@ func _ready() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_mark("2 physics frames")
-	director.start_wave()
-	_mark("first wave spawned")
+	if location != null:
+		await location.wait_for_navigation()
+		director.start_location(location)
+		_mark("location populated")
+	else:
+		director.start_wave()
+		_mark("first wave spawned")
 	if OS.get_cmdline_user_args().has("--startshot"):   # a normal run's opening view, for judging the start zoom by eye
 		await get_tree().create_timer(2.5).timeout
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_start.png")
@@ -135,9 +149,19 @@ func _build_world() -> void:
 	sun.directional_shadow_max_distance = 90.0
 	add_child(sun)
 
-	arena = Arena.new()
-	add_child(arena)
-	arena.build()
+	if String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
+		arena = CryptRoad.make_arena()
+		add_child(arena)
+		arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
+		location = CryptRoad.new()
+		add_child(location)
+		location.build(arena)
+		environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
+		environment.fog_density *= CryptRoad.FOG_MULT
+	else:
+		arena = Arena.new()
+		add_child(arena)
+		arena.build()
 	if hud != null:
 		hud.arena = arena
 
@@ -152,4 +176,5 @@ func _apply_job_mood(offer: Dictionary) -> void:
 func _process(_delta: float) -> void:
 	hud.wave = director.wave
 	hud.kills = director.kills
+	hud.objective = director.objective_line()
 	hud.alive = get_tree().get_nodes_in_group("enemies").size()

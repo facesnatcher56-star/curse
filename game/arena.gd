@@ -22,7 +22,15 @@ const PROPS := {
 var obstacles: Array[Dictionary] = []
 var _nav_region: NavigationRegion3D
 ## The town reuses the arena's ground, walls, prop placement and navmesh with its own, smaller size and no random scatter.
-var half: float = HALF
+var half: float = HALF:
+	set(value):
+		half = value
+		half_x = value
+		half_z = value
+## The footprint is a rectangle: `half_x` either side of the middle across, `half_z` along. Setting `half` makes it square; an
+## authored location (the Crypt Road) sets the two separately for a long, narrow area.
+var half_x: float = HALF
+var half_z: float = HALF
 var scatter: bool = true
 ## The invisible wall round the edge. The town turns it off and builds its own, with a real opening at the gate.
 var build_perimeter_walls: bool = true
@@ -36,7 +44,13 @@ func _stage(label: String) -> void:
 		print("[arena] %-14s +%4d ms" % [label, now - _stage_ms])
 		_stage_ms = now
 
+## How far the walls are from the middle (x across, z along) of the arena in this scene; the square arena's size when there is none.
+static func bounds_of(tree: SceneTree) -> Vector2:
+	var arena := tree.get_first_node_in_group("arena") as Arena if tree != null else null
+	return Vector2(arena.half_x, arena.half_z) if arena != null else Vector2(HALF, HALF)
+
 func build(bake_navigation: bool = true) -> void:
+	add_to_group("arena")
 	_stage_ms = Time.get_ticks_msec()
 	_nav_region = NavigationRegion3D.new()
 	add_child(_nav_region)
@@ -89,7 +103,7 @@ func _build_ground() -> void:
 	ground.collision_layer = Actor.LAYER_WORLD
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(half * 2.0, 1.0, half * 2.0)
+	box.size = Vector3(half_x * 2.0, 1.0, half_z * 2.0)
 	shape.shape = box
 	shape.position.y = -0.5
 	ground.add_child(shape)
@@ -118,19 +132,19 @@ func _build_ground() -> void:
 	mat.albedo_texture = albedo
 	mat.normal_enabled = true
 	mat.normal_texture = bump
-	mat.uv1_scale = Vector3(9, 9, 1)
+	mat.uv1_scale = Vector3(9.0 * half_x / HALF, 9.0 * half_z / HALF, 1)
 	mat.roughness = 1.0
 	var mesh_instance := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(half * 2.0, half * 2.0)
+	plane.size = Vector2(half_x * 2.0, half_z * 2.0)
 	mesh_instance.mesh = plane
 	mesh_instance.material_override = mat
 	ground.add_child(mesh_instance)
 	_nav_region.add_child(ground)
 
 ## Puts a prop (a res://assets/models/<name>/model.glb) on the ground at `pos`, `height` metres tall, with convex-hull collision.
-func place_prop(prop_name: String, pos: Vector3, yaw: float, height: float, collides: bool = true, lit: bool = false) -> void:
-	_place(prop_name, load(PROP_DIR + prop_name + "/model.glb"), pos, yaw, height, collides, lit)
+func place_prop(prop_name: String, pos: Vector3, yaw: float, height: float, collides: bool = true, lit: bool = false) -> Node3D:
+	return _place(prop_name, load(PROP_DIR + prop_name + "/model.glb"), pos, yaw, height, collides, lit)
 
 ## A prop was smashed: bake the walkable area again (shortly after the last one, on a thread) so nobody keeps walking round a barrel
 ## that is no longer there.
@@ -151,13 +165,14 @@ var _nav_refresh_pending: bool = false
 func bake_navigation() -> void:
 	_bake_navigation()
 
-func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, height: float, collides: bool, lit: bool) -> void:
+func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, height: float, collides: bool, lit: bool) -> Node3D:
 	var prop: Node3D = scene.instantiate()
-	if prop_name.begins_with("town/"):   # Blender-made, painted on the vertices (tools/blender/make_town_props.py)
+	if prop_name.begins_with("town/") or prop_name.begins_with("crypt/"):   # Blender-made, painted on the vertices (tools/blender/)
 		LootDrop._use_vertex_colours(prop)
+	var kind: String = prop_name.get_file()   # "crypt/nest" is a "nest" to Destructible
 	var bounds: AABB = CharacterModel._bounds_of(prop)
 	var factor: float = height / maxf(bounds.size.y, 0.001)
-	var breakable: bool = collides and Destructible.STATS.has(prop_name)
+	var breakable: bool = collides and Destructible.STATS.has(kind)
 	var holder: Node3D = Destructible.new() if breakable else Node3D.new()
 	var body: StaticBody3D = null
 	var light: OmniLight3D = null
@@ -197,7 +212,8 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		obstacles.append(obstacle)
 	_nav_region.add_child(holder)
 	if breakable:
-		(holder as Destructible).configure(self, prop_name, prop, body, light, obstacle, footprint, height)
+		(holder as Destructible).configure(self, kind, prop, body, light, obstacle, footprint, height)
+	return holder
 
 var _hulls: Dictionary = {}   # mesh -> its convex hull: every copy of a prop shares one hull instead of recomputing it
 
@@ -230,9 +246,9 @@ func _build_walls() -> void:
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		var along_x: bool = side.x != 0.0
-		box.size = Vector3(1.0 if along_x else half * 2.0, 8.0, half * 2.0 if along_x else 1.0)
+		box.size = Vector3(1.0 if along_x else half_x * 2.0, 8.0, half_z * 2.0 if along_x else 1.0)
 		shape.shape = box
-		shape.position = side * (half + 0.5) + Vector3(0, 4.0, 0)
+		shape.position = Vector3(side.x * (half_x + 0.5), 4.0, side.z * (half_z + 0.5))
 		body.add_child(shape)
 	_nav_region.add_child(body)
 

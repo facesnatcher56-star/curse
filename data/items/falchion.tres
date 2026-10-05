@@ -18,3 +18,10 @@ tier_mult = {
 "damage": 0.08
 }
 tier_add = {}
+profile = {
+"swing": 1.1,
+"recovery": 1.7,
+"weight": 0.7,
+"finisher_time": 0.72,
+"style": "Fast combo and recovery, light stagger"
+}

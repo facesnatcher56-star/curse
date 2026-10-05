@@ -5,6 +5,8 @@ extends Control
 var player: Player
 var arena: Arena
 var wave: int = 0
+## What the job asks, with its progress ("Destroy nests: 1 / 3"), shown in place of the wave number when not "" (see RunDirector.objective_line).
+var objective: String = ""
 var kills: int = 0
 var alive: int = 0
 # Gear panel.
@@ -107,8 +109,13 @@ func _draw() -> void:
 			UiTheme.text(self, font, Vector2(0, size_px.y * 0.28 + 30.0 * i), lines[i], 22, Color(0.85, 0.78, 0.65, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 	_hint_age += get_process_delta_time()
 	UiTheme.draw_panel(self, Rect2(14, 14, 250, 62), 0.7)
-	UiTheme.text(self, font, Vector2(28, 42), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
-	UiTheme.text(self, font, Vector2(28, 64), "Kills %d      Left %d" % [kills, alive], 15, Color(0.86, 0.83, 0.77))
+	if objective != "":
+		UiTheme.text(self, font, Vector2(28, 42), objective, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
+	else:
+		UiTheme.text(self, font, Vector2(28, 42), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
+	var kills_text: String = str(kills)
+	var used: float = UiTheme.draw_stat(self, font, Vector2(28, 50), "kills", kills_text, 24.0, 18)
+	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, 50), "enemies", str(alive), 24.0, 18)
 	# The control hints fade to a whisper after the first half minute.
 	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
 	UiTheme.text(self, font, Vector2(24, 100), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
@@ -146,16 +153,31 @@ func covers(point: Vector2) -> bool:
 func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var side: float = 210.0
 	var rect := Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side))
-	var half: float = Arena.HALF
+	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
+	var bounds: Vector2 = Arena.bounds_of(get_tree())
+	var windowed: bool = bounds.y > bounds.x * 1.6
+	var half: float = 45.0 if windowed else Arena.HALF
+	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
 	var scale_px: float = side / (half * 2.0)
 	var centre: Vector2 = rect.get_center()
 	UiTheme.draw_panel(self, rect.grow(7.0), 0.5)
 	draw_rect(rect, Color(0.035, 0.035, 0.045, 0.82))
 	if arena != null:
 		for obstacle in arena.obstacles:
-			var op: Vector3 = obstacle["position"]
+			var op: Vector3 = obstacle["position"] - origin
+			if windowed and (absf(op.x) > half or absf(op.z) > half):
+				continue
 			var r: float = maxf(float(obstacle["radius"]) * scale_px, 1.5)
 			draw_circle(centre + Vector2(op.x, op.z).rotated(Gamepad.view_yaw) * scale_px, r, Color(0.3, 0.3, 0.34, 0.5))
+	# Corrupted nests (the job's targets): a sickly green ring, always shown, pinned to the edge of the map when out of the window.
+	for node in get_tree().get_nodes_in_group("nests"):
+		var nest := node as Destructible
+		if nest == null or nest.broken:
+			continue
+		var nrel: Vector3 = nest.global_position - origin
+		var nat: Vector2 = centre + Vector2(clampf(nrel.x, -half, half), clampf(nrel.z, -half, half)).rotated(Gamepad.view_yaw) * scale_px
+		draw_circle(nat, 6.0, Color(0, 0, 0, 0.8))
+		draw_arc(nat, 4.2, 0.0, TAU, 16, Color(0.55, 0.8, 0.2), 2.0)
 	# Enemies: red dots, larger orange for bosses; the nearest few are not special, the count is in the header.
 	var count: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -163,7 +185,9 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		if enemy == null or enemy.dead:
 			continue
 		count += 1
-		var p: Vector3 = enemy.global_position
+		var p: Vector3 = enemy.global_position - origin
+		if windowed and (absf(p.x) > half or absf(p.z) > half):
+			continue
 		var rel: Vector2 = Vector2(p.x, p.z).rotated(Gamepad.view_yaw)
 		var at: Vector2 = centre + Vector2(clampf(rel.x, -half, half), clampf(rel.y, -half, half)) * scale_px
 		if enemy.is_boss or enemy.max_health >= 150.0:
@@ -177,7 +201,9 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		var drop := node as LootDrop
 		if drop == null:
 			continue
-		var lp: Vector3 = drop.global_position
+		var lp: Vector3 = drop.global_position - origin
+		if windowed and (absf(lp.x) > half or absf(lp.z) > half):
+			continue
 		var lrel: Vector2 = Vector2(lp.x, lp.z).rotated(Gamepad.view_yaw)
 		var lat: Vector2 = centre + Vector2(clampf(lrel.x, -half, half), clampf(lrel.y, -half, half)) * scale_px
 		var rarity: int = int(drop.item["rarity"])
@@ -186,7 +212,7 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r - 1), lat + Vector2(r + 1, 0), lat + Vector2(0, r + 1), lat + Vector2(-r - 1, 0)]), Color(0, 0, 0, 0.85))
 		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)
 	# The hero: a white arrow pointing the way they face.
-	var pp: Vector3 = player.global_position
+	var pp: Vector3 = player.global_position - origin
 	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px
 	var yaw: float = player.visual.rotation.y if player.visual != null else 0.0
 	var fwd: Vector2 = Vector2(sin(yaw), cos(yaw)).rotated(Gamepad.view_yaw)

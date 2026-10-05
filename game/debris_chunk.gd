@@ -9,7 +9,7 @@ const MAX_CHUNKS := 140
 
 var velocity: Vector3 = Vector3.ZERO
 var spin: Vector3 = Vector3.ZERO
-var limit: float = Arena.HALF - 0.6   # how far from the middle they may land (the arena's walls)
+var limit: Vector2 = Vector2(Arena.HALF, Arena.HALF) - Vector2(0.6, 0.6)   # how far from the middle they may land (the arena's walls)
 
 var _age: float = 0.0
 var _rest: float = 0.0
@@ -63,5 +63,5 @@ func _process(delta: float) -> void:
 			spin = Vector3.ZERO
 			_rest = 1.0
 	# They cannot leave the arena through the invisible walls.
-	global_position.x = clampf(global_position.x, -limit, limit)
-	global_position.z = clampf(global_position.z, -limit, limit)
+	global_position.x = clampf(global_position.x, -limit.x, limit.x)
+	global_position.z = clampf(global_position.z, -limit.y, limit.y)
