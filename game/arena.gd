@@ -21,6 +21,9 @@ const PROPS := {
 ## Centres and radii of solid props, for tests and AI hints.
 var obstacles: Array[Dictionary] = []
 var _nav_region: NavigationRegion3D
+## The town reuses the arena's ground, walls, prop placement and navmesh with its own, smaller size and no random scatter.
+var half: float = HALF
+var scatter: bool = true
 
 var _stage_ms: int = 0
 
@@ -42,7 +45,7 @@ func build(bake_navigation: bool = true) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var placed_any: bool = false
-	for prop_name in PROPS:
+	for prop_name in (PROPS if scatter else {}):
 		var spec: Array = PROPS[prop_name]
 		var path: String = PROP_DIR + prop_name + "/model.glb"
 		if not ResourceLoader.exists(path):
@@ -56,7 +59,7 @@ func build(bake_navigation: bool = true) -> void:
 			_place(prop_name, scene, Vector3(pos.x, 0, pos.y), rng.randf() * TAU,
 				float(spec[1]) * rng.randf_range(0.85, 1.2), bool(spec[2]), bool(spec[3]))
 	_stage("props")
-	if not placed_any:
+	if not placed_any and scatter:
 		for i in 18:
 			var pos := Vector2(rng.randf_range(-30, 30), rng.randf_range(-30, 30))
 			if pos.length() >= 6.0:
@@ -83,7 +86,7 @@ func _build_ground() -> void:
 	ground.collision_layer = Actor.LAYER_WORLD
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(HALF * 2.0, 1.0, HALF * 2.0)
+	box.size = Vector3(half * 2.0, 1.0, half * 2.0)
 	shape.shape = box
 	shape.position.y = -0.5
 	ground.add_child(shape)
@@ -116,17 +119,43 @@ func _build_ground() -> void:
 	mat.roughness = 1.0
 	var mesh_instance := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(HALF * 2.0, HALF * 2.0)
+	plane.size = Vector2(half * 2.0, half * 2.0)
 	mesh_instance.mesh = plane
 	mesh_instance.material_override = mat
 	ground.add_child(mesh_instance)
 	_nav_region.add_child(ground)
 
+## Puts a prop (a res://assets/models/<name>/model.glb) on the ground at `pos`, `height` metres tall, with convex-hull collision.
+func place_prop(prop_name: String, pos: Vector3, yaw: float, height: float, collides: bool = true, lit: bool = false) -> void:
+	_place(prop_name, load(PROP_DIR + prop_name + "/model.glb"), pos, yaw, height, collides, lit)
+
+## A prop was smashed: bake the walkable area again (shortly after the last one, on a thread) so nobody keeps walking round a barrel
+## that is no longer there.
+func request_nav_refresh() -> void:
+	if _nav_refresh_pending or _nav_region == null or not is_inside_tree():
+		return
+	if OS.get_cmdline_user_args().has("--selftest"):
+		return   # a re-bake in the middle of a check would change the navigation map under it
+	_nav_refresh_pending = true
+	await get_tree().create_timer(0.8).timeout
+	_nav_refresh_pending = false
+	if _nav_region != null and is_instance_valid(_nav_region) and _nav_region.navigation_mesh != null:
+		_nav_region.bake_navigation_mesh(true)
+
+var _nav_refresh_pending: bool = false
+
+## Bakes the navigation mesh after props were added by hand.
+func bake_navigation() -> void:
+	_bake_navigation()
+
 func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, height: float, collides: bool, lit: bool) -> void:
 	var prop: Node3D = scene.instantiate()
 	var bounds: AABB = CharacterModel._bounds_of(prop)
 	var factor: float = height / maxf(bounds.size.y, 0.001)
-	var holder := Node3D.new()
+	var breakable: bool = collides and Destructible.STATS.has(prop_name)
+	var holder: Node3D = Destructible.new() if breakable else Node3D.new()
+	var body: StaticBody3D = null
+	var light: OmniLight3D = null
 	holder.position = pos
 	holder.rotation.y = yaw
 	prop.scale = Vector3.ONE * factor
@@ -134,7 +163,7 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 	prop.position = Vector3(-bounds.get_center().x, -bounds.position.y, -bounds.get_center().z) * factor
 	holder.add_child(prop)
 	if collides:
-		var body := StaticBody3D.new()
+		body = StaticBody3D.new()
 		body.collision_layer = Actor.LAYER_WORLD
 		if prop_name == "dead_tree":
 			# Only the trunk blocks; a hull around the whole tree would wall off its branches.
@@ -149,7 +178,7 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 			_add_hull_shapes(body, prop, factor)
 		holder.add_child(body)
 	if lit:
-		var light := OmniLight3D.new()
+		light = OmniLight3D.new()
 		light.light_color = Color(1.0, 0.55, 0.2)
 		light.light_energy = 2.2
 		light.omni_range = 9.0
@@ -157,9 +186,13 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		holder.add_child(light)
 		var flicker := FlickerLight.new()
 		light.add_child(flicker)
+	var footprint: float = maxf(bounds.size.x, bounds.size.z) * factor * 0.5
+	var obstacle: Dictionary = {"position": pos, "radius": footprint}
 	if collides:
-		obstacles.append({"position": pos, "radius": maxf(bounds.size.x, bounds.size.z) * factor * 0.5})
+		obstacles.append(obstacle)
 	_nav_region.add_child(holder)
+	if breakable:
+		(holder as Destructible).configure(self, prop_name, prop, body, light, obstacle, footprint, height)
 
 var _hulls: Dictionary = {}   # mesh -> its convex hull: every copy of a prop shares one hull instead of recomputing it
 
@@ -192,9 +225,9 @@ func _build_walls() -> void:
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		var along_x: bool = side.x != 0.0
-		box.size = Vector3(1.0 if along_x else HALF * 2.0, 8.0, HALF * 2.0 if along_x else 1.0)
+		box.size = Vector3(1.0 if along_x else half * 2.0, 8.0, half * 2.0 if along_x else 1.0)
 		shape.shape = box
-		shape.position = side * (HALF + 0.5) + Vector3(0, 4.0, 0)
+		shape.position = side * (half + 0.5) + Vector3(0, 4.0, 0)
 		body.add_child(shape)
 	_nav_region.add_child(body)
 

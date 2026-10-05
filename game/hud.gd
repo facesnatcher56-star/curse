@@ -7,13 +7,11 @@ var arena: Arena
 var wave: int = 0
 var kills: int = 0
 var alive: int = 0
-# Reward choice (see main.gd) and gear panel.
-var choosing: bool = false
-var choices: Array[Dictionary] = []
-var card_rects: Array[Rect2] = []
-var card_selected: int = 0   # the card the controller has highlighted
+# Gear panel.
 var show_gear: bool = false
 var banner_text: String = ""
+var _gear_hits: Array[Dictionary] = []
+var _hint_age: float = 0.0
 var banner_time: float = 0.0
 
 func show_banner(text: String, seconds: float = 2.5) -> void:
@@ -41,11 +39,12 @@ func _draw() -> void:
 
 	# Resource bars, bottom left.
 	var base: Vector2 = Vector2(24, size_px.y - 92)
-	_bar(base, Vector2(260, 24), player.health / player.max_health, Color(0.75, 0.12, 0.12),
+	UiTheme.draw_panel(self, Rect2(base - Vector2(12, 12), Vector2(284, 90)), 0.62, false)
+	_bar(base, Vector2(260, 24), player.health / player.max_health, UiTheme.BLOOD,
 		"%d / %d" % [int(player.health), int(player.max_health)], font)
-	_bar(base + Vector2(0, 30), Vector2(260, 18), player.stats.mana / player.stats.max_mana, Color(0.15, 0.35, 0.85),
+	_bar(base + Vector2(0, 30), Vector2(260, 18), player.stats.mana / player.stats.max_mana, UiTheme.MANA,
 		"%d / %d" % [int(player.stats.mana), int(player.stats.max_mana)], font)
-	_bar(base + Vector2(0, 54), Vector2(260, 8), player.stats.stamina / player.stats.max_stamina, Color(0.85, 0.75, 0.2), "", font)
+	_bar(base + Vector2(0, 54), Vector2(260, 8), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
 
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
@@ -54,6 +53,7 @@ func _draw() -> void:
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var y0: float = size_px.y - slot - 24
+	UiTheme.draw_panel(self, Rect2(x0 - 12.0, y0 - 10.0, total + 24.0, slot + 20.0), 0.6)
 	for i in player.skills.hotbar.size():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font)
@@ -97,27 +97,37 @@ func _draw() -> void:
 
 	if banner_time > 0.0:
 		var fade: float = clampf(minf(banner_time, 0.8) / 0.8, 0.0, 1.0)
-		draw_string(font, Vector2(0, size_px.y * 0.28), banner_text, HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 52,
-			Color(1.0, 0.9, 0.7, fade))
-	draw_string(font, Vector2(24, 34), "Wave %d   Kills %d   Zombies %d" % [wave, kills, alive],
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9))
-	draw_string(font, Vector2(24, 58), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.55))
+		var lines: PackedStringArray = banner_text.split("\n")
+		var top: float = size_px.y * 0.28 - 56.0
+		var band_h: float = 78.0 + 28.0 * (lines.size() - 1)
+		draw_rect(Rect2(0, top, size_px.x, band_h), Color(0, 0, 0, 0.42 * fade))
+		draw_rect(Rect2(size_px.x * 0.3, top + band_h - 2.0, size_px.x * 0.4, 2.0), Color(UiTheme.EMBER.r, UiTheme.EMBER.g, UiTheme.EMBER.b, 0.7 * fade))
+		UiTheme.text(self, font, Vector2(0, size_px.y * 0.28), lines[0], 50, Color(1.0, 0.9, 0.7, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		for i in range(1, lines.size()):
+			UiTheme.text(self, font, Vector2(0, size_px.y * 0.28 + 30.0 * i), lines[i], 22, Color(0.85, 0.78, 0.65, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+	_hint_age += get_process_delta_time()
+	UiTheme.draw_panel(self, Rect2(14, 14, 250, 62), 0.7)
+	UiTheme.text(self, font, Vector2(28, 42), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
+	UiTheme.text(self, font, Vector2(28, 64), "Kills %d      Left %d" % [kills, alive], 15, Color(0.86, 0.83, 0.77))
+	# The control hints fade to a whisper after the first half minute.
+	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
+	UiTheme.text(self, font, Vector2(24, 100), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-3 skills   4 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
+		14, Color(1, 1, 1, 0.5 * hint_alpha))
 
 	_draw_minimap(size_px, font)
 
-	if choosing:
-		_draw_reward(size_px, font)
-	elif show_gear:
+	if show_gear:
 		_draw_gear(size_px, font)
+	_draw_item_card(size_px, font)
 
 	if player.message_time > 0.0:
-		draw_string(font, Vector2(0, size_px.y - 150), player.message, HORIZONTAL_ALIGNMENT_CENTER,
-			size_px.x, 22, Color(1, 0.85, 0.4, minf(player.message_time, 1.0)))
+		UiTheme.text(self, font, Vector2(0, size_px.y - 150), player.message, 22, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)),
+			HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 	if player.dead:
 		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.55))
-		draw_string(font, Vector2(0, size_px.y * 0.45), "YOU DIED", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 64, Color(0.8, 0.1, 0.1))
-		draw_string(font, Vector2(0, size_px.y * 0.45 + 40), "Press R to restart", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 24, Color(1, 1, 1))
+		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45), "YOU DIED", 64, Color(0.72, 0.12, 0.1), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), "Press R to restart" if TownState.job.is_empty() else "Returning to town...", 22,
+			Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 
 ## True when a screen point is over a HUD panel (minimap, hotbar, resource bars): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:
@@ -139,7 +149,8 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var half: float = Arena.HALF
 	var scale_px: float = side / (half * 2.0)
 	var centre: Vector2 = rect.get_center()
-	draw_rect(rect, Color(0.04, 0.04, 0.05, 0.72))
+	UiTheme.draw_panel(self, rect.grow(7.0), 0.5)
+	draw_rect(rect, Color(0.035, 0.035, 0.045, 0.82))
 	if arena != null:
 		for obstacle in arena.obstacles:
 			var op: Vector3 = obstacle["position"]
@@ -161,6 +172,19 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		else:
 			draw_circle(at, 3.0, Color(0, 0, 0, 0.7))
 			draw_circle(at, 2.2, Color(0.95, 0.15, 0.12))
+	# Items on the ground: a diamond in the rarity colour (bigger for rares and uniques), so they can be found from the map too.
+	for node in get_tree().get_nodes_in_group("loot"):
+		var drop := node as LootDrop
+		if drop == null:
+			continue
+		var lp: Vector3 = drop.global_position
+		var lrel: Vector2 = Vector2(lp.x, lp.z).rotated(Gamepad.view_yaw)
+		var lat: Vector2 = centre + Vector2(clampf(lrel.x, -half, half), clampf(lrel.y, -half, half)) * scale_px
+		var rarity: int = int(drop.item["rarity"])
+		var r: float = 3.0 + 1.5 * rarity
+		var tint: Color = Items.RARITY_COLORS[rarity] if rarity > 0 else Color(0.78, 0.76, 0.7)
+		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r - 1), lat + Vector2(r + 1, 0), lat + Vector2(0, r + 1), lat + Vector2(-r - 1, 0)]), Color(0, 0, 0, 0.85))
+		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)
 	# The hero: a white arrow pointing the way they face.
 	var pp: Vector3 = player.global_position
 	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px
@@ -169,87 +193,147 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var side_v := Vector2(-fwd.y, fwd.x)
 	draw_colored_polygon(PackedVector2Array([me + fwd * 7.0, me - fwd * 4.0 + side_v * 4.5, me - fwd * 2.0, me - fwd * 4.0 - side_v * 4.5]),
 		Color(1, 1, 1))
-	draw_rect(rect, Color(0.8, 0.7, 0.5, 0.6), false, 2.0)
-	draw_string(font, rect.position + Vector2(8, 18), "%d left" % count, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.8))
+	UiTheme.text(self, font, rect.position + Vector2(8, 18), "%d left" % count, 14, Color(1, 1, 1, 0.8))
 
-## Equipped items, top right. Shown while holding Tab.
-func _draw_gear(size_px: Vector2, font: Font) -> void:
-	var w: float = 330.0
-	var x: float = size_px.x - w - 16.0
-	var y: float = 70.0
-	draw_rect(Rect2(x - 8, y - 22, w + 16, 330), Color(0, 0, 0, 0.6))
-	draw_string(font, Vector2(x, y), "Equipped", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 1, 1, 0.9))
-	y += 24.0
-	for slot in 3:
-		var item: Variant = player.stats.equipment.get(slot)
-		draw_string(font, Vector2(x, y), Items.SLOT_NAMES[slot], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, 0.5))
-		y += 17.0
-		if item == null:
-			draw_string(font, Vector2(x, y), "Empty", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.4))
-			y += 30.0
-			continue
-		var it: Dictionary = item
-		draw_string(font, Vector2(x, y), it["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Items.RARITY_COLORS[it["rarity"]])
-		y += 18.0
-		for line in Items.lines(it):
-			draw_multiline_string(font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_LEFT, w, 12, -1, Color(1, 1, 1, 0.75))
-			y += maxf(font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, w, 12).y, 14.0) + 2.0
+## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
+## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
+func _draw_item_card(size_px: Vector2, font: Font) -> void:
+	var drop: LootDrop = _drop_in_focus()
+	LootDrop.focused = drop
+	if drop == null:
+		return
+	var pointer: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
+	var anchor: Vector2 = pointer + Vector2(24, 18) if not Gamepad.active else Vector2(size_px.x * 0.5 + 40.0, size_px.y * 0.5 - 150.0)
+	_draw_card(drop.item, player.stats.equipment.get(int(drop.item["slot"])), anchor, size_px, font, true, true)
+
+## An item's details card at `anchor`: name, kind, stats and effect, then (optionally) how it compares with `worn`, and (for a drop on the
+## ground) whether walking over it will put it on or send it to the bag.
+func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vector2, font: Font, with_compare: bool, for_drop: bool) -> void:
+	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
+	var width: float = 340.0
+	var pad: float = 14.0
+	var inner: float = width - pad * 2.0
+	var lines: Array[String] = Items.lines(item)
+	var compare: Array[Dictionary] = Items.compare(item, worn) if with_compare else []
+	var height: float = pad * 2.0 + 54.0
+	for line in lines:
+		height += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 4.0
+	if with_compare:
+		height += 30.0 + 18.0 * compare.size()
+	if for_drop:
+		height += 30.0
+	var pos := Vector2(clampf(anchor.x, 8.0, size_px.x - width - 8.0), clampf(anchor.y, 8.0, size_px.y - height - 110.0))
+	UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
+	draw_rect(Rect2(pos + Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
+	var y: float = pos.y + pad + 18.0
+	UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), String(item["name"]), 21, color, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
+	y += 20.0
+	UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
+		Color(1, 1, 1, 0.55))
+	y += 10.0
+	for line in lines:
+		var h: float = font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y
+		draw_multiline_string(font, Vector2(pos.x + pad + 6.0, y + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, Color(0.9, 0.88, 0.82))
+		y += h + 4.0
+	if with_compare:
 		y += 8.0
-
-## One-of-three reward cards between waves.
-func _draw_reward(size_px: Vector2, font: Font) -> void:
-	draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.55))
-	draw_string(font, Vector2(0, size_px.y * 0.12), "Choose a reward", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 36, Color(1, 0.92, 0.75))
-	var card_w: float = 300.0
-	var card_h: float = 330.0
-	var gap: float = 28.0
-	var count: int = choices.size()
-	var x0: float = (size_px.x - (card_w * count + gap * (count - 1))) * 0.5
-	var y0: float = size_px.y * 0.2
-	if Gamepad.active:
-		draw_string(font, Vector2(0, y0 + card_h + 48.0), "D-pad / left stick: choose     A: take     B: skip", HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1, 0.92, 0.75))
-	card_rects.clear()
-	for i in count:
-		var item: Dictionary = choices[i]
-		var rect := Rect2(Vector2(x0 + i * (card_w + gap), y0), Vector2(card_w, card_h))
-		card_rects.append(rect)
-		var picked: bool = Gamepad.active and i == card_selected
-		var hovered: bool = picked or (not Gamepad.active and rect.has_point(get_viewport().get_mouse_position()))
-		var color: Color = Items.RARITY_COLORS[item["rarity"]]
-		draw_rect(rect, Color(0.08, 0.08, 0.1, 0.96) if not hovered else Color(0.14, 0.14, 0.18, 0.98))
-		draw_rect(rect, color, false, 3.0 if hovered else 2.0)
-		var pad: float = 16.0
-		var y: float = rect.position.y + 30.0
-		draw_string(font, Vector2(rect.position.x + pad, y), "[%d]" % (i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.5))
-		y += 28.0
-		draw_multiline_string(font, Vector2(rect.position.x + pad, y), item["name"],
-			HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 24, -1, color)
-		y += maxf(font.get_multiline_string_size(item["name"], HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 24).y, 28.0)
-		draw_string(font, Vector2(rect.position.x + pad, y), "%s  -  %s" % [Items.RARITY_NAMES[item["rarity"]], Items.SLOT_NAMES[item["slot"]]],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.55))
+		draw_line(Vector2(pos.x + pad, y), Vector2(pos.x + width - pad, y), Color(1, 1, 1, 0.12), 1.0)
+		y += 18.0
+		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
+			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
+		for entry in compare:
+			y += 18.0
+			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
+			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
+			UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), mark + String(entry["text"]), 14, sign_color)
+	if for_drop:
 		y += 26.0
-		for line in Items.lines(item):
-			draw_multiline_string(font, Vector2(rect.position.x + pad, y), line,
-				HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 15, -1, Color(1, 1, 1, 0.9))
-			y += maxf(font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 15).y, 16.0) + 8.0
-		var current: Variant = player.stats.equipment.get(int(item["slot"]))
-		var replaces: String = "Replaces: %s" % (current["name"] if current != null else "nothing")
-		draw_string(font, Vector2(rect.position.x + pad, rect.end.y - 14.0), replaces, HORIZONTAL_ALIGNMENT_LEFT, card_w - pad * 2.0, 12, Color(1, 1, 1, 0.45))
-	draw_string(font, Vector2(0, y0 + card_h + 44.0), "Press 1-3 or click to take one.   [4] Skip for a potion",
-		HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 16, Color(1, 1, 1, 0.65))
+		var upgrade: bool = player.stats.is_upgrade(item)
+		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it" if upgrade else "Walk over it: it goes in the bag", 14,
+			Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
+
+## The dropped item the player is pointing at: under the mouse (by where it is on screen), or with a controller the nearest within reach.
+func _drop_in_focus() -> LootDrop:
+	var best: LootDrop = null
+	var best_d: float = 1.0e9
+	if Gamepad.active:
+		for node in get_tree().get_nodes_in_group("loot"):
+			var drop := node as LootDrop
+			if drop == null or not drop.landed:
+				continue
+			var d: float = player.global_position.distance_to(drop.global_position)
+			if d < 4.0 and d < best_d:
+				best_d = d
+				best = drop
+		return best
+	var mouse: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
+	if mouse_over_hud(mouse):
+		return null
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera == null:
+		return null
+	for node in get_tree().get_nodes_in_group("loot"):
+		var drop := node as LootDrop
+		if drop == null or not drop.landed or camera.is_position_behind(drop.global_position):
+			continue
+		var d: float = camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0)).distance_to(mouse)
+		if d < 56.0 and d < best_d:
+			best_d = d
+			best = drop
+	return best
+
+func mouse_over_hud(point: Vector2) -> bool:
+	return covers(point)
+
+## What you wear and what is in the bag, as pictures, top right. Shown while holding Tab; point at one for its details.
+func _draw_gear(size_px: Vector2, font: Font) -> void:
+	var tile: float = 64.0
+	var gap: float = 10.0
+	var columns: int = 6
+	var w: float = columns * tile + (columns - 1) * gap
+	var x: float = size_px.x - w - 30.0
+	var y: float = 70.0
+	var rows: int = maxi(1, ceili(float(player.stats.bag.size()) / columns))
+	var height: float = 36.0 + 20.0 + tile + 30.0 + 20.0 + rows * (tile + gap) + 20.0
+	UiTheme.draw_panel(self, Rect2(x - 16, y - 40, w + 32, height), 0.92)
+	UiTheme.text(self, font, Vector2(x, y - 12), "Worn", 18, UiTheme.BRONZE_LIGHT.lightened(0.2))
+	_gear_hits.clear()
+	var pointer: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
+	y += 4.0
+	for slot in 3:
+		var rect := Rect2(Vector2(x + slot * (tile + gap), y), Vector2(tile, tile))
+		var worn: Variant = player.stats.equipment.get(slot)
+		if worn == null:
+			draw_rect(rect, Color(0.04, 0.04, 0.05, 0.9))
+			draw_rect(rect, Color(0.3, 0.28, 0.25), false, 2.0)
+			UiTheme.text(self, font, rect.position + Vector2(0, tile * 0.55), Items.SLOT_NAMES[slot], 12, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_CENTER, tile)
+		else:
+			draw_texture_rect(ItemIcons.badge(worn), rect, false)
+			_gear_hits.append({"rect": rect, "item": worn, "worn": true})
+	y += tile + 34.0
+	UiTheme.text(self, font, Vector2(x, y - 12), "Bag (%d)   kept for the town stash" % player.stats.bag.size(), 15, UiTheme.BRONZE_LIGHT.lightened(0.2))
+	if player.stats.bag.is_empty():
+		UiTheme.text(self, font, Vector2(x, y + 22), "Nothing yet. Items that are not upgrades go here.", 13, Color(1, 1, 1, 0.45))
+	for i in player.stats.bag.size():
+		var rect := Rect2(Vector2(x + (i % columns) * (tile + gap), y + (i / columns) * (tile + gap)), Vector2(tile, tile))
+		draw_texture_rect(ItemIcons.badge(player.stats.bag[i]), rect, false)
+		_gear_hits.append({"rect": rect, "item": player.stats.bag[i], "worn": false})
+	for hit in _gear_hits:
+		if (hit["rect"] as Rect2).has_point(pointer):
+			draw_rect((hit["rect"] as Rect2).grow(2.0), Color(1.0, 0.85, 0.5, 0.9), false, 2.0)
+			var item: Dictionary = hit["item"]
+			_draw_card(item, null if bool(hit["worn"]) else player.stats.equipment.get(int(item["slot"])), Vector2(x - 372.0, 70.0), size_px, font,
+				not bool(hit["worn"]), false)
+			break
 
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
-	draw_rect(Rect2(pos, size_px), Color(0, 0, 0, 0.65))
-	draw_rect(Rect2(pos, Vector2(size_px.x * clampf(fraction, 0.0, 1.0), size_px.y)), color)
-	draw_rect(Rect2(pos, size_px), Color(1, 1, 1, 0.35), false, 1.0)
-	if label != "":
-		draw_string(font, pos + Vector2(0, size_px.y - 5), label, HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 13, Color(1, 1, 1))
+	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)
 
 ## One hotbar slot: icon, radial cooldown sweep with seconds left, mana-cost tint, ready flash, bound key.
 func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font) -> void:
 	var rect := Rect2(pos, Vector2(size_px, size_px))
 	var skill: Dictionary = SkillDb.all()[id]
-	draw_rect(rect, Color(0.17, 0.16, 0.2, 0.95))
+	draw_rect(rect, UiTheme.INK)
 	var icon: Texture2D = _icon(id)
 	if icon != null:
 		draw_texture_rect(icon, rect.grow(-3.0), false)
@@ -266,7 +350,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	_slot_hits.append({"rect": rect, "id": id, "action": action})
 	var affordable: bool = player.stats.mana >= float(skill["mana"])
 	if not affordable:
-		draw_rect(rect, Color(0.1, 0.2, 0.6, 0.45))
+		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
 	# An ultimate has no cooldown: it fills from the bottom as damage is dealt and glows when it is ready to use.
 	var ult_cost: float = player.stats.ult_cost(id)
@@ -300,6 +384,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 			var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
 			draw_rect(rect.grow(2.0 + 2.0 * beat), Color(1.0, 0.6, 0.2, 0.35 + 0.35 * beat), false, 3.0)
 			border = Color(1.0, 0.8, 0.4, 1.0)
+	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
 	# Key hint (follows rebinding), potion count and mana cost.
 	var key_text: String = GameSettings.short_binding_text(action)
@@ -312,8 +397,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.
 func _draw_tooltip(font: Font, size_px: Vector2) -> void:
-	if choosing:
-		return
 	var mouse: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
 	for hit in _slot_hits:
 		var rect: Rect2 = hit["rect"]
@@ -353,8 +436,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 			height += 18.0
 		height += pad
 		var pos := Vector2(clampf(rect.get_center().x - width * 0.5, 8.0, size_px.x - width - 8.0), rect.position.y - height - 10.0)
-		draw_rect(Rect2(pos, Vector2(width, height)), Color(0.06, 0.06, 0.08, 0.97))
-		draw_rect(Rect2(pos, Vector2(width, height)), Color(0.85, 0.72, 0.45, 0.9), false, 2.0)
+		UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
 		var y: float = pos.y + pad + 16.0
 		draw_string(font, Vector2(pos.x + pad, y), skill["name"], HORIZONTAL_ALIGNMENT_LEFT, inner - 70.0, 21, Color(1.0, 0.88, 0.6))
 		draw_string(font, Vector2(pos.x + width - pad - 66.0, y), "[%s]" % GameSettings.short_binding_text(hit["action"]),

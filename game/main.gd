@@ -21,7 +21,7 @@ func _mark(label: String) -> void:
 
 func _ready() -> void:
 	_boot_ms = Time.get_ticks_msec()
-	# Pausing (the pause menu, the reward screen) must freeze the whole world, so this node and everything under it is pausable. The
+	# Pausing (the pause menu) must freeze the whole world, so this node and everything under it is pausable. The
 	# menus and HUD (the CanvasLayer below) and the input relay keep running while paused.
 	get_tree().paused = false
 	var relay := Node.new()
@@ -32,10 +32,12 @@ func _ready() -> void:
 	GameSettings.boot()
 	_mark("settings")
 	_build_world()
+	_apply_job_mood(TownState.job)
 	_mark("world + nav bake")
 
 	player = Player.new()
 	add_child(player)
+	TownScene._apply_run_gear(player)   # what the town holds (nothing, for a run that did not come from town)
 	_mark("hero model")
 	var torch := OmniLight3D.new()
 	torch.light_color = Color(1.0, 0.72, 0.45)
@@ -72,6 +74,8 @@ func _ready() -> void:
 	director.hud = hud
 	director.selftest = OS.get_cmdline_user_args().has("--selftest")
 	add_child(director)
+	if not TownState.job.is_empty() and not director.selftest:
+		director.set_job(TownState.job)
 
 	# Developer modes (self-test, screenshot and pose tools) live in DevHarness and take over the run when asked for.
 	var dev := DevHarness.new()
@@ -97,36 +101,8 @@ func _ready() -> void:
 		get_tree().quit()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and not director.choosing and not pause_menu.is_open():
+	if event.is_action_pressed("pause") and not pause_menu.is_open():
 		pause_menu.open()
-		return
-	if director.choosing:
-		var count: int = maxi(hud.choices.size(), 1)
-		if event.is_action_pressed("ui_left"):
-			hud.card_selected = posmod(hud.card_selected - 1, count)
-			return
-		if event.is_action_pressed("ui_right"):
-			hud.card_selected = posmod(hud.card_selected + 1, count)
-			return
-		if Gamepad.active and event.is_action_pressed("ui_accept"):
-			director.choose(clampi(hud.card_selected, 0, count - 1))
-			return
-		if Gamepad.active and event.is_action_pressed("ui_cancel"):
-			director.choose(-1)
-			return
-		for i in 3:
-			if event.is_action_pressed("skill_%d" % (i + 1)):
-				director.choose(i)
-				return
-		if event.is_action_pressed("skill_4"):
-			director.choose(-1)
-			return
-		var click := event as InputEventMouseButton
-		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
-			for i in hud.card_rects.size():
-				if hud.card_rects[i].has_point(click.position):
-					director.choose(i)
-					return
 		return
 	if event.is_action_pressed("restart") and player.dead:
 		get_tree().reload_current_scene()
@@ -146,6 +122,7 @@ func _build_world() -> void:
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.08, 0.09, 0.12)
 	environment.fog_density = 0.01
+	NightSky.apply(environment)
 	env.environment = environment
 	world_environment = environment
 	add_child(env)
@@ -163,6 +140,14 @@ func _build_world() -> void:
 	arena.build()
 	if hud != null:
 		hud.arena = arena
+
+## A job's modifiers set the mood of the whole run: darker, brighter, foggier.
+func _apply_job_mood(offer: Dictionary) -> void:
+	for id in offer.get("modifiers", []):
+		var def: WaveModifierDef = TownDb.modifier(String(id))
+		if def != null:
+			world_environment.ambient_light_energy *= def.ambient_mult
+			world_environment.fog_density *= def.fog_mult
 
 func _process(_delta: float) -> void:
 	hud.wave = director.wave

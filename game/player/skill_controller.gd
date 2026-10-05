@@ -12,7 +12,6 @@ var hotbar: Array[String] = ["power", "cleave", "fireball", "potion", "skewer", 
 var right_click_skill: String = "basic"
 var _glow_light: OmniLight3D
 var _haste_fx: CPUParticles3D
-var _riposte_light: OmniLight3D
 var queued_skill: String = ""
 var queued_target: Actor
 var busy: bool = false
@@ -30,6 +29,8 @@ var _blood_mat: ShaderMaterial
 var fire_orb: FireOrb
 var _release_started: bool = false
 var aiming_id: String = ""
+var aim_blocked: String = ""      # an aim key that was cancelled and is still held down
+var swallow_alt: bool = false      # the right-click that cancelled something must not also start an attack
 var aiming_action: String = ""
 var aim_point: Vector3 = Vector3.ZERO
 var _aim_root: Node3D
@@ -110,12 +111,37 @@ func try_directional(id: String, cursor: Vector3) -> void:
 	else:
 		p.skewer.start_skewer(cursor)
 
+## Right-click or dodge backs out of a Fireball. While aiming nothing has been spent; during the wind-up the mana and cooldown come
+## back. Once the fireball has left the hand it is thrown, and nothing cancels it.
+func check_cancel() -> void:
+	var alt: bool = Input.is_action_just_pressed("alt_skill") and aiming_action != "alt_skill"
+	var dodge: bool = Input.is_action_just_pressed("dodge")
+	if not (alt or dodge):
+		return
+	if aiming_id != "":
+		aim_blocked = aiming_action   # the aim key may still be held: letting go of it must not cast
+		clear_aim()
+		if alt:
+			swallow_alt = true
+		p._say("Cancelled")
+	elif busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
+		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
+		p.stats.cooldowns[busy_skill] = 0.0
+		cancel_action()
+		if alt:
+			swallow_alt = true
+		p._say("Cancelled")
+
 ## Holding the key aims; letting go casts at the point under the cursor.
 func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 	if Input.is_action_pressed(action):
+		if aim_blocked == action:
+			return   # cancelled while this key was held: nothing happens until it is released
 		aiming_id = id
 		aiming_action = action
 		p.movement.has_goal = false
+	elif aim_blocked == action:
+		aim_blocked = ""
 	elif aiming_id == id and aiming_action == action:
 		_release_aim(cursor)
 
@@ -283,8 +309,12 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	busy_time = float(skill["time"]) / p.stats.attack_speed()
 	if String(skill["kind"]) == "cleave":
 		ItemEffects.pull_for_cleave(p)
-	p.stats.mana -= float(skill["mana"])
-	p.stats.cooldowns[id] = float(skill["cd"])
+	if id == "power" and p.stats.vault_time > 0.0:
+		p.stats.vault_time = 0.0   # Vaultborn: this one is free
+	else:
+		p.stats.mana -= float(skill["mana"])
+		p.stats.cooldowns[id] = float(skill["cd"])
+	ItemEffects.on_skill_start(p, id)
 	busy = true
 	busy_skill = id
 	busy_target = target
@@ -342,7 +372,7 @@ func _blade_glow(u: float, hit_frac: float) -> void:
 	else:
 		_glow_light.light_energy = 3.5 * clampf(1.0 - (u - hit_frac) / 0.3, 0.0, 1.0)
 
-## Gear buffs you can see: a haste wake behind you, and a gold glow on the blade while a riposte is ready.
+## Gear buffs you can see: a haste wake behind you.
 func update_buff_visuals() -> void:
 	if _glow_light != null and not (busy and (busy_skill == "power" or busy_skill == "cleave")):
 		_glow_light.light_energy = 0.0
@@ -351,16 +381,6 @@ func update_buff_visuals() -> void:
 		p.add_child(_haste_fx)
 	if _haste_fx != null:
 		_haste_fx.emitting = p.stats.haste_time > 0.0
-	var riposte_on: bool = p.stats.riposte_time > 0.0 and p.model != null and p.model.weapon_tip != null
-	if riposte_on and _riposte_light == null:
-		_riposte_light = OmniLight3D.new()
-		_riposte_light.light_color = Color(1.0, 0.85, 0.35)
-		_riposte_light.omni_range = 3.5
-		_riposte_light.light_energy = 0.0
-		p.model.weapon_tip.add_child(_riposte_light)
-	if _riposte_light != null:
-		var pulse: float = 1.6 + 0.8 * sin(Time.get_ticks_msec() * 0.012)
-		_riposte_light.light_energy = pulse if riposte_on else 0.0
 
 func _make_haste_fx() -> CPUParticles3D:
 	var p := CPUParticles3D.new()
@@ -518,6 +538,7 @@ func _power_impact() -> void:
 		point = busy_target.global_position
 	point.y = 0.0
 	SkillFx.power_impact(p, point, dir, p.stats.has_affix("gravewarden"))
+	Destructible.blast(p.get_tree(), point, 2.4, 60.0, dir, 1.7, "barrel")
 	Fx.hitstop(p, 0.08)
 	if busy_target != null and is_instance_valid(busy_target) and not busy_target.dead:
 		busy_target.interrupt(0.7)
@@ -544,17 +565,16 @@ func _apply_skill(skill: Dictionary) -> void:
 		"melee":
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
-				var guaranteed_crit: bool = p.stats.riposte_time > 0.0
+				var guaranteed_crit: bool = ItemEffects.guaranteed_crit(p, busy_target)
 				var damage: float = p.stats.weapon_damage(mult) * ItemEffects.outgoing_multiplier(p, busy_target)
 				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL,
 					not guaranteed_crit, float(skill["weight"]), guaranteed_crit)
 				result["skill_id"] = busy_skill
 				result["finisher"] = skill.get("finisher", false)
-				if guaranteed_crit:
-					p.stats.riposte_time = 0.0
 				busy_target.receive(result, p.global_position)
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
+			_smash_props(mult, 1.4 + (1.0 if busy_skill == "power" else 0.0), 1.0 + (0.5 if busy_skill == "power" else 0.0))
 			if busy_skill == "power":
 				_power_impact()
 		"cleave":
@@ -563,12 +583,15 @@ func _apply_skill(skill: Dictionary) -> void:
 				var e := node as Actor
 				if e != null and not e.dead and p.flat_distance_to(e) - e.body_radius <= float(skill["range"]):
 					var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * ItemEffects.outgoing_multiplier(p, e),
-						Combat.DamageType.PHYSICAL, true, float(skill["weight"]))
+						Combat.DamageType.PHYSICAL, true, float(skill["weight"]), ItemEffects.guaranteed_crit(p, e))
 					swing["skill_id"] = busy_skill
 					e.receive(swing, p.global_position)
+					if p.stats.has_affix("maelstrom") and is_instance_valid(e) and not e.dead:
+						e.interrupt(1.0)   # Maelstrom: the sweep stuns everything it catches
 					cleave_hits += 1
 					SkillFx.cleave_hit(p, e)
 			SkillFx.cleave_burst(p, float(skill["range"]))
+			Destructible.blast(p.get_tree(), p.global_position, float(skill["range"]), p.stats.weapon_damage(mult) * 1.5, Vector3.ZERO, 1.2, "barrel")
 			if cleave_hits == 0:
 				Sfx.sword_miss(p)
 			if cleave_hits > 0:
@@ -581,7 +604,7 @@ func _apply_skill(skill: Dictionary) -> void:
 			var dir: Vector3 = busy_aim - p.global_position
 			dir.y = 0.0
 			ball.direction = dir.normalized()
-			ball.damage = 14.0 + p.stats.strength * 0.4
+			ball.damage = (14.0 + p.stats.strength * 0.4) * ItemEffects.virtuoso_multiplier(p)
 			ball.destination = busy_aim + Vector3(0, 0.8, 0)
 			p.get_tree().current_scene.add_child(ball)
 			var origin: Vector3 = p.global_position + Vector3(0, 1.2, 0) + ball.direction * 0.8
@@ -600,6 +623,13 @@ func _apply_skill(skill: Dictionary) -> void:
 				twin.destination = twin_point + Vector3(0, 0.8, 0)
 				p.get_tree().current_scene.add_child(twin)
 				twin.global_position = ball.global_position
+
+## A swing also breaks a barrel in front of the hero (only barrels, for now), so one can be attacked like an enemy.
+func _smash_props(mult: float, reach: float, force: float) -> void:
+	var dir: Vector3 = busy_aim - p.global_position
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
+	Destructible.blast(p.get_tree(), p.global_position + dir * 1.2, reach, p.stats.weapon_damage(mult) * 1.5, dir, force, "barrel")
 
 ## Where the second Twin Flame fireball goes: at a second enemy (the nearest one to the first fireball's target that is not the
 ## target itself, preferring one outside the first blast); with only one enemy about, right next to it.

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "cinder_roll"
+title = "Ember-Treaded"
+slot = 1
+description = "Your dodge roll leaves a trail of embers that sets enemies alight for 3 seconds."

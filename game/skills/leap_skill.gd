@@ -120,6 +120,8 @@ func tick_leap(delta: float) -> void:
 				Fx.punch(p, 1.6)
 		2:
 			var u: float = clampf(leap_t / leap_air_time, 0.0, 1.0)
+			# Anything breakable under the flight path is smashed as the hero sails through.
+			Destructible.blast(p.get_tree(), p.global_position, 1.2, 999.0, leap_dir, 2.2)
 			if slam:
 				# Track the target while airborne (it may still be tumbling or scrambling up).
 				var spot: Vector3 = leap_victim.global_position - leap_dir * LEAP_SLAM_REACH
@@ -173,6 +175,8 @@ func _leap_land(slam: bool) -> void:
 	leap_phase = 3
 	leap_t = 0.0
 	Sfx.sample(p, "leap_land", -3.0, 1.0)   # the heavy touchdown, slam or chop
+	Destructible.blast(p.get_tree(), p.global_position, 3.2, 999.0, leap_dir, 2.0)
+	ItemEffects.on_leap_land(p)
 	if slam:
 		p.model.scrub(LEAP_CLIP_LAND)
 		var damage: float = p.stats.weapon_damage(LEAP_SLAM_MULT) * ItemEffects.outgoing_multiplier(p, leap_victim)

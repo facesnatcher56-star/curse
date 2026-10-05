@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WaveModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/wave_modifier_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "gigantism"
+display_name = "Gigantism"
+description = "Everything is bigger, slower and harder to put down."
+spawn_weights = {}
+count_mult = 1.0
+health_mult = 1.5
+speed_mult = 0.92
+size_mult = 1.25
+ambient_mult = 1.0
+fog_mult = 1.0
+reward_mult = 1.25
+min_wave = 1
+excludes = Array[String]([])

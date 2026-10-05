@@ -47,6 +47,8 @@ func _physics_process(delta: float) -> void:
 func _explode() -> void:
 	_done = true
 	var center: Vector3 = global_position
+	Destructible.blast(get_tree(), center, blast_radius, 70.0, Vector3.ZERO, 1.6)
+	var caught: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if enemy == null or enemy.dead:
@@ -57,6 +59,7 @@ func _explode() -> void:
 		var closeness: float = 1.0 - dist / blast_radius   # 1 at the centre, 0 at the rim
 		var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4)
 		enemy.receive(result, center)
+		caught += 1
 		if not is_instance_valid(enemy):
 			continue
 		enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness)
@@ -70,6 +73,8 @@ func _explode() -> void:
 			enemy.ragdoll_launch(away * (4.0 + 6.0 * force), 3.0 + 3.5 * force, spin)
 		else:
 			enemy.interrupt(0.5)
+	if owner_actor is Player:
+		ItemEffects.on_fireball_blast(owner_actor as Player, caught)
 	Fx.shake(self, 0.22)
 	Fx.punch(self, 2.0)
 	Fx.hitstop(self, 0.05)

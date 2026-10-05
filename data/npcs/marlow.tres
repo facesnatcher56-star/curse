@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/npc_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "marlow"
+display_name = "Marlow"
+role = "vendor"
+title = "Trader"
+model_path = "res://assets/models/npc_vendor"
+height = 1.7
+home = Vector2(-8.0, -3.0)
+traits = Array[String](["gossip", "drunk"])
+start_happiness = 15.0
+recruit_cost = 0
+clan_skill = ""
+lines = {
+"greet": ["Coin first, questions after.", "Gold's gold. Even now.", "Take a look. Don't touch the good stuff."],
+"idle": ["Prices are only going up.", "Who's buying a sword in a town like this?", "Dry as dust, this job."],
+"return_ok": ["You're back, and carrying coin. Good.", "Still breathing? Pleasure doing business."],
+"return_dead": ["Left your gear on a corpse, did you?"],
+"gossip": ["Heard the warden's been counting the grain twice a day.", "Between us? That mercenary is trouble."],
+"argue": ["You watered it down again, didn't you?"],
+"praise": ["Honest work, that."],
+"joke": ["Two zombies walk into a tavern. Short joke, that."],
+"small_talk": ["Quiet night."]
+}

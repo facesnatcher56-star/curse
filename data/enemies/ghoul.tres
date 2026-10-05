@@ -42,6 +42,8 @@ params = {
 "cooldown_max": 3.6
 }
 token_weight = 1
+drop_chance = 0.09
+drop_luck = 0.0
 min_wave = 2
 spawn_mode = "pack"
 base_count = 2.0

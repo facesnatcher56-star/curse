@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WaveModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/wave_modifier_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "darkness"
+display_name = "Darkness"
+description = "The moon is hidden. You will hear them first."
+spawn_weights = {}
+count_mult = 1.0
+health_mult = 1.0
+speed_mult = 1.0
+size_mult = 1.0
+ambient_mult = 0.45
+fog_mult = 1.4
+reward_mult = 1.2
+min_wave = 1
+excludes = Array[String](["moonlit"])

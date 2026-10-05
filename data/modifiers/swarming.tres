@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WaveModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/wave_modifier_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "swarming"
+display_name = "Swarming"
+description = "More of the small and fast. Fewer pieces of cover."
+spawn_weights = {
+"zombie": 1.7,
+"ghoul": 1.8
+}
+count_mult = 1.0
+health_mult = 0.9
+speed_mult = 1.0
+size_mult = 1.0
+ambient_mult = 1.0
+fog_mult = 1.0
+reward_mult = 1.15
+min_wave = 1
+excludes = Array[String]([])

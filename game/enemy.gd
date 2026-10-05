@@ -12,7 +12,7 @@ var def: EnemyDef
 var behavior: EnemyBehavior
 var target: Actor
 var move_speed: float = 2.4
-var aggro_range: float = 16.0
+var aggro_range: float = 12.0
 var attack_range: float = 1.6
 var attack_time: float = 1.1
 var damage_min: float = 6.0
@@ -111,6 +111,13 @@ func _physics_process(delta: float) -> void:
 		_orbit_flip = randf_range(1.5, 3.5)
 		_orbit_dir = -_orbit_dir
 	behavior.tick(delta, dist)
+
+## Anything the hero hits turns on them at once, however far away it was and whether or not it had noticed them.
+func receive(result: Dictionary, source_pos: Vector3) -> void:
+	if not dead and result.get("source") is Player:
+		_aggro = true
+		alert_delay = 0.0
+	super.receive(result, source_pos)
 
 # --- movement helpers shared by behaviours ------------------------------------------------
 

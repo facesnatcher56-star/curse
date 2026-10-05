@@ -31,7 +31,7 @@ extends Resource
 @export var knock_resist: float = 0.0
 @export var stun_resist: float = 0.0
 @export var impalable: bool = true
-@export var aggro_range: float = 16.0
+@export var aggro_range: float = 12.0   # metres at which an enemy notices the hero (each enemy rolls 60-100% of this)
 
 @export_group("Melee clip")
 ## Strike timing measured from the clip (see tools/anim_timing.gd): clip seconds where the swing starts, lands and ends.
@@ -45,6 +45,11 @@ extends Resource
 @export var params: Dictionary = {}
 ## How many of the hero's "attackers at once" slots this enemy takes up.
 @export var token_weight: int = 1
+
+@export_group("Loot")
+## Chance of dropping an item when killed, and how lucky the drop is (0 ordinary, 1 a Brute: rare or better, often unique).
+@export var drop_chance: float = 0.0
+@export var drop_luck: float = 0.0
 
 @export_group("Spawning")
 @export var min_wave: int = 1

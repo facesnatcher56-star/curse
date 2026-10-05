@@ -34,6 +34,8 @@ params = {
 "heavy_chance": 0.5
 }
 token_weight = 2
+drop_chance = 0.5
+drop_luck = 1.0
 min_wave = 2
 spawn_mode = "solo"
 base_count = 1.0

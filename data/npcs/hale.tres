@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/npc_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "hale"
+display_name = "Warden Hale"
+role = "keeper"
+title = "Keeper of the Board"
+model_path = "res://assets/models/npc_keeper"
+height = 1.7
+home = Vector2(8.0, -5.0)
+traits = Array[String](["loyal", "argumentative"])
+start_happiness = 20.0
+recruit_cost = 0
+clan_skill = ""
+lines = {
+"greet": ["There's work on the board. Not much of it pays.", "Read it twice before you sign."],
+"idle": ["Count the grain. Count the guards. Count the days.", "Another name struck off the list."],
+"return_ok": ["The board's been paid. Well done.", "Good. The town owes you."],
+"return_dead": ["I'll cross you off the list. Again."],
+"gossip": ["The grain's lower than I'm saying."],
+"argue": ["That is not how it is written."],
+"praise": ["Steady hands, that one."],
+"joke": ["Don't."],
+"small_talk": ["The walls hold, for now."]
+}

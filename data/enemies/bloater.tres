@@ -40,6 +40,8 @@ params = {
 "fire_blast_damage": 32.0
 }
 token_weight = 0
+drop_chance = 0.16
+drop_luck = 0.0
 min_wave = 4
 spawn_mode = "solo"
 base_count = 1.0

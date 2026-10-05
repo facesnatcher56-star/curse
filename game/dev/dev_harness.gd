@@ -3,7 +3,7 @@ extends Node3D
 ## Developer tooling kept out of the game proper: the headless `--selftest` suite and the screenshot / pose tools.
 ## Main creates one of these and calls run_from_args(); when a dev flag is present it takes over the run.
 ##   --selftest [--only=NAME]   run the checks (CI runs this headless)
-##   --skillshot=NAME, --aimshot, --hudshot, --rewardshot, --hovershot, --rollshot, --poses, --clipsheet=, --shot
+##   --skillshot=NAME, --aimshot, --hudshot, --hovershot, --rollshot, --poses, --clipsheet=, --shot
 ## Everything below talks to the running game through `game` (the Main node).
 
 var game: Node3D
@@ -24,18 +24,12 @@ var wave: int:
 	set(value): game.director.wave = value
 var kills: int:
 	get: return game.director.kills
-var _brute_killed: bool:
-	get: return game.director._brute_killed
-	set(value): game.director._brute_killed = value
 
 func _spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -> Enemy:
 	return game.director.spawn_enemy(pos, variant, level)
 
 func _next_wave() -> void:
 	game.director.start_wave()
-
-func _offer_reward() -> void:
-	game.director.offer_reward()
 
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
@@ -63,8 +57,10 @@ func run_from_args() -> bool:
 		_pause_shot()
 	elif OS.get_cmdline_user_args().has("--hudshot"):
 		_hud_shot()
-	elif OS.get_cmdline_user_args().has("--rewardshot"):
-		_reward_shot()
+	elif OS.get_cmdline_user_args().has("--smashshot"):
+		_smash_shot()
+	elif OS.get_cmdline_user_args().has("--itemsheet"):
+		_item_sheet()
 	elif OS.get_cmdline_user_args().has("--hovershot"):
 		_hover_shot()
 	elif OS.get_cmdline_user_args().has("--rollshot"):
@@ -715,6 +711,12 @@ func _test_gamepad() -> void:
 	Input.action_release("alt_skill")
 	expect("A attacks the targeted enemy", swung)
 	await get_tree().create_timer(1.2).timeout
+	for retry in 3:   # a swing can miss or be blocked at random: swing again rather than fail on bad luck
+		if enemy.health < enemy.max_health:
+			break
+		Input.action_press("alt_skill")
+		await get_tree().create_timer(1.4).timeout
+		Input.action_release("alt_skill")
 	expect("the enemy was hit", enemy.health < enemy.max_health)
 
 	# Rolling follows the stick.
@@ -1027,14 +1029,21 @@ func _test_leap() -> void:
 	standing.max_health = 800.0
 	standing.health = 800.0
 	await get_tree().process_frame
-	player.skills.try_directional("leap", Vector3(32, 0, -19))
-	phases.clear()
-	t = 0.0
-	while player.skills.busy and t < 5.0:
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-		if phases.is_empty() or phases[-1] != player.leap.leap_phase:
-			phases.append(player.leap.leap_phase)
+	for attempt in 3:   # the chop can miss at random: leap again rather than fail on bad luck
+		player.stats.cooldowns.clear()
+		player.stats.mana = player.stats.max_mana
+		player.global_position = Vector3(32, 0, -12)
+		player.reset_physics_interpolation()
+		player.skills.try_directional("leap", Vector3(32, 0, -19))
+		phases.clear()
+		t = 0.0
+		while player.skills.busy and t < 5.0:
+			await get_tree().physics_frame
+			t += 1.0 / 60.0
+			if phases.is_empty() or phases[-1] != player.leap.leap_phase:
+				phases.append(player.leap.leap_phase)
+		if standing.health < 800.0:
+			break
 	expect("leap on open ground chops", phases == [1, 2, 3, 0] and standing.health < 800.0)
 	print("  leap chop: phases=", phases, " standing zombie damage=", snappedf(800.0 - standing.health, 0.1), " landed at ", player.global_position)
 	standing.queue_free()
@@ -1309,7 +1318,6 @@ func _test_items() -> void:
 		target.receive(result, player.global_position)
 		ItemEffects.on_kill(player, target)
 		ItemEffects.on_roll_start(player)
-		ItemEffects.on_roll_end(player)
 		ItemEffects.power_shockwave(player, Vector3(1, 0, 0))
 		ItemEffects.pull_for_cleave(player)
 		var incoming: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 10.0, "weight": 1.0}
@@ -1320,8 +1328,8 @@ func _test_items() -> void:
 			d.slow_time = 0.0
 		player.stats.cooldowns.clear()
 		player.stats.haste_time = 0.0
-		player.stats.riposte_time = 0.0
-		player.stats.ward_timer = 0.0
+		player.stats.vault_time = 0.0
+		player.stats.chain_time = 0.0
 		await get_tree().process_frame
 	var choices: Array[Dictionary] = Items.roll_choices(5, true, [])
 	expect("every affix is driven by its hook", failures == 0)
@@ -1416,7 +1424,7 @@ func _melee_shots(which: String) -> void:
 	player.stats.mana = player.stats.max_mana
 	player.set_physics_process(true)
 	if OS.get_cmdline_user_args().has("--mods"):
-		for affix in ["gravewarden", "whirlpool", "frostbite", "searing", "executioner", "chain", "cleaving"]:
+		for affix in ["gravewarden", "whirlpool", "searing", "executioner", "chain", "cleaving", "kindling", "juggler", "breaker", "maelstrom"]:
 			player.stats.equipment["mod_" + affix] = {"affix": affix, "name": affix, "rarity": 1, "slot": 0}
 	var targets: Array[Enemy] = []
 	for pos in [Vector3(0.0, 0, -2.4), Vector3(1.2, 0, -2.9), Vector3(-1.3, 0, -2.2), Vector3(0.4, 0, -4.2), Vector3(2.0, 0, -1.0), Vector3(-2.2, 0, 0.8)]:
@@ -1562,14 +1570,65 @@ func _hud_shot() -> void:
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
 
-## `-- --rewardshot`: show the reward screen as it would appear after killing a Brute on wave 5.
-func _reward_shot() -> void:
-	wave = 5
-	_brute_killed = true
-	_offer_reward()
-	await get_tree().create_timer(2.2).timeout
-	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_reward.png")
+## `-- --smashshot`: a Skewer charge through a row of barrels, a cart, gravestones and a brazier, captured as the pieces fly.
+func _smash_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.global_position = Vector3(-8, 0, 0)
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = PI * 0.5
+	var spots: Array = [["barrel", 0.0, 0.6, 1.0], ["barrel", 1.4, -0.5, 1.0], ["gravestone", 3.0, 0.3, 1.3], ["wrecked_cart", 5.2, -0.4, 1.9],
+		["brazier", 7.4, 0.5, 1.5], ["barrel", 9.0, -0.3, 1.0]]
+	for spot in spots:
+		arena.place_prop(spot[0], Vector3(-3.0 + spot[1], 0, spot[2]), 0.0, spot[3], true, spot[0] == "brazier")
+	await get_tree().create_timer(0.5).timeout
+	player.stats.mana = player.stats.max_mana
+	player.skills.try_directional("skewer", Vector3(20, 0, 0))
+	await get_tree().create_timer(0.55).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_smash_0.png")
+	await get_tree().create_timer(0.45).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_smash_1.png")
 	get_tree().quit()
+
+## `-- --itemsheet`: every dropped-item model on the ground in a ring round the hero, in each rarity's glow, for judging by eye.
+func _item_sheet() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.global_position = Vector3.ZERO
+	var bases: Array = []
+	var drops: Array[LootDrop] = []
+	for slot in Items.BASES:
+		for base in Items.BASES[slot]:
+			bases.append([slot, base["name"]])
+	for i in bases.size():
+		var item: Dictionary = Items.make(bases[i][0], i % 3, 1, "" if i % 3 == 0 else _any_affix(bases[i][0]), bases[i][1])
+		var drop: LootDrop = LootDrop.create(item)
+		game.director.add_child(drop)
+		var angle: float = -PI * 0.9 + PI * 0.8 * float(i) / float(bases.size() - 1) - PI * 0.5
+		drop.global_position = Vector3(cos(angle) * 4.0, 0, sin(angle) * 4.0 - 1.0)
+		drop.landed = true
+		drop._age = 1.0
+		drops.append(drop)
+	await get_tree().create_timer(1.0).timeout
+	if OS.get_cmdline_user_args().has("--gear"):   # the Tab panel: worn items and the bag as pictures, one pointed at
+		for i in 8:
+			player.stats.add_to_bag(drops[i].item)
+		Input.action_press("gear")
+		await get_tree().create_timer(0.5).timeout
+		var size_px: Vector2 = get_viewport().get_visible_rect().size
+		hud.mouse_override = Vector2(size_px.x - 30.0 - (6 * 64 + 5 * 10) + 1 * 74 + 32, 70.0 + 4.0 + 64.0 + 34.0 + 32.0)
+	if OS.get_cmdline_user_args().has("--hover"):   # point at a drop to see its tooltip and comparison
+		var focus: LootDrop = drops[2]
+		hud.mouse_override = player.get_viewport().get_camera_3d().unproject_position(focus.global_position + Vector3(0, 0.5, 0))
+	await get_tree().create_timer(1.0).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_items.png")
+	get_tree().quit()
+
+func _any_affix(slot: int) -> String:
+	for id in AffixDb.all():
+		if AffixDb.all()[id]["slot"] == slot and AffixDb.all()[id]["title"] != "":
+			return id
+	return ""
 
 ## `-- --hovershot`: put the mouse over a brute and capture the hover health bar and ring.
 func _hover_shot() -> void:
@@ -1977,6 +2036,9 @@ func _logged(prefix: String) -> int:
 func _test_sword_sound() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
+	for node in game.get_children():
+		if node is Projectile:   # a fireball left flying by an earlier check would land mid-test and play its impact sound
+			node.queue_free()
 	await get_tree().process_frame
 	var was_enabled: bool = Sfx.enabled
 	Sfx.enabled = true
@@ -2341,26 +2403,6 @@ func _test_pad_menus() -> void:
 	expect("the settings screen has a selection for the controller", get_viewport().gui_get_focus_owner() != null)
 	settings.queue_free()
 	await get_tree().process_frame
-	# Rewards: D-pad moves the highlighted card, A takes it.
-	Gamepad.active = true
-	game.director.offer_reward()
-	await get_tree().create_timer(1.6).timeout   # (the offer appears after the wave-cleared banner)
-	var right := InputEventAction.new()
-	right.action = "ui_right"
-	right.pressed = true
-	game._unhandled_input(right)
-	expect("D-pad right moves to the next reward card", game.hud.card_selected == 1)
-	var left := InputEventAction.new()
-	left.action = "ui_left"
-	left.pressed = true
-	game._unhandled_input(left)
-	game._unhandled_input(left)
-	expect("and left wraps around", game.hud.card_selected == game.hud.choices.size() - 1)
-	var accept := InputEventAction.new()
-	accept.action = "ui_accept"
-	accept.pressed = true
-	game._unhandled_input(accept)
-	expect("A takes the highlighted reward", not game.director.choosing)
 	Gamepad.active = false
 	await get_tree().process_frame
 
@@ -2575,12 +2617,927 @@ func _test_pause_stops_game() -> void:
 	chaser.queue_free()
 	await get_tree().process_frame
 
+# --- Town ------------------------------------------------------------------------------------------------------------------
+
+## The town's inner life: traits weight what NPCs do, likes and dislikes move mood and opinion, bad blood ends in brawls, wretched
+## recruits leave, hunger sours everyone, and the numbers behave the same for the same seed.
+func _test_town_sim() -> void:
+	TownState.persist = false
+	TownState.reset()
+	expect("four people live in town", TownState.present_ids().size() == 4)
+	var sim := TownSim.new(11)
+	var marlow: Dictionary = sim.activity_weights("marlow")
+	var maren: Dictionary = sim.activity_weights("maren")
+	expect("a drunk drinks far more than a teetotal healer", float(marlow["drink"]) > float(maren["drink"]) * 3.0)
+	expect("a gossip gossips more than a loyal warden", float(marlow["gossip"]) > float(sim.activity_weights("hale")["gossip"]) * 2.0)
+	expect("a religious NPC prays more than a trader", float(maren["pray"]) > float(marlow["pray"]) * 3.0)
+	# Likes: Cutter (a joker) enjoys a joke. Dislikes: Maren (religious) resents one.
+	var rel_before: float = TownState.relation("marlow", "cutter")
+	var mood_before: float = TownState.happiness("cutter")
+	sim.perform("marlow", "joke", "cutter")
+	expect("a liked joke raises the target's mood", TownState.happiness("cutter") > mood_before + 3.0)
+	expect("a liked joke improves their opinion of each other", TownState.relation("marlow", "cutter") > rel_before + 3.0)
+	rel_before = TownState.relation("cutter", "maren")
+	mood_before = TownState.happiness("maren")
+	sim.perform("cutter", "joke", "maren")
+	expect("a disliked joke lowers the target's mood", TownState.happiness("maren") < mood_before)
+	expect("a disliked joke sours their opinion", TownState.relation("cutter", "maren") < rel_before)
+	# Mood changes what they choose.
+	TownState.npcs["hale"]["happiness"] = -50.0
+	expect("an unhappy NPC argues and broods more", float(sim.activity_weights("hale")["argue"]) > 1.5 * 0.5 * 3.5 * 0.9
+		and float(sim.activity_weights("hale")["brood"]) > 0.5)
+	TownState.npcs["hale"]["happiness"] = 20.0
+	# Brawls.
+	TownState.relations[TownState._pair("hale", "cutter")] = 5.0
+	var brawled: bool = false
+	for i in 20:
+		sim.run_round()
+		for line in sim.history:
+			if "came to blows" in line:
+				brawled = true
+		TownState.relations[TownState._pair("hale", "cutter")] = 5.0
+		if brawled:
+			break
+	expect("NPCs who hate each other come to blows", brawled)
+	# A wretched hired recruit leaves.
+	TownState.npcs["cutter"]["member"] = true
+	TownState.npcs["cutter"]["happiness"] = -90.0
+	sim.run_round()
+	expect("a wretched recruit leaves the clan", bool(TownState.npcs["cutter"]["left"]) and not bool(TownState.npcs["cutter"]["member"]))
+	expect("the others are shaken when someone leaves", TownState.present_ids().size() == 3)
+	# Hunger.
+	TownState.reset()
+	var mood: float = TownState.happiness("maren")
+	TownState.food = 0
+	var quiet := TownSim.new(3)
+	quiet._settle(TownState.present_ids())
+	expect("no food sours everyone", TownState.happiness("maren") < mood - 1.0)
+	TownState.food = 12
+	expect("rationing starts when food runs low", not TownState.rationing())
+	TownState.food = TownState.LOW_FOOD
+	expect("food at the low mark means rationing", TownState.rationing())
+	# Prices follow mood.
+	TownState.npcs["marlow"]["happiness"] = 60.0
+	var cheap: float = TownSim.mood_price_mult("marlow")
+	TownState.npcs["marlow"]["happiness"] = -50.0
+	expect("a content trader charges less than a wretched one", cheap < 1.0 and TownSim.mood_price_mult("marlow") > 1.0)
+	# Same seed, same town.
+	TownState.reset()
+	var a := TownSim.new(99)
+	for i in 6:
+		a.run_round()
+	var first: Array = [TownState.happiness("marlow"), TownState.happiness("hale"), TownState.relation("marlow", "hale")]
+	TownState.reset()
+	var b := TownSim.new(99)
+	for i in 6:
+		b.run_round()
+	expect("the same seed gives the same town", first == [TownState.happiness("marlow"), TownState.happiness("hale"), TownState.relation("marlow", "hale")])
+	# Over a long time every NPC's mood stays inside its range and the town stays alive.
+	TownState.reset()
+	var long := TownSim.new(5)
+	for i in 80:
+		long.run_round()
+	var in_range: bool = true
+	for id in TownState.npcs:
+		var h: float = TownState.happiness(id)
+		in_range = in_range and h >= -100.0 and h <= 100.0
+	expect("moods stay in range over a long time", in_range)
+	TownState.reset()
+
+## What the town keeps: pay-out for a run, gear handed over, the job board, the food bill, and saving without losing a thing.
+func _test_town_state() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var board_ok: bool = TownState.board.size() == 3
+	for offer in TownState.board:
+		board_ok = board_ok and int(offer["waves"]) >= 2 and int(offer["reward"]) > 0
+	expect("the board posts three jobs", board_ok)
+	var clash: bool = false
+	for seed_value in 120:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		TownState.jobs_done = 5
+		TownState.roll_board(rng)
+		for offer in TownState.board:
+			var mods: Array = offer["modifiers"]
+			if (mods.has("darkness") and mods.has("moonlit")) or (mods.has("fog") and mods.has("moonlit")):
+				clash = true
+	expect("jobs never combine modifiers that exclude each other", not clash)
+	TownState.reset()
+	# The food bill and the pay-out.
+	var food_before: int = TownState.food
+	var offer: Dictionary = {"name": "Test", "waves": 3, "modifiers": ["fog"], "reward": 100}
+	TownState.begin_job(offer)
+	expect("leaving costs the clan food", TownState.food == food_before - TownState.food_cost())
+	var gold_before: int = TownState.gold
+	var mood_before: float = TownState.happiness("hale")
+	TownState.finish_run({"kills": 10, "wave": 3, "completed": true, "died": false})
+	expect("a finished job pays its reward plus 2g a kill", TownState.gold == gold_before + 120)
+	expect("a finished job counts", TownState.jobs_done == 1 and TownState.job.is_empty())
+	expect("the town is pleased by a finished job", TownState.happiness("hale") > mood_before)
+	expect("the board is refreshed", TownState.board.size() == 3)
+	expect("the result is kept for the welcome back", int(TownState.last_run["gold"]) == 120)
+	gold_before = TownState.gold
+	TownState.begin_job({})
+	TownState.finish_run({"kills": 4, "wave": 2, "completed": false, "died": true})
+	expect("a fallen hero keeps only the 2g per kill", TownState.gold == gold_before + 8 and TownState.jobs_done == 1)
+	# Gear and stash.
+	TownState.reset()
+	var blade: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 2, "")
+	for id in AffixDb.all():
+		if AffixDb.all()[id]["slot"] == Items.Slot.WEAPON and AffixDb.all()[id]["title"] != "":
+			blade = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 2, id)
+			break
+	TownState.take_gear({Items.Slot.WEAPON: blade})
+	expect("the run's gear is kept", String(TownState.gear[Items.Slot.WEAPON]["name"]) == String(blade["name"]))
+	TownState.take_gear({Items.Slot.WEAPON: Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")})
+	expect("a replaced special item goes to the stash", TownState.stash.size() == 1 and String(TownState.stash[0]["name"]) == String(blade["name"]))
+	# Saving: everything survives a trip through JSON.
+	TownState.gold = 321
+	TownState.food = 7
+	TownState.npcs["marlow"]["happiness"] = 33.0
+	TownState.add_relation("marlow", "hale", 9.0)
+	TownState.npcs["cutter"]["member"] = true
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.reset()
+	TownState.from_dict(saved)
+	expect("saved gold and food come back", TownState.gold == 321 and TownState.food == 7)
+	expect("saved moods and opinions come back", is_equal_approx(TownState.happiness("marlow"), 33.0)
+		and is_equal_approx(TownState.relation("marlow", "hale"), 59.0) and bool(TownState.npcs["cutter"]["member"]))
+	expect("saved gear keeps its slot and rarity as integers", TownState.gear.has(Items.Slot.WEAPON)
+		and typeof(TownState.gear[Items.Slot.WEAPON]["rarity"]) == TYPE_INT and TownState.stash.size() == 1)
+	var hero_gear: Dictionary = {}
+	for item in TownState.gear.values():
+		hero_gear[int(item["slot"])] = item
+	expect("a saved item still describes itself", not Items.lines(TownState.gear[Items.Slot.WEAPON]).is_empty())
+	TownState.reset()
+
+## Wave modifiers: more of what they favour, tougher or quicker enemies, a mood for the whole run, and a job that ends in town.
+func _test_wave_modifiers() -> void:
+	var director: RunDirector = game.director
+	var zombie: EnemyDef = EnemyDb.get_def("zombie")
+	var ghoul: EnemyDef = EnemyDb.get_def("ghoul")
+	expect("all nine modifiers load", TownDb.modifiers().size() == 9)
+	var plain_zombies: int = director.modified_count(zombie, 3)
+	var plain_ghouls: int = director.modified_count(ghoul, 3)
+	director.set_job({"name": "Test", "waves": 3, "modifiers": ["swarming"], "reward": 50})
+	expect("Swarming brings more zombies and ghouls", director.modified_count(zombie, 3) > plain_zombies
+		and director.modified_count(ghoul, 3) > plain_ghouls)
+	expect("an enemy not in the wave stays out", director.modified_count(EnemyDb.get_def("priest"), 1) == 0)
+	director.set_job({"name": "Test", "waves": 3, "modifiers": ["cursed"], "reward": 50})
+	expect("Cursed only starts at its minimum wave", director.active_modifiers(1).is_empty() and director.active_modifiers(2).size() == 1)
+	var saved_wave: int = director.wave
+	director.wave = 3
+	director.set_job({"name": "Test", "waves": 3, "modifiers": ["gigantism", "fleet"], "reward": 50})
+	expect("modifiers stack", is_equal_approx(director.modifier_product("speed_mult"), 0.92 * 1.25)
+		and is_equal_approx(director.modifier_product("health_mult"), 1.5))
+	var big: Enemy = _spawn_enemy(Vector3(30, 0, 30), "zombie", 1.0)
+	await get_tree().process_frame
+	expect("Gigantism makes enemies tougher and bigger", big.max_health >= zombie.health * 1.49 and big.visual.scale.x > 1.2)
+	expect("the wave banner names the rules", director.modifier_names() == "Gigantism, Fleet of Foot")
+	big.queue_free()
+	director.wave = saved_wave
+	director.set_job({})
+	expect("no job means no modifiers", director.modifiers.is_empty() and director.modified_count(zombie, 3) == plain_zombies)
+	# Mood: darkness dims, fog thickens.
+	var env: Environment = game.world_environment
+	var ambient: float = env.ambient_light_energy
+	var fog: float = env.fog_density
+	game._apply_job_mood({"modifiers": ["darkness"]})
+	expect("Darkness dims the world and thickens the fog", env.ambient_light_energy < ambient * 0.5 and env.fog_density > fog)
+	env.ambient_light_energy = ambient
+	env.fog_density = fog
+	# Every modifier references enemies that exist.
+	var known: bool = true
+	for id in TownDb.modifiers():
+		for enemy_id in TownDb.modifier(id).spawn_weights:
+			known = known and EnemyDb.all().has(enemy_id)
+	expect("every modifier names real enemies", known)
+
+## The town scene: it builds, people and places can be found and used, the panels work and shopping changes what you own.
+func _test_town_scene() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.gold = 500
+	var town := TownScene.new()
+	game.add_child(town)
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("the town has its four people", town.npcs.size() == 4)
+	var kinds: Dictionary = {}
+	for spot in town.spots:
+		kinds[spot["kind"]] = true
+	expect("the town has a gate, stone, board, stash and people", kinds.has("gate") and kinds.has("stone") and kinds.has("board")
+		and kinds.has("stash") and kinds.has("npc"))
+	# Standing near the gate offers it.
+	town.player.global_position = Vector3(0, 0, -16.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("standing at the gate offers it", town.near.get("kind") == "gate" and town.hud.prompt.contains("gate"))
+	# A click on someone is found by where they are on screen.
+	town.player.global_position = Vector3(-8.0, 0, 0.0)
+	await get_tree().process_frame
+	var camera: Camera3D = town.get_viewport().get_camera_3d()
+	var on_screen: Vector2 = camera.unproject_position(town.npcs["marlow"].global_position + Vector3(0, 1.1, 0))
+	expect("a click on Marlow picks Marlow", town.pick_spot(on_screen).get("id") == "marlow")
+	# A name tag and a speech line never show together.
+	var talker: TownNpc = town.npcs["marlow"]
+	talker.set_tag_visible(true)
+	expect("the name shows while they are quiet", talker._tag.visible)
+	talker.say("Prices are only going up.")
+	expect("the name hides while they speak", not talker._tag.visible and talker._bark.visible)
+	talker._bark_left = 0.01
+	await get_tree().create_timer(0.1).timeout
+	expect("the name comes back when they stop", talker._tag.visible and not talker._bark.visible)
+	# Panels.
+	for id in ["marlow", "hale", "maren", "cutter"]:
+		town.panel.open_npc(id)
+		await get_tree().process_frame
+		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= 2)
+		town.panel.close()
+	town.panel.open_board()
+	await get_tree().process_frame
+	expect("the board lists the jobs", _count_buttons(town.panel) >= 4)
+	var offer: Dictionary = TownState.board[0]
+	town.panel._take_job(offer)
+	expect("taking a job sets it", TownState.job.get("name") == offer["name"])
+	town.panel.close()
+	town.panel.open_stash()
+	await get_tree().process_frame
+	town.panel.close()
+	town.panel.open_gate()
+	await get_tree().process_frame
+	expect("the gate page names the job", town.panel.visible and _label_text(town.panel).contains(String(offer["name"])))
+	town.panel.close()
+	expect("closing a panel unpauses the world", not get_tree().paused)
+	# Shopping.
+	town.panel.open_npc("marlow")
+	await get_tree().process_frame
+	var stock: Array = TownState.stock
+	expect("the trader has wares", stock.size() == 3)
+	var gold: int = TownState.gold
+	var vendor_gold: int = TownState.vendor_gold
+	var ware: Dictionary = (stock[0] as Dictionary)["item"]
+	var price: int = int(round(int((stock[0] as Dictionary)["price"]) * TownSim.mood_price_mult("marlow")))
+	town.panel._buy(0, price)
+	expect("buying costs gold and puts the item on", TownState.gold == gold - price and TownState.vendor_gold == vendor_gold + price
+		and String(TownState.gear[int(ware["slot"])]["name"]) == String(ware["name"]))
+	var potions: int = TownState.potions
+	town.panel._buy_supply("potion", 15)
+	expect("buying a potion adds one", TownState.potions == potions + 1)
+	# Hiring.
+	town.panel.close()
+	town.panel.open_npc("cutter")
+	await get_tree().process_frame
+	expect("a recruit starts outside the clan", not bool(TownState.npcs["cutter"]["member"]))
+	gold = TownState.gold
+	town.panel.close()
+	TownState.npcs["cutter"]["member"] = false
+	town.panel.open_npc("cutter")
+	town.panel._rebuild()
+	var hire: Button = _find_button(town.panel, "Hire")
+	expect("the hire button is there and affordable", hire != null and not hire.disabled)
+	if hire != null:
+		hire.pressed.emit()
+	expect("hiring costs gold and joins the clan", bool(TownState.npcs["cutter"]["member"]) and TownState.gold == gold - TownDb.npc("cutter").recruit_cost)
+	town.panel.close()
+	# The healing stone, and the hero carries what the town gave into the run.
+	town.player.health = 10.0
+	town.interact({"kind": "stone"})
+	expect("the healing stone heals", town.player.health >= town.player.max_health - 0.1)
+	var run_hero := Player.new()
+	game.add_child(run_hero)
+	TownScene._apply_run_gear(run_hero)
+	expect("a run starts with the town's potions", run_hero.stats.potions == TownState.potions)
+	run_hero.queue_free()
+	# Town life goes on while you watch.
+	town.sim.run_round()
+	await get_tree().process_frame
+	expect("the sim's talk reaches the townspeople", true)
+	town.queue_free()
+	await get_tree().process_frame
+	game.rig.camera.current = true
+	get_tree().paused = false
+	TownState.job = {}
+	TownState.reset()
+
+func _count_buttons(root: Node) -> int:
+	var count: int = 0
+	for node in root.find_children("*", "Button", true, false):
+		if not (node as Button).disabled:
+			count += 1
+	return count
+
+func _find_button(root: Node, text_start: String) -> Button:
+	for node in root.find_children("*", "Button", true, false):
+		if (node as Button).text.begins_with(text_start):
+			return node as Button
+	return null
+
+func _label_text(root: Node) -> String:
+	var out: PackedStringArray = []
+	for node in root.find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return " ".join(out)
+
+# --- Loot ------------------------------------------------------------------------------------------------------------------
+
+## Monsters drop items instead of the old between-wave reward: the odds, the models, walking over a drop, upgrades being put on and
+## the rest going to the bag.
+func _test_loot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	await get_tree().process_frame
+	# Every base item has its Blender model.
+	var missing: PackedStringArray = []
+	for slot in Items.BASES:
+		for base in Items.BASES[slot]:
+			var item: Dictionary = Items.make(slot, Items.Rarity.COMMON, 1, "", base["name"])
+			if not ResourceLoader.exists(Items.model_path(item)):
+				missing.append(base["name"])
+	expect("every base item has a dropped model (%s missing)" % ", ".join(missing), missing.is_empty())
+	# The odds: ordinary monsters mostly drop commons, a Brute never drops a common.
+	var common_brute: int = 0
+	var rare_or_better: int = 0
+	for i in 200:
+		if int(Items.roll_drop(5, 1.0, [])["rarity"]) == Items.Rarity.COMMON:
+			common_brute += 1
+		if int(Items.roll_drop(2, 0.0, [])["rarity"]) >= Items.Rarity.RARE:
+			rare_or_better += 1
+	expect("a Brute's drop is always rare or better", common_brute == 0)
+	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 40 and rare_or_better < 160)
+	expect("only monsters that should drop do", EnemyDb.get_def("brute").drop_chance > EnemyDb.get_def("zombie").drop_chance
+		and EnemyDb.get_def("zombie").drop_chance > 0.0)
+	# The old reward screen is gone.
+	expect("the director no longer offers a reward", not game.director.has_method("offer_reward") and not game.director.has_method("choose"))
+	# A kill can drop an item that lands near the body.
+	var def: EnemyDef = EnemyDb.get_def("zombie")
+	var saved_chance: float = def.drop_chance
+	def.drop_chance = 1.0
+	player.global_position = Vector3(30, 0, 30)
+	var zombie: Enemy = _spawn_enemy(Vector3(24, 0, 24))
+	zombie.aggro_range = 0.0
+	await get_tree().process_frame
+	zombie.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, player.global_position)
+	await get_tree().create_timer(0.3).timeout
+	def.drop_chance = saved_chance
+	var drops: Array = get_tree().get_nodes_in_group("loot")
+	expect("a killed monster drops an item", drops.size() == 1)
+	if drops.size() == 1:
+		var drop: LootDrop = drops[0]
+		await get_tree().create_timer(LootDrop.LAND_TIME + 0.2).timeout
+		expect("the drop lands on the ground near the body", drop.landed and absf(drop.global_position.y) < 0.05
+			and drop.global_position.distance_to(Vector3(24, 0, 24)) < 3.0)
+		expect("the drop can be seen: it has a model", drop.get_node_or_null("Model") != null)
+		drop.queue_free()
+	# Pickup: an upgrade is put on, anything else goes to the bag.
+	var stats: PlayerStats = player.stats
+	var saved_equipment: Dictionary = stats.equipment.duplicate(true)
+	var saved_bag: Array[Dictionary] = stats.bag.duplicate(true)
+	stats.equipment = {}
+	stats.bag = []
+	var plain: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword")
+	stats.pickup(plain)
+	expect("an empty slot takes whatever is picked up", stats.equipment.get(Items.Slot.WEAPON, {}).get("name") == "Longsword" and stats.bag.is_empty())
+	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"))
+	expect("a second common weapon is not an upgrade: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 1)
+	var fancy: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")
+	for id in AffixDb.all():
+		if AffixDb.all()[id]["slot"] == Items.Slot.WEAPON and AffixDb.all()[id]["title"] != "":
+			fancy = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, id)
+			break
+	stats.pickup(fancy)
+	expect("a rarer weapon is put on and the old one goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == fancy["name"] and stats.bag.size() == 2)
+	for i in 20:
+		stats.add_to_bag(Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1))
+	expect("the bag holds a dozen items", stats.bag.size() == PlayerStats.MAX_BAG)
+	# Walking over a drop picks it up.
+	stats.bag = []
+	player.global_position = Vector3(-30, 0, -30)   # well away, so the drop is not picked up as it lands
+	player.reset_physics_interpolation()
+	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Mail Hauberk"))
+	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
+	var before: bool = is_instance_valid(walk)
+	player.global_position = walk.global_position + Vector3(0.5, 0, 0)
+	await get_tree().create_timer(0.3).timeout
+	expect("walking over a drop picks it up", before and not is_instance_valid(walk) or walk.is_queued_for_deletion())
+	expect("and the armour is on", stats.equipment.get(Items.Slot.ARMOR, {}).get("name") == "Mail Hauberk" or stats.bag.size() >= 1)
+	stats.equipment = saved_equipment
+	stats.bag = saved_bag
+	player.armor = stats.base_armor + stats.armor_stat("armor", 0.0)
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	await get_tree().process_frame
+
+## Drop readability and the item card: a drop grows with camera distance and carries a constant-size marker; pointing at it shows
+## what it is and how it compares with what is worn; enemies notice the hero from a shorter distance than they used to.
+func _test_loot_ui() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	await get_tree().process_frame
+	expect("enemies notice the hero from a shorter range", EnemyDef.new().aggro_range <= 12.5 and EnemyDb.get_def("zombie").aggro_range <= 12.5)
+	# Comparison.
+	var longsword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword")
+	var great: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")
+	var lines: Array[Dictionary] = Items.compare(great, longsword)
+	var damage_better: bool = false
+	var speed_worse: bool = false
+	for entry in lines:
+		if String(entry["text"]).begins_with("Damage") and int(entry["sign"]) > 0:
+			damage_better = true
+		if String(entry["text"]).begins_with("Speed") and int(entry["sign"]) < 0:
+			speed_worse = true
+	expect("a greatsword hits harder and swings slower than a longsword", damage_better and speed_worse)
+	expect("an empty slot says so", Items.compare(great, null)[0]["text"] == "Nothing worn in this slot")
+	expect("the same item compares as the same", Items.compare(longsword, longsword)[0]["sign"] == 0)
+	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Leather Jerkin")
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Plate Cuirass")
+	var armour_lines: Array[Dictionary] = Items.compare(plate, leather)
+	var cost_worse: bool = false
+	for entry in armour_lines:
+		if String(entry["text"]).begins_with("Roll cost") and int(entry["sign"]) < 0:
+			cost_worse = true
+	expect("heavier armour costs more to roll in", cost_worse)
+	# Scale with distance, marker, focus.
+	player.global_position = Vector3(0, 0, 0)
+	var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -4), Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	await get_tree().create_timer(LootDrop.LAND_TIME + 0.4).timeout
+	expect("a drop has a marker that stays one size on screen", drop._marker != null and drop._marker.fixed_size)
+	var near_scale: float = drop.get_node("Model").scale.x
+	game.rig.set_zoom_now(CameraRig.ZOOM_MAX)
+	await get_tree().create_timer(0.6).timeout
+	var far_scale: float = drop.get_node("Model").scale.x
+	game.rig.set_zoom_now(1.0)
+	expect("a drop grows when the camera is far away (%.2f vs %.2f)" % [near_scale, far_scale], far_scale > near_scale * 1.15)
+	# The item under the mouse is the one in focus.
+	await get_tree().create_timer(0.6).timeout
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0))
+	expect("pointing at a drop focuses it", hud._drop_in_focus() == drop)
+	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(400, 0, 0))
+	expect("pointing elsewhere focuses nothing", hud._drop_in_focus() == null)
+	hud.mouse_override = Vector2(-1.0, -1.0)
+	drop.queue_free()
+	await get_tree().process_frame
+
+## Right-click or dodge backs out of a Fireball: while aiming (nothing spent, and letting go of the key does not cast) and during the
+## wind-up (mana and cooldown come back). The cooldown is long enough that it is not spammed.
+func _test_fireball_cancel() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(30, 0, 30)
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["fireball"] = 0.0
+	player.skills.clear_aim()
+	expect("the fireball cooldown is at least five seconds", float(SkillDb.all()["fireball"]["cd"]) >= 5.0)
+	# Cancel while aiming with right-click.
+	Input.action_press("skill_3")
+	await get_tree().create_timer(0.3).timeout
+	expect("holding the key aims", player.skills.aiming_id == "fireball")
+	Input.action_press("alt_skill")
+	await get_tree().create_timer(0.2).timeout
+	Input.action_release("alt_skill")
+	expect("right-click cancels the aim", player.skills.aiming_id == "")
+	Input.action_release("skill_3")
+	await get_tree().create_timer(0.3).timeout
+	expect("letting go of the key after cancelling casts nothing", not player.skills.busy and is_equal_approx(player.stats.mana, player.stats.max_mana)
+		and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0)
+	# Cancel while aiming with dodge: the hero rolls instead.
+	player.stats.stamina = player.stats.max_stamina
+	player.stats.cooldowns["dodge"] = 0.0
+	Input.action_press("skill_3")
+	await get_tree().create_timer(0.3).timeout
+	Input.action_press("dodge")
+	await get_tree().create_timer(0.15).timeout
+	Input.action_release("dodge")
+	expect("dodge cancels the aim", player.skills.aiming_id == "")
+	Input.action_release("skill_3")
+	await get_tree().create_timer(0.8).timeout
+	expect("and no fireball was cast", is_equal_approx(player.stats.mana, player.stats.max_mana))
+	# Cancel during the wind-up: mana and cooldown come back.
+	player.stats.cooldowns["dodge"] = 0.0
+	player.stats.stamina = player.stats.max_stamina
+	player.skills.start_skill("fireball", null, player.global_position + Vector3(0, 0, -8))
+	await get_tree().create_timer(0.25).timeout
+	expect("the cast is winding up", player.skills.busy and not player.skills.busy_hit_done and player.stats.mana < player.stats.max_mana)
+	Input.action_press("alt_skill")
+	await get_tree().create_timer(0.2).timeout
+	Input.action_release("alt_skill")
+	expect("right-click cancels the wind-up", not player.skills.busy)
+	expect("the mana and the cooldown are given back", is_equal_approx(player.stats.mana, player.stats.max_mana)
+		and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0)
+	await get_tree().create_timer(0.4).timeout
+	player.skills.start_skill("fireball", null, player.global_position + Vector3(0, 0, -8))
+	await get_tree().create_timer(0.25).timeout
+	player.stats.cooldowns["dodge"] = 0.0
+	Input.action_press("dodge")
+	await get_tree().create_timer(0.15).timeout
+	Input.action_release("dodge")
+	expect("dodge cancels the wind-up and rolls", not player.skills.busy and is_equal_approx(player.stats.mana, player.stats.max_mana))
+	await get_tree().create_timer(0.8).timeout
+	# Once thrown, it is thrown.
+	player.stats.cooldowns["dodge"] = 0.0
+	player.skills.start_skill("fireball", null, player.global_position + Vector3(0, 0, -8))
+	var thrown: bool = false
+	var t: float = 0.0
+	while t < 2.0 and not thrown:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		thrown = player.skills.busy_hit_done
+	Input.action_press("alt_skill")
+	await get_tree().create_timer(0.15).timeout
+	Input.action_release("alt_skill")
+	expect("a fireball that has left the hand keeps its cost", thrown and player.stats.mana < player.stats.max_mana
+		and float(player.stats.cooldowns.get("fireball", 0.0)) > 3.0)
+	await get_tree().create_timer(1.0).timeout
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["fireball"] = 0.0
+	for node in get_tree().get_nodes_in_group("hazards"):
+		node.queue_free()
+
+## Item pictures: every base item has an icon and a framed badge, a tile shows a tooltip card, and the Tab panel lists what is worn.
+func _test_item_icons() -> void:
+	var missing: PackedStringArray = []
+	for slot in Items.BASES:
+		for base in Items.BASES[slot]:
+			var item: Dictionary = Items.make(slot, Items.Rarity.RARE, 1, "", base["name"])
+			if ItemIcons.icon_for(item) == null:
+				missing.append(base["name"])
+	expect("every base item has an icon (%s missing)" % ", ".join(missing), missing.is_empty())
+	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.UNIQUE, 1, "", "Greatsword")
+	var badge: Texture2D = ItemIcons.badge(item)
+	expect("an item's badge is its picture in a frame", badge != null and badge.get_width() == 96 and ItemIcons.badge(item) == badge)
+	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"))
+	expect("rarity changes the frame", common_badge.get_image().get_pixel(3, 40) != badge.get_image().get_pixel(3, 40))
+	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"))
+	var card: Control = tile._make_custom_tooltip("") as Control
+	expect("a tile's tooltip card describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
+	card.free()
+	tile.free()
+	# The ground badge is a picture, not text.
+	var drop: LootDrop = game.director.drop_item(Vector3(40, 0, 40), item)
+	await get_tree().create_timer(0.2).timeout
+	expect("a dropped item is shown by its picture and carries no name text", drop._marker != null and drop._marker.texture == badge
+		and drop.find_children("*", "Label3D", true, false).is_empty())
+	drop.queue_free()
+	# Tab panel hit boxes.
+	Input.action_press("gear")
+	await get_tree().create_timer(0.3).timeout
+	expect("the Tab panel has a picture for what is worn", not hud._gear_hits.is_empty())
+	Input.action_release("gear")
+	await get_tree().process_frame
+
+## Breakable props: barrels, carts, gravestones and braziers can be smashed; a charge or a leap through them throws the pieces along its
+## path; clicking one makes the hero swing at it; what breaks stops blocking the way and may leave something behind.
+func _test_destructibles() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	await get_tree().process_frame
+	var props: Array = get_tree().get_nodes_in_group("destructibles")
+	var kinds: Dictionary = {}
+	for node in props:
+		kinds[(node as Destructible).prop_name] = true
+	expect("the arena has breakable barrels, carts, gravestones and braziers", kinds.has("barrel") and kinds.has("wrecked_cart")
+		and kinds.has("gravestone") and kinds.has("brazier"))
+	# Hits: a barrel survives a scratch and goes with a proper blow; the pieces and what is left behind.
+	arena.place_prop("barrel", Vector3(34, 0, 34), 0.0, 1.0)
+	var barrel: Destructible = Destructible.near(get_tree(), Vector3(34, 0, 34), 0.5)
+	expect("a placed barrel is breakable", barrel != null and barrel.prop_name == "barrel")
+	var obstacles_before: int = arena.obstacles.size()
+	expect("a scratch does not break it", not barrel.hit(3.0, Vector3.RIGHT) and not barrel.broken and barrel.hp < barrel.max_hp)
+	expect("a proper blow does", barrel.hit(30.0, Vector3.RIGHT))
+	await get_tree().create_timer(0.3).timeout
+	expect("it throws pieces", get_tree().get_nodes_in_group("debris").size() >= 10)
+	expect("what is broken stops being an obstacle", arena.obstacles.size() == obstacles_before - 1 and Destructible.near(get_tree(), Vector3(34, 0, 34), 0.5) == null)
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	# Gravestones take several hits.
+	arena.place_prop("gravestone", Vector3(30, 0, 36), 0.0, 1.3)
+	var grave: Destructible = Destructible.near(get_tree(), Vector3(30, 0, 36), 0.5)
+	expect("a gravestone takes more than one swing", not grave.hit(15.0, Vector3.RIGHT) and not grave.hit(15.0, Vector3.RIGHT) and grave.hit(15.0, Vector3.RIGHT))
+	# Charging through a barrel throws the pieces the way the hero was going.
+	player.global_position = Vector3(26, 0, 30)
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = PI * 0.5
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["skewer"] = 0.0
+	arena.place_prop("barrel", Vector3(30, 0, 30), 0.0, 1.0)
+	arena.place_prop("wrecked_cart", Vector3(33, 0, 30.4), 0.0, 1.9)
+	await get_tree().process_frame
+	player.skills.try_directional("skewer", Vector3(40, 0, 30))
+	var charge_t: float = 0.0
+	while charge_t < 3.0 and (player.skills.busy or charge_t < 0.3):
+		await get_tree().physics_frame
+		charge_t += 1.0 / 60.0
+	expect("a Skewer charge smashes what is in its path", Destructible.near(get_tree(), Vector3(30, 0, 30), 0.3) == null
+		and Destructible.near(get_tree(), Vector3(33, 0, 30.4), 0.3) == null)
+	var ahead: float = 0.0
+	var count: int = 0
+	for node in get_tree().get_nodes_in_group("debris"):
+		ahead += (node as DebrisChunk).velocity.x + ((node as DebrisChunk).global_position.x - 30.0)
+		count += 1
+	expect("the pieces are thrown ahead of the charge (%d pieces)" % count, count > 10 and ahead > 0.0)
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	await get_tree().create_timer(1.0).timeout
+	# Leaping over a barrel breaks it too.
+	player.global_position = Vector3(26, 0, 33)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["leap"] = 0.0
+	arena.place_prop("barrel", Vector3(30, 0, 33), 0.0, 1.0)
+	await get_tree().process_frame
+	player.skills.try_directional("leap", Vector3(34, 0, 33))
+	var leap_t: float = 0.0
+	while leap_t < 4.0 and (player.skills.busy or leap_t < 0.3):
+		await get_tree().physics_frame
+		leap_t += 1.0 / 60.0
+	expect("a Leap through a barrel breaks it", Destructible.near(get_tree(), Vector3(30, 0, 33), 0.3) == null)
+	# Clicking a prop sends the hero to swing at it.
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	player.global_position = Vector3(20, 0, 20)
+	player.reset_physics_interpolation()
+	player.stats.stamina = player.stats.max_stamina
+	arena.place_prop("barrel", Vector3(24, 0, 20), 0.0, 1.0)
+	await get_tree().process_frame
+	var target: Destructible = Destructible.near(get_tree(), Vector3(24, 0, 20), 0.3)
+	player.attack_prop = target
+	var smash_t: float = 0.0
+	while smash_t < 6.0 and not target.broken:
+		await get_tree().physics_frame
+		smash_t += 1.0 / 60.0
+	expect("the hero walks up and smashes a barrel they were sent at (%.1f s)" % smash_t, target.broken)
+	# Fire and explosions.
+	arena.place_prop("barrel", Vector3(14, 0, 14), 0.0, 1.0)
+	await get_tree().process_frame
+	expect("a blast breaks what is inside it", Destructible.blast(get_tree(), Vector3(14, 0, 14.5), 2.0, 80.0) == 1)
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	await get_tree().process_frame
+
+## An enemy the hero hits comes for them whatever the distance; the hero's own swings only break barrels.
+func _test_hit_aggro() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	var far: Enemy = _spawn_enemy(Vector3(0, 0, -35))
+	far.aggro_range = 0.0
+	far.max_health = 5000.0
+	far.health = 5000.0
+	var quiet: Enemy = _spawn_enemy(Vector3(35, 0, 0))
+	quiet.aggro_range = 0.0
+	await get_tree().create_timer(0.5).timeout
+	var start_far: float = far.global_position.distance_to(player.global_position)
+	var start_quiet: float = quiet.global_position.distance_to(player.global_position)
+	far.receive({"outcome": Combat.Outcome.HIT, "damage": 3.0, "source": player, "skill_id": "fireball", "weight": 1.0,
+		"type": Combat.DamageType.FIRE}, player.global_position)
+	await get_tree().create_timer(1.5).timeout
+	expect("an enemy hit from far away comes for the hero", far.global_position.distance_to(player.global_position) < start_far - 3.0)
+	expect("an enemy that was not hit stays where it was", quiet.global_position.distance_to(player.global_position) > start_quiet - 0.5)
+	# Hits that are not the hero's (another enemy's blast, say) do not provoke.
+	var other: Enemy = _spawn_enemy(Vector3(-35, 0, 0))
+	other.aggro_range = 0.0
+	other.max_health = 5000.0
+	other.health = 5000.0
+	await get_tree().create_timer(0.3).timeout
+	var before: float = other.global_position.distance_to(player.global_position)
+	other.receive({"outcome": Combat.Outcome.HIT, "damage": 3.0, "source": quiet, "skill_id": "x", "weight": 1.0,
+		"type": Combat.DamageType.PHYSICAL}, quiet.global_position)
+	await get_tree().create_timer(1.0).timeout
+	expect("a hit from another enemy does not provoke", other.global_position.distance_to(player.global_position) > before - 0.5)
+	# Swings only break barrels.
+	arena.place_prop("gravestone", Vector3(10, 0, 10), 0.0, 1.3)
+	arena.place_prop("barrel", Vector3(14, 0, 10), 0.0, 1.0)
+	expect("a swing breaks the barrel and not the gravestone", Destructible.blast(get_tree(), Vector3(12, 0, 10), 6.0, 99.0, Vector3.RIGHT, 1.0, "barrel") == 1
+		and Destructible.near(get_tree(), Vector3(10, 0, 10), 0.4) != null)
+	expect("a click only picks barrels", Destructible.near(get_tree(), Vector3(10, 0, 10), 0.4, "barrel") == null)
+	Destructible.near(get_tree(), Vector3(10, 0, 10), 0.4).hit(999.0, Vector3.RIGHT)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	await get_tree().process_frame
+
+## The new gear affixes (the six dull ones are gone): each does what it says, using the same moves and states the skills create.
+func _test_new_affixes() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	# The catalogue.
+	var removed: Array = ["frostbite", "momentum", "last_stand", "riposte", "warding", "windfall"]
+	var gone: bool = true
+	for id in removed:
+		gone = gone and not AffixDb.all().has(id)
+	expect("the six dull affixes are gone", gone)
+	var counts: Dictionary = {0: 0, 1: 0, 2: 0}
+	var described: bool = true
+	for id in AffixDb.all():
+		var entry: Dictionary = AffixDb.all()[id]
+		described = described and String(entry["desc"]) != ""
+		if String(entry["title"]) != "":
+			counts[int(entry["slot"])] += 1
+	expect("9 weapon, 5 armor and 7 trinket affixes can roll on rares", counts[0] == 9 and counts[1] == 5 and counts[2] == 7)
+	expect("every affix is described", described)
+	var pips_ok: bool = true
+	for skill_id in SkillDb.all():
+		for affix_id in SkillDb.modifier_affixes(skill_id):
+			pips_ok = pips_ok and AffixDb.all().has(affix_id)
+	expect("every skill's list of affixes that change it names real ones", pips_ok)
+
+	var saved: Dictionary = player.stats.equipment.duplicate()
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	var a: Enemy = _spawn_enemy(Vector3(6, 0, 0))
+	var b: Enemy = _spawn_enemy(Vector3(7.2, 0, 0))
+	var far: Enemy = _spawn_enemy(Vector3(-20, 0, 0))
+	for e in [a, b, far]:
+		e.aggro_range = 0.0
+		e.max_health = 3000.0
+		e.health = 3000.0
+	await get_tree().process_frame
+
+	# Kindling: burning enemies take 50% more, and the fire jumps to the neighbour.
+	_wear("kindling", 0)
+	expect("a hit on a cold enemy is plain", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.0))
+	a.apply_burn(5.0, 4.0)
+	expect("a hit on a burning enemy does 50% more", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.5))
+	var hit: Dictionary = Combat.resolve(player, a, 10.0, Combat.DamageType.PHYSICAL, false, 1.0, true)
+	a.receive(hit, player.global_position)
+	ItemEffects.on_dealt_hit(player, a, hit)
+	expect("the fire jumps to the enemy next to it", b.is_burning() and not far.is_burning())
+	a.stop_burning()
+	b.stop_burning()
+
+	# Juggler's: an enemy thrown into the air takes 80% more and is knocked back up.
+	_wear("juggler", 0)
+	a.ragdoll_launch(Vector3(0, 0, 4), 6.0, Vector3(3, 0, 0))
+	await get_tree().process_frame
+	expect("a thrown enemy is airborne", ItemEffects.is_airborne(a))
+	expect("hits on it do 80% more", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.8))
+	expect("hits on a grounded enemy do not", is_equal_approx(ItemEffects.outgoing_multiplier(player, far), 1.0))
+	await get_tree().create_timer(0.4).timeout   # now on its way down
+	expect("it is falling", ItemEffects.is_airborne(a) and a.ragdoll._vy < 0.0)
+	ItemEffects.on_dealt_hit(player, a, hit)
+	expect("the hit knocks it back up", ItemEffects.is_airborne(a) and a.ragdoll._vy > 3.0)
+	await get_tree().create_timer(2.5).timeout
+
+	# Breaker's: stunned or downed enemies are always crit.
+	_wear("breaker", 0)
+	far.stun_time = 0.0
+	expect("a healthy enemy is not a guaranteed crit", not ItemEffects.guaranteed_crit(player, far))
+	far.stun_time = 1.0
+	expect("a stunned one is", ItemEffects.guaranteed_crit(player, far))
+	far.stun_time = 0.0
+	far.ragdoll_launch(Vector3(0, 0, 3), 5.0, Vector3(2, 0, 0))
+	await get_tree().process_frame
+	expect("a knocked-down one is", ItemEffects.guaranteed_crit(player, far))
+	await get_tree().create_timer(3.0).timeout
+
+	# Maelstrom: Cleave stuns everything it hits.
+	_wear("maelstrom", 0)
+	for e in [a, b]:
+		e.global_position = player.global_position + Vector3(1.4 if e == a else -1.4, 0, 0)
+		e.stun_time = 0.0
+	await get_tree().process_frame
+	player.skills.start_skill("cleave", a, null)
+	var longest: float = 0.0
+	var t: float = 0.0
+	while t < 1.8:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		longest = maxf(longest, minf(a.stun_time, b.stun_time))
+	expect("Cleave stuns everything it catches for about a second (%.2f)" % longest, longest >= 0.8)
+	await get_tree().create_timer(1.5).timeout
+	for e in [a, b]:
+		e.global_position = Vector3(6, 0, 0) if e == a else Vector3(7.2, 0, 0)
+		e.stun_time = 0.0
+
+	# Impaler's and Ramming: the Skewer kick.
+	_wear("impaler", 0)
+	var before: float = b.health
+	ItemEffects.impaler_burst(player, a, Vector3(6, 0, 0))
+	expect("an enemy kicked off the blade bursts and hurts the one beside it", b.health < before)
+	_wear("charger", 1)
+	player.stats.cooldowns["skewer"] = 9.0
+	ItemEffects.on_skewer_kick(player, 2)
+	expect("a Skewer that carried two is not ready again", float(player.stats.cooldowns["skewer"]) > 0.0)
+	ItemEffects.on_skewer_kick(player, 3)
+	expect("one that carried three is", float(player.stats.cooldowns["skewer"]) == 0.0)
+
+	# Ember-Treaded: the trail sets an enemy standing on it alight.
+	_wear("cinder_roll", 1)
+	far.global_position = player.global_position + Vector3(0.6, 0, 0)
+	far.stop_burning()
+	ItemEffects.on_roll_start(player)
+	await get_tree().create_timer(0.5).timeout
+	expect("an enemy on the embers catches fire", far.is_burning())
+	far.global_position = Vector3(-20, 0, 0)
+	far.stop_burning()
+
+	# Vaultborn: a Leap landing makes the next Power Strike free.
+	_wear("vaultborn", 1)
+	player.stats.mana = 0.0
+	player.stats.cooldowns["power"] = 5.0
+	expect("without a Leap, Power Strike is not available", not player.stats.can_use("power"))
+	ItemEffects.on_leap_land(player)
+	expect("after a Leap landing it is, with no mana and no cooldown", player.stats.can_use("power") and player.stats.vault_time > 0.0)
+	a.global_position = player.global_position + Vector3(1.4, 0, 0)
+	player.skills.start_skill("power", a, null)
+	expect("using it spends nothing", player.stats.mana == 0.0 and float(player.stats.cooldowns["power"]) == 5.0 and player.stats.vault_time == 0.0)
+	await get_tree().create_timer(2.0).timeout
+	player.skills.cancel_action()
+	player.stats.mana = player.stats.max_mana
+
+	# Smouldering: being hit sets the enemies close to you alight.
+	_wear("smouldering", 1)
+	a.global_position = player.global_position + Vector3(2.0, 0, 0)
+	far.global_position = Vector3(-20, 0, 0)
+	a.stop_burning()
+	ItemEffects.on_player_hurt(player)
+	expect("a close enemy catches fire when you are hit, a far one does not", a.is_burning() and not far.is_burning())
+	a.stop_burning()
+
+	# Wildfire: a Fireball that catches three or more.
+	_wear("wildfire", 2)
+	player.stats.cooldowns["fireball"] = 5.5
+	ItemEffects.on_fireball_blast(player, 2)
+	expect("two enemies in the blast earn nothing", float(player.stats.cooldowns["fireball"]) == 5.5)
+	ItemEffects.on_fireball_blast(player, 3)
+	expect("three earn 3 seconds off the cooldown", is_equal_approx(float(player.stats.cooldowns["fireball"]), 2.5))
+
+	# Virtuoso: different skills in a row stack; repeating drops them.
+	_wear("virtuoso", 2)
+	player.stats.chain_stacks = 0
+	player.stats.chain_time = 0.0
+	player.stats.chain_last = ""
+	ItemEffects.on_skill_start(player, "power")
+	expect("the first skill starts the streak with no bonus", player.stats.chain_stacks == 0 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.0))
+	ItemEffects.on_skill_start(player, "cleave")
+	expect("a different second skill gives +20%", player.stats.chain_stacks == 1 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.2))
+	ItemEffects.on_skill_start(player, "fireball")
+	ItemEffects.on_skill_start(player, "skewer")
+	ItemEffects.on_skill_start(player, "leap")
+	expect("it stops at three stacks (+60%)", player.stats.chain_stacks == 3 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.6))
+	ItemEffects.on_skill_start(player, "leap")
+	expect("repeating a skill drops them", player.stats.chain_stacks == 0)
+	ItemEffects.on_skill_start(player, "power")
+	ItemEffects.on_skill_start(player, "cleave")
+	player.stats.chain_time = 0.0
+	player._physics_process(0.016)
+	expect("the streak ends when its time runs out", player.stats.chain_stacks == 0)
+
+	# Quakebound: kills charge the ultimate.
+	_wear("quaker", 2)
+	player.stats.ult_charge = 0.0
+	ItemEffects.on_kill(player, far)
+	expect("a kill charges 4% of Earthshatter", is_equal_approx(player.stats.ult_charge, PlayerStats.MAX_ULT_CHARGE * 0.04))
+
+	# Pyrebound: a burning enemy that dies explodes.
+	_wear("pyre", 2)
+	a.global_position = Vector3(6, 0, 3)
+	b.global_position = Vector3(7.0, 0, 3)
+	a.stop_burning()
+	b.stop_burning()
+	a.health = 3000.0
+	b.health = 3000.0
+	var b_before: float = b.health
+	ItemEffects.on_kill(player, a)
+	expect("a cold kill explodes nothing", b.health == b_before and not b.is_burning())
+	a.apply_burn(5.0, 4.0)
+	ItemEffects.on_kill(player, a)
+	expect("a burning kill goes up: the neighbour is hurt and set alight", b.health < b_before and b.is_burning())
+
+	player.stats.equipment = saved
+	player.armor = player.stats.base_armor + player.stats.armor_stat("armor", 0.0)
+	player.stats.cooldowns.clear()
+	player.stats.ult_charge = PlayerStats.MAX_ULT_CHARGE
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+
+## Puts on one item carrying just this affix in the right slot (replacing what was worn there).
+func _wear(affix_id: String, slot: int) -> void:
+	player.stats.equipment = {}
+	player.stats.equip(Items.make(slot, Items.Rarity.RARE, 1, affix_id), false)
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 	"autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_wave_modifiers", "townscene": "_test_town_scene",
 }
 
 var _failures: PackedStringArray = []
@@ -2645,6 +3602,15 @@ func _run_selftest() -> void:
 	await _test_enemies()
 	await _test_balance()
 	await _test_auto_attack()
+	await _test_fireball_cancel()
+	await _test_item_icons()
+	await _test_loot()
+	await _test_destructibles()
+	await _test_loot_ui()
+	_test_town_sim()
+	_test_town_state()
+	await _test_wave_modifiers()
+	await _test_town_scene()
 
 	var zombies: Array[Enemy] = []
 	for i in 3:

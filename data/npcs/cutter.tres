@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/npc_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "cutter"
+display_name = "Cutter"
+role = "recruit"
+title = "Sellsword"
+model_path = "res://assets/models/npc_recruit"
+height = 1.8
+home = Vector2(11.0, 5.0)
+traits = Array[String](["argumentative", "joker"])
+start_happiness = 10.0
+recruit_cost = 60
+clan_skill = "forager"
+lines = {
+"greet": ["You look like you could use another blade.", "Sixty coin and I stop standing around."],
+"idle": ["Sharpened it twice today. Nothing to cut.", "I've slept in worse places."],
+"hire": ["Done. I forage as well as I fight. Mostly."],
+"return_ok": ["Still alive. Nice."],
+"return_dead": ["Told you to pay me up front."],
+"gossip": ["The old woman talks to the stone."],
+"argue": ["Say that again."],
+"praise": ["Not bad."],
+"joke": ["A priest, a ghoul and a barmaid..."],
+"small_talk": ["Quiet out there."]
+}

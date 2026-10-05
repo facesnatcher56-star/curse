@@ -92,6 +92,8 @@ func tick_skewer(delta: float) -> void:
 			p.move_with(skewer_dir * speed)
 			var moved: float = before.distance_to(p.global_position)
 			skewer_travel += moved
+			# Everything breakable in the way is smashed apart and thrown ahead of the charge.
+			Destructible.blast(p.get_tree(), p.global_position + skewer_dir * 0.7, 1.3, 999.0, skewer_dir, 2.5)
 			p.visual.rotation.y = atan2(skewer_dir.x, skewer_dir.z)
 			p.visual.rotation.x = 0.24
 			_skewer_dust += delta
@@ -246,6 +248,11 @@ func _skewer_kick() -> void:
 			var spin: Vector3 = away.cross(Vector3.UP) * randf_range(7.0, 11.0) + Vector3.UP * randf_range(-3.0, 3.0)
 			e.ragdoll_launch(away * 12.0, 6.5, spin)
 		Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), away + Vector3.UP * 0.4, Color(0.6, 0.05, 0.04), 20, 7.0)
+		if p.stats.has_affix("impaler"):
+			var fallback: Vector3 = p.global_position + away * 8.0
+			var victim: Actor = e
+			p.get_tree().create_timer(0.85).timeout.connect(func() -> void: ItemEffects.impaler_burst(p, victim, fallback))
+	ItemEffects.on_skewer_kick(p, count)
 	p.skills.blade_blood = minf(p.skills.blade_blood + 0.3, 1.0)
 	skewer_impaled.clear()
 	Fx.ring(p, p.global_position + skewer_dir * 1.3, 3.0, Color(1.0, 0.85, 0.5))

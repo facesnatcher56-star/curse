@@ -55,10 +55,14 @@ var weapon_max: float = 11.0
 var cooldowns: Dictionary = {}
 # Equipment (see items.gd / item_effects.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
+var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
+const MAX_BAG := 12
 var base_armor: float = 15.0
 var haste_time: float = 0.0
-var riposte_time: float = 0.0
-var ward_timer: float = 0.0
+var chain_last: String = ""     # Virtuoso: the last skill used, how many different ones in a row, and how long the streak lasts
+var chain_stacks: int = 0
+var chain_time: float = 0.0
+var vault_time: float = 0.0     # Vaultborn: seconds left in which Power Strike is free
 var aegis_hits: int = 0
 ## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
 var ult_charge: float = 0.0   # starts full (set in _init)
@@ -79,6 +83,8 @@ func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
 	if ult_charge < ult_cost(id):
 		return false
+	if id == "power" and vault_time > 0.0:
+		return true   # Vaultborn: free, and no cooldown
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
 
 func use_potion() -> bool:
@@ -129,6 +135,42 @@ func equip(item: Dictionary, announce: bool = true) -> void:
 	p.armor = base_armor + armor_stat("armor", 0.0)
 	if announce:
 		p._say("Equipped %s" % item["name"])
+
+## Whether `item` should replace what is worn in its slot: a higher rarity, or the same rarity but with an effect the worn one lacks.
+func is_upgrade(item: Dictionary) -> bool:
+	var current: Variant = equipment.get(int(item["slot"]))
+	if current == null:
+		return true
+	var worn: Dictionary = current
+	if int(item["rarity"]) != int(worn["rarity"]):
+		return int(item["rarity"]) > int(worn["rarity"])
+	return String(item["affix"]) != "" and String(worn["affix"]) == ""
+
+## Picks a dropped item up: an upgrade is put on at once (the old piece goes to the bag), anything else goes to the bag.
+func pickup(item: Dictionary) -> String:
+	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
+	var text: String
+	if is_upgrade(item):
+		var old: Variant = equipment.get(int(item["slot"]))
+		if old != null:
+			add_to_bag(old as Dictionary)
+		equip(item, false)
+		text = "Equipped %s" % item["name"]
+	else:
+		add_to_bag(item)
+		text = "Found %s (bag)" % item["name"]
+	p._say(text)
+	Fx.text_at(p, p.global_position + Vector3(0, 2.6, 0), String(item["name"]), color, 40)
+	return text
+
+func add_to_bag(item: Dictionary) -> void:
+	bag.append(item)
+	while bag.size() > MAX_BAG:
+		var worst: int = 0
+		for i in bag.size():
+			if int(bag[i]["rarity"]) < int(bag[worst]["rarity"]):
+				worst = i
+		bag.remove_at(worst)
 
 func heal(amount: float) -> void:
 	p.health = minf(p.health + amount, p.max_health)

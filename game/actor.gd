@@ -115,6 +115,11 @@ func face(pos: Vector3, weight: float = 1.0) -> void:
 		return
 	visual.rotation.y = lerp_angle(visual.rotation.y, atan2(dir.x, dir.z), weight)
 
+func flat_distance_to_point(point: Vector3) -> float:
+	var d: Vector3 = point - global_position
+	d.y = 0.0
+	return d.length()
+
 func flat_distance_to(other: Node3D) -> float:
 	var d: Vector3 = other.global_position - global_position
 	d.y = 0.0

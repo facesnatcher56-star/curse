@@ -45,6 +45,8 @@ params = {
 "puddle_slow": 0.3
 }
 token_weight = 1
+drop_chance = 0.12
+drop_luck = 0.0
 min_wave = 3
 spawn_mode = "solo"
 base_count = 1.0

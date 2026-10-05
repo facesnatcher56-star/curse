@@ -22,6 +22,7 @@ var message: String = ""
 var message_time: float = 0.0
 var hurt_flash: float = 0.0
 var attack_target: Actor
+var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
 var hover_target: Actor  # enemy under the mouse cursor, for the health bar and highlight ring
 var _ring: MeshInstance3D
 var _cursor_on_enemy: bool = false
@@ -93,8 +94,10 @@ func _physics_process(delta: float) -> void:
 		stats.cooldowns[id] = maxf(float(stats.cooldowns[id]) - delta, 0.0)
 	stats.regen(delta)
 	stats.haste_time = maxf(stats.haste_time - delta, 0.0)
-	stats.riposte_time = maxf(stats.riposte_time - delta, 0.0)
-	stats.ward_timer = maxf(stats.ward_timer - delta, 0.0)
+	stats.vault_time = maxf(stats.vault_time - delta, 0.0)
+	stats.chain_time = maxf(stats.chain_time - delta, 0.0)
+	if stats.chain_time <= 0.0:
+		stats.chain_stacks = 0
 	stats.collect_orbs()
 	skills.combo_timer = maxf(skills.combo_timer - delta, 0.0)
 	if skills.combo_timer <= 0.0 and not skills.busy:
@@ -105,6 +108,7 @@ func _physics_process(delta: float) -> void:
 	hover_target = _hover_pick(cursor)
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
 		skills.clear_aim()
+	skills.check_cancel()
 	skills.update_aim(cursor)
 	skills.handle_hotkeys(cursor)
 	if movement.rolling:
@@ -346,8 +350,15 @@ func _read_input(cursor: Vector3) -> void:
 		elif hover:
 			click_mode = 1
 			attack_target = hover
+			attack_prop = null
+			movement.has_goal = false
+		elif Destructible.near(get_tree(), cursor, 0.35, "barrel") != null:
+			click_mode = 3
+			attack_target = null
+			attack_prop = Destructible.near(get_tree(), cursor, 0.35, "barrel")
 			movement.has_goal = false
 		else:
+			attack_prop = null
 			click_mode = 0
 			attack_target = null
 			Fx.click_marker(self, cursor)
@@ -366,6 +377,10 @@ func _read_input(cursor: Vector3) -> void:
 						click_mode = 0
 			2:
 				attack_target = enemy_near(cursor, 10.0)
+			3:
+				if attack_prop == null or not is_instance_valid(attack_prop) or attack_prop.broken:
+					attack_prop = null
+					click_mode = 0
 
 	for i in skills.hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
@@ -379,8 +394,10 @@ func _read_input(cursor: Vector3) -> void:
 				skills.queue_skill(skills.hotbar[i], cursor)
 	if SkillDb.all()[skills.right_click_skill].get("aimed", false):
 		skills.handle_aimed_key("alt_skill", skills.right_click_skill, cursor)
-	elif Input.is_action_pressed("alt_skill"):
+	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
 		skills.queue_skill(skills.right_click_skill, cursor)
+	if not Input.is_action_pressed("alt_skill"):
+		skills.swallow_alt = false
 
 func _on_death() -> void:
 	skills.drop_orb()
@@ -389,6 +406,22 @@ func _on_death() -> void:
 
 func _act(delta: float, cursor: Vector3) -> void:
 	var ctrl: bool = Input.is_action_pressed("stand_still")
+	if attack_prop != null:
+		if not is_instance_valid(attack_prop) or attack_prop.broken:
+			attack_prop = null
+		elif attack_target == null and skills.queued_skill == "":
+			var offset: Vector3 = attack_prop.global_position - global_position
+			offset.y = 0.0
+			if offset.length() - attack_prop.radius <= 1.6:
+				face(attack_prop.global_position, 0.4)
+				if stats.can_use("basic"):
+					skills.start_skill("basic", null, attack_prop.global_position)
+				else:
+					move_with(Vector3.ZERO)
+				return
+			if not ctrl and Gamepad.move_vector().length() == 0.0:
+				movement.goal = attack_prop.global_position
+				movement.has_goal = true
 	var skill_id: String = ""
 	var target: Actor = null
 	if skills.queued_skill != "" and skills.queued_target != null and not skills.queued_target.dead:
@@ -452,6 +485,7 @@ func _say(text: String) -> void:
 	message_time = 1.5
 
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
+	ItemEffects.on_player_hurt(self)
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0

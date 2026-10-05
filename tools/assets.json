@@ -217,5 +217,97 @@
       "attack": 4,
       "cast": 129
     }
+  },
+  "npc_vendor": {
+    "prompt": "Weary human market trader in his fifties, stocky, patched leather apron over a stained wool tunic, coin pouches and a heavy satchel on his belt, thick grey stubble, tired shrewd face, bare head, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 15000,
+    "rig": true,
+    "height": 1.7,
+    "animations": {
+      "idle": 0,
+      "calm": 11
+    }
+  },
+  "npc_keeper": {
+    "prompt": "Stern grizzled human woman, town warden and record keeper, long dark weathered coat with a high collar, ink-stained fingerless gloves, a ring of iron keys and a rolled parchment at her belt, short cropped grey hair, hard tired face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 15000,
+    "rig": true,
+    "height": 1.7,
+    "animations": {
+      "idle": 0,
+      "calm": 11
+    }
+  },
+  "npc_healer": {
+    "prompt": "Old human woman healer, hunched slightly, layered patched shawls and a faded brown hooded cloak, bandages wrapped on her hands, bundles of dried herbs and small bottles hanging from a rope belt, deep-lined kind but weary face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 15000,
+    "rig": true,
+    "height": 1.6,
+    "animations": {
+      "idle": 0,
+      "calm": 11
+    }
+  },
+  "npc_recruit": {
+    "prompt": "Scarred human mercenary survivor, wearing mismatched scavenged leather armour with one dented steel pauldron, a torn cloak, wrapped forearms, a short sword sheathed at the hip, short dark hair, a long scar across the cheek, wary hard face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "pose": "a-pose",
+    "polycount": 15000,
+    "rig": true,
+    "height": 1.8,
+    "animations": {
+      "idle": 0,
+      "calm": 11
+    }
+  },
+  "market_stall": {
+    "prompt": "Rickety wooden market stall with a patched tattered canvas awning, a worn counter with cluttered crates, jars and hanging goods, weathered grimy planks, single game prop",
+    "polycount": 8000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "bulletin_board": {
+    "prompt": "Tall weathered wooden notice board on two thick posts with a small shingled roof, many tattered pinned parchment notices and nails, grimy, old, single game prop",
+    "polycount": 8000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "town_gate": {
+    "prompt": "Heavy stone and rough timber gateway arch for a fortified village, iron-banded double wooden gates standing open, a hanging iron lantern, moss and soot stains, single game prop",
+    "polycount": 12000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "healthstone": {
+    "prompt": "Standing carved rough stone monolith about two metres tall, cracked and weathered, glowing faint ember-orange runes in its surface, small offering candles and stones at its base, ancient, single game prop",
+    "polycount": 8000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "cottage": {
+    "prompt": "Small run-down timber and wattle cottage with a sagging thatch roof, a crooked chimney, boarded window shutters, rough stone foundation, grimy and patched, single game prop",
+    "polycount": 12000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "stash_chest": {
+    "prompt": "Large old iron-bound wooden storage chest with a heavy padlock, scratched, dented, dirty, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "palisade": {
+    "prompt": "Short section of sharpened log palisade fence with rope lashings, a few broken stakes, mud and soot at the base, single game prop",
+    "polycount": 6000,
+    "rig": false,
+    "texture_resolution": "2k"
+  },
+  "lamp_post": {
+    "prompt": "Rough wooden post with an old iron lantern holding a stub of candle, hanging chain, grimy and rusty, single game prop",
+    "polycount": 4000,
+    "rig": false,
+    "texture_resolution": "2k"
   }
 }

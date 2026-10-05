@@ -1,6 +1,6 @@
 class_name RunDirector
 extends Node3D
-## The run itself: wave composition and spawning, kill tracking, and the reward offered between waves.
+## The run itself: wave composition and spawning, kill tracking, and what the dead drop (see LootDrop).
 ## Main builds the world and the hero; this decides what comes at them and what they get for surviving.
 
 const ARENA_HALF := Arena.HALF
@@ -9,48 +9,70 @@ var player: Player
 var hud: Hud
 var wave: int = 0
 var kills: int = 0
-var choosing: bool = false
-var selftest: bool = false   # the self-test drives waves by hand, so no automatic reward offers
-var _choices: Array[Dictionary] = []
-var _brute_killed: bool = false
-var _reward_pending: bool = false
+var selftest: bool = false   # the self-test drives waves by hand, so waves do not follow each other on their own
+var _clear_pending: bool = false
+
+## Seconds between a wave being cleared and the next one, for walking over what dropped.
+const LOOT_BREATHER := 6.0
+## A job taken from the town board: how many waves to survive and which rules apply (see WaveModifierDef). Empty for a free run.
+var job: Dictionary = {}
+var modifiers: Array[WaveModifierDef] = []
+var _ending: bool = false
+
+## Starts the run as the given job: its modifiers shape every wave, and clearing its last wave ends the run.
+func set_job(offer: Dictionary) -> void:
+	job = offer
+	modifiers.clear()
+	for id in offer.get("modifiers", []):
+		var def: WaveModifierDef = TownDb.modifier(String(id))
+		if def != null:
+			modifiers.append(def)
+
+## The modifiers in force at this wave (some only start later).
+func active_modifiers(at_wave: int = -1) -> Array[WaveModifierDef]:
+	var w: int = wave if at_wave < 0 else at_wave
+	var out: Array[WaveModifierDef] = []
+	for m in modifiers:
+		if m.min_wave <= w:
+			out.append(m)
+	return out
+
+## How many of an enemy this wave brings once the modifiers have had their say.
+func modified_count(def: EnemyDef, at_wave: int) -> int:
+	var base: int = EnemyDb.count_for(def, at_wave)
+	if base <= 0:
+		return 0
+	var mult: float = 1.0
+	for m in active_modifiers(at_wave):
+		mult *= float(m.spawn_weights.get(def.id, 1.0)) * m.count_mult
+	return maxi(int(round(base * mult)), 1 if mult > 0.0 else 0)
+
+## Product of one numeric field ("health_mult", "speed_mult", "size_mult") over the active modifiers.
+func modifier_product(field: String) -> float:
+	var product: float = 1.0
+	for m in active_modifiers():
+		product *= float(m.get(field))
+	return product
+
+## Names of the active modifiers, for the wave banner.
+func modifier_names() -> String:
+	var names: PackedStringArray = []
+	for m in active_modifiers():
+		names.append(m.display_name)
+	return ", ".join(names)
 
 func _ready() -> void:
 	add_to_group("director")   # lets enemies that summon reinforcements find it
 
-## Wave over: offer three items, one of which you keep. Brutes make better offers.
-func offer_reward() -> void:
-	if _reward_pending:
+## Wave over: a short breather to pick up what dropped, then the next wave.
+func _wave_cleared() -> void:
+	if _clear_pending:
 		return
-	_reward_pending = true
-	hud.show_banner("Wave cleared", 1.5)
-	await get_tree().create_timer(1.3).timeout
-	if player.dead:
-		return
-	var owned: Array[String] = []
-	for item in player.stats.equipment.values():
-		if item["rarity"] == Items.Rarity.UNIQUE:
-			owned.append(item["name"])
-	_choices = Items.roll_choices(wave, _brute_killed, owned)
-	_brute_killed = false
-	hud.choices = _choices
-	hud.choosing = true
-	hud.card_selected = 0
-	choosing = true
-	get_tree().paused = true
-
-func choose(index: int) -> void:
-	if index >= 0 and index < _choices.size():
-		player.stats.equip(_choices[index])
-	else:
-		player.stats.potions += 1
-		player._say("Skipped: +1 potion")
-	choosing = false
-	_reward_pending = false
-	hud.choosing = false
-	get_tree().paused = false
-	await get_tree().create_timer(1.8).timeout
-	if not player.dead:
+	_clear_pending = true
+	hud.show_banner("Wave cleared", 1.8)
+	await get_tree().create_timer(LOOT_BREATHER).timeout
+	_clear_pending = false
+	if not player.dead and not _ending:
 		start_wave()
 
 func start_wave() -> void:
@@ -66,12 +88,16 @@ func start_wave() -> void:
 			arrivals.append(def.display_name + ("s" if def.id != "priest" else ""))
 	if not arrivals.is_empty():
 		banner += "  -  new: " + ", ".join(arrivals)
+	if not modifiers.is_empty():
+		banner += "\n[%s]" % modifier_names()
+	if not job.is_empty():
+		banner += "\n%s: wave %d of %d" % [job.get("name", "Job"), wave, int(job.get("waves", 0))]
 	hud.show_banner(banner)
 	Enemy.max_tokens = 2 + wave / 5   # how many enemies may swing at the hero at once
 	# Packs and loners first, then the support enemies that hang back behind the packs.
 	var centres: Array[Vector3] = []
 	for def in defs:
-		var count: int = EnemyDb.count_for(def, wave)
+		var count: int = modified_count(def, wave)
 		if def.spawn_mode == "pack":
 			_spawn_packs(def, count, level, centres, lead)
 		elif def.spawn_mode == "solo":
@@ -81,7 +107,7 @@ func start_wave() -> void:
 				spawn_enemy(spot, def.id, level)
 	for def in defs:
 		if def.spawn_mode == "support":
-			for i in EnemyDb.count_for(def, wave):
+			for i in modified_count(def, wave):
 				spawn_enemy(_support_point(centres), def.id, level)
 	if wave >= 2:
 		for i in randi_range(1, 2):
@@ -172,15 +198,72 @@ func spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -
 	enemy.died.connect(_on_enemy_died)
 	add_child(enemy)
 	enemy.global_position = pos
+	if not modifiers.is_empty():
+		_apply_modifiers(enemy)
 	# Teleported bodies would otherwise be drawn sliding in from their previous position.
 	enemy.reset_physics_interpolation()
 	return enemy
 
+## Tougher, quicker or bigger enemies, as the job's modifiers ask.
+func _apply_modifiers(enemy: Enemy) -> void:
+	var health: float = modifier_product("health_mult")
+	enemy.max_health *= health
+	enemy.health = enemy.max_health
+	enemy.move_speed *= modifier_product("speed_mult")
+	var size: float = modifier_product("size_mult")
+	if size != 1.0 and enemy.visual != null:
+		enemy.visual.scale *= size
+
+func _process(_delta: float) -> void:
+	# A job run ends in the town: the hero fell, or the last wave is done (see _on_enemy_died).
+	if not job.is_empty() and not _ending and not selftest and player != null and player.dead:
+		_end_run(false)
+
+## A dead monster may drop an item (see EnemyDef.drop_chance): it lands near the body and waits to be walked over.
+func _drop_loot(actor: Actor) -> void:
+	var enemy := actor as Enemy
+	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance:
+		return
+	drop_item(enemy.global_position, Items.roll_drop(wave, enemy.def.drop_luck, owned_uniques()))
+
+func owned_uniques() -> Array[String]:
+	var owned: Array[String] = []
+	for item in player.stats.equipment.values():
+		if int(item["rarity"]) == Items.Rarity.UNIQUE:
+			owned.append(String(item["name"]))
+	for item in player.stats.bag:
+		if int(item["rarity"]) == Items.Rarity.UNIQUE:
+			owned.append(String(item["name"]))
+	return owned
+
+func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
+	var drop: LootDrop = LootDrop.create(item)
+	add_child(drop)
+	drop.toss_from(at)
+	return drop
+
+## Back to town: the run's gold, gear and potions are handed over and the town takes it from there.
+func _end_run(completed: bool) -> void:
+	if _ending:
+		return
+	_ending = true
+	hud.show_banner("Job complete" if completed else "You have fallen", 3.0)
+	await get_tree().create_timer(3.2).timeout
+	TownState.take_gear(player.stats.equipment)
+	for item in player.stats.bag:
+		TownState.stash_item(item)
+	TownState.potions = maxi(player.stats.potions, 0)
+	TownState.finish_run({"kills": kills, "wave": wave, "completed": completed, "died": player.dead})
+	get_tree().paused = false
+	LoadingScreen.go(get_tree(), "res://game/town.tscn")
+
 func _on_enemy_died(actor: Actor) -> void:
 	kills += 1
 	player.on_enemy_killed(actor)
-	if actor is Enemy and (actor as Enemy).variant == "brute":
-		_brute_killed = true
+	_drop_loot(actor)
 	await get_tree().process_frame
-	if get_tree().get_nodes_in_group("enemies").size() == 0 and not selftest and not player.dead and not choosing:
-		offer_reward()
+	if get_tree().get_nodes_in_group("enemies").size() == 0 and not selftest and not player.dead:
+		if not job.is_empty() and wave >= int(job.get("waves", 0)):
+			_end_run(true)
+		else:
+			_wave_cleared()

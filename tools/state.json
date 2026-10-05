@@ -164,5 +164,73 @@
       "attack": "01a106e3-a124-76ce-89fd-1daf84e06d86",
       "cast": "01a106e3-a2de-7226-ab33-b4614ded8b84"
     }
+  },
+  "npc_healer": {
+    "preview": "01a108f9-1860-74ae-a753-e1f106d95b5d",
+    "refine": "01a108fa-114f-7252-8327-647fa9c060f5",
+    "rig": "01a108fa-d39c-7545-ab3a-78315e262814",
+    "anims": {
+      "idle": "01a108fb-14f1-77c1-9747-2b3df75727d1",
+      "calm": "01a108fb-1671-77c7-9039-b9236de54ecf"
+    }
+  },
+  "market_stall": {
+    "preview": "01a108f9-189c-7036-a112-9350c29f6cdc",
+    "refine": "01a108fb-0180-7053-a4e2-2aa53bd313f4"
+  },
+  "healthstone": {
+    "preview": "01a108f9-191c-7173-8da5-f36ecf9f3ddb",
+    "refine": "01a108f9-e40d-7292-9b45-1c60a5fcc0a8"
+  },
+  "npc_vendor": {
+    "preview": "01a108f9-182f-70a9-8fd7-a20325b7b05b",
+    "refine": "01a108fa-44c0-74c8-bd2f-ccade47fcb26",
+    "rig": "01a108fb-0740-7344-be07-edaed253788f",
+    "anims": {
+      "idle": "01a108fb-4d84-7411-ad48-5b0081a88687",
+      "calm": "01a108fb-4f06-7466-9117-d67479431f11"
+    }
+  },
+  "cottage": {
+    "preview": "01a108fa-a65d-726f-af3e-755fa16315dc",
+    "refine": "01a108fd-7bd5-701e-8277-b14470352869"
+  },
+  "npc_recruit": {
+    "preview": "01a108fb-7c90-7586-abe1-9c723824c083",
+    "refine": "01a108fc-ab23-752a-a163-9b828124a11f",
+    "rig": "01a108fd-9d47-7784-9240-a15fc4c2b1c4",
+    "anims": {
+      "idle": "01a108fd-e1cf-745d-8401-102cebc5a233",
+      "calm": "01a108fd-e371-74b6-a5fb-fece7ac2e129"
+    }
+  },
+  "npc_keeper": {
+    "preview": "01a108fb-85a8-700a-bd47-307f029826d1",
+    "refine": "01a108fc-7e5d-7653-b053-b6bd928fac0e",
+    "rig": "01a108fd-70ad-7532-be33-0a6673d2b16b",
+    "anims": {
+      "idle": "01a108fd-b274-716d-853d-29bb6da304ca",
+      "calm": "01a108fd-b3eb-714e-9848-92c93039fe1f"
+    }
+  },
+  "bulletin_board": {
+    "preview": "01a108fb-c3bc-7259-8a0c-e7c36a5689e5",
+    "refine": "01a108fc-c1aa-74b9-a0cb-e9f32111261c"
+  },
+  "town_gate": {
+    "preview": "01a108fd-b399-76a2-a3f3-1f217bc929fa",
+    "refine": "01a108fe-acdb-714d-b74d-c32d604469b8"
+  },
+  "stash_chest": {
+    "preview": "01a108fe-9e64-73ff-b00c-51768a754fe7",
+    "refine": "01a108ff-c635-725b-a562-9f1de74c919c"
+  },
+  "palisade": {
+    "preview": "01a10900-b8ec-778d-bb80-c02976394883",
+    "refine": "01a10901-b237-7615-8e0b-5d569e438f34"
+  },
+  "lamp_post": {
+    "preview": "01a10902-7466-7732-90c9-387cf50eec53",
+    "refine": "01a10903-3ba2-720f-b559-cc1f977e0167"
   }
 }

@@ -54,6 +54,7 @@ func _burst(by_fire: bool) -> void:
 	var radius: float = float(e.def.param("blast_radius", 3.2))
 	var damage: float = float(e.def.param("blast_damage", 22.0)) * (1.0 + 0.4 * (e.level_scale - 1.0))
 	var scene: Node = e.get_tree().current_scene
+	Destructible.blast(e.get_tree(), centre, radius, 80.0, Vector3.ZERO, 1.5)
 	# Everyone close takes it: the hero, and other enemies (so luring a Bloater into a pack is a plan).
 	for node in e.get_tree().get_nodes_in_group("player"):
 		_blast_actor(node as Actor, centre, radius, damage)

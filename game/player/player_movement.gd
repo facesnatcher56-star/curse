@@ -151,4 +151,3 @@ func tick_roll(delta: float) -> void:
 		rolling = false
 		p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
 		p.model.loop("idle_alert")
-		ItemEffects.on_roll_end(p)

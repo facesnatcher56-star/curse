@@ -26,6 +26,7 @@ const ACTIONS: Array = [
 	["camera_rotate", "Rotate camera (hold and drag)"],
 	["zoom_in", "Camera zoom in"],
 	["zoom_out", "Camera zoom out"],
+	["interact", "Talk / use (in town)"],
 	["pause", "Pause menu"],
 	["restart", "Restart after death"],
 ]

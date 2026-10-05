@@ -63,6 +63,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_zoom_target = clampf(_zoom_target + GameSettings.zoom_step, ZOOM_MIN, ZOOM_MAX)
 
 ## A new run starts fully zoomed out (the widest view).
+## Jumps to a zoom level (ZOOM_MIN..ZOOM_MAX) without easing.
+func set_zoom_now(value: float) -> void:
+	_zoom_target = clampf(value, ZOOM_MIN, ZOOM_MAX)
+	_zoom = _zoom_target
+
 func start_zoomed_out() -> void:
 	_zoom_target = ZOOM_MAX
 	_zoom = ZOOM_MAX

@@ -130,6 +130,7 @@ func _impact() -> void:
 	centre = p.global_position + dir * 1.2
 	centre.y = 0.0
 	SkillFx.earthshatter_impact(p, centre, RADIUS)
+	Destructible.blast(p.get_tree(), centre, RADIUS, 999.0, Vector3.ZERO, 2.6)
 	Fx.text_at(p, p.global_position + Vector3(0, 2.8, 0), "Earthshatter!", Color(1.0, 0.7, 0.3), 56)
 	Gamepad.rumble(0.9, 1.0, 0.55)
 	var in_range: Array[Actor] = []

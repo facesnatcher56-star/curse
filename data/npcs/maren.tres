@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/npc_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "maren"
+display_name = "Old Maren"
+role = "healer"
+title = "Healer"
+model_path = "res://assets/models/npc_healer"
+height = 1.6
+home = Vector2(3.5, 1.0)
+traits = Array[String](["religious", "generous"])
+start_happiness = 25.0
+recruit_cost = 0
+clan_skill = ""
+lines = {
+"greet": ["Sit. Let me see that wound.", "The stone's warm. Stand near it."],
+"idle": ["Herbs run short every winter.", "Mind the stone, child."],
+"return_ok": ["Back on your feet. Good.", "Bless you. And bleed less."],
+"return_dead": ["Oh, child. Not again."],
+"gossip": ["That trader waters his drink. And his wine."],
+"argue": ["Hmph."],
+"praise": ["The light finds the faithful."],
+"joke": ["Wicked boy."],
+"small_talk": ["Cold wind tonight."]
+}
