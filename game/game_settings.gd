@@ -8,6 +8,9 @@ const PATH := "user://settings.cfg"
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440)]
 const WINDOW_MODES: Array[String] = ["Windowed", "Borderless", "Fullscreen"]
 const MSAA_LEVELS: Array[String] = ["Off", "2x", "4x", "8x"]
+## How much of the screen resolution the 3D world is drawn at (the interface stays sharp); upscaled with FSR. The biggest lever on frame rate.
+const RENDER_SCALES: Array[float] = [1.0, 0.85, 0.75, 0.67]
+const RENDER_SCALE_LABELS: Array[String] = ["100% (sharpest)", "85%", "75% (steadier)", "67% (fastest)"]
 
 ## Rebindable actions in the order they are shown: [action, label].
 const ACTIONS: Array = [
@@ -43,7 +46,8 @@ static var sfx_enabled: bool = false
 static var window_mode: int = 0
 static var resolution_index: int = 0
 static var vsync: bool = true
-static var msaa_index: int = 2
+static var render_scale_index: int = 1   # 85% by default: the Steam Deck cannot hold 60 at full resolution in a crowded fight
+static var msaa_index: int = 0   # off by default: MSAA cost a couple of ms a frame on the Steam Deck
 static var ui_size: float = 1.0   # the player's own multiplier on how big the interface is (on top of the resolution-aware default)
 static var _watching_size: bool = false
 static var screen_shake: float = 1.0
@@ -53,6 +57,20 @@ static var zoom_step: float = 0.12   # camera zoom change per wheel notch
 
 ## action -> {"type": "key"|"mouse", "code": int}. Only actions the player changed are stored here.
 static var custom_bindings: Dictionary = {}
+## Which skill is on which key (see HotbarLayout). SkillController shares `hotbar_slots` itself, so a change here is a change there.
+static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
+static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
+
+static func reset_hotbar() -> void:
+	for i in hotbar_slots.size():
+		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
+	hotbar_alt = HotbarLayout.DEFAULT_ALT
+
+## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.
+static func assign_hotbar(slot: int, id: String) -> void:
+	hotbar_alt = HotbarLayout.assign(hotbar_slots, hotbar_alt, slot, id)
+	if not OS.get_cmdline_user_args().has("--selftest"):
+		save_to_disk()
 
 ## Call once at startup (menu and game scenes both do): loads, registers inputs, applies everything.
 static func boot() -> void:
@@ -87,6 +105,9 @@ static func apply_video() -> void:
 	apply_ui_scale()
 	var root: Window = (Engine.get_main_loop() as SceneTree).root
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+	var scale: float = RENDER_SCALES[clampi(render_scale_index, 0, RENDER_SCALES.size() - 1)]
+	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 0.999 else Viewport.SCALING_3D_MODE_BILINEAR
+	root.scaling_3d_scale = scale
 	root.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][msaa_index]
 	if DisplayServer.get_name() == "headless":
 		return
@@ -313,6 +334,7 @@ static func save_to_disk() -> void:
 	config.set_value("video", "resolution_index", resolution_index)
 	config.set_value("video", "vsync", vsync)
 	config.set_value("video", "msaa_index", msaa_index)
+	config.set_value("video", "render_scale_index", render_scale_index)
 	config.set_value("video", "ui_size", ui_size)
 	config.set_value("gameplay", "screen_shake", screen_shake)
 	config.set_value("gameplay", "show_damage_numbers", show_damage_numbers)
@@ -321,6 +343,8 @@ static func save_to_disk() -> void:
 	config.set_value("controller", "swap_sticks", swap_sticks)
 	config.set_value("controller", "stick_deadzone", stick_deadzone)
 	config.set_value("controller", "vibration", vibration)
+	config.set_value("hotbar", "slots", hotbar_slots.duplicate())
+	config.set_value("hotbar", "alt", hotbar_alt)
 	for action in custom_bindings:
 		config.set_value("input", action, custom_bindings[action])
 	for action in custom_pad_bindings:
@@ -337,6 +361,7 @@ static func load_from_disk() -> void:
 	resolution_index = int(config.get_value("video", "resolution_index", resolution_index))
 	vsync = bool(config.get_value("video", "vsync", vsync))
 	msaa_index = int(config.get_value("video", "msaa_index", msaa_index))
+	render_scale_index = clampi(int(config.get_value("video", "render_scale_index", render_scale_index)), 0, RENDER_SCALES.size() - 1)
 	ui_size = clampf(float(config.get_value("video", "ui_size", ui_size)), 0.5, 1.5)
 	screen_shake = float(config.get_value("gameplay", "screen_shake", screen_shake))
 	show_damage_numbers = bool(config.get_value("gameplay", "show_damage_numbers", show_damage_numbers))
@@ -345,6 +370,12 @@ static func load_from_disk() -> void:
 	swap_sticks = bool(config.get_value("controller", "swap_sticks", swap_sticks))
 	stick_deadzone = float(config.get_value("controller", "stick_deadzone", stick_deadzone))
 	vibration = bool(config.get_value("controller", "vibration", vibration))
+	var saved_slots: Array = config.get_value("hotbar", "slots", [])
+	var saved_alt: String = String(config.get_value("hotbar", "alt", HotbarLayout.DEFAULT_ALT))
+	if HotbarLayout.is_valid(saved_slots, saved_alt):   # a damaged or outdated entry falls back to the default layout
+		for i in hotbar_slots.size():
+			hotbar_slots[i] = String(saved_slots[i])
+		hotbar_alt = saved_alt
 	custom_pad_bindings.clear()
 	if config.has_section("input_pad"):
 		for action in config.get_section_keys("input_pad"):

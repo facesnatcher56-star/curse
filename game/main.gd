@@ -137,6 +137,7 @@ func _build_world() -> void:
 	environment.fog_light_color = Color(0.08, 0.09, 0.12)
 	environment.fog_density = 0.01
 	NightSky.apply(environment)
+	SceneLook.give_reflections(environment)
 	env.environment = environment
 	world_environment = environment
 	add_child(env)
@@ -146,7 +147,8 @@ func _build_world() -> void:
 	sun.light_color = Color(0.8, 0.85, 1.0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_max_distance = 45.0   # the camera never shows more than this much ground; farther shadows were pure cost
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
 
 	if String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:

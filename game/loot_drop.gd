@@ -4,21 +4,24 @@ extends Node3D
 ## it. Rares and uniques glow (a low light and a faint column) in their rarity colour so they can be spotted from the far zoom, and
 ## a drop is shown as the item's picture, and its details appear when it is pointed at.
 
-const PICKUP_RADIUS := 1.5
+## How close the hero has to be to take a drop. Nothing is picked up by walking over it: click it (or its name), or press the use key.
+const REACH := 2.2
 const LAND_TIME := 0.45
 const LIFETIME := 150.0
 
-## Drops are shown a little larger than life so they read from the far zoom: weapons and armour a quarter bigger, trinkets tripled.
-const SLOT_SCALE := {Items.Slot.WEAPON: 1.3, Items.Slot.ARMOR: 1.2, Items.Slot.TRINKET: 3.0}
+## How long (metres, its longest side) a drop lies on the ground, whatever the model's own size: a greatsword is not two metres of
+## steel on the floor. The camera makes them a little larger when pulled far back (see _camera_scale); the marker above them and the
+## name and the light beam are what find them from far away.
+const FIT_LENGTH := {Items.Slot.WEAPON: 0.7, Items.Slot.ARMOR: 0.5, Items.Slot.TRINKET: 0.3}
 
 var item: Dictionary = {}
+var _fit: float = 1.0   # the model's scale that makes its longest side FIT_LENGTH
 var landed: bool = false
 ## The drop the mouse (or controller) is pointing at, set by the HUD each frame: it is drawn brighter and its name is shown.
 static var focused: LootDrop = null
 var _age: float = 0.0
 var _light: OmniLight3D
 var _column: MeshInstance3D
-var _marker: Sprite3D
 var _model: Node3D
 var _column_base: float = 1.0
 var _start: Vector3
@@ -34,7 +37,6 @@ func _ready() -> void:
 	var rarity: int = int(item["rarity"])
 	var color: Color = Items.RARITY_COLORS[rarity]
 	_add_model(int(item["slot"]))
-	_add_marker(color, rarity)
 	if rarity > Items.Rarity.COMMON:
 		_light = OmniLight3D.new()
 		_light.light_color = color
@@ -51,7 +53,10 @@ func _add_model(slot: int) -> void:
 	if ResourceLoader.exists(path):
 		node = (load(path) as PackedScene).instantiate()
 		_use_vertex_colours(node)
-		node.scale = Vector3.ONE * float(SLOT_SCALE.get(slot, 1.0))
+		var bounds: AABB = CharacterModel._bounds_of(node)
+		var longest: float = maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+		_fit = clampf(float(FIT_LENGTH.get(slot, 0.5)) / maxf(longest, 0.01), 0.2, 6.0)
+		node.scale = Vector3.ONE * _fit
 	else:
 		# No model yet for this base: a plain slab in the rarity colour so the item can still be found and picked up.
 		var mesh := MeshInstance3D.new()
@@ -99,21 +104,17 @@ func _add_column(color: Color, rarity: int) -> void:
 	_column.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_column)
 
-## The item's picture in a rarity-coloured frame, hovering over it and the same size on screen however far the camera is: a drop can
-## always be found from the far zoom, and told apart by its picture. Rares and uniques are drawn larger. The name is in the hover card.
-func _add_marker(_color: Color, rarity: int) -> void:
-	_marker = Sprite3D.new()
-	_marker.texture = ItemIcons.badge(item)
-	_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_marker.fixed_size = true
-	_marker.no_depth_test = true
-	_marker.shaded = false
-	_marker.pixel_size = {Items.Rarity.COMMON: 0.00031, Items.Rarity.RARE: 0.00042, Items.Rarity.UNIQUE: 0.00052}[rarity]
-	_marker.position = Vector3(0, 1.5, 0)
-	_marker.render_priority = 5
-	add_child(_marker)
-
 ## Bigger the farther the camera is: at the far zoom a plain sword would be a few pixels.
+func in_reach(hero: Node3D) -> bool:
+	var offset: Vector3 = hero.global_position - global_position
+	offset.y = 0.0
+	return landed and offset.length() <= REACH
+
+## The hero takes it: worn if the slot is empty, otherwise into the bag.
+func pick_up(hero: Player) -> void:
+	hero.stats.pickup(item)
+	queue_free()
+
 func _camera_scale() -> float:
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
@@ -144,21 +145,7 @@ func _process(delta: float) -> void:
 		return
 	var zoom: float = _camera_scale()
 	if _model != null:
-		_model.scale = Vector3.ONE * float(SLOT_SCALE.get(int(item["slot"]), 1.0)) * zoom
+		_model.scale = Vector3.ONE * _fit * lerpf(1.0, zoom, 0.4)   # only partly compensates for the camera: at the far zoom the name and the beam find it
 	if _column != null:
 		_column.scale = Vector3(zoom, 1.0 + (zoom - 1.0) * 0.6, zoom)
 		_column.position.y = _column_base * (1.0 + (zoom - 1.0) * 0.6) * 0.5
-	if _marker != null and int(item["rarity"]) == Items.Rarity.UNIQUE:
-		_marker.modulate = Color(1, 1, 1, 0.82 + 0.18 * sin(_age * 5.0))
-	var is_focus: bool = focused == self
-	if _marker != null:
-		_marker.scale = Vector3.ONE * (1.35 if is_focus else 1.0)
-	var player: Node3D = get_tree().get_first_node_in_group("player") as Node3D
-	if player == null:
-		return
-	var offset: Vector3 = player.global_position - global_position
-	offset.y = 0.0
-	var dist: float = offset.length()
-	if dist <= PICKUP_RADIUS and not bool(player.get("dead")):
-		(player.get("stats") as PlayerStats).pickup(item)
-		queue_free()

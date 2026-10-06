@@ -130,6 +130,13 @@ func _physics_process(delta: float) -> void:
 	if _orbit_flip <= 0.0:
 		_orbit_flip = randf_range(1.5, 3.5)
 		_orbit_dir = -_orbit_dir
+	if dist > FAR_THINK_RANGE:   # a monster that is far from the hero thinks every other tick (nobody can see it do it)
+		_far_skip = not _far_skip
+		_far_delta += delta
+		if _far_skip:
+			return
+		delta = _far_delta
+		_far_delta = 0.0
 	behavior.tick(delta, dist)
 
 ## Anything the hero hits turns on them at once, however far away it was and whether or not it had noticed them.
@@ -151,6 +158,11 @@ func wake() -> void:
 	if _aggro:
 		return
 	_aggro = true
+	if dormant:
+		dormant = false
+		visible = true
+		set_physics_process(true)
+		model.anim.active = true
 	if visual != null:
 		visual.rotation.x = 0.0   # standing up from a corpse
 	if group_id < 0:
@@ -267,16 +279,65 @@ func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> 
 func separation() -> Vector3:
 	var push: Vector3 = Vector3.ZERO
 	var spacing: float = body_radius * 2.6
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var other := node as Enemy
-		if other == null or other == self or other.dead:
-			continue
-		var away: Vector3 = global_position - other.global_position
-		away.y = 0.0
-		var d: float = away.length()
-		if d > 0.001 and d < spacing:
-			push += away / d * (spacing - d)
+	var here: Vector3 = global_position
+	var reach: int = int(ceil(spacing / GRID_CELL))
+	var cell: Vector2i = Vector2i(floori(here.x / GRID_CELL), floori(here.z / GRID_CELL))
+	for gx in range(cell.x - reach, cell.x + reach + 1):
+		for gz in range(cell.y - reach, cell.y + reach + 1):
+			for other: Enemy in _crowd_cell(get_tree(), Vector2i(gx, gz)):
+				if other == self or other.dead:
+					continue
+				var away: Vector3 = here - other.global_position
+				away.y = 0.0
+				var d: float = away.length()
+				if d > 0.001 and d < spacing:
+					push += away / d * (spacing - d)
 	return push.limit_length(1.0)
+
+## Who stands where, binned once per physics tick: each monster only has to look at its neighbours, not at all of them (a world with
+## two hundred monsters made that the single biggest cost of a fight).
+const GRID_CELL := 2.0
+static var _crowd: Dictionary = {}
+static var _crowd_tick: int = -1
+static var _no_one: Array = []
+
+static func _crowd_cell(tree: SceneTree, cell: Vector2i) -> Array:
+	var tick: int = Engine.get_physics_frames()
+	if tick != _crowd_tick:
+		_crowd_tick = tick
+		_crowd.clear()
+		for node in tree.get_nodes_in_group("enemies"):
+			var other := node as Enemy
+			if other == null or other.dead or other.dormant:
+				continue
+			var key := Vector2i(floori(other.global_position.x / GRID_CELL), floori(other.global_position.z / GRID_CELL))
+			if not _crowd.has(key):
+				_crowd[key] = []
+			(_crowd[key] as Array).append(other)
+	return _crowd.get(cell, _no_one)
+
+# --- far away and asleep ---------------------------------------------------------------------------
+
+## Asleep monsters this far from the hero (in metres) are not drawn and do nothing at all until he comes back within range: the world
+## keeps every monster on the Crypt Road loaded, and running, animating and shadow-casting two hundred of them was most of the cost of
+## standing anywhere in it. (The camera never shows anything near that far.)
+const SLEEP_RANGE := 60.0
+const WAKE_RANGE := 52.0
+var dormant: bool = false
+const FAR_THINK_RANGE := 28.0
+var _far_skip: bool = false
+var _far_delta: float = 0.0
+
+func set_dormant(on: bool) -> void:
+	if on == dormant or dead or _aggro:
+		return
+	dormant = on
+	visible = not on
+	set_physics_process(not on)
+	if model != null and model.anim != null:
+		model.anim.active = not on
+	if on:
+		velocity = Vector3.ZERO
 
 ## Whether this enemy's model has an animation by that name (new enemies may not have every clip yet).
 func has_clip(clip: String) -> bool:

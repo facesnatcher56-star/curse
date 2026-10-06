@@ -20,6 +20,9 @@ const FAMILIES := {
 	"fireball_cast": ["fireball_cast_1", "fireball_cast_2"],
 	"fireball_impact": ["fireball_impact"],
 	"leap_land": ["leap_land"],
+	# Reuse the owner's recorded steel and body impacts at distinct pitches.
+	"body_wall": ["leap_land"],
+	"body_enemy": ["sword_hit_2"],
 }
 static var _last_pick: Dictionary = {}
 

@@ -102,6 +102,7 @@ func _build_world() -> void:
 	environment.fog_density = 0.012
 	_base_ambient = environment.ambient_light_energy
 	_base_fog = environment.fog_density
+	SceneLook.give_reflections(environment)
 	env.environment = environment
 	world_environment = environment
 	add_child(env)
@@ -110,7 +111,8 @@ func _build_world() -> void:
 	moon.light_color = Color(0.7, 0.78, 1.0)
 	moon.light_energy = 0.8
 	moon.shadow_enabled = true
-	moon.directional_shadow_max_distance = 60.0
+	moon.directional_shadow_max_distance = 42.0
+	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(moon)
 
 ## The static town (buildings, walls, lamps, props, the spots you use and the places people go) is the scene town_layout.tscn, edited
@@ -280,9 +282,6 @@ func _process(delta: float) -> void:
 			if not spot.is_empty():
 				interact(spot)
 
-func _interact_key() -> String:
-	return "[A]" if Gamepad.active else "[E]"
-
 func _flat_distance(spot: Dictionary) -> float:
 	var offset: Vector3 = player.global_position - (spot["pos"] as Vector3)
 	offset.y = 0.0
@@ -380,6 +379,9 @@ func interact(spot: Dictionary) -> void:
 ## The one way gear changes in town: what is worn is recorded in TownState and put on the hero standing here, so the weapon in his
 ## hand (and his armour) is what the shop or stash just gave him. Returns what was worn in that slot before, or null.
 func equip_town_item(item: Dictionary) -> Variant:
+	if player.stats.weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:
+		player._say("Recall your weapon first")
+		return item   # nothing changed: what was asked for is handed straight back
 	var old: Variant = TownState.gear.get(int(item["slot"]))
 	TownState.gear[int(item["slot"])] = item
 	player.stats.equip(item, false)

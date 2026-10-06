@@ -22,6 +22,7 @@ extends Resource
 ## (swing speed itself is the weapon's "speed" stat) "recovery" speeds (or slows) the tail after each blow, "weight" scales the stagger and
 ## knockback of the basic combo, "arc" is the width in degrees in which a basic swing also hits other enemies (for "arc_damage" of the damage),
 ## "finisher_time" scales the combo finisher's length, "finisher" = "slam" makes it shake the ground, "style" is the tooltip line.
+## "throw" holds this weapon's Weapon Throw numbers (WeaponThrowSkill.DEFAULTS lists every key and what it does).
 @export var profile: Dictionary = {}
 
 func stats_at(tier: int) -> Dictionary:

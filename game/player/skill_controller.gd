@@ -8,8 +8,18 @@ func _init(player: Player) -> void:
 	p = player
 
 const COMBO_WINDOW := 0.9
-var hotbar: Array[String] = ["power", "fireball", "potion", "skewer", "leap", "earthshatter"]
-var right_click_skill: String = "basic"
+## The numbered slots: the very array the settings keep (HotbarLayout), so a change anywhere is a change everywhere.
+var hotbar: Array[String] = GameSettings.hotbar_slots
+var right_click_skill: String:
+	get:
+		return GameSettings.hotbar_alt
+	set(value):
+		GameSettings.hotbar_alt = value
+
+## Puts a skill on a slot (0.. numbered, HotbarLayout.ALT for the right mouse button); if it was on another slot the two swap.
+func assign_slot(slot: int, id: String) -> void:
+	GameSettings.assign_hotbar(slot, id)
+	clear_aim()
 var _glow_light: OmniLight3D
 var _haste_fx: CPUParticles3D
 var queued_skill: String = ""
@@ -60,9 +70,8 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			continue
 		var id: String = hotbar[i]
 		if id == "potion":
-			if p.stats.use_potion() and busy and not p.movement.rolling:
-				cancel_action()
-		elif busy and not p.movement.rolling and p.stun_time <= 0.0:
+			drink_potion()
+		elif busy and not p.movement.rolling and p.stun_time <= 0.0 and not bool(busy_def.get("weapon_throw", false)):
 			if not p.stats.can_use(id):
 				if p.stats.mana < float(SkillDb.all()[id]["mana"]):
 					p._say("Not enough mana")
@@ -70,6 +79,11 @@ func handle_hotkeys(cursor: Vector3) -> void:
 					p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
 			elif _hotkey_would_start(id, cursor):
 				cancel_action()
+
+## Drinks a potion at once, even mid-swing or stunned (it cancels a swing that was in progress).
+func drink_potion() -> void:
+	if p.stats.use_potion() and busy and not p.movement.rolling:
+		cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).
 func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
@@ -99,8 +113,46 @@ func cancel_action() -> void:
 		p.visual.rotation.x = 0.0
 	p.model.loop("idle_alert")
 
+## Skills that need the sword in his hand: with it thrown (or being thrown) none of them can start, and he is told why.
+const SWORD_SKILLS: Array[String] = ["basic", "power", "skewer", "leap", "earthshatter"]
+
+func weapon_ready(id: String) -> bool:
+	if not (id in SWORD_SKILLS) or p.weapon_throw.has_weapon():
+		return true
+	if p.message_time <= 0.0:
+		p._say("Weapon is out")
+	return false
+
+## The Weapon Throw key. With the weapon in his hand: hold to wind up and aim, let go to throw. With it out: pressing it again recalls it
+## (whatever the cooldown says; the cooldown only stops another throw).
+func _handle_throw_key(action: String, cursor: Vector3) -> void:
+	var throw: WeaponThrowSkill = p.weapon_throw
+	if throw.is_away():
+		if Input.is_action_just_pressed(action):
+			throw.recall()
+		return
+	if Input.is_action_pressed(action):
+		if aim_blocked == action or aiming_id == WeaponThrowSkill.SKILL_ID:
+			return
+		if not Input.is_action_just_pressed(action):
+			return   # (a key still held from before is not a new wind-up)
+		if throw.can_begin():
+			aiming_id = WeaponThrowSkill.SKILL_ID
+			aiming_action = action
+			throw.begin_charge()
+		elif throw.has_weapon() and not p.stats.can_use(WeaponThrowSkill.SKILL_ID):
+			p._say("Weapon Throw is recharging")
+			aim_blocked = action
+	elif aim_blocked == action:
+		aim_blocked = ""
+	elif aiming_id == WeaponThrowSkill.SKILL_ID and aiming_action == action:
+		throw.release(throw.aim_point_from(cursor))
+		clear_aim(true)
+
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
 func try_directional(id: String, cursor: Vector3) -> void:
+	if not weapon_ready(id):
+		return
 	if not p.stats.can_use(id):
 		if p.stats.ult_charge < p.stats.ult_cost(id):
 			p._say("%s is %d%% charged" % [SkillDb.all()[id]["name"], int(p.stats.ult_fraction(id) * 100.0)])
@@ -139,6 +191,11 @@ func check_cancel() -> void:
 
 ## Holding the key aims; letting go casts at the point under the cursor.
 func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
+	if id == WeaponThrowSkill.SKILL_ID:
+		_handle_throw_key(action, cursor)
+		return
+	if bool(SkillDb.all()[id].get("skewer", false)) and not weapon_ready(id):
+		return
 	if Input.is_action_pressed(action):
 		if aim_blocked == action:
 			return   # cancelled while this key was held: nothing happens until it is released
@@ -166,6 +223,7 @@ func _release_aim(cursor: Vector3) -> void:
 	start_skill(id, null, point)
 
 func clear_aim(keep_orb: bool = false) -> void:
+	p.weapon_throw.cancel_charge()   # backing out of an unreleased throw spends nothing
 	if not keep_orb:
 		drop_orb()
 	aiming_id = ""
@@ -199,6 +257,9 @@ func update_aim(cursor: Vector3) -> void:
 		p.face(busy_aim, 0.4)
 	_update_wave_preview()
 	if aiming_id == "":
+		return
+	if aiming_id == WeaponThrowSkill.SKILL_ID:
+		p.weapon_throw.update_preview(cursor)
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
 	if bool(SkillDb.all()[aiming_id].get("skewer", false)):
@@ -345,6 +406,8 @@ func _ensure_aim_nodes() -> void:
 	p.add_child(_aim_line)
 
 func queue_skill(id: String, cursor: Vector3) -> void:
+	if not weapon_ready(id):
+		return
 	var target: Actor = p.enemy_near(cursor, 12.0)
 	if target == null:
 		return
@@ -353,6 +416,8 @@ func queue_skill(id: String, cursor: Vector3) -> void:
 	p.movement.has_goal = false
 
 func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
+	if not weapon_ready(id):
+		return
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "basic":
 		skill = _next_basic()
@@ -462,6 +527,9 @@ func _next_basic() -> Dictionary:
 	var variants: Array = SkillDb.basic_combo()[combo_step]
 	var skill: Dictionary = SkillDb.all()["basic"].duplicate()
 	skill.merge(variants[randi() % variants.size()], true)
+	var both_hands: Dictionary = p.stats.weapon_profile("two_hand_clips", {})   # a two-hander swings with both hands on the grip
+	if both_hands.has(skill["clip"]):
+		skill.merge(both_hands[skill["clip"]], true)
 	combo_step = (combo_step + 1) % SkillDb.basic_combo().size()
 	if bool(skill.get("finisher", false)):   # a falchion's finisher is over sooner than a greatsword's
 		skill["time"] = float(skill["time"]) * float(p.stats.weapon_profile("finisher_time", 1.0))
@@ -469,8 +537,11 @@ func _next_basic() -> Dictionary:
 	return skill
 
 func tick_busy(delta: float) -> void:
-	busy_t += delta
 	var skill: Dictionary = busy_def
+	if bool(skill.get("weapon_throw", false)):
+		p.weapon_throw.tick_busy(delta)   # the throw's release and the catch are timed by the throw itself
+		return
+	busy_t += delta
 	if bool(skill.get("skewer", false)):
 		p.skewer.tick_skewer(delta)
 		return
@@ -499,7 +570,7 @@ func tick_busy(delta: float) -> void:
 	if busy_skill == "power":
 		_blade_glow(u, hf)
 	if p._trail != null:
-		p._trail.active = String(skill["kind"]) == "melee" and u > hf - 0.35 and u < hf + 0.22
+		p._trail.active = String(skill["kind"]) == "melee" and busy_skill != "basic" and u > hf - 0.35 and u < hf + 0.22
 	if String(skill["kind"]) == "melee":
 		# Coil back while gathering the swing, then throw the weight forward through the strike.
 		var heft: float = clampf(float(skill["weight"]), 0.8, 1.7)
@@ -553,8 +624,10 @@ func _strike_fx(skill: Dictionary) -> void:
 	var dir: Vector3 = busy_aim - p.global_position
 	dir.y = 0.0
 	dir = dir.normalized() if dir.length() > 0.01 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	Fx.shake(p, 0.03 + 0.05 * weight)
-	Fx.punch(p, 0.6 + 1.2 * weight)
+	Fx.shake(p, 0.04 + 0.06 * weight)
+	Fx.punch(p, 0.9 + 1.5 * weight)
+	# The body behind the blow: the front foot comes down hard and kicks up dust.
+	Fx.burst(p, p.global_position + dir * 0.5 + Vector3(0, 0.05, 0), Vector3.UP * 0.6, Color(0.5, 0.45, 0.38), int(4 + 3 * weight), 1.4 + 0.5 * weight, 0.05)
 	Fx.burst(p, p.global_position + dir * 1.3 + Vector3(0, 0.05, 0), dir + Vector3.UP * 0.4, Color(0.5, 0.45, 0.38),
 		int(5 + 6 * weight), 2.2 + weight, 0.04)
 	if weight >= 1.5:
@@ -583,6 +656,7 @@ func _update_wave_preview() -> void:
 	if not gathering:
 		if _wave_preview != null:
 			_wave_preview.hide_wave()
+		_highlight_wave_targets([])
 		return
 	if _wave_preview == null:
 		_wave_preview = PowerPreview.new(p)
@@ -593,6 +667,30 @@ func _update_wave_preview() -> void:
 	var duration: float = maxf(busy_time, 0.01)
 	var strength: float = clampf(busy_t / duration / maxf(hit_fraction(busy_def), 0.01) * 1.6, 0.25, 1.0)
 	_wave_preview.show_wave(p.global_position, dir, strength, _wave_clock)
+	# And who it will hit: every enemy inside the strip glows, the way Skewer's lane lights the ones its blade would take.
+	var in_wave: Array[Actor] = []
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead:
+			continue
+		var to_e: Vector3 = e.global_position - p.global_position
+		to_e.y = 0.0
+		if to_e.dot(dir) > PowerPreview.FROM and to_e.dot(dir) < PowerPreview.REACH and absf(to_e.cross(dir).y) < PowerPreview.HALF_WIDTH:
+			in_wave.append(e)
+	Actor.get_highlight_material().albedo_color.a = 0.3 + 0.2 * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.009))
+	_highlight_wave_targets(in_wave)
+
+var _wave_hit: Array[Actor] = []
+
+func _highlight_wave_targets(now: Array) -> void:
+	for e in _wave_hit:
+		if is_instance_valid(e) and not (e in now):
+			e.set_highlighted(false)
+	for e in now:
+		(e as Actor).set_highlighted(true)
+	_wave_hit.clear()
+	for e in now:
+		_wave_hit.append(e as Actor)
 
 ## The enemy a directed Power Strike lands on: the nearest one to the point the blow lands on (a stride out toward the cursor), if any is
 ## in reach. Chosen when the blade comes down, not when the key is pressed.

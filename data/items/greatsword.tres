@@ -19,7 +19,58 @@ tier_mult = {
 }
 tier_add = {}
 profile = {
-"recovery": 0.85,
+"throw": {
+"charge_time": 1.5,
+"min_range": 6.5,
+"max_range": 24.0,
+"speed": 24.0,
+"recall_speed": 23.0,
+"recall_accel": 42.0,
+"damage": 3.4,
+"mass": 2.0,
+"prop_force": 1.7,
+"spin": 5.5,
+"swing_speed": 0.75,
+"catch_time": 0.55,
+"catch_recover": 0.3,
+"rip_time": 0.6,
+"sweep_radius": 0.6,
+"pitch": 0.7
+},
+"two_handed": true,
+"two_hand_clips": {
+"atk_slash_r": {
+"clip": "atk2_slash_r",
+"start": 0.0,
+"strike": 0.38,
+"end": 0.75
+},
+"atk_thrust": {
+"clip": "atk2_thrust",
+"start": 0.0,
+"strike": 0.57,
+"end": 1.1
+},
+"atk_slash_l": {
+"clip": "atk2_slash_l",
+"start": 0.0,
+"strike": 0.67,
+"end": 1.15
+},
+"atk_slash": {
+"clip": "atk2_slash",
+"start": 0.0,
+"strike": 0.57,
+"end": 0.95
+},
+"atk_finisher": {
+"clip": "atk2_finisher",
+"start": 0.0,
+"strike": 0.77,
+"end": 1.6
+}
+},
+"recovery": 0.55,
 "weight": 1.5,
 "arc": 130.0,
 "arc_damage": 0.6,

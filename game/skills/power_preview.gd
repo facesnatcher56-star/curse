@@ -36,8 +36,8 @@ func show_wave(from: Vector3, dir: Vector3, strength: float, clock: float) -> vo
 	_mesh.clear_surfaces()
 	_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	# A faint fill that is strongest at the start and thins out toward the far end.
-	var near := Color(1.0, 0.55, 0.2, 0.11 * strength)
-	var far := Color(1.0, 0.5, 0.2, 0.02 * strength)
+	var near := Color(1.0, 0.55, 0.2, 0.24 * strength)
+	var far := Color(1.0, 0.5, 0.2, 0.07 * strength)
 	_vertex(a - side * HALF_WIDTH, near)
 	_vertex(a + side * HALF_WIDTH, near)
 	_vertex(b + side * HALF_WIDTH, far)

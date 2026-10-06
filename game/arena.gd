@@ -136,32 +136,7 @@ func _build_ground() -> void:
 	shape.position.y = -0.5
 	ground.add_child(shape)
 
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.frequency = 0.02
-	noise.fractal_octaves = 4
-	var gradient := Gradient.new()
-	gradient.set_color(0, Color(0.1, 0.1, 0.09))
-	gradient.set_color(1, Color(0.26, 0.24, 0.2))
-	var albedo := NoiseTexture2D.new()
-	albedo.noise = noise
-	albedo.color_ramp = gradient
-	albedo.seamless = true
-	albedo.width = 1024
-	albedo.height = 1024
-	var bump := NoiseTexture2D.new()
-	bump.noise = noise
-	bump.as_normal_map = true
-	bump.bump_strength = 2.0
-	bump.seamless = true
-	bump.width = 1024
-	bump.height = 1024
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = albedo
-	mat.normal_enabled = true
-	mat.normal_texture = bump
-	mat.uv1_scale = Vector3(9.0 * half_x / HALF, 9.0 * half_z / HALF, 1)
-	mat.roughness = 1.0
+	var mat: ShaderMaterial = GroundLook.material(Color(0.11, 0.105, 0.092), Color(0.33, 0.30, 0.25), Color(0.065, 0.062, 0.058))
 	var mesh_instance := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(half_x * 2.0, half_z * 2.0)
@@ -231,6 +206,9 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		light.light_color = Color(1.0, 0.55, 0.2)
 		light.light_energy = 2.2
 		light.omni_range = 9.0
+		light.distance_fade_enabled = true   # a brazier far from the camera is not worth a light
+		light.distance_fade_begin = 30.0
+		light.distance_fade_length = 10.0
 		light.position = Vector3(0, height * 0.9, 0)
 		holder.add_child(light)
 		var flicker := FlickerLight.new()

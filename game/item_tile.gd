@@ -6,9 +6,9 @@ extends Control
 var item: Dictionary = {}
 var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
-var tile_size: float = 76.0
+var tile_size: float = 52.0
 
-static func create(for_item: Dictionary, worn: Variant, size: float = 76.0) -> ItemTile:
+static func create(for_item: Dictionary, worn: Variant, size: float = 52.0) -> ItemTile:
 	var tile := ItemTile.new()
 	tile.item = for_item
 	tile.compare_to = worn

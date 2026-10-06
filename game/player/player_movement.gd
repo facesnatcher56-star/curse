@@ -21,7 +21,14 @@ var shoved: Dictionary = {}  # enemies already staggered by the current roll
 var rolling: bool = false
 var roll_t: float = 0.0
 var roll_dir: Vector3 = Vector3.FORWARD
+## Standing about with nothing going on for this long, he rests the sword on his shoulder.
+const REST_AFTER := 6.0
+var idle_time: float = 0.0
+
 func update_locomotion_anim() -> void:
+	if p.weapon_throw.charging():
+		p.weapon_throw.pose_charge()   # the wind-up clip is scrubbed by the charge, not by his walking
+		return
 	var moving_speed: float = (p.velocity - p.knock).length()
 	# Only walk or run on purpose: being shoved by the crowd or a hit must not start the legs moving.
 	if moving_speed > 0.5 and (has_goal or Gamepad.move_vector().length() > 0.0) and not p.skills.busy:
@@ -30,11 +37,17 @@ func update_locomotion_anim() -> void:
 		else:
 			p.model.loop("walk", 1.0)
 	elif not p.skills.busy:
-		p.model.loop("idle_alert")
+		idle_time += p.get_process_delta_time()
+		if idle_time >= REST_AFTER and p.combat_timer <= 0.0:
+			p.model.loop("idle_rest", 1.0, 0.7)
+		else:
+			p.model.loop("idle_alert", 1.0, 0.4 if p.model.current == "idle_rest" else 0.15)
+		return
+	idle_time = 0.0
 
 ## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
 func _travel_speed(delta: float) -> float:
-	var speed: float = p.stats.run_speed
+	var speed: float = p.stats.run_speed * p.weapon_throw.move_factor()   # winding up a throw, he is slow, then planted
 	if p.combat_timer > 0.0:
 		if p.stats.stamina <= 0.0:
 			speed = p.stats.run_speed * 0.6

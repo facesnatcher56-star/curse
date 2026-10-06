@@ -15,7 +15,7 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 	Basis(Vector3(1, 0, 0), PI / 2), Basis(Vector3(1, 0, 0), -PI / 2), Basis(Vector3(1, 0, 0), PI)]
 # Middle of the right fist in the hand bone's space (rig units are cm; the bone origin is the wrist).
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
-const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump", "earthshatter"]
+const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump", "earthshatter", "atk_slash_r", "atk_slash_l", "atk_slash", "atk_thrust", "atk_finisher", "atk2_slash_r", "atk2_slash_l", "atk2_slash", "atk2_thrust", "atk2_finisher", "idle_rest", "wthrow", "wthrow_release", "wthrow_catch"]
 
 # State the hero itself owns (everything else lives in a component).
 var combat_timer: float = 0.0
@@ -23,6 +23,7 @@ var message: String = ""
 var message_time: float = 0.0
 var hurt_flash: float = 0.0
 var attack_target: Actor
+var pickup_target: LootDrop   # an item the hero was sent to take (click it, or its name): nothing is picked up by walking over it
 var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
 var hover_target: Actor  # enemy under the mouse cursor, for the health bar and highlight ring
 var _ring: MeshInstance3D
@@ -30,7 +31,7 @@ var _cursor_on_enemy: bool = false
 var click_mode: int = 0  # 0 move, 1 attack locked target, 2 stand-still attack
 var _was_stunned: bool = false
 var _trail: WeaponTrail
-var _pad_aim_dir: Vector3 = Vector3.FORWARD
+var _dormancy_timer: float = 0.0
 var _pad_hold: Vector3 = Vector3.ZERO          # aim offset kept while an aimed skill button is held
 var _pad_hold_valid: bool = false
 
@@ -41,6 +42,7 @@ var earthshatter: EarthshatterSkill
 var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
+var weapon_throw: WeaponThrowSkill
 
 func _init() -> void:
 	skewer = SkewerSkill.new(self)
@@ -49,6 +51,7 @@ func _init() -> void:
 	movement = PlayerMovement.new(self)
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
+	weapon_throw = WeaponThrowSkill.new(self)
 
 var _grip_index: int = 3
 var _held_path: String = SWORD_PATH
@@ -115,6 +118,11 @@ func add_hitpause(duration: float) -> void:
 	super.add_hitpause(duration)
 
 func _physics_process(delta: float) -> void:
+	weapon_throw.tick(delta)
+	_dormancy_timer -= delta
+	if _dormancy_timer <= 0.0:
+		_dormancy_timer = 0.5
+		_manage_dormancy()
 	if skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3:
 		knock = Vector3.ZERO   # nothing pushes the hero off a Skewer charge, not even a hit-pause frame
 	if _actor_tick(delta):
@@ -126,7 +134,7 @@ func _physics_process(delta: float) -> void:
 	skills.update_blade_blood(delta)
 	skills.update_buff_visuals()
 	if model != null and model.weapon != null:
-		model.weapon.visible = not (skills.busy and bool(skills.busy_def.get("charged", false)))
+		model.weapon.visible = not weapon_throw.is_away() and not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (not while it is out in the world)
 	if not skills.busy and visual != null and absf(visual.rotation.x) > 0.001:
 		visual.rotation.x = lerpf(visual.rotation.x, 0.0, 1.0 - exp(-14.0 * delta))
 	message_time = maxf(message_time - delta, 0.0)
@@ -383,6 +391,7 @@ func enemy_near(point: Vector3, max_dist: float) -> Actor:
 
 func _read_input(cursor: Vector3) -> void:
 	var ctrl: bool = Input.is_action_pressed("stand_still")
+	_pursue_pickup(ctrl)
 
 	if Input.is_action_just_pressed("click"):
 		_ui_click = mouse_over_ui()
@@ -390,8 +399,17 @@ func _read_input(cursor: Vector3) -> void:
 		_ui_click = false
 	if Input.is_action_just_pressed("click") and not _ui_click:
 		var hover: Actor = _hover_pick(cursor)
+		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
 		skills.queued_skill = ""
-		if ctrl:
+		pickup_target = null
+		if loot != null and not ctrl:   # an item, or its name, under the pointer: go and take it
+			click_mode = 4
+			pickup_target = loot
+			attack_target = null
+			attack_prop = null
+			movement.goal = Nav.snap(self, loot.global_position)
+			movement.has_goal = true
+		elif ctrl:
 			click_mode = 2
 		elif hover:
 			click_mode = 1
@@ -438,14 +456,68 @@ func _read_input(cursor: Vector3) -> void:
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
 			if skills.hotbar[i] != "potion":  # potions are handled every frame in _handle_hotkeys, even mid-animation
 				skills.queue_skill(skills.hotbar[i], cursor)
-	if SkillDb.all()[skills.right_click_skill].get("aimed", false):
-		skills.handle_aimed_key("alt_skill", skills.right_click_skill, cursor)
+	# The right mouse button carries whichever skill is on it (the attack by default), and drives it the way a numbered slot would.
+	var alt_id: String = skills.right_click_skill
+	var alt_def: Dictionary = SkillDb.all()[alt_id]
+	if bool(alt_def.get("directional", false)):
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			skills.try_directional(alt_id, cursor)
+	elif bool(alt_def.get("aimed", false)):
+		skills.handle_aimed_key("alt_skill", alt_id, cursor)
+	elif alt_id == "potion":
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			skills.drink_potion()
 	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
-		skills.queue_skill(skills.right_click_skill, cursor)
+		skills.queue_skill(alt_id, cursor)
 	if not Input.is_action_pressed("alt_skill"):
 		skills.swallow_alt = false
 
+## Walks to the item the hero was sent for and takes it as soon as it is in reach; the use key takes the nearest one in reach too, which
+## is how a controller (or the keyboard) picks things up.
+func _pursue_pickup(stand_still: bool) -> void:
+	if dead:
+		return
+	if pickup_target != null:
+		if not is_instance_valid(pickup_target):
+			pickup_target = null
+			click_mode = 0
+		elif pickup_target.in_reach(self):
+			pickup_target.pick_up(self)
+			pickup_target = null
+			click_mode = 0
+			movement.has_goal = false
+		elif not stand_still:
+			movement.goal = Nav.snap(self, pickup_target.global_position)
+			movement.has_goal = true
+	if Input.is_action_just_pressed("interact"):
+		var nearest: LootDrop = null
+		var nearest_d: float = INF
+		for node in get_tree().get_nodes_in_group("loot"):
+			var drop := node as LootDrop
+			if drop != null and drop.in_reach(self):
+				var d: float = drop.global_position.distance_to(global_position)
+				if d < nearest_d:
+					nearest_d = d
+					nearest = drop
+		if nearest != null:
+			nearest.pick_up(self)
+
+## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
+func _manage_dormancy() -> void:
+	var here: Vector2 = Vector2(global_position.x, global_position.z)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead or e.is_aggro():
+			continue
+		var d: float = here.distance_to(Vector2(e.global_position.x, e.global_position.z))
+		e.set_dormant(d > (Enemy.WAKE_RANGE if e.dormant else Enemy.SLEEP_RANGE))
+
+func _exit_tree() -> void:
+	if weapon_throw != null:
+		weapon_throw.reset()
+
 func _on_death() -> void:
+	weapon_throw.reset()   # a weapon out in the world comes back to his hand: it is never left lying where he fell
 	skills.drop_orb()
 
 ## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
@@ -453,6 +525,7 @@ func _on_death() -> void:
 func revive_at(pos: Vector3) -> void:
 	if not dead:
 		return
+	weapon_throw.reset()
 	dead = false
 	if ragdoll != null and ragdoll.is_active():
 		ragdoll._finish()
@@ -552,6 +625,23 @@ func on_enemy_killed(enemy: Actor) -> void:
 
 func _filter_incoming(result: Dictionary) -> Dictionary:
 	return ItemEffects.filter_incoming(self, result)
+
+## The throw samples aim at release, after the short catch beat. Stick input wins
+## while it is active; otherwise the controller uses current combat facing.
+func throw_aim_direction() -> Vector3:
+	var direction: Vector3 = Vector3.ZERO
+	if Gamepad.active:
+		var stick: Vector2 = Gamepad.aim_vector()
+		if stick.length() > 0.1:
+			direction = Gamepad.to_world(stick)
+		else:
+			direction = Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
+	else:
+		direction = cursor_world() - global_position
+		direction.y = 0.0
+		if direction.length() < 0.2:
+			direction = Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
+	return direction.normalized()
 
 func is_acting() -> bool:
 	return skills.busy

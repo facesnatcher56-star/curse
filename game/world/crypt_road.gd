@@ -172,24 +172,7 @@ func _row(model: String, a: Vector2, b: Vector2, spacing: float, height: float, 
 
 ## Both the dark verge and the packed road: a soft-edged ribbon laid on the ground along the centre line.
 func _build_road() -> void:
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
-	noise.frequency = 0.05
-	noise.fractal_octaves = 3
-	var gradient := Gradient.new()
-	gradient.set_color(0, Color(0.2, 0.17, 0.14))
-	gradient.set_color(1, Color(0.46, 0.4, 0.32))
-	var tex := NoiseTexture2D.new()
-	tex.noise = noise
-	tex.color_ramp = gradient
-	tex.seamless = true
-	tex.width = 512
-	tex.height = 512
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.vertex_color_use_as_albedo = true
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.roughness = 1.0
+	var mat: ShaderMaterial = GroundLook.material(Color(0.19, 0.16, 0.13), Color(0.45, 0.39, 0.31), Color(0.1, 0.085, 0.07), true, 1.15)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var across: Array[float] = [-1.0, -0.62, 0.62, 1.0]   # fractions of the half-width; the outer two fade to nothing

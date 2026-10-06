@@ -17,7 +17,6 @@ var notice: String = ""
 var _dim: ColorRect
 var _box: VBoxContainer
 var _scroll: ScrollContainer
-var _detail: Label
 var _footer: VBoxContainer
 var _opened_frame: int = -1
 
@@ -116,11 +115,6 @@ func _rebuild() -> void:
 		note.add_theme_color_override("font_color", UiTheme.ACCENT)
 		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_footer.add_child(note)
-	_detail = Label.new()
-	_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_detail.add_theme_font_size_override("font_size", 15)
-	_detail.custom_minimum_size = Vector2(0, 40)
-	_footer.add_child(_detail)
 	var done := UiTheme.button("Close", 200.0)
 	done.pressed.connect(close)
 	_footer.add_child(done)
@@ -537,7 +531,7 @@ func _row(text: String, button_text: String, disabled: bool, action: Callable) -
 func _item_card(item: Dictionary, button_text: String, disabled: bool, action: Callable) -> Control:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
-	var tile: ItemTile = ItemTile.create(item, TownState.gear.get(int(item["slot"])), 84.0)
+	var tile: ItemTile = ItemTile.create(item, TownState.gear.get(int(item["slot"])), 56.0)
 	tile.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(tile)
 	column.add_child(ItemTile.name_label(item, TownState.gear.get(int(item["slot"]))))
@@ -547,9 +541,3 @@ func _item_card(item: Dictionary, button_text: String, disabled: bool, action: C
 	ItemTile.decorate_button(button, item, TownState.gear.get(int(item["slot"])))
 	column.add_child(button)
 	return column
-
-func _set_detail(item: Dictionary) -> void:
-	if _detail != null:
-		_detail.text = "%s (%s %s):  %s" % [item["name"], Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])],
-			"  ".join(Items.lines(item))]
-		_detail.add_theme_color_override("font_color", Items.RARITY_COLORS[int(item["rarity"])])

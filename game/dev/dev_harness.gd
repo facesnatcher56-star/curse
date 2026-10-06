@@ -49,6 +49,8 @@ func run_from_args() -> bool:
 		_gib_shots()
 	elif OS.get_cmdline_user_args().has("--skillshot=power"):
 		_melee_shots("power")
+	elif OS.get_cmdline_user_args().has("--skillshot=throw"):
+		_throw_shots()
 	elif OS.get_cmdline_user_args().has("--aimshot"):
 		_aim_shot()
 	elif OS.get_cmdline_user_args().has("--pauseshot"):
@@ -57,14 +59,20 @@ func run_from_args() -> bool:
 		_hud_shot()
 	elif OS.get_cmdline_user_args().has("--smashshot"):
 		_smash_shot()
+	elif OS.get_cmdline_user_args().has("--dropshot"):
+		_drop_shot()
 	elif OS.get_cmdline_user_args().has("--itemsheet"):
 		_item_sheet()
 	elif OS.get_cmdline_user_args().has("--hovershot"):
 		_hover_shot()
 	elif OS.get_cmdline_user_args().has("--rollshot"):
 		_roll_shots()
+	elif OS.get_cmdline_user_args().has("--perf"):
+		_perf_bench()
 	elif OS.get_cmdline_user_args().has("--poses"):
 		_pose_sheet()
+	elif Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a.begins_with("--handshot")):
+		_hand_shot()
 	elif _clip_arg() != "":
 		_clip_sheet(_clip_arg())
 	elif OS.get_cmdline_user_args().has("--roadreturn=clear") or OS.get_cmdline_user_args().has("--roadreturn=skipped"):
@@ -308,6 +316,21 @@ func _free_lane_start(length: float, width: float) -> Vector3:
 		query.collision_mask = Actor.LAYER_WORLD
 		if space.intersect_shape(query, 1).is_empty():
 			return candidate
+	return Vector3.ZERO
+
+## A spot with a clear lane of `length` x `width` running along +x from it, found by scanning the arena (the harness arena is full of props).
+func _clear_lane(length: float, width: float) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(length, 2.2, width)
+	for x in range(-36, 12, 3):
+		for z in range(-34, 35, 3):
+			var query := PhysicsShapeQueryParameters3D.new()
+			query.shape = shape
+			query.transform = Transform3D(Basis(), Vector3(x + length * 0.5, 1.4, z))
+			query.collision_mask = Actor.LAYER_WORLD
+			if space.intersect_shape(query, 1).is_empty():
+				return Vector3(x, 0, z)
 	return Vector3.ZERO
 
 ## Holding the Skewer key shows the lane and the kick fan, cut short by a wall, and lights up the enemies the blade would take.
@@ -1546,6 +1569,69 @@ func _melee_shots(which: String) -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_melee_%d.png" % i)
 	get_tree().quit()
 
+## `-- --skillshot=throw [--equip=Greatsword]`: a full-charge throw through a line of zombies, the weapon in the ground, a recall through
+## another group and the catch; frames in %TEMP%/curse_throw_N.png.
+func _throw_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--equip="):
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+	player.set_physics_process(true)
+	var origin: Vector3 = _clear_lane(26.0, 3.0)
+	player.global_position = origin
+	player.reset_physics_interpolation()
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var line: Array[Enemy] = []
+	for d in [5.0, 7.5, 10.0, 12.5]:
+		line.append(_throw_dummy(origin + Vector3(d, 0, 0)))
+	await get_tree().create_timer(0.6).timeout
+	var frame: int = 0
+	wt.begin_charge()
+	var aim: Vector3 = origin + Vector3(30, 0, 0)
+	player.cursor_override = aim
+	for i in 14:   # the wind-up, held about a second
+		await get_tree().create_timer(0.1).timeout
+		wt.update_preview(aim)
+		if i == 5 or i == 11:
+			get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_throw_%d.png" % frame)
+			frame += 1
+	wt.release(aim)
+	for i in 16:   # the release, the flight, the embedding
+		await get_tree().create_timer(0.09).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_throw_%d.png" % frame)
+		frame += 1
+	# A close look at the weapon where it lies, and as it is wrenched out.
+	var look := Camera3D.new()
+	look.fov = 40.0
+	get_tree().root.add_child(look)
+	look.current = true
+	var lie: Vector3 = wt.thrown.center() if wt.thrown != null else origin
+	look.global_position = lie + Vector3(-2.6, 1.9, 3.2)
+	look.look_at(lie + Vector3(0, 0.3, 0))
+	await get_tree().create_timer(0.3).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_throw_embed.png")
+	wt.recall()
+	for k in 4:
+		await get_tree().create_timer(0.14).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_throw_rip_%d.png" % k)
+	await get_tree().create_timer(2.5).timeout
+	look.queue_free()
+	player.global_position = origin
+	var second_spot: Vector3 = origin + Vector3(4.0, 0, 8.0)
+	player.global_position = second_spot
+	player.reset_physics_interpolation()
+	for k in [0.4, 0.7]:
+		_throw_dummy(Vector3(origin.x + 12.0, 0, origin.z).lerp(second_spot, k))
+	await get_tree().create_timer(0.5).timeout
+	wt.state = WeaponThrowSkill.State.IN_HAND
+	for i in 2:
+		await get_tree().create_timer(0.1).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_throw_%d.png" % frame)
+		frame += 1
+	print("throw shots done, state ", wt.state)
+	get_tree().quit()
+
 ## `-- --skillshot=leap`: leap onto a downed zombie (a stunned one stands beside it); frames in %TEMP%/curse_leap_N.png.
 func _leap_shots() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1676,6 +1762,26 @@ func _hud_shot() -> void:
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
 
+## `-- --dropshot`: one of every kind of item lying on the ground next to the hero, and the hotbar's skill picker open on its second slot.
+func _drop_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	player.set_physics_process(false)
+	var bases: Array[String] = ["Falchion", "Longsword", "Greatsword", "Leather Jerkin", "Mail Hauberk", "Plate Cuirass", "Charm", "Signet", "Talisman"]
+	for i in bases.size():
+		var slot: int = Items.Slot.WEAPON if i < 3 else (Items.Slot.ARMOR if i < 6 else Items.Slot.TRINKET)
+		var rarity: int = [Items.Rarity.COMMON, Items.Rarity.RARE, Items.Rarity.UNIQUE][i % 3] if i < 6 else Items.Rarity.RARE
+		var drop: LootDrop = game.director.drop_item(Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5), Items.make(slot, rarity, 1, "", bases[i]))
+		drop._end = Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5)
+	await get_tree().create_timer(1.6).timeout
+	var size_px: Vector2 = hud.get_viewport_rect().size
+	for hit in hud._slot_hits:
+		if hit["action"] == "skill_2":
+			hud.open_picker(1, hit["rect"])
+	await get_tree().create_timer(0.3).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_drops.png")
+	get_tree().quit()
+
 ## `-- --smashshot`: a Skewer charge through a row of barrels, a cart, gravestones and a brazier, captured as the pieces fly.
 func _smash_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1785,6 +1891,348 @@ func _roll_shots() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_roll_%d.png" % i)
 	get_tree().quit()
 
+## `-- --handshot[=CLIP:T] [--equip=Greatsword]`: a close look at the sword hand, frames in %TEMP%/curse_hand_N.png (front, side, top).
+func _hand_shot() -> void:
+	player.set_physics_process(false)
+	hud.visible = false
+	var clip: String = "idle_alert"
+	var t: float = 1.0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--handshot="):
+			clip = arg.substr(11).get_slice(":", 0)
+			t = float(arg.substr(11).get_slice(":", 1)) if ":" in arg else 1.0
+		if arg.begins_with("--equip="):
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+	await get_tree().process_frame
+	player.model.manual(clip)
+	player.model.scrub(t)
+	await get_tree().create_timer(0.4).timeout
+	player.model.scrub(t)
+	await get_tree().create_timer(0.2).timeout
+	var skel: Skeleton3D = player.model.find_children("*", "Skeleton3D", true, false)[0]
+	var hand_xf: Transform3D = skel.global_transform * skel.get_bone_global_pose(skel.find_bone("RightHand"))
+	var grip: Vector3 = hand_xf * Vector3(-0.8, 15.0, 0.5)
+	var axes: Array = [-hand_xf.basis.x, hand_xf.basis.x, hand_xf.basis.z, -hand_xf.basis.y]   # palm side, back of the hand, blade side, wrist
+	var distance: float = 0.8
+	if OS.get_cmdline_user_args().has("--body"):   # the whole hero from his right, front, left and back instead
+		player.visual.rotation.y = 0.0
+		grip = player.global_position + Vector3(0, 1.1, 0)
+		axes = [Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 0, -1)]
+		distance = 3.4
+	var from_above: bool = OS.get_cmdline_user_args().has("--ground")   # the game's own angle, to judge the floor
+	if from_above:
+		grip = player.global_position + Vector3(0, 0.4, 0)
+		axes = [Vector3(0, 0.8, 0.6), Vector3(0, 1.4, 0.3), Vector3(0.5, 0.6, 0.5), Vector3(0, 0.25, 0.9)]
+		distance = 7.0
+	var cam := Camera3D.new()
+	cam.fov = 28.0
+	player.get_tree().root.add_child(cam)
+	cam.current = true
+	for i in axes.size():
+		cam.global_position = grip + (axes[i] as Vector3).normalized() * distance + Vector3(0, 0.12, 0)
+		cam.look_at(grip, Vector3.UP)
+		await get_tree().create_timer(0.25).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hand_%d.png" % i)
+	get_tree().quit()
+
+## `-- --perf [--count=N,N,..] [--noshadow] [--noground]`: real rendering, the hero standing in a pack of zombies, frame times for each pack size.
+## Prints average and worst frame time, the 1% low, draw calls, primitives and the engine's own process/physics time.
+func _perf_bench() -> void:
+	var counts: Array = [0, 12, 30]
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--count="):
+			counts = Array(arg.substr(8).split(",")).map(func(c: String) -> int: return int(c))
+	if OS.get_cmdline_user_args().has("--world"):
+		await _perf_world()
+		return
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	if game.director != null:
+		game.director.set_process(false)   # no waves of its own: the pack is the one this bench makes
+		game.director.set_physics_process(false)
+	if OS.get_cmdline_user_args().has("--noshadow"):
+		for light in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
+			(light as DirectionalLight3D).shadow_enabled = false
+	player.global_position = Vector3(-30, 0, -30)
+	player.reset_physics_interpolation()
+	player.health = 1.0e9
+	player.max_health = 1.0e9
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	await get_tree().create_timer(1.0).timeout
+	for count in counts:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		await get_tree().create_timer(0.3).timeout
+		for i in int(count):
+			var angle: float = TAU * float(i) / float(maxi(int(count), 1))
+			var z: Enemy = _spawn_enemy(player.global_position + Vector3(sin(angle), 0, cos(angle)) * (3.0 + float(i % 3) * 1.5))
+			z.aggro_range = 60.0
+		await get_tree().create_timer(1.5).timeout
+		for arg in OS.get_cmdline_user_args():
+			if arg == "--exp=nophys":
+				for node in get_tree().get_nodes_in_group("enemies"):
+					node.set_physics_process(false)
+			elif arg == "--exp=noanim":
+				for node in get_tree().get_nodes_in_group("enemies"):
+					(node as Enemy).model.anim.process_mode = Node.PROCESS_MODE_DISABLED
+			elif arg == "--exp=nomsaa":
+				get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			elif arg == "--exp=lowres":
+				get_viewport().scaling_3d_scale = 0.67
+			elif arg == "--exp=nocol":
+				for node in get_tree().get_nodes_in_group("enemies"):
+					(node as Enemy).collision_layer = 0
+					(node as Enemy).collision_mask = 0
+			elif arg == "--exp=nointerp":
+				get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+			elif arg == "--exp=noshadow":
+				for light in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
+					(light as DirectionalLight3D).shadow_enabled = false
+			elif arg == "--exp=noomni":
+				for light in get_tree().root.find_children("*", "OmniLight3D", true, false):
+					(light as OmniLight3D).visible = false
+			elif arg == "--exp=flatground":
+				for body in get_tree().root.find_children("*", "MeshInstance3D", true, false):
+					var mi := body as MeshInstance3D
+					if mi.mesh is PlaneMesh and (mi.mesh as PlaneMesh).size.x > 50.0:
+						var flat := StandardMaterial3D.new()
+						flat.albedo_color = Color(0.15, 0.14, 0.12)
+						mi.material_override = flat
+			elif arg == "--exp=noglow" or arg == "--exp=nofog" or arg == "--exp=noenv":
+				for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+					var environment: Environment = (node as WorldEnvironment).environment
+					if arg != "--exp=nofog":
+						environment.glow_enabled = false
+					if arg != "--exp=noglow":
+						environment.fog_enabled = false
+			elif arg == "--exp=hidden":
+				for node in get_tree().get_nodes_in_group("enemies"):
+					(node as Enemy).visible = false
+		var times: Array[float] = []
+		var spikes: Array[String] = []
+		var draw_calls: float = 0.0
+		var gpu_sum: float = 0.0
+		var prims: float = 0.0
+		var process_ms: float = 0.0
+		var physics_ms: float = 0.0
+		var nav_ms: float = 0.0
+		var pairs: float = 0.0
+		var active: float = 0.0
+		var phys_start: int = Engine.get_physics_frames()
+		var last: int = Time.get_ticks_usec()
+		var started: int = last
+		while Time.get_ticks_usec() - started < 5000000:
+			await get_tree().process_frame
+			var now: int = Time.get_ticks_usec()
+			times.append(float(now - last) / 1000.0)
+			if float(now - last) / 1000.0 > 22.0:
+				var vp: RID = get_viewport().get_viewport_rid()
+				spikes.append("%.2fs:%.0fms(gpu %.0f cpu-render %.0f proc %.0f phys %.0f)" % [float(now - started) / 1.0e6, float(now - last) / 1000.0, RenderingServer.viewport_get_measured_render_time_gpu(vp), RenderingServer.viewport_get_measured_render_time_cpu(vp), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
+			last = now
+			gpu_sum += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+			draw_calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+			prims += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+			process_ms += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+			physics_ms += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+			nav_ms += Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0
+			pairs += Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)
+			active += Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)
+		times.sort()
+		var n: int = times.size()
+		print("physics ticks per rendered frame: %.2f" % (float(Engine.get_physics_frames() - phys_start) / n))
+		print("SPIKES ", spikes)
+		var total: float = 0.0
+		for t in times:
+			total += t
+		var low: float = 0.0
+		var worst_count: int = maxi(n / 100, 1)
+		for k in worst_count:
+			low += times[n - 1 - k]
+		low /= float(worst_count)
+		print("GPU avg %.1f ms" % (gpu_sum / n))
+		print("PERF enemies=%2d  avg %.1f ms (%.0f fps)  1%%-low %.1f ms (%.0f fps)  worst %.1f ms  draws %d  tris %dk  script process %.1f ms  physics %.1f ms  nav %.1f ms  pairs %d active %d  nodes %d" % [
+			count, total / n, 1000.0 * n / total, low, 1000.0 / low, times[n - 1], draw_calls / n, prims / n / 1000.0, process_ms / n, physics_ms / n, nav_ms / n, pairs / n, active / n,
+			int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))])
+	get_tree().quit()
+
+## `-- --perf --world`: the real connected world (plaza and Crypt Road, every monster loaded): frame times standing in the plaza, out on
+## the road with the monsters asleep, and in a fight with everything within 35 m awake.
+## One frame-time sample window: average, 1% low, GPU ms.
+func _sample_frames(seconds: float) -> String:
+	var times: Array[float] = []
+	var gpu: float = 0.0
+	var last: int = Time.get_ticks_usec()
+	var started: int = last
+	while float(Time.get_ticks_usec() - started) < seconds * 1.0e6:
+		await get_tree().process_frame
+		var now: int = Time.get_ticks_usec()
+		times.append(float(now - last) / 1000.0)
+		last = now
+		gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+	times.sort()
+	var n: int = times.size()
+	var total: float = 0.0
+	for t in times:
+		total += t
+	var worst: int = maxi(n / 100, 1)
+	var low: float = 0.0
+	for k in worst:
+		low += times[n - 1 - k]
+	return "%5.1f ms (%3.0f fps) 1%%low %5.1f  gpu %4.1f" % [total / n, 1000.0 * n / total, low / worst, gpu / n]
+
+func _perf_world() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	GameSettings.apply_video()
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var hero: Player = town.player
+	if OS.get_cmdline_user_args().has("--audit"):   # which meshes the world is made of, by triangles
+		var by_mesh: Dictionary = {}
+		for node in get_tree().root.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi.mesh == null:
+				continue
+			var tris: int = 0
+			for surface in mi.mesh.get_surface_count():
+				var arrays: Array = mi.mesh.surface_get_arrays(surface)
+				var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+				tris += (idx.size() if idx.size() > 0 else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
+			var owner_name: String = String(mi.get_parent().get_parent().name if mi.get_parent() != null and mi.get_parent().get_parent() != null else mi.name)
+			var key: String = "%s | %s" % [mi.mesh.resource_path.get_file() if mi.mesh.resource_path != "" else mi.mesh.get_class(), String(mi.mesh.resource_name)]
+			var entry: Array = by_mesh.get(key, [0, 0])
+			entry[0] = int(entry[0]) + 1
+			entry[1] = tris
+			by_mesh[key] = entry
+		var keys: Array = by_mesh.keys()
+		keys.sort_custom(func(a, b): return int(by_mesh[a][0]) * int(by_mesh[a][1]) > int(by_mesh[b][0]) * int(by_mesh[b][1]))
+		for k in keys.slice(0, 25):
+			print("AUDIT %-60s x%-4d %7d tris each  = %dk" % [k, by_mesh[k][0], by_mesh[k][1], int(by_mesh[k][0]) * int(by_mesh[k][1]) / 1000])
+	hero.health = 1.0e9
+	hero.max_health = 1.0e9
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	if OS.get_cmdline_user_args().has("--cpu"):
+		await _perf_cpu(town, hero)
+		get_tree().quit()
+		return
+	if OS.get_cmdline_user_args().has("--matrix"):
+		await _perf_matrix(town, hero)
+		get_tree().quit()
+		return
+	for phase in ["plaza", "road", "fight"]:
+		if phase == "road":
+			hero.global_position = town.crypt.at(0.0, -40.0) if town.crypt != null else Vector3(0, 0, -60)
+			hero.reset_physics_interpolation()
+		elif phase == "fight":
+			for node in get_tree().get_nodes_in_group("enemies"):
+				var e := node as Enemy
+				if e != null and not e.dead and e.global_position.distance_to(hero.global_position) < 35.0:
+					e.wake()
+		await get_tree().create_timer(2.0).timeout
+		var times: Array[float] = []
+		var gpu: float = 0.0
+		var last: int = Time.get_ticks_usec()
+		var started: int = last
+		while Time.get_ticks_usec() - started < 6000000:
+			await get_tree().process_frame
+			var now: int = Time.get_ticks_usec()
+			times.append(float(now - last) / 1000.0)
+			last = now
+			gpu += RenderingServer.viewport_get_measured_render_time_gpu(get_viewport().get_viewport_rid())
+		times.sort()
+		var n: int = times.size()
+		var total: float = 0.0
+		for t in times:
+			total += t
+		var low: float = 0.0
+		for k in maxi(n / 100, 1):
+			low += times[n - 1 - k]
+		low /= float(maxi(n / 100, 1))
+		var awake: int = 0
+		for node in get_tree().get_nodes_in_group("enemies"):
+			awake += 1 if (node as Enemy)._aggro else 0
+		print("WORLD %-6s avg %.1f ms (%.0f fps)  1%%-low %.1f ms  worst %.1f ms  gpu %.1f ms  enemies %d (awake %d)  nodes %d  draws %d  tris %dk" % [
+			phase, total / n, 1000.0 * n / total, low, times[n - 1], gpu / n, get_tree().get_nodes_in_group("enemies").size(), awake,
+			int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)) / 1000])
+	get_tree().quit()
+
+## Where the plaza's frame time goes: each step switches one more thing off and samples again.
+func _perf_cpu(town: TownScene, hero: Player) -> void:
+	hero.global_position = Vector3(0, 0, 10)
+	hero.reset_physics_interpolation()
+	await get_tree().create_timer(2.0).timeout
+	var dormant_count: int = 0
+	var nearest: float = 1.0e9
+	var farthest: float = 0.0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		dormant_count += 1 if e.dormant else 0
+		var d: float = Vector2(e.global_position.x - hero.global_position.x, e.global_position.z - hero.global_position.z).length()
+		nearest = minf(nearest, d)
+		farthest = maxf(farthest, d)
+	print("DORMANT %d of %d; hero at %s; nearest %.0f m, farthest %.0f m; hero processing %s" % [dormant_count, get_tree().get_nodes_in_group("enemies").size(), hero.global_position, nearest, farthest, hero.is_physics_processing()])
+	var by_script: Dictionary = {}
+	for node in get_tree().root.find_children("*", "Node", true, false):
+		if node.is_processing() or node.is_physics_processing():
+			var script: Script = node.get_script()
+			var key: String = script.resource_path.get_file() if script != null else node.get_class()
+			by_script[key] = int(by_script.get(key, 0)) + 1
+	print("PROCESSING ", by_script)
+	var steps: Array = [["base", func() -> void: pass]]
+	for script_name in ["hud.gd", "town_hud.gd", "town_scene.gd", "run_director.gd", "crypt_road.gd", "flicker_light.gd", "town_npc.gd", "character_model.gd", "enemy.gd", "weapon_trail.gd", "camera_rig.gd", "main.gd", "player.gd"]:
+		steps.append(["+ " + script_name + " off", func() -> void:
+			for node in get_tree().root.find_children("*", "Node", true, false):
+				var script: Script = node.get_script()
+				if script != null and script.resource_path.get_file() == script_name:
+					node.set_process(false)
+					node.set_physics_process(false)])
+	for step in steps:
+		(step[1] as Callable).call()
+		await get_tree().create_timer(2.0).timeout
+		print("CPU %-44s %s  nodes %d" % [step[0], await _sample_frames(3.0), int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))])
+
+func _perf_matrix(town: TownScene, hero: Player) -> void:
+	var sun: DirectionalLight3D = null
+	for light in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
+		sun = light as DirectionalLight3D
+	var viewport: Viewport = get_viewport()
+	var configs: Array = [
+		["base", func() -> void: pass],
+		["no shadows", func() -> void: sun.shadow_enabled = false],
+		["sun 2 splits, 30 m", func() -> void:
+			sun.shadow_enabled = true
+			sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			sun.directional_shadow_max_distance = 30.0],
+		["+ msaa off", func() -> void: viewport.msaa_3d = Viewport.MSAA_DISABLED],
+		["+ render scale 0.77 (FSR)", func() -> void:
+			viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+			viewport.scaling_3d_scale = 0.77],
+	]
+	for config in configs:
+		(config[1] as Callable).call()
+		hero.global_position = Vector3(0, 0, 10)
+		hero.reset_physics_interpolation()
+		await get_tree().create_timer(2.5).timeout
+		var plaza: String = await _sample_frames(3.0)
+		hero.global_position = town.crypt.at(0.0, -40.0)
+		hero.reset_physics_interpolation()
+		for node in get_tree().get_nodes_in_group("enemies"):
+			var e := node as Enemy
+			if e != null and not e.dead and e.global_position.distance_to(hero.global_position) < 35.0:
+				e.wake()
+		await get_tree().create_timer(2.5).timeout
+		var fight: String = await _sample_frames(3.0)
+		print("MATRIX %-28s plaza %s | fight %s" % [config[0], plaza, fight])
+
 func _clip_arg() -> String:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--clipsheet="):
@@ -1809,6 +2257,15 @@ func _clip_sheet(spec: String) -> void:
 		player.model.leg_raise = float(parts[3])
 		rig.pitch_degrees = -8.0                 # side-on view so the leg can be judged
 		player.visual.rotation.y = PI * 0.5
+	for arg in OS.get_cmdline_user_args():   # `--equip=Greatsword`: hold that weapon for the sheet
+		if arg.begins_with("--equip="):
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+			await get_tree().process_frame
+	if OS.get_cmdline_user_args().has("--closeup"):
+		hud.visible = false
+		rig.set_zoom_now(0.55)
+		rig.pitch_degrees = -14.0
+		player.visual.rotation.y = PI * 0.62
 	print("clip ", clip, " length=", snappedf(length, 0.01))
 	var tiles: Array[Image] = []
 	for i in 12:
@@ -1826,6 +2283,8 @@ func _clip_sheet(spec: String) -> void:
 		var shot: Image = get_viewport().get_texture().get_image()
 		var c: Vector2i = shot.get_size() / 2
 		var tile: Image = shot.get_region(Rect2i(c.x - 360, c.y - 420, 720, 720))
+		if OS.get_cmdline_user_args().has("--closeup"):
+			tile = shot.get_region(Rect2i(c.x - 220, c.y - 330, 440, 440))
 		tile.resize(300, 300)
 		tiles.append(tile)
 	var sheet: Image = Image.create(1200, 900, false, Image.FORMAT_RGB8)
@@ -2628,6 +3087,7 @@ func _test_pad_camera_and_aim() -> void:
 	await get_tree().physics_frame
 	player.stats.cooldowns.clear()
 	player.stats.mana = player.stats.max_mana
+	player.skills.hotbar[1] = "fireball"   # this check exercises the optional skill, outside the default loadout
 	Input.action_press("skill_2")
 	await get_tree().create_timer(0.2).timeout
 	expect("holding Fireball is aiming", player.skills.aiming_id == "fireball")
@@ -3276,17 +3736,18 @@ func _test_loot() -> void:
 	for i in 20:
 		stats.add_to_bag(Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1))
 	expect("the bag holds a dozen items", stats.bag.size() == PlayerStats.MAX_BAG)
-	# Walking over a drop picks it up.
+	# Walking over a drop does NOT pick it up: you click it (or its name), or press the use key.
 	stats.bag = []
 	player.global_position = Vector3(-30, 0, -30)   # well away, so the drop is not picked up as it lands
 	player.reset_physics_interpolation()
 	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Mail Hauberk"))
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
-	var before: bool = is_instance_valid(walk)
 	player.global_position = walk.global_position + Vector3(0.5, 0, 0)
-	await get_tree().create_timer(0.3).timeout
-	expect("walking over a drop picks it up", before and not is_instance_valid(walk) or walk.is_queued_for_deletion())
-	expect("and the armour is on", stats.equipment.get(Items.Slot.ARMOR, {}).get("name") == "Mail Hauberk" or stats.bag.size() >= 1)
+	await get_tree().create_timer(0.5).timeout
+	expect("standing on a drop does not pick it up", is_instance_valid(walk) and not walk.is_queued_for_deletion() and stats.bag.is_empty())
+	walk.pick_up(player)
+	await get_tree().process_frame
+	expect("taking it puts the armour on (or in the bag)", stats.equipment.get(Items.Slot.ARMOR, {}).get("name") == "Mail Hauberk" or stats.bag.size() >= 1)
 	# The hero holds what is equipped: each weapon shows its own model, and longer weapons are longer in the hand.
 	var held_length: Dictionary = {}
 	for base_name in ["Falchion", "Longsword", "Greatsword"]:
@@ -3339,7 +3800,8 @@ func _test_loot_ui() -> void:
 	player.global_position = Vector3(0, 0, 0)
 	var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -4), Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.4).timeout
-	expect("a drop has a marker that stays one size on screen", drop._marker != null and drop._marker.fixed_size)
+	expect("a drop is the item itself, with no icon or 3D text on it", drop.get_node("Model") != null and drop.find_children("*", "Sprite3D", true, false).is_empty()
+		and drop.find_children("*", "Label3D", true, false).is_empty())
 	var near_scale: float = drop.get_node("Model").scale.x
 	game.rig.set_zoom_now(CameraRig.ZOOM_MAX)
 	await get_tree().create_timer(0.6).timeout
@@ -3352,9 +3814,14 @@ func _test_loot_ui() -> void:
 	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0))
 	expect("pointing at a drop focuses it", hud._drop_in_focus() == drop)
 	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 1.5, 0))
-	expect("the floating item icon focuses its stats", hud._drop_in_focus() == drop)
-	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 2.0, 0))
-	expect("the ground item name focuses its stats", hud._drop_in_focus() == drop)
+	expect("pointing just over an item focuses it", hud._drop_in_focus() == drop)
+	await get_tree().process_frame
+	var name_plate: Rect2 = Rect2()
+	for entry in hud._loot_names:
+		if entry["drop"] == drop:
+			name_plate = entry["rect"]
+	hud.mouse_override = name_plate.get_center()
+	expect("the item's name plate focuses its stats", name_plate.size.x > 0.0 and hud._drop_in_focus() == drop)
 	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(400, 0, 0))
 	expect("pointing elsewhere focuses nothing", hud._drop_in_focus() == null)
 	hud.mouse_override = Vector2(-1.0, -1.0)
@@ -3371,6 +3838,7 @@ func _test_fireball_cancel() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns["fireball"] = 0.0
 	player.skills.clear_aim()
+	player.skills.hotbar[1] = "fireball"   # loadout selection can still place the retained skill
 	expect("the fireball cooldown is at least five seconds", float(SkillDb.all()["fireball"]["cd"]) >= 5.0)
 	# Cancel while aiming with right-click.
 	Input.action_press("skill_2")
@@ -3460,11 +3928,11 @@ func _test_item_icons() -> void:
 	tile.mouse_exited.emit()
 	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
 	tile.queue_free()
-	# The ground badge is a picture, not text.
+	# On the ground an item is the item itself with its name over it in its rarity's colour, not a picture of it.
 	var drop: LootDrop = game.director.drop_item(Vector3(40, 0, 40), item)
 	await get_tree().create_timer(0.2).timeout
-	expect("a dropped item is shown by its picture and carries no name text", drop._marker != null and drop._marker.texture == badge
-		and drop.find_children("*", "Label3D", true, false).is_empty())
+	expect("a dropped item is the item itself (its name is a plate drawn by the HUD), with no icon", drop.find_children("*", "Sprite3D", true, false).is_empty()
+		and drop.get_node("Model") != null)
 	drop.queue_free()
 	# The character view contains focusable item pictures with the same details cards.
 	hud.show_gear = true
@@ -4515,6 +4983,7 @@ func _test_power_wave() -> void:
 	await get_tree().create_timer(0.35).timeout
 	var shown: bool = player.skills._wave_preview != null and player.skills._wave_preview.node.visible
 	expect("the strip the shockwave will hit is shown while the blow is gathered", shown)
+	expect("and the enemy in it glows, so you can see who it will hit", target.highlighted)
 	await get_tree().create_timer(1.6).timeout
 	expect("and it is gone once the blow has landed", player.skills._wave_preview == null or not player.skills._wave_preview.node.visible)
 	player.stats.equipment.erase("mod_gravewarden")
@@ -4628,9 +5097,150 @@ func _test_dodge_cancels_attack() -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+"questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
+
+## Loot on the ground: nothing is picked up by walking over it; clicking an item (or its name) sends the hero to take it, the use key takes the
+## nearest one in reach; and the names over a pile of drops never overlap, however many fall in one place.
+func _test_loot_names() -> void:
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.stats.bag.clear()
+	# A pile: twelve items landing within a metre of each other.
+	var pile: Array[LootDrop] = []
+	for i in 12:
+		var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -6), Items.make(Items.Slot.WEAPON if i % 2 == 0 else Items.Slot.ARMOR, [Items.Rarity.COMMON, Items.Rarity.RARE][i % 2], 1, ""))
+		drop._end = Vector3(randf_range(-0.5, 0.5), 0.0, -6.0 + randf_range(-0.5, 0.5))
+		pile.append(drop)
+	await get_tree().create_timer(LootDrop.LAND_TIME + 0.6).timeout
+	hud.show_gear = false
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var plates: Array[Dictionary] = hud._loot_names
+	var clashes: int = 0
+	for i in plates.size():
+		for j in range(i + 1, plates.size()):
+			if (plates[i]["rect"] as Rect2).intersects(plates[j]["rect"]):
+				clashes += 1
+	expect("a pile of twelve drops has twelve name plates and none overlaps another (%d plates, %d clashes)" % [plates.size(), clashes], plates.size() == 12 and clashes == 0)
+	# Nothing is taken by standing on it.
+	player.global_position = pile[0].global_position
+	await get_tree().create_timer(0.6).timeout
+	var still: int = 0
+	for drop in pile:
+		still += 1 if is_instance_valid(drop) and not drop.is_queued_for_deletion() else 0
+	expect("standing in the pile takes nothing", still == 12 and player.stats.bag.is_empty())
+	# Sent for one, the hero walks to it and takes it, and only it.
+	player.global_position = Vector3(0, 0, 4)
+	player.reset_physics_interpolation()
+	var target: LootDrop = pile[3]
+	var taken_name: String = String(target.item["name"])
+	player.pickup_target = target
+	var seconds: float = 0.0
+	while is_instance_valid(target) and not target.is_queued_for_deletion() and seconds < 6.0:
+		await get_tree().physics_frame
+		seconds += 1.0 / 60.0
+	await get_tree().process_frame
+	var left: int = 0
+	for drop in pile:
+		left += 1 if is_instance_valid(drop) and not drop.is_queued_for_deletion() else 0
+	expect("sent for an item, the hero walks to it and takes that one (%.1f s)" % seconds, left == 11 and player.pickup_target == null
+		and (player.stats.equipment.values().any(func(it: Dictionary) -> bool: return it["name"] == taken_name) or player.stats.bag.any(func(it: Dictionary) -> bool: return it["name"] == taken_name)))
+	# The use key takes the nearest one in reach, and nothing out of reach.
+	player.global_position = Vector3(0, 0, 4)
+	player.reset_physics_interpolation()
+	Input.action_press("interact")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("interact")
+	var after_far: int = 0
+	for drop in pile:
+		after_far += 1 if is_instance_valid(drop) and not drop.is_queued_for_deletion() else 0
+	expect("the use key takes nothing that is out of reach", after_far == 11)
+	player.global_position = pile[0].global_position + Vector3(0.4, 0, 0)
+	Input.action_press("interact")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("interact")
+	await get_tree().process_frame
+	var after_near: int = 0
+	for drop in pile:
+		after_near += 1 if is_instance_valid(drop) and not drop.is_queued_for_deletion() else 0
+	expect("next to the pile the use key takes one", after_near == 10)
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+
+## Skills on keys can be changed freely: the layout is always the same seven skills (a change is a swap), it is shared by the hero, the
+## settings and the save, and clicking a hotbar slot opens a picker whose icons put a skill on that key.
+func _test_hotbar() -> void:
+	GameSettings.reset_hotbar()
+	var slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
+	var alt: String = HotbarLayout.assign(slots, HotbarLayout.DEFAULT_ALT, 0, "fireball")
+	expect("putting a skill that is elsewhere on a key swaps the two", slots[0] == "fireball" and slots[1] == "power" and alt == "basic")
+	alt = HotbarLayout.assign(slots, alt, HotbarLayout.ALT, "potion")
+	expect("the mouse button swaps like any other slot", alt == "potion" and slots[2] == "basic" and HotbarLayout.is_valid(slots, alt))
+	var benched: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
+	var bench_alt: String = HotbarLayout.assign(benched, HotbarLayout.DEFAULT_ALT, 3, "throw")
+	expect("a skill from the bench takes a key and the one it replaces goes to the bench", benched[3] == "throw" and not benched.has("skewer") and bench_alt == "basic" and HotbarLayout.is_valid(benched, bench_alt))
+	expect("a layout is always the same seven skills", not HotbarLayout.is_valid(["power", "power", "potion", "skewer", "leap", "earthshatter"], "basic")
+		and not HotbarLayout.is_valid(["power", "fireball", "potion", "skewer", "leap"], "basic") and HotbarLayout.is_valid(HotbarLayout.DEFAULT_SLOTS, "basic"))
+	expect("the dodge cannot be put on a key", HotbarLayout.assign(slots, alt, 3, "dodge") == alt and slots[3] == "skewer")
+	# The hero's bar IS the settings' layout, so one change shows everywhere.
+	GameSettings.reset_hotbar()
+	var skills: SkillController = player.skills
+	expect("the hero's hotbar is the settings' layout", is_same(skills.hotbar, GameSettings.hotbar_slots) and skills.right_click_skill == "basic")
+	# The real click path: open the picker on slot 2, choose Leap.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var size_px: Vector2 = hud.get_viewport_rect().size
+	var second: Dictionary = {}
+	var mouse_slot: Dictionary = {}
+	for hit in hud._slot_hits:
+		if hit["action"] == "skill_2":
+			second = {"slot": 1, "rect": hit["rect"]}
+		if hit["action"] == "alt_skill":
+			mouse_slot = {"slot": HotbarLayout.ALT, "rect": hit["rect"]}
+	expect("the hotbar slots are known to the HUD", not second.is_empty() and not mouse_slot.is_empty())
+	var press := func(at: Vector2, button: int = MOUSE_BUTTON_LEFT) -> bool:
+		var e := InputEventMouseButton.new()
+		e.button_index = button
+		e.pressed = true
+		e.position = at
+		return hud._picker_click(e)
+	expect("clicking a slot opens the picker for it", press.call((second["rect"] as Rect2).get_center()) and hud.picker_open() and hud.picker_slot == 1)
+	expect("the open picker keeps the world from taking clicks", hud.covers(hud.picker_panel(size_px).get_center()))
+	var leap_at: Vector2 = Vector2.ZERO
+	for cell in hud.picker_cells(size_px):
+		if cell["id"] == "leap":
+			leap_at = (cell["rect"] as Rect2).get_center()
+	press.call(leap_at)
+	expect("choosing Leap puts it on key 2 and Fireball takes Leap's old place", skills.hotbar[1] == "leap" and skills.hotbar[4] == "fireball" and not hud.picker_open()
+		and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
+	# The mouse button, and closing without choosing.
+	await get_tree().process_frame
+	press.call((mouse_slot["rect"] as Rect2).get_center())
+	expect("the mouse button's slot opens a picker too", hud.picker_open() and hud.picker_slot == HotbarLayout.ALT)
+	press.call(Vector2(5, 5), MOUSE_BUTTON_RIGHT)
+	expect("a right click closes it with nothing changed", not hud.picker_open() and skills.right_click_skill == "basic")
+	press.call((mouse_slot["rect"] as Rect2).get_center())
+	var potion_at: Vector2 = Vector2.ZERO
+	for cell in hud.picker_cells(size_px):
+		if cell["id"] == "potion":
+			potion_at = (cell["rect"] as Rect2).get_center()
+	press.call(potion_at)
+	expect("a potion on the mouse button swaps with what it replaced", skills.right_click_skill == "potion" and skills.hotbar[2] == "basic")
+	var dodge_rect: Rect2 = Rect2()
+	for hit in hud._slot_hits:
+		if hit["action"] == "dodge":
+			dodge_rect = hit["rect"]
+	expect("the dodge slot cannot be changed", not press.call(dodge_rect.get_center()) and not hud.picker_open())
+	GameSettings.reset_hotbar()
 
 ## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage
 ## and is stunned, and one that hits another monster hurts it and knocks it down; Ramming turns a full Skewer's leftovers into
@@ -4957,6 +5567,318 @@ func _test_town_layout() -> void:
 
 ## Weapons have a moveset of their own: the falchion recovers fast, staggers lightly and finishes its combo quickly; the longsword is the
 ## baseline; the greatsword hits a wide arc, staggers and knocks back harder, recovers slowly and finishes with a slam.
+## Both hands are closed gauntlets round the grip (the open Meshy hands are shrunk away), and standing about long enough rests the sword on his shoulder.
+func _test_fists() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var model: CharacterModel = player.model
+	await get_tree().create_timer(0.3).timeout
+	expect("each hand has its own closed fist", model._mounts.size() == 2 and model._mounts["RightHand"].get_child_count() >= 1
+		and model._mounts["LeftHand"].get_child_count() == 1)
+	expect("the sword is held by the right fist's mount", model.weapon != null and model.weapon.get_parent() == model._mounts["RightHand"])
+	var skeleton: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
+	expect("the open hand meshes are shrunk away inside the wrists", skeleton.get_bone_pose_scale(skeleton.find_bone("RightHand")).x < 0.1
+		and skeleton.get_bone_pose_scale(skeleton.find_bone("LeftHand")).x < 0.1)
+	expect("the fist is not shrunk with them", (model._mounts["RightHand"] as Node3D).transform.basis.get_scale().x > 0.5)
+	player.combat_timer = 0.0
+	player.movement.idle_time = 0.0
+	player.movement.update_locomotion_anim()
+	expect("standing about he is alert at first", model.current == "idle_alert")
+	player.movement.idle_time = PlayerMovement.REST_AFTER + 1.0
+	player.movement.update_locomotion_anim()
+	expect("after a while he rests the sword on his shoulder", model.current == "idle_rest")
+	player.combat_timer = 3.0
+	player.movement.update_locomotion_anim()
+	expect("in a fight he is alert again", model.current == "idle_alert")
+	player.movement.idle_time = 0.0
+
+## Weapon Throw: hold to wind up (the range grows with the hold), let go and the real weapon leaves his hand and tears through a line,
+## buries itself; the same key recalls it back along its own line (whatever the cooldown says) and he catches it.
+func _throw_dummy(pos: Vector3, variant: String = "zombie") -> Enemy:
+	var e: Enemy = _spawn_enemy(pos, variant)
+	e.aggro_range = 0.0
+	e.max_health = 4000.0
+	e.health = 4000.0
+	e.defense = 0.0
+	e.block_chance = 0.0
+	return e
+
+func _wait_state(wanted: int, seconds: float) -> bool:
+	var waited: float = 0.0
+	while int(player.weapon_throw.state) != wanted and waited < seconds:
+		await get_tree().physics_frame
+		waited += 1.0 / 60.0
+	return int(player.weapon_throw.state) == wanted
+
+func _test_weapon_throw() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var skills: SkillController = player.skills
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var saved_hotbar: Array[String] = skills.hotbar.duplicate()
+	skills.hotbar[1] = "throw"
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.cooldowns.clear()
+	player.health = player.max_health
+	player.global_position = _clear_lane(26.0, 3.0)
+	player.reset_physics_interpolation()
+	var start: Vector3 = player.global_position
+	player.cursor_override = start + Vector3(30, 0, 0)
+	await get_tree().create_timer(0.3).timeout
+	# --- Charging: held key, preview grows, range grows -------------------------------------------------------------------------
+	expect("Weapon Throw is on the bar and ready", SkillDb.all().has("throw") and wt.can_begin() and wt.has_weapon())
+	Input.action_press("skill_2")
+	await get_tree().create_timer(0.35).timeout
+	expect("holding the key starts the wind-up", wt.charging() and skills.aiming_id == "throw")
+	var early_lane: float = wt.preview.length if wt.preview != null else 0.0
+	var early_range: float = wt.range_at(wt.charge_fraction())
+	var early_speed: float = wt.move_factor()
+	await get_tree().create_timer(0.7).timeout
+	var later_lane: float = wt.preview.length
+	expect("the preview lane is shown and grows the longer it is held", wt.preview.node.visible and later_lane > early_lane + 2.0)
+	expect("the projected range is continuous and grows with the charge", wt.range_at(wt.charge_fraction()) > early_range + 3.0 and early_range >= 5.0)
+	expect("he gets slower and plants his feet as the wind-up builds", wt.move_factor() < early_speed and wt.move_factor() <= 0.3)
+	var full_charge_range: float = wt.range_at(1.0)
+	expect("a tap throws about 5-7 m and a full hold 20-25 m", wt.range_at(0.0) >= 5.0 and wt.range_at(0.0) <= 7.0 and full_charge_range >= 20.0 and full_charge_range <= 25.0)
+	# --- A line of enemies for the full-charge throw ------------------------------------------------------------------------------
+	start = player.global_position   # (he drifts a little while winding up: the line is laid where he stands now)
+	player.cursor_override = start + Vector3(30, 0, 0)
+	var line: Array[Enemy] = []
+	for d in [5.5, 8.0, 10.5]:
+		line.append(_throw_dummy(start + Vector3(d, 0, 0)))
+	var heavy: Enemy = _throw_dummy(start + Vector3(14.0, 0, 3.0), "brute")
+	await get_tree().process_frame
+	var line_health: Array[float] = []
+	for e in line:
+		line_health.append(e.health)
+	Input.action_release("skill_2")
+	for k in 6:
+		await get_tree().physics_frame
+		expect("letting go starts the release", await _wait_state(WeaponThrowSkill.State.FLYING_OUT, 1.2))
+	expect("the weapon in his hand is gone: only the thrown one is there", not player.model.weapon.visible and wt.thrown != null and wt.thrown.model_count() > 0)
+	var visible_copies: int = 0
+	for node in get_tree().root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.is_visible_in_tree() and (wt.thrown.is_ancestor_of(mi) or player.model.weapon.is_ancestor_of(mi)):
+			visible_copies += 1
+	expect("never a second copy of the weapon: every visible blade mesh belongs to the thrown one", visible_copies == wt.thrown.model_count())
+	expect("the cooldown starts at the throw", float(player.stats.cooldowns.get("throw", 0.0)) > 13.0)
+	expect("sword skills refuse while the weapon is out", wt.is_away() and not skills.weapon_ready("basic") and not skills.weapon_ready("power"))
+	expect("the weapon slot is locked while it is out", player.stats.weapon_locked)
+	var held: Dictionary = player.stats.equipment[Items.Slot.WEAPON]
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"), false)
+	expect("the weapon in the slot cannot be swapped while it is away", player.stats.equipment[Items.Slot.WEAPON] == held)
+	skills.start_skill("basic", line[0])
+	expect("a basic attack does nothing weaponless", not skills.busy or skills.busy_skill == "throw")
+	var travelled_first: Vector3 = wt.weapon_position()
+	await get_tree().physics_frame
+	expect("it travels through the world (it is not placed at the end at once)", wt.weapon_position().distance_to(travelled_first) > 0.2 or wt.state == WeaponThrowSkill.State.EMBEDDED)
+	expect("it embeds at the end", await _wait_state(WeaponThrowSkill.State.EMBEDDED, 3.0))
+	var rest: Vector3 = wt.thrown.center()
+	await get_tree().create_timer(0.8).timeout
+	expect("the weapon stays where it landed", wt.state == WeaponThrowSkill.State.EMBEDDED and wt.thrown.center().distance_to(rest) < 0.05)
+	expect("the blade is in the ground at a slant, not lying flat or hovering", wt.thrown.tip().y < 0.05 and absf(wt.thrown.axis().y) > 0.5 and wt.thrown.axis().y < 0.0)
+	var struck: int = 0
+	var launched_zombies: int = 0
+	for i in line.size():
+		var e: Enemy = line[i]
+		if is_instance_valid(e) and (e.health < line_health[i] - 1.0 or e.dead):
+			struck += 1
+		if is_instance_valid(e) and (e.is_ragdolled() or e.global_position.x > start.x + 3.0 + [5.5, 8.0, 10.5][i] or e.dead):
+			launched_zombies += 1
+	expect("a full-charge throw hits all three enemies in the line", struck == 3 and wt.last_out_hits.size() >= 3)
+	expect("light enemies are knocked flying by it", launched_zombies >= 2)
+	expect("it does not impale or carry anyone like Skewer", line.all(func(e: Enemy) -> bool: return not is_instance_valid(e) or not e.impaled))
+	expect("only the first hit of a pass can set off on-hit effects (no cascade)", wt.proc_hits == 1)
+	expect("the throw went about as far as a full charge", rest.distance_to(Vector3(start.x, 0.0, start.z)) > 15.0)
+	expect("the brute off the line is not touched", is_instance_valid(heavy) and heavy.health >= heavy.max_health - 0.5)
+	# --- Recall from another spot: a different line, through a second group -----------------------------------------------------
+	var second: Array[Enemy] = []
+	var hero_spot: Vector3 = Vector3(rest.x - 14.0, 0.0, rest.z + 7.0)
+	player.global_position = hero_spot
+	player.reset_physics_interpolation()
+	player.movement.has_goal = false
+	for fraction in [0.4, 0.65]:
+		var on_path: Vector3 = Vector3(rest.x, 0.0, rest.z).lerp(hero_spot, fraction)   # on the straight line from where the weapon lies to where he now stands
+		second.append(_throw_dummy(on_path))
+	await get_tree().create_timer(0.3).timeout
+	expect("the throw cooldown is still running", float(player.stats.cooldowns.get("throw", 0.0)) > 5.0)
+	var cooldown_before: float = float(player.stats.cooldowns["throw"])
+	Input.action_press("skill_2")
+	await get_tree().create_timer(0.1).timeout
+	Input.action_release("skill_2")
+	expect("the same key recalls it, cooldown or not", wt.state == WeaponThrowSkill.State.RIPPING or wt.state == WeaponThrowSkill.State.RETURNING)
+	expect("the weapon is wrenched out of the ground and then comes back", await _wait_state(WeaponThrowSkill.State.RETURNING, 2.0))
+	var came_back: bool = await _wait_state(WeaponThrowSkill.State.CATCHING, 5.0)
+	expect("it flies back to him (it is not teleported)", came_back and wt.thrown != null)
+	expect("the return line passed through the second group, a different line from the first", second.any(func(e: Enemy) -> bool: return is_instance_valid(e) and wt.last_return_hits.has(e.get_instance_id())))
+	expect("the way back also hit enemies hard enough to hurt them", second.any(func(e: Enemy) -> bool: return is_instance_valid(e) and (e.health < e.max_health - 1.0 or e.dead)))
+	expect("he reaches for it (a catch, not a vanishing act)", skills.busy and skills.busy_skill == "throw")
+	expect("the catch frame puts it in his hand once", await _wait_state(WeaponThrowSkill.State.IN_HAND, 2.0))
+	expect("exactly one weapon: his hand's is back, the thrown copy is gone", player.model.weapon.visible and wt.thrown == null and not player.stats.weapon_locked)
+	expect("the cooldown ran on through the whole thing and the catch did not reset it", float(player.stats.cooldowns.get("throw", 0.0)) <= cooldown_before and float(player.stats.cooldowns.get("throw", 0.0)) > 3.0)
+	await get_tree().create_timer(0.6).timeout
+	expect("sword skills work again at once", skills.weapon_ready("basic"))
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"), false)
+	expect("and he may change weapons again", player.stats.equipment[Items.Slot.WEAPON]["name"] == "Falchion")
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	skills.start_skill("basic", second[0] if is_instance_valid(second[0]) else null)
+	expect("normal sword combat resumes", skills.busy and skills.busy_skill == "basic")
+	skills.cancel_action()
+	# --- Tap versus full charge, and light versus heavy -------------------------------------------------------------------------
+	player.stats.cooldowns.clear()
+	var results: Dictionary = {}
+	for label in ["tap", "full"]:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		await get_tree().process_frame
+		player.global_position = _clear_lane(26.0, 3.0)
+		player.reset_physics_interpolation()
+		var origin: Vector3 = player.global_position
+		var light: Enemy = _throw_dummy(origin + Vector3(4.5, 0, 0))
+		var big: Enemy = _throw_dummy(origin + Vector3(4.5, 0, 2.4), "brute")
+		await get_tree().process_frame
+		wt._profile = wt.profile()
+		wt.state = WeaponThrowSkill.State.CHARGING
+		wt._hold = 0.0 if label == "tap" else 10.0
+		wt.charge = wt.charge_fraction()
+		wt.release(origin + Vector3(30, 0, 0))
+		await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+		results[label] = {"range": wt.thrown.center().distance_to(Vector3(origin.x, 0.0, origin.z)), "light_hp": light.max_health - light.health,
+			"light_move": light.global_position.distance_to(origin + Vector3(4.5, 0, 0)), "big_move": big.global_position.distance_to(origin + Vector3(4.5, 0, 2.4)),
+			"big_hp": big.max_health - big.health}
+		wt.recall()
+		await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+		player.stats.cooldowns.clear()
+	expect("a tap travels shorter than a full charge", results["tap"]["range"] < results["full"]["range"] - 5.0)
+	expect("a full charge hits harder", results["full"]["light_hp"] > results["tap"]["light_hp"] * 1.4)
+	expect("a light zombie is thrown further than the brute is moved", results["full"]["light_move"] > results["full"]["big_move"] + 1.0)
+	# --- Solid world and props -----------------------------------------------------------------------------------------------------
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var lane: Vector3 = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	arena.place_prop("barrel", lane + Vector3(6.0, 0, 0), 0.0, 1.0)
+	var barrel: Destructible = Destructible.near(get_tree(), lane + Vector3(6.0, 0, 0), 0.5)
+	var barrel_placed: bool = barrel != null
+	var wall := StaticBody3D.new()   # a solid wall across the lane, 13 m out
+	wall.collision_layer = Actor.LAYER_WORLD
+	var wall_shape := CollisionShape3D.new()
+	var wall_box := BoxShape3D.new()
+	wall_box.size = Vector3(1.0, 4.0, 5.0)
+	wall_shape.shape = wall_box
+	wall.add_child(wall_shape)
+	game.add_child(wall)
+	wall.global_position = lane + Vector3(13.5, 2.0, 0.0)
+	await get_tree().process_frame
+	wt._profile = wt.profile()
+	wt.state = WeaponThrowSkill.State.CHARGING
+	wt._hold = 10.0
+	wt.charge = 1.0
+	wt.release(lane + Vector3(40.0, 0, 0))
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a full-charge throw smashes a barrel in its way", barrel_placed and (not is_instance_valid(barrel) or barrel.broken))
+	expect("a wall stops the weapon and it sticks in it", wt.thrown.center().x < lane.x + 13.5 and wt.thrown.center().x > lane.x + 10.0)
+	wall.queue_free()
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	# --- Safety ----------------------------------------------------------------------------------------------------------------------
+	player.stats.cooldowns.clear()
+	player.global_position = _clear_lane(26.0, 3.0)
+	player.reset_physics_interpolation()
+	wt._profile = wt.profile()
+	wt.state = WeaponThrowSkill.State.CHARGING
+	wt._hold = 10.0
+	wt.charge = 1.0
+	wt.release(player.global_position + Vector3(30, 0, 0))
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	wt._embed_center = Vector3(0, -80, 0)   # fell out of the world
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("a weapon that left the world is put back on the ground and can still be recalled", wt.state == WeaponThrowSkill.State.EMBEDDED and wt._valid(wt._embed_center))
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.RETURNING, 2.0)
+	player.stats.cooldowns.clear()
+	player._on_death()
+	expect("dying with the weapon out puts it back in his hand: nothing stranded or duplicated", wt.state == WeaponThrowSkill.State.IN_HAND and player.model.weapon.visible and wt.thrown == null and not player.stats.weapon_locked)
+	player.dead = false
+	player.health = player.max_health
+	# --- Profiles and the controller -----------------------------------------------------------------------------------------------
+	var profiles: Dictionary = {}
+	for base in ["Falchion", "Longsword", "Greatsword"]:
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		profiles[base] = wt.profile()
+	expect("the three weapons throw differently", profiles["Falchion"]["charge_time"] < profiles["Longsword"]["charge_time"] and profiles["Longsword"]["charge_time"] < profiles["Greatsword"]["charge_time"]
+		and profiles["Falchion"]["speed"] > profiles["Greatsword"]["speed"] and profiles["Greatsword"]["mass"] > profiles["Falchion"]["mass"] and profiles["Greatsword"]["prop_force"] > profiles["Longsword"]["prop_force"])
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.cooldowns.clear()
+	Gamepad.active = true
+	player.cursor_override = Vector3.INF
+	player.global_position = _clear_lane(26.0, 3.0)
+	player.reset_physics_interpolation()
+	player.visual.rotation.y = PI * 0.5
+	Input.action_press("skill_2")
+	await get_tree().create_timer(0.5).timeout
+	expect("with a controller the same held action winds up, aimed by the pad aim", wt.charging() and wt.aim_dir.dot(Vector3(1, 0, 0)) > 0.5)
+	Input.action_release("skill_2")
+	expect("and letting go throws", await _wait_state(WeaponThrowSkill.State.FLYING_OUT, 1.5))
+	await get_tree().create_timer(0.3).timeout
+	Input.action_press("skill_2")
+	await get_tree().create_timer(0.1).timeout
+	Input.action_release("skill_2")
+	expect("pressing it again recalls on a controller too", wt.state == WeaponThrowSkill.State.RETURNING or wt.state == WeaponThrowSkill.State.RIPPING or wt.state == WeaponThrowSkill.State.EMBEDDED)
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	Gamepad.active = false
+	player.cursor_override = Vector3.INF
+	# --- Cancel ---------------------------------------------------------------------------------------------------------------------
+	player.stats.cooldowns.clear()
+	player.cursor_override = player.global_position + Vector3(10, 0, 0)
+	Input.action_press("skill_2")
+	await get_tree().create_timer(0.3).timeout
+	expect("winding up again", wt.charging())
+	Input.action_press("dodge")
+	await get_tree().create_timer(0.1).timeout
+	Input.action_release("dodge")
+	Input.action_release("skill_2")
+	await get_tree().create_timer(0.3).timeout
+	expect("a dodge cancels the wind-up and spends no cooldown", wt.has_weapon() and float(player.stats.cooldowns.get("throw", 0.0)) <= 0.01 and player.model.weapon.visible)
+	skills.hotbar.assign(saved_hotbar)
+	player.cursor_override = Vector3.INF
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+
+## A two-hander swings its own clips (both hands on the grip); the one-handers swing theirs, and no basic swing leaves a blade ribbon.
+func _test_two_hand() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var skills: SkillController = player.skills
+	var seen: Dictionary = {}
+	for base in ["Falchion", "Greatsword"]:
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		var clips: Array[String] = []
+		for step in 3:
+			var far: Enemy = _spawn_enemy(Vector3(0, 0, 14))
+			far.alert_delay = 999.0
+			skills.combo_step = step
+			skills.start_skill("basic", far)
+			clips.append(player.model.current)
+			expect("%s swing %d has a blade ribbon only when it is not a basic swing" % [base, step], not player._trail.active)
+			skills.cancel_action()
+			far.queue_free()
+		seen[base] = clips
+	var one: Array = seen["Falchion"]
+	var two: Array = seen["Greatsword"]
+	expect("a falchion swings the one-handed clips", one.all(func(c: String) -> bool: return c.begins_with("atk_")))
+	expect("a greatsword swings the two-handed clips", two.all(func(c: String) -> bool: return c.begins_with("atk2_")))
+	expect("a greatsword recovers slower than it did", float(player.stats.weapon_profile("recovery", 1.0)) <= 0.6)
+
 func _test_weapon_styles() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()

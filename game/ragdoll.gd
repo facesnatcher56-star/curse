@@ -210,7 +210,7 @@ func _step_flight(delta: float) -> void:
 	if collision != null:
 		if absf(collision.get_normal().y) < 0.6 and speed_before >= IMPACT_MIN_SPEED and _impact_cooldown <= 0.0:
 			_impact_cooldown = 0.4
-			_hit_obstacle(speed_before)
+			_hit_obstacle(speed_before, collision.get_position())
 		_velocity = _velocity.bounce(collision.get_normal()) * 0.35
 		_omega *= 0.7
 	if speed_before >= IMPACT_MIN_SPEED:
@@ -237,9 +237,13 @@ func _step_flight(delta: float) -> void:
 	_compose(_tumble, _height)
 
 ## Slammed into a wall, prop or pillar: extra damage and a longer stun than a plain landing.
-func _hit_obstacle(speed: float) -> void:
+func _hit_obstacle(speed: float, point: Vector3) -> void:
 	if actor.dead:
 		return
+	# The flying body, not a projected line, is what reaches and breaks scenery.
+	Destructible.blast(_tree, point, 0.65, 8.0 + speed * 1.6, _velocity.normalized(),
+		clampf(speed / 8.0, 1.0, 2.4))
+	Sfx.sample(actor, "body_wall", -1.0, 0.85)
 	var result: Dictionary = Combat.resolve(actor, actor, IMPACT_DAMAGE + speed * 1.6, Combat.DamageType.FIRE, false, 1.8)
 	result["type"] = Combat.DamageType.PHYSICAL
 	result["skill_id"] = "collision"
@@ -268,6 +272,7 @@ func _bowl_into_enemies(speed: float) -> void:
 		hit["type"] = Combat.DamageType.PHYSICAL
 		hit["skill_id"] = "collision"
 		other.receive(hit, here)
+		Sfx.sample(actor, "body_enemy", -2.0, 0.8)
 		if is_instance_valid(other):
 			other.interrupt(0.9)
 			if other.can_be_impaled() and not other.dead:   # the one it hit falls down too (the very big ones only stagger)

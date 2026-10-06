@@ -50,7 +50,7 @@ func _ready() -> void:
 	left.add_child(worn)
 	for slot in 3:
 		if hero.stats.equipment.has(slot):
-			var tile := ItemTile.create(hero.stats.equipment[slot], null, 76)
+			var tile := ItemTile.create(hero.stats.equipment[slot], null, 52)
 			tile.show_compare = false
 			var column := VBoxContainer.new()
 			worn.add_child(column)
@@ -74,7 +74,7 @@ func _ready() -> void:
 		var item: Dictionary = hero.stats.bag[i]
 		var column := VBoxContainer.new()
 		grid.add_child(column)
-		var tile := ItemTile.create(item, hero.stats.equipment.get(int(item["slot"])), 84)
+		var tile := ItemTile.create(item, hero.stats.equipment.get(int(item["slot"])), 56)
 		column.add_child(tile)
 		_bag_tiles.append(tile)
 		tile.gui_input.connect(_item_input.bind(item, tile))
@@ -103,6 +103,9 @@ func _item_input(event: InputEvent, item: Dictionary, control: Control) -> void:
 func _equip_item(item: Dictionary) -> void:
 	var index: int = hero.stats.bag.find(item)
 	if _equipping or index < 0:
+		return
+	if hero.stats.weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:   # the weapon is out in the world: nothing is swapped until it is back
+		hero._say("Recall your weapon first")
 		return
 	_equipping = true
 	var old: Variant = hero.stats.equipment.get(int(item["slot"]))

@@ -53,6 +53,8 @@ var strength: float = 15.0
 var weapon_min: float = 6.0
 var weapon_max: float = 11.0
 var cooldowns: Dictionary = {}
+## True while the weapon is out of his hand (Weapon Throw): the weapon slot cannot be changed until it is back, so he never owns two.
+var weapon_locked: bool = false
 # Equipment (see items.gd / item_effects.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
 var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
@@ -139,6 +141,9 @@ func attack_speed() -> float:
 	return weapon_stat("speed", 1.0) * (1.0 + (ItemEffects.HASTE_BONUS if haste_time > 0.0 else 0.0))
 
 func equip(item: Dictionary, announce: bool = true) -> void:
+	if weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:
+		p._say("Recall your weapon first")
+		return
 	equipment[int(item["slot"])] = item
 	p.armor = base_armor + armor_stat("armor", 0.0)
 	if int(item["slot"]) == Items.Slot.WEAPON:

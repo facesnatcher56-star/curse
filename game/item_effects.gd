@@ -284,7 +284,7 @@ static func power_shockwave(player: Player, direction: Vector3) -> void:
 		to_e.y = 0.0
 		var along: float = to_e.dot(dir)
 		var across: float = absf(to_e.cross(dir).y)
-		if along > 0.5 and along < 8.5 and across < 1.2:
+		if along > PowerPreview.FROM and along < PowerPreview.REACH and across < PowerPreview.HALF_WIDTH:   # (the same numbers the telegraph draws)
 			var wave: Dictionary = Combat.resolve(player, e, player.stats.weapon_damage(1.0), Combat.DamageType.PHYSICAL, false, 1.8)
 			wave["secondary"] = true
 			e.receive(wave, player.global_position)

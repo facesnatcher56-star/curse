@@ -100,33 +100,62 @@ static func kick(node: Node, direction: Vector3, amount: float) -> void:
 	node.get_tree().call_group("camera_rig", "kick", direction, amount)
 
 ## One-shot spray of droplets/sparks.
+static var _spark_pool: Dictionary = {}    # particle count -> free emitters, kept for the next burst
+static var _spark_looks: Dictionary = {}   # (colour, size, emissive) -> the one mesh and material every burst of that look shares
+const SPARK_BUCKETS: Array[int] = [8, 14, 20, 28, 40, 56, 80]
+
+## A puff of particles that fly out and fall. Emitters and their meshes are reused (a fight throws a few of these every frame, and
+## building a particle node, mesh and material each time was the biggest hitch in a crowded fight), so what comes back out of the
+## pool is simply restarted.
 static func burst(from: Node, pos: Vector3, dir: Vector3, color: Color, amount: int, speed: float,
 		size: float = 0.022, emissive: bool = false) -> void:
-	var particles := CPUParticles3D.new()
-	particles.one_shot = true
-	particles.amount = amount
-	particles.lifetime = 0.6
-	particles.explosiveness = 1.0
+	var count: int = SPARK_BUCKETS[SPARK_BUCKETS.size() - 1]
+	for bucket in SPARK_BUCKETS:
+		if amount <= bucket:
+			count = bucket
+			break
+	var free: Array = _spark_pool.get(count, [])
+	var particles: CPUParticles3D = null
+	while not free.is_empty() and particles == null:
+		var candidate: CPUParticles3D = free.pop_back()
+		if is_instance_valid(candidate) and candidate.is_inside_tree():
+			particles = candidate
+	var scene: Node = from.get_tree().current_scene
+	if particles == null:
+		particles = CPUParticles3D.new()
+		particles.one_shot = true
+		particles.amount = count
+		particles.lifetime = 0.6
+		particles.explosiveness = 1.0
+		particles.spread = 38.0
+		particles.gravity = Vector3(0, -16, 0)
+		scene.add_child(particles)
+	var look: String = "%s/%.3f/%s" % [color.to_html(), size, emissive]
+	if not _spark_looks.has(look):
+		var mesh := SphereMesh.new()
+		mesh.radius = size
+		mesh.height = size * 2.0
+		mesh.radial_segments = 6
+		mesh.rings = 3
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		if emissive:
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mesh.material = mat
+		_spark_looks[look] = mesh
+	particles.mesh = _spark_looks[look]
 	particles.direction = dir
-	particles.spread = 38.0
 	particles.initial_velocity_min = speed * 0.4
 	particles.initial_velocity_max = speed
-	particles.gravity = Vector3(0, -16, 0)
-	var mesh := SphereMesh.new()
-	mesh.radius = size
-	mesh.height = size * 2.0
-	mesh.radial_segments = 6
-	mesh.rings = 3
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	if emissive:
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mesh.material = mat
-	particles.mesh = mesh
-	from.get_tree().current_scene.add_child(particles)
 	particles.global_position = pos
+	particles.restart()
 	particles.emitting = true
-	from.get_tree().create_timer(1.0).timeout.connect(particles.queue_free)
+	from.get_tree().create_timer(0.8).timeout.connect(func() -> void:
+		if is_instance_valid(particles):
+			particles.emitting = false
+			if not _spark_pool.has(count):
+				_spark_pool[count] = []
+			(_spark_pool[count] as Array).append(particles))
 
 static var _blood_texture: GradientTexture2D
 

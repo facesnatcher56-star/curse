@@ -21,7 +21,44 @@ static func build(folder: String, clips: Array[String]) -> CharacterModel:
 	model.anim = rigged.find_children("*", "AnimationPlayer", true, false)[0]
 	model.anim.add_animation_library("game", _library(folder, clips))
 	model.anim.mixer_applied.connect(model._after_mixer)
+	model._give_fists(folder)
 	return model
+
+## Meshy modelled the Knight's hands flat and open, with no finger bones to close them, so a sword's grip went straight through the
+## palm. Where a model comes with gauntlet fists (`fist_r.glb`, `fist_l.glb`, from tools/blender/make_fists.py) the open hands are
+## shrunk away inside the wrists (the hand bones are scaled to almost nothing after every animation frame) and a closed fist rides
+## each hand instead. The fists and the weapon follow the hand's un-shrunk pose (`_mounts`, moved in `_after_mixer`).
+const HAND_BONES: Array[String] = ["RightHand", "LeftHand"]
+var _mounts: Dictionary = {}   # hand bone name -> the node that follows it (without the shrinking)
+var _mount_skeleton: Skeleton3D
+
+func _give_fists(folder: String) -> void:
+	if not ResourceLoader.exists(folder + "/fist_r.glb") or not ResourceLoader.exists(folder + "/fist_l.glb"):
+		return
+	_mount_skeleton = find_children("*", "Skeleton3D", true, false)[0]
+	for side in [["RightHand", "r"], ["LeftHand", "l"]]:
+		var mount := Node3D.new()
+		_mount_skeleton.add_child(mount)
+		_mounts[side[0]] = mount
+		var fist: Node3D = (load("%s/fist_%s.glb" % [folder, side[1]]) as PackedScene).instantiate()
+		LootDrop._use_vertex_colours(fist)
+		mount.add_child(fist)
+
+## What a weapon or prop is attached to: the hand's mount, or a plain bone attachment for any other bone.
+func _mount_for(bone_name: String) -> Node3D:
+	if _mounts.has(bone_name):
+		return _mounts[bone_name]
+	var attachment := BoneAttachment3D.new()
+	attachment.bone_name = bone_name
+	find_children("*", "Skeleton3D", true, false)[0].add_child(attachment)
+	return attachment
+
+func _follow_hands() -> void:
+	for bone_name in _mounts:
+		var idx: int = _mount_skeleton.find_bone(bone_name)
+		_mount_skeleton.set_bone_pose_scale(idx, Vector3.ONE)   # no animation track puts it back, so undo last frame's shrinking first
+		(_mounts[bone_name] as Node3D).transform = _mount_skeleton.get_bone_global_pose(idx)
+		_mount_skeleton.set_bone_pose_scale(idx, Vector3.ONE * 0.01)
 
 static func _library(folder: String, clips: Array[String]) -> AnimationLibrary:
 	if _libraries.has(folder):
@@ -43,13 +80,13 @@ static func _library(folder: String, clips: Array[String]) -> AnimationLibrary:
 	return lib
 
 ## Loop a clip (idle/walk/run); does nothing if it is already playing.
-func loop(clip: String, speed: float = 1.0) -> void:
+func loop(clip: String, speed: float = 1.0, blend: float = 0.15) -> void:
 	if current == clip:
 		anim.speed_scale = speed
 		return
 	current = clip
 	anim.speed_scale = 1.0
-	anim.play("game/" + clip, 0.15, speed)
+	anim.play("game/" + clip, blend, speed)
 
 ## Play a clip once, from `start` seconds, at `speed`.
 func once(clip: String, start: float = 0.0, speed: float = 1.0, blend: float = 0.1) -> void:
@@ -103,9 +140,7 @@ func _init() -> void:
 func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: float, grip_offset: float,
 		hand_offset: Vector3 = Vector3.ZERO, thickness: float = 1.0, prop_basis: Basis = Basis(), tint_by_vertex: bool = false) -> void:
 	var skeleton: Skeleton3D = find_children("*", "Skeleton3D", true, false)[0]
-	var attachment := BoneAttachment3D.new()
-	attachment.bone_name = bone_name
-	skeleton.add_child(attachment)
+	var attachment: Node3D = _mount_for(bone_name)
 	var prop: Node3D = (load(scene_path) as PackedScene).instantiate()
 	if tint_by_vertex:
 		LootDrop._use_vertex_colours(prop)
@@ -141,7 +176,10 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 ## Takes the held weapon off (its model and the bone attachment holding it).
 func clear_weapon() -> void:
 	if weapon != null and is_instance_valid(weapon):
-		weapon.get_parent().queue_free()
+		if weapon.get_parent() is BoneAttachment3D:
+			weapon.get_parent().queue_free()
+		else:
+			weapon.queue_free()
 	weapon = null
 	weapon_base = null
 	weapon_tip = null
@@ -200,6 +238,7 @@ func set_overlay(material: Material) -> void:
 		(node as MeshInstance3D).material_overlay = material
 
 func _after_mixer() -> void:
+	_follow_hands()
 	if leg_raise <= 0.001:
 		return
 	if _leg_skeleton == null:

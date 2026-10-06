@@ -6,22 +6,22 @@ OUT = Path(__file__).resolve().parent.parent / "data" / "skills"
 
 COMBO = [
     [
-        {"clip": "slash_r", "start": 0.35, "strike": 0.73, "end": 1.1, "time": 0.78, "weight": 1.0, "lunge": 0.4},
-        {"clip": "thrust", "start": 1.0, "strike": 1.57, "end": 2.1, "time": 0.9, "weight": 0.9, "lunge": 0.7, "range": 2.8},
+        {"clip": "atk_slash_r", "start": 0.0, "strike": 0.38, "end": 0.75, "time": 0.9, "weight": 1.0, "lunge": 0.4},
+        {"clip": "atk_thrust", "start": 0.0, "strike": 0.57, "end": 1.1, "time": 1.0, "weight": 0.9, "lunge": 0.7, "range": 2.8},
     ],
     [
-        {"clip": "slash_l", "start": 0.7, "strike": 1.37, "end": 1.85, "time": 0.85, "weight": 1.0, "lunge": 0.4},
-        {"clip": "slash", "start": 0.5, "strike": 1.07, "end": 1.45, "time": 0.85, "weight": 1.0, "lunge": 0.5},
+        {"clip": "atk_slash_l", "start": 0.0, "strike": 0.67, "end": 1.15, "time": 1.0, "weight": 1.0, "lunge": 0.4},
+        {"clip": "atk_slash", "start": 0.0, "strike": 0.57, "end": 0.95, "time": 0.95, "weight": 1.0, "lunge": 0.5},
     ],
     [
-        {"clip": "combo_end", "start": 0.6, "strike": 1.37, "end": 2.2, "time": 1.3, "weight": 1.7, "lunge": 0.9,
+        {"clip": "atk_finisher", "start": 0.0, "strike": 0.77, "end": 1.6, "time": 1.45, "weight": 1.7, "lunge": 0.9,
          "mult": 1.35, "finisher": True},
     ],
 ]
 
 SKILLS = {
-    "basic": dict(display_name="Attack", mana=0.0, cooldown=0.0, time=0.85, clip="slash", clip_start=0.5, clip_strike=1.07,
-                  clip_end=1.45, kind="melee", range=2.4, mult=1.0, weight=1.0, lunge=0.5,
+    "basic": dict(display_name="Attack", mana=0.0, cooldown=0.0, time=0.85, clip="atk_slash", clip_start=0.0, clip_strike=0.57,
+                  clip_end=0.95, kind="melee", range=2.4, mult=1.0, weight=1.0, lunge=0.5,
                   description="A three-hit sword combo. The first two hits vary between slashes and thrusts; the third is a heavy finisher. Pause for a moment and the combo resets.",
                   modifier_affixes=["cleaving", "maelstrom", "chain", "searing", "executioner", "kindling", "juggler", "breaker", "virtuoso"],
                   extra={"combo": COMBO}),
@@ -35,6 +35,10 @@ SKILLS = {
                      modifier_affixes=["twin_flame", "wildfire", "virtuoso", "pyre"],
                      extra={"charged": True, "gather": 0.72, "release_clip": "throw", "release_start": 0.55,
                             "release_speed": 1.5, "release_after": 0.3}),
+    "throw": dict(display_name="Weapon Throw", mana=0.0, cooldown=15.0, time=1.0, clip="wthrow", clip_start=0.0, clip_strike=0.5,
+                  clip_end=1.0, kind="throw", range=22.0, mult=2.4, weight=2.0, lunge=0.0, aimed=True,
+                  description="Hold to wind up and throw your weapon in a straight line. Longer charge increases range and force. Press again while the weapon is away to rip it back through enemies.",
+                  modifier_affixes=[], extra={"weapon_throw": True}),
     "skewer": dict(display_name="Skewer", mana=18.0, cooldown=9.0, time=1.8, clip="charge_run", clip_start=0.0, clip_strike=0.3,
                    clip_end=0.5, kind="charge", range=9.0, mult=1.5, weight=2.2, lunge=0.0, aimed=True,
                    description="Hold the key to see the whole lane the charge will run and where the kicked enemies will be thrown, then let go to charge (right-click or dodge cancels). Lower the blade and charge toward the cursor. The first enemy in your path is run through to the hilt and carried along; up to two more are skewered on the same blade. Then you plant yourself and drive a boot into the pile, kicking all of them off the sword and far away from you. Everyone else in the lane, past the first three, is knocked down and thrown aside as you run through. Bosses cannot be impaled and stop the charge.",

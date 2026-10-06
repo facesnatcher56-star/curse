@@ -43,6 +43,7 @@ func _build_backdrop() -> void:
 	environment.fog_density = 0.035
 	NightSky.apply(environment, Vector3(-0.5, 0.17, -0.85), true)   # a blood moon, hanging ahead of the camera's starting view
 	var world := WorldEnvironment.new()
+	SceneLook.give_reflections(environment)
 	world.environment = environment
 	add_child(world)
 
@@ -67,7 +68,7 @@ func _build_backdrop() -> void:
 
 	var knight: CharacterModel = CharacterModel.build(KNIGHT_DIR, ["idle_alert"])
 	add_child(knight)
-	knight.loop("idle_alert")
+	knight.loop("idle_rest")
 	knight.rotation.y = 0.5
 	if ResourceLoader.exists(Player.SWORD_PATH):
 		knight.attach_weapon(Player.SWORD_PATH, "RightHand", Player.GRIPS[3], 1.1, 0.12, Player.HAND_GRIP_POINT)

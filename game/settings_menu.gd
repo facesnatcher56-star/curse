@@ -11,6 +11,7 @@ var _pad_buttons: Dictionary = {}      # action -> controller binding Button
 var _listening_kind: String = "kb"
 var _listening_action: String = ""
 var _resolution_option: OptionButton
+var _hotbar_options: Dictionary = {}   # slot number -> its OptionButton (see _build_hotbar_rows)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS  # must work while the game is paused
@@ -157,6 +158,9 @@ func _build_video() -> Control:
 	page.add_child(_row("Anti-aliasing", _options(GameSettings.MSAA_LEVELS, GameSettings.msaa_index, func(i: int) -> void:
 		GameSettings.msaa_index = i
 		GameSettings.apply_video())))
+	page.add_child(_row("3D resolution", _options(GameSettings.RENDER_SCALE_LABELS, GameSettings.render_scale_index, func(i: int) -> void:
+		GameSettings.render_scale_index = i
+		GameSettings.apply_video())))
 	page.add_child(_row("Vertical sync", _check("Enabled", GameSettings.vsync, func(on: bool) -> void:
 		GameSettings.vsync = on
 		GameSettings.apply_video())))
@@ -223,6 +227,7 @@ func _build_controls() -> Control:
 		_pad_buttons[action] = pad_button
 		pair.add_child(pad_button)
 		page.add_child(_row(entry[1], pair))
+	_build_hotbar_rows(page)
 	page.add_child(_row("Swap sticks (move on right)", _check("Enabled", GameSettings.swap_sticks, func(on: bool) -> void:
 		GameSettings.swap_sticks = on)))
 	page.add_child(_row("Stick dead zone", _slider(GameSettings.stick_deadzone, 0.6, func(v: float) -> void:
@@ -233,9 +238,40 @@ func _build_controls() -> Control:
 	reset.pressed.connect(func() -> void:
 		_cancel_listening()
 		GameSettings.reset_bindings()
+		GameSettings.reset_hotbar()
+		_refresh_hotbar_options()
 		_refresh_bindings())
 	page.add_child(reset)
 	return scroll
+
+## Which skill is on which key, as a dropdown per key (in the game you can also just click a hotbar slot). Choosing a skill that is on
+## another key swaps the two, so every dropdown is refreshed after each change.
+func _build_hotbar_rows(page: VBoxContainer) -> void:
+	var title := Label.new()
+	title.text = "Hotbar skills"
+	title.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
+	page.add_child(title)
+	_hotbar_options.clear()
+	var names: Array = []
+	for id in HotbarLayout.ASSIGNABLE:
+		names.append(String(SkillDb.all()[id]["name"]))
+	var slots: Array[int] = []
+	for i in GameSettings.hotbar_slots.size():
+		slots.append(i)
+	slots.append(HotbarLayout.ALT)
+	for slot in slots:
+		var label: String = "Key %d" % (slot + 1) if slot != HotbarLayout.ALT else "Right mouse button"
+		var option: OptionButton = _options(names, 0, func(index: int) -> void:
+			GameSettings.assign_hotbar(slot, String(HotbarLayout.ASSIGNABLE[index]))
+			_refresh_hotbar_options())
+		_hotbar_options[slot] = option
+		page.add_child(_row(label, option))
+	_refresh_hotbar_options()
+
+func _refresh_hotbar_options() -> void:
+	for slot in _hotbar_options:
+		var id: String = HotbarLayout.skill_at(GameSettings.hotbar_slots, GameSettings.hotbar_alt, int(slot))
+		(_hotbar_options[slot] as OptionButton).select(HotbarLayout.ASSIGNABLE.find(id))
 
 # --- rebinding --------------------------------------------------------------------
 
