@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jl5ywg75gci1"
-path="res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"
+uid="uid://kg0bmngfp0x5"
+path="res://.godot/imported/glass_dome.png-b672e7ad964b010c6cf1bf975d8378da.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/icons/ui/food.png"
-dest_files=["res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"]
+source_file="res://assets/ui/vessels/glass_dome.png"
+dest_files=["res://.godot/imported/glass_dome.png-b672e7ad964b010c6cf1bf975d8378da.ctex"]
 
 [params]
 

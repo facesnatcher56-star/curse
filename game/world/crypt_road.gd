@@ -31,6 +31,13 @@ const AMBIENT_MULT := 0.8
 const FOG_MULT := 1.7
 
 ## The nests: where they are (x, z, yaw). They are placed once at the start and put back by `regrow()` when the quest is handed in.
+## Monster density: four times what the hand-placed groups alone held. Every zombie and ghoul in a placed group is `PACK_COPIES`
+## strong (the rarer kinds stay single), and `_fill_gaps` puts a smaller group wherever the placed ones leave a stretch of road empty.
+const PACK_COPIES := 3
+const FILL_CELL := 17.0          # the grid the empty stretches are looked for on
+const FILL_COVER := 18.0         # a cell this close to a placed group's home is not empty
+const FILL_KEEP_FROM_START := 22.0
+const FILL_SEED := 4242          # its own generator, so the dressing (props) is the same as ever
 const NEST_SPOTS: Array[Vector3] = [Vector3(-21.0, 58.0, 0.6), Vector3(20.0, 52.0, 2.4), Vector3(14.0, -98.0, 1.4)]
 
 signal nest_destroyed(count: int, total: int)
@@ -43,6 +50,8 @@ var nests_destroyed: int = 0
 var total_nests: int = 3
 
 var _rng := RandomNumberGenerator.new()
+var _fill_rng := RandomNumberGenerator.new()
+var _homes: Array[Vector2] = []   # (x, z) of every group put out, so the gaps between them can be found
 var _keep_clear: Array[Vector3] = []   # (x, z, radius) circles the filler stays out of
 var _exit: Area3D
 var _exit_time: float = 0.0
@@ -363,24 +372,31 @@ func _exit_gate() -> void:
 ## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
 		patrol: Array[Vector2] = []) -> void:
+	_homes.append(home)
 	for m in members:
-		var e: Enemy = director.spawn_enemy(Nav.snap(self, at(float(m[1]), float(m[2]))), String(m[0]), director.level_for_location())
-		e.group_id = id
-		e.idle_mode = mode
-		e.home = at(home.x, home.y)
-		e.idle_radius = radius
-		if mode == "feed":
-			e.feed_at = at(feed_at.x, feed_at.y)
-		for p in patrol:
-			e.patrol.append(at(p.x, p.y))
-		e.alert_delay = 0.0
+		var copies: int = PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1
+		for c in copies:
+			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
+			if c > 0:   # the extra bodies stand round the one that was placed
+				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), director.level_for_location())
+			e.group_id = id
+			e.idle_mode = mode
+			e.home = at(home.x, home.y)
+			e.idle_radius = radius
+			if mode == "feed":
+				e.feed_at = at(feed_at.x, feed_at.y)
+			for p in patrol:
+				e.patrol.append(at(p.x, p.y))
+			e.alert_delay = 0.0
 
 ## Every group, standing where the layout says. Called once the navigation map is ready (see Main).
 func spawn_encounters(for_director: RunDirector) -> void:
 	director = for_director
-	# Two walkers on the road, the first thing the hero sees.
-	_group(1, "wander", [["zombie", 2, 136], ["zombie", -2, 130]], Vector2(0, 128), 5.0, Vector2.ZERO,
-		[Vector2(3, 140), Vector2(-2, 120), Vector2(2, 130)])
+	_homes.clear()
+	# Walkers on the road, the first thing the hero sees (far enough down it that they do not notice him at the start).
+	_group(1, "wander", [["zombie", 2, 129], ["zombie", -2, 123]], Vector2(0, 121), 5.0, Vector2.ZERO,
+		[Vector2(3, 133), Vector2(-2, 113), Vector2(2, 123)])
 	# The wagon: a pack at the dead (they hunch over the corpses until the hero is close), one stray.
 	_group(2, "feed", [["zombie", 1.6, 103.4], ["zombie", 3.6, 101.2], ["zombie", 2.6, 100.4]], Vector2(2.5, 102), 2.0, Vector2(2.5, 102))
 	_group(2, "feed", [["zombie", -9.6, 96.8], ["zombie", -7.8, 95.2]], Vector2(-8.5, 96), 2.0, Vector2(-8.5, 96))
@@ -406,6 +422,52 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	_group(14, "wander", [["ghoul", 12, -95], ["ghoul", 16, -101], ["zombie", 11, -102], ["zombie", 17, -94]], Vector2(14, -98), 5.0)
 	_group(15, "", [["priest", -14, -112], ["spitter", -14, -121], ["spitter", -9, -124], ["zombie", -11, -108], ["zombie", -17, -108]], Vector2(-13, -114))
 	_group(16, "", [["brute", -9, -138], ["brute", 9, -138], ["zombie", 0, -142]], Vector2(0, -139))
+	_fill_gaps()
+
+## Wherever the placed groups leave the road empty (no group's home within FILL_COVER), a small group of whatever lives in that stretch:
+## zombies near the town, ghouls and the odd spitter in the middle, bloaters in the wood, spitters, brutes and priests towards the crypt.
+## Every cell of a grid across the whole strip is checked, and the same seed gives the same monsters each time.
+func _fill_gaps() -> void:
+	_fill_rng.seed = FILL_SEED
+	var group: int = 200
+	var z: float = HALF_Z - 12.0
+	while z > -HALF_Z + 14.0:
+		var x: float = -HALF_X + 9.0
+		while x < HALF_X - 6.0:
+			var spot := Vector2(x + _fill_rng.randf_range(-3.0, 3.0), z + _fill_rng.randf_range(-3.0, 3.0))
+			x += FILL_CELL
+			if spot.distance_to(Vector2(START.x, START.z)) < FILL_KEEP_FROM_START or absf(spot.y) > HALF_Z - 10.0:
+				continue
+			var covered: bool = false
+			for h in _homes:
+				covered = covered or h.distance_to(spot) < FILL_COVER
+			if covered:
+				continue
+			var snapped: Vector3 = Nav.snap(self, at(spot.x, spot.y))
+			if snapped.distance_to(at(spot.x, spot.y)) > 4.0:   # inside a tree stand or a wall: nothing lives there
+				continue
+			_homes.append(spot)
+			group += 1
+			var members: Array = []
+			for kind in _fill_kinds(spot.y):
+				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
+				members.append([kind, spot.x + offset.x, spot.y + offset.y])
+			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0)
+		z -= FILL_CELL
+
+## What a gap-filling group is made of at this z (north is the crypt).
+func _fill_kinds(z: float) -> Array[String]:
+	var roll: float = _fill_rng.randf()
+	var out: Array[String] = []
+	if z > 110.0:   # the road in from the town
+		out.assign(["zombie", "zombie"] if roll < 0.7 else ["zombie", "zombie", "zombie"])
+	elif z > 40.0:
+		out.assign(["zombie", "zombie", "ghoul"] if roll < 0.5 else (["zombie", "zombie", "spitter"] if roll < 0.7 else ["zombie", "ghoul"]))
+	elif z > -40.0:
+		out.assign(["zombie", "ghoul", "ghoul"] if roll < 0.45 else (["bloater", "zombie"] if roll < 0.65 else (["zombie", "zombie", "ghoul"])))
+	else:
+		out.assign(["zombie", "ghoul", "spitter"] if roll < 0.4 else (["brute", "zombie"] if roll < 0.55 else (["priest", "zombie", "zombie"] if roll < 0.65 else ["zombie", "ghoul", "ghoul"])))
+	return out
 
 # --- The nests ------------------------------------------------------------------------------------------------------------------
 

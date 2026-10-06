@@ -220,6 +220,8 @@ func _test_hotkeys() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("skill_5")
+	await get_tree().physics_frame   # Skewer is aimed: it charges when the key is let go
+	await get_tree().physics_frame
 	var skill_ok: bool = player.skills.busy_skill == "skewer" and player.skewer.skewer_phase != 0
 	player.skills.cancel_action()
 	# 4. A skill on cooldown must NOT cancel the swing.
@@ -307,6 +309,56 @@ func _free_lane_start(length: float, width: float) -> Vector3:
 		if space.intersect_shape(query, 1).is_empty():
 			return candidate
 	return Vector3.ZERO
+
+## Holding the Skewer key shows the lane and the kick fan, cut short by a wall, and lights up the enemies the blade would take.
+func _test_skewer_preview() -> void:
+	player.global_position = _free_lane_start(16.0, 6.0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	await get_tree().process_frame
+	var cursor: Vector3 = player.global_position + Vector3(12, 0, 0)
+	var zs: Array[Enemy] = []
+	for i in 4:
+		var z: Enemy = _spawn_enemy(player.global_position + Vector3(2.5 + i * 1.4, 0, 0.1))
+		z.aggro_range = 0.0
+		zs.append(z)
+	var side: Enemy = _spawn_enemy(player.global_position + Vector3(4.0, 0, 5.0))
+	side.aggro_range = 0.0
+	await get_tree().physics_frame
+	player.skills.aiming_id = "skewer"
+	player.skills.aiming_action = "skill_2"
+	player.skills.update_aim(cursor)
+	var lane: SkewerPreview = player.skills._lane
+	expect("holding Skewer shows its lane", lane != null and lane.node.visible)
+	expect("the lane is as long as the charge (range plus the skid) in the open", lane != null and absf(lane.length - (9.0 + SkewerPreview.SKID)) < 0.2)
+	var lit: int = 0
+	for z in zs:
+		lit += 1 if z.highlighted else 0
+	expect("the three nearest in the lane are lit, the fourth and the one off to the side are not", lit == 3 and not zs[3].highlighted and not side.highlighted)
+	player.skills.clear_aim()
+	expect("letting go clears the lane and the lights", not lane.node.visible and not zs[0].highlighted)
+	# A wall across the lane shortens it.
+	var wall := StaticBody3D.new()
+	wall.collision_layer = Actor.LAYER_WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.0, 4.0, 8.0)
+	shape.shape = box
+	wall.add_child(shape)
+	game.add_child(wall)
+	wall.global_position = player.global_position + Vector3(5.0, 2.0, 0.0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player.skills.aiming_id = "skewer"
+	player.skills.update_aim(cursor)
+	expect("a wall in the way cuts the lane short", lane.length < 5.0 and lane.length > 3.0)
+	player.skills.clear_aim()
+	wall.queue_free()
+	for e in zs:
+		e.queue_free()
+	side.queue_free()
+	await get_tree().process_frame
 
 func _test_skewer() -> void:
 	player.global_position = _free_lane_start(16.0, 6.0)
@@ -1666,15 +1718,23 @@ func _item_sheet() -> void:
 	if OS.get_cmdline_user_args().has("--gear"):   # the Tab panel: worn items and the bag as pictures, one pointed at
 		for i in 8:
 			player.stats.add_to_bag(drops[i].item)
-		Input.action_press("gear")
+		hud.show_gear = true
+		hud._open_character()
 		await get_tree().create_timer(0.5).timeout
 		var size_px: Vector2 = get_viewport().get_visible_rect().size
 		hud.mouse_override = Vector2(size_px.x - 30.0 - (6 * 64 + 5 * 10) + 1 * 74 + 32, 70.0 + 4.0 + 64.0 + 34.0 + 32.0)
 	if OS.get_cmdline_user_args().has("--hover"):   # point at a drop to see its tooltip and comparison
 		var focus: LootDrop = drops[2]
 		hud.mouse_override = player.get_viewport().get_camera_3d().unproject_position(focus.global_position + Vector3(0, 0.5, 0))
+	if OS.get_cmdline_user_args().has("--orbs"):
+		player.health = player.max_health * 0.58
+		player.stats.mana = player.stats.max_mana * 0.36
 	await get_tree().create_timer(1.0).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_items.png")
+	if OS.get_cmdline_user_args().has("--orb-motion"):
+		for i in 16:
+			get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_orb_motion_%02d.png" % i)
+			await get_tree().create_timer(0.15).timeout
 	get_tree().quit()
 
 func _any_affix(slot: int) -> String:
@@ -1960,7 +2020,7 @@ func _test_ui_block() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var size_px: Vector2 = get_viewport().get_visible_rect().size
-	var minimap_point: Vector2 = Vector2(size_px.x - 100.0, size_px.y - 100.0)
+	var minimap_point: Vector2 = Hud.minimap_rect(size_px).get_center()
 	var open_point: Vector2 = size_px * 0.5
 	expect("the minimap blocks the mouse", game.hud.covers(minimap_point))
 	expect("the hotbar blocks the mouse", game.hud.covers(Vector2(size_px.x * 0.5, size_px.y - 50.0)))
@@ -3292,6 +3352,10 @@ func _test_loot_ui() -> void:
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0))
 	expect("pointing at a drop focuses it", hud._drop_in_focus() == drop)
+	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 1.5, 0))
+	expect("the floating item icon focuses its stats", hud._drop_in_focus() == drop)
+	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(0, 2.0, 0))
+	expect("the ground item name focuses its stats", hud._drop_in_focus() == drop)
 	hud.mouse_override = camera.unproject_position(drop.global_position + Vector3(400, 0, 0))
 	expect("pointing elsewhere focuses nothing", hud._drop_in_focus() == null)
 	hud.mouse_override = Vector2(-1.0, -1.0)
@@ -3397,16 +3461,12 @@ func _test_item_icons() -> void:
 	expect("a dropped item is shown by its picture and carries no name text", drop._marker != null and drop._marker.texture == badge
 		and drop.find_children("*", "Label3D", true, false).is_empty())
 	drop.queue_free()
-	# Tab panel hit boxes.
-	Input.action_press("gear")
+	# The character view contains focusable item pictures with the same details cards.
+	hud.show_gear = true
+	hud._open_character()
 	await get_tree().create_timer(0.3).timeout
-	expect("the Tab panel has a picture for what is worn", not hud._gear_hits.is_empty())
-	if not hud._gear_hits.is_empty():
-		hud.mouse_override = (hud._gear_hits[0]["rect"] as Rect2).get_center()
-		hud.queue_redraw()
-		await get_tree().process_frame   # drawing a worn item's card uses the empty typed comparison list
-		hud.mouse_override = Vector2(-1.0, -1.0)
-	Input.action_release("gear")
+	expect("the Tab view has pictures for worn gear", not hud.character_panel.find_children("*", "Control", true, false).filter(func(control: Node) -> bool: return control is ItemTile).is_empty())
+	hud.close_character()
 	await get_tree().process_frame
 
 ## Breakable props: barrels, carts, gravestones and braziers can be smashed; a charge or a leap through them throws the pieces along its
@@ -3751,7 +3811,7 @@ func _wear(affix_id: String, slot: int) -> void:
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer",
+	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
 
 ## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage
@@ -3820,7 +3880,7 @@ func _test_knockdown() -> void:
 		and String(behind.last_result.get("skill_id", "")) == "impact")
 	front.queue_free()
 	behind.queue_free()
-	# 4. Ramming: a full blade's leftovers are knocked down and thrown aside; a big one is stunned far longer.
+	# 4. A full blade's leftovers are knocked down and thrown aside; with Ramming a big one is stunned far longer.
 	var armour: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "charger")
 	var skewer: SkewerSkill = skills.p.skewer
 	var skewer_def: Dictionary = SkillDb.all()["skewer"]
@@ -3856,8 +3916,8 @@ func _test_knockdown() -> void:
 		return out
 	var plain: Dictionary = await run_lane.call(false)
 	var rammed: Dictionary = await run_lane.call(true)
-	expect("without Ramming the fourth enemy in the lane is just ignored", not plain["overflow_down"] and not plain["overflow_moved"])
-	expect("with Ramming it is knocked down and thrown aside", rammed["overflow_down"] and rammed["overflow_moved"])
+	expect("the fourth enemy in the lane is knocked down and thrown aside, Ramming or not", plain["overflow_down"] and plain["overflow_moved"]
+		and rammed["overflow_down"] and rammed["overflow_moved"])
 	expect("with Ramming the big one is stunned much longer (%.1f vs %.1f)" % [rammed["brute_stun"], plain["brute_stun"]],
 		float(rammed["brute_stun"]) > float(plain["brute_stun"]) * 2.0)
 	player.stats.equipment.erase(Items.Slot.ARMOR)
@@ -4228,6 +4288,23 @@ func _test_crypt_road() -> void:
 	print("  monsters ", all.size(), " awake ", awake, " within 12 m of the start ", near_start)
 	expect("monsters already exist across the road, none awake and none on the hero", all.size() >= 40 and awake == 0 and near_start == 0)
 	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes", kinds.size() == 6)
+	expect("the road is crowded: about four times the old hand-placed count", all.size() >= 170 and all.size() <= 280)
+	# No long stretch is left empty: from the first walkers to the crypt door, across the road and out under the trees.
+	var worst: float = 0.0
+	var worst_at: Vector2 = Vector2.ZERO
+	var z_probe: float = 128.0
+	while z_probe > -150.0:
+		for x_probe in [-18.0, 0.0, 18.0]:
+			var probe: Vector3 = place.at(x_probe, z_probe)
+			var nearest: float = 9999.0
+			for node in all:
+				nearest = minf(nearest, (node as Enemy).global_position.distance_to(probe))
+			if nearest > worst:
+				worst = nearest
+				worst_at = Vector2(x_probe, z_probe)
+		z_probe -= 10.0
+	print("  road monsters ", all.size(), "; the emptiest probe point is ", snappedf(worst, 0.1), " m from the nearest one, at ", worst_at)
+	expect("nowhere along the road is more than 32 m from a monster", worst <= 32.0)
 	var feeder: Enemy = null
 	var spitter: Enemy = null
 	var melee_front: float = -INF
@@ -4243,13 +4320,42 @@ func _test_crypt_road() -> void:
 	expect("the cottage spitters stand behind its melee line (farther from the way in)", spitter != null and spitter.global_position.z < melee_front - 4.0)
 	await get_tree().create_timer(1.0).timeout
 	expect("a feeder is hunched over, a sleeper has not walked off", feeder.visual.rotation.x > 0.3 and not feeder._aggro)
-	var walker: Enemy = null
+	var walkers: Array[Enemy] = []
+	var walked_from: Array[Vector3] = []
 	for node in all:
 		if (node as Enemy).group_id == 1:
-			walker = node
-	var walked_from: Vector3 = walker.global_position
-	await get_tree().create_timer(2.0).timeout
-	expect("a walker strolls about on its own", walker.global_position.distance_to(walked_from) > 0.6 and not walker._aggro)
+			walkers.append(node)
+			walked_from.append((node as Enemy).global_position)
+	await get_tree().create_timer(2.5).timeout
+	var strolled: bool = false
+	var calm: bool = true
+	for i in walkers.size():   # (any of the group may be in a pause)
+		strolled = strolled or walkers[i].global_position.distance_to(walked_from[i]) > 0.6
+		calm = calm and not walkers[i]._aggro
+	expect("a walker strolls about on its own", strolled and calm)
+	# Far, unaware monsters sleep and wake as the hero comes near, so the crowd costs little.
+	run.player.global_position = place.at(0.0, -100.0)
+	await get_tree().create_timer(0.8).timeout
+	var asleep_far: int = 0
+	var asleep_near: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var sleeper: Enemy = node
+		if sleeper.process_mode == Node.PROCESS_MODE_DISABLED:
+			if sleeper.global_position.distance_to(run.player.global_position) > RunDirector.SLEEP_BEYOND:
+				asleep_far += 1
+			elif sleeper.global_position.distance_to(run.player.global_position) < RunDirector.WAKE_WITHIN:
+				asleep_near += 1
+	expect("monsters far from the hero (at the crypt) sleep and none near him do", asleep_far > 100 and asleep_near == 0)
+	run.player.global_position = CryptRoad.START
+	await get_tree().create_timer(0.8).timeout
+	var woken: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var sleeper: Enemy = node
+		if sleeper.global_position.distance_to(run.player.global_position) < RunDirector.WAKE_WITHIN and sleeper.process_mode != Node.PROCESS_MODE_DISABLED:
+			woken += 1
+	expect("and they wake when he comes close", woken > 20)
+	run.player.global_position = CryptRoad.START
+	await get_tree().create_timer(0.8).timeout
 	# Noticing one wakes its group.
 	var mates: Array[Enemy] = []
 	for node in all:
@@ -4324,6 +4430,7 @@ func _run_selftest() -> void:
 	await _test_navigation()
 	await _test_roll_shove()
 	await _test_skewer()
+	await _test_skewer_preview()
 	await _test_fireball()
 	await _test_items()
 	await _test_leap()
@@ -4396,3 +4503,203 @@ func _run_selftest() -> void:
 	print("  outcomes: ", ", ".join(parts))
 	print("  kills: ", kills, "  player health: ", int(player.health), "  mana: ", int(player.stats.mana))
 	_finish()
+
+func _test_character_ui() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var town := TownScene.new()
+	town.with_road = false
+	game.add_child(town)
+	await get_tree().process_frame
+	var gate: Node3D = town.town_gate
+	expect("town gate has two hinged leaves", gate.leaves.size() == 2 and gate.leaves[0] != null and gate.leaves[1] != null)
+	town.player.position = Vector3(0, 0, -15)
+	await get_tree().create_timer(0.9).timeout
+	expect("approaching opens both doors", gate.openness > 0.95 and absf(gate.leaves[0].rotation.y) > 1.4)
+	town.player.position = Vector3(0, 0, -35)
+	await get_tree().create_timer(0.9).timeout
+	expect("leaving closes the doors", gate.openness < 0.05)
+	town.player.position = Vector3(0, 0, -25)
+	await get_tree().create_timer(0.9).timeout
+	expect("approaching from outside opens doors", gate.openness > 0.95)
+	var previous_hover_pad: bool = Gamepad.active
+	Gamepad.active = true
+	var trader: TownNpc = town.npcs["marlow"]
+	town.player.position = trader.position + Vector3(0, 0, 1)
+	town._process(0)
+	expect("NPC hover card shows name and profession", town.hud.prompt.contains(trader.def.display_name) and town.hud.prompt.contains(trader.def.title))
+	var trader_anchor: Vector2 = town.get_viewport().get_camera_3d().unproject_position(trader.position + Vector3(0, 2.6, 0))
+	expect("NPC card is anchored over the NPC", town.hud.prompt_position.distance_to(trader_anchor) < 1)
+	var stash: Dictionary = town._spot("stash")
+	town.player.position = stash["pos"]
+	town._process(0)
+	expect("stash prompt appears over the stash", town.hud.prompt.contains("stash") and town.hud.prompt_position.distance_to(town.get_viewport().get_camera_3d().unproject_position(stash["pos"] + Vector3(0, 2.6, 0))) < 1)
+	Gamepad.active = previous_hover_pad
+	var view_hud: Hud = town.combat_hud
+	town.player.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	var toggle := InputEventAction.new()
+	toggle.action = "gear"
+	toggle.pressed = true
+	view_hud._input(toggle)
+	await get_tree().create_timer(0.3).timeout
+	expect("opening the character view pauses gameplay", get_tree().paused)
+	expect("character view blocks world clicks", view_hud.covers(Vector2(100, 100)))
+	expect("character portrait is a separate viewport", view_hud.character_panel.find_children("*", "SubViewport", true, false).size() == 1)
+	var labels: Array[Node] = view_hud.character_panel.find_children("*", "Label", true, false)
+	var name_hover: bool = false
+	for label in labels:
+		if label.get_script() == preload("res://game/item_name.gd"):
+			var card: Control = label._make_custom_tooltip("")
+			name_hover = card.get_child_count() > 0
+			card.free()
+	expect("item names provide full stats cards", name_hover)
+	var previous_pad: bool = Gamepad.active
+	Gamepad.active = true
+	var tiles: Array[Node] = view_hud.character_panel.find_children("*", "Control", true, false).filter(func(node: Node) -> bool: return node is ItemTile)
+	if not tiles.is_empty():
+		var tile := tiles[0] as ItemTile
+		tile.grab_focus()
+		await get_tree().process_frame
+		expect("controller focus shows the item stats card", tile.get_child(0).visible)
+	Gamepad.active = previous_pad
+	var old: Dictionary = town.player.stats.equipment[Items.Slot.WEAPON]
+	var town_equip: Button = null
+	for button in view_hud.character_panel.find_children("*", "Button", true, false):
+		if button.text == "Equip":
+			town_equip = button
+			break
+	if town_equip != null:
+		await _inventory_mouse_click(town_equip, MOUSE_BUTTON_LEFT)
+	else:
+		expect("town inventory exposes the equip action", false)
+	await get_tree().process_frame
+	expect("equipping from bag swaps old gear into bag", town.player.stats.equipment[Items.Slot.WEAPON]["name"].contains("Falchion") and town.player.stats.bag.has(old))
+	view_hud._input(toggle)
+	expect("Tab toggles closed and resumes gameplay", not view_hud.show_gear and not get_tree().paused)
+	town.queue_free()
+	await get_tree().process_frame
+
+func _test_orb_hud() -> void:
+	await get_tree().process_frame
+	hud._process(0.0)
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	expect("health and mana have opposite bottom vessels", hud.health_orb.position.x < screen.x * 0.5 and hud.mana_orb.position.x > screen.x * 0.5 and hud.health_orb.position.y > screen.y * 0.5)
+	expect("both orb vessels block world clicks", hud.covers(Hud.orb_rect(screen, false).get_center()) and hud.covers(Hud.orb_rect(screen, true).get_center()))
+	expect("map is above mana and blocks world clicks", Hud.minimap_rect(screen).end.y < Hud.orb_rect(screen, true).position.y and hud.covers(Hud.minimap_rect(screen).get_center()))
+	var orb: Control = hud.health_orb
+	orb.update_value(30, 120, 0.25, Vector3(5, 0, 0))
+	expect("health level follows the resource fraction", is_equal_approx(orb.level, 0.25) and orb.numbers.text == "30 / 120")
+	expect("damage and movement disturb the liquid", float(orb.fluid.get_shader_parameter("slosh")) > 0 and float(orb.fluid.get_shader_parameter("lean")) > 0)
+	orb.update_value(0, 120, 1, Vector3.ZERO)
+	expect("an empty resource drains completely", is_zero_approx(orb.displayed) and is_zero_approx(float(orb.fluid.get_shader_parameter("fill_level"))))
+	orb.update_value(120, 120, 1, Vector3.ZERO)
+	expect("restoring health refills the vessel", is_equal_approx(orb.displayed, 1))
+	orb.update_value(0, 0, 1, Vector3.ZERO)
+	expect("zero capacity stays finite and empty", is_finite(orb.level) and is_zero_approx(orb.level))
+	var started: float = orb.clock
+	orb.update_value(120, 120, 0.1, Vector3.ZERO)
+	expect("the Blender fluid loop advances", orb.clock > started)
+	for width in [960.0, 1280.0, 1920.0]:
+		var view := Vector2(width, 720)
+		var cell: float = hud.hotbar_slot_size(view)
+		var count: int = player.skills.hotbar.size() + 2
+		var tray_width: float = cell * count + 8 * (count - 1)
+		expect("skill tray clears both vessels at %d px" % width, (width - tray_width) * 0.5 - 24 >= Hud.orb_rect(view, false).end.x)
+
+func _test_inventory_equip() -> void:
+	TownState.persist = false
+	player.stats.bag.clear()
+	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion")
+	var old: Dictionary = player.stats.equipment[Items.Slot.WEAPON]
+	player.stats.bag.append(item)
+	hud.show_gear = true
+	hud._open_character()
+	await get_tree().create_timer(0.2).timeout
+	var buttons: Array[Node] = hud.character_panel.find_children("*", "Button", true, false)
+	var equip: Button = null
+	for button in buttons:
+		if button.text == "Equip":
+			equip = button
+			break
+	expect("inventory offers a usable equip button", equip != null and equip.can_process() and not equip.disabled)
+	if equip != null:
+		var pointer: Vector2 = equip.get_global_rect().get_center()
+		var motion := InputEventMouseMotion.new()
+		motion.position = pointer
+		get_viewport().push_input(motion, true)
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.position = pointer
+		click.pressed = true
+		get_viewport().push_input(click, true)
+		await get_tree().process_frame
+		click = click.duplicate()
+		click.pressed = false
+		get_viewport().push_input(click, true)
+		await get_tree().process_frame
+		expect("a real mouse click equips the bag item", player.stats.equipment[Items.Slot.WEAPON] == item)
+		expect("mouse equipping puts old gear in bag", player.stats.bag.has(old) and not player.stats.bag.has(item))
+	# Right-click the icon to swap back; names also support a double-click.
+	var tile: Control = _inventory_item_control(hud, old, false)
+	expect("old weapon is available in bag", tile != null)
+	if tile != null:
+		await _inventory_mouse_click(tile, MOUSE_BUTTON_RIGHT)
+		expect("right-clicking the icon equips", player.stats.equipment[Items.Slot.WEAPON] == old and player.stats.bag.has(item))
+	var armor: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "", "Plate Cuirass")
+	player.stats.bag.append(armor)
+	hud._open_character()
+	await get_tree().create_timer(0.1).timeout
+	var item_name: Control = _inventory_item_control(hud, armor, true)
+	if item_name != null:
+		await _inventory_mouse_click(item_name, MOUSE_BUTTON_LEFT, true)
+		expect("double-clicking a name equips armor and updates defenses", player.stats.equipment[Items.Slot.ARMOR] == armor and player.armor == player.stats.base_armor + player.stats.armor_stat("armor", 0.0))
+	else:
+		expect("bag armor has a clickable name", false)
+	var ring: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "", "Charm")
+	player.stats.bag.append(ring)
+	hud._open_character()
+	await get_tree().create_timer(0.1).timeout
+	tile = _inventory_item_control(hud, ring, false)
+	if tile != null:
+		tile.grab_focus()
+		var accept := InputEventJoypadButton.new()
+		accept.button_index = JOY_BUTTON_A
+		accept.pressed = true
+		get_viewport().push_input(accept, true)
+		await get_tree().process_frame
+		accept = accept.duplicate()
+		accept.pressed = false
+		get_viewport().push_input(accept, true)
+		await get_tree().process_frame
+		expect("controller confirmation equips focused icon into empty slot", player.stats.equipment.get(Items.Slot.TRINKET) == ring and not player.stats.bag.has(ring))
+		expect("controller focus stays on remaining bag items", get_viewport().gui_get_focus_owner() is ItemTile)
+	else:
+		expect("bag trinket is focusable", false)
+	expect("equipment changes keep inventory open and gameplay paused", hud.show_gear and get_tree().paused)
+	hud.close_character()
+	await get_tree().process_frame
+
+func _inventory_item_control(view_hud: Hud, item: Dictionary, name_only: bool) -> Control:
+	for control in view_hud.character_panel.find_children("*", "Control", true, false):
+		if name_only and control.get_script() == preload("res://game/item_name.gd") and control.item == item:
+			return control
+		if not name_only and control is ItemTile and control.item == item:
+			return control
+	return null
+
+func _inventory_mouse_click(control: Control, button: int, double: bool = false) -> void:
+	var pointer: Vector2 = control.get_global_rect().get_center()
+	var motion := InputEventMouseMotion.new()
+	motion.position = pointer
+	get_viewport().push_input(motion, true)
+	var click := InputEventMouseButton.new()
+	click.button_index = button as MouseButton
+	click.position = pointer
+	click.pressed = true
+	click.double_click = double
+	get_viewport().push_input(click, true)
+	await get_tree().process_frame
+	click = click.duplicate()
+	click.pressed = false
+	get_viewport().push_input(click, true)
+	await get_tree().process_frame

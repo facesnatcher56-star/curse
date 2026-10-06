@@ -6,7 +6,9 @@ extends Control
 var quest_line: String = ""    # "Cleanse the Crypt Road: 1 / 3", set by the world every frame
 var quest_ready: bool = false  # the quest is done: a coin shows, the keeper has your reward
 var prompt: String = ""
+var prompt_position := Vector2.ZERO
 var gate_hint: String = ""
+var gate_hint_position := Vector2.ZERO
 var feed: Array[String] = []
 var banner: String = ""
 var banner_time: float = 0.0
@@ -61,12 +63,12 @@ func _draw() -> void:
 	# Prompt, bottom centre.
 	if prompt != "":
 		var width: float = font.get_string_size(prompt, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
-		var box := Rect2(size_px.x * 0.5 - width * 0.5 - 24, size_px.y - 124, width + 48, 50)
+		var box := Rect2(clampf(prompt_position.x - width * 0.5 - 24, 8, maxf(8, size_px.x - width - 56)), maxf(8, prompt_position.y - 50), width + 48, 50)
 		UiTheme.draw_panel(self, box, 0.9)
 		UiTheme.text(self, font, Vector2(box.position.x + 24, box.position.y + 34), prompt, 24, UiTheme.TEXT)
 	if gate_hint != "":
 		var width: float = font.get_string_size(gate_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
-		var box := Rect2(size_px.x * 0.5 - width * 0.5 - 20, size_px.y - 124, width + 40, 46)
+		var box := Rect2(clampf(gate_hint_position.x - width * 0.5 - 20, 8, maxf(8, size_px.x - width - 48)), maxf(8, gate_hint_position.y - 46), width + 40, 46)
 		UiTheme.draw_panel(self, box, 0.85)
 		UiTheme.text(self, font, Vector2(box.position.x + 20, box.position.y + 31), gate_hint, 19, UiTheme.TEXT)
 	if banner_time > 0.0:

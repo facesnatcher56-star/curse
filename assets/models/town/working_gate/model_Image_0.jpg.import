@@ -2,20 +2,24 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jl5ywg75gci1"
-path="res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"
+uid="uid://c3pwirgqd8eor"
+path.s3tc="res://.godot/imported/model_Image_0.jpg-577a44eac379e4201f0f58d038d93113.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "d1deef4c8d77c2d4fd989cdf35e6487b"
 }
 
 [deps]
 
-source_file="res://assets/icons/ui/food.png"
-dest_files=["res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"]
+source_file="res://assets/models/town/working_gate/model_Image_0.jpg"
+dest_files=["res://.godot/imported/model_Image_0.jpg-577a44eac379e4201f0f58d038d93113.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -24,7 +28,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -37,5 +41,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

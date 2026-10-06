@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jl5ywg75gci1"
-path="res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"
+uid="uid://bae8cuarhcygo"
+path="res://.godot/imported/skill_bezel.png-cf97f6845812d08343911ac0d3c4db1c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/icons/ui/food.png"
-dest_files=["res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"]
+source_file="res://assets/ui/vessels/skill_bezel.png"
+dest_files=["res://.godot/imported/skill_bezel.png-cf97f6845812d08343911ac0d3c4db1c.ctex"]
 
 [params]
 

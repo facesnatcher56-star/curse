@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "charger"
 title = "Ramming"
 slot = 1
-description = "Enemies your Skewer cannot spit are knocked down and thrown aside. The ones too big to move are stunned much longer."
+description = "The enemies too big for your Skewer to move are stunned much longer."

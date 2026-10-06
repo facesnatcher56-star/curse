@@ -24,6 +24,9 @@ var _fell: bool = false
 signal hero_fell
 ## Set for a job played in an authored location (see CryptRoad) instead of the wave loop: the monsters are already out there.
 var location: CryptRoad
+const SLEEP_BEYOND := 85.0   # an unaware monster this far from the hero is switched off...
+const WAKE_WITHIN := 70.0    # ...and back on when he comes this close (the gap stops it flickering)
+var _sleep_clock: float = 0.0
 
 ## Starts the run as the given job: its modifiers shape every wave, and completing its objective ends the run.
 func set_job(offer: Dictionary) -> void:
@@ -66,6 +69,25 @@ func modifier_names() -> String:
 	for m in active_modifiers():
 		names.append(m.display_name)
 	return ", ".join(names)
+
+## Far, unaware monsters sleep: with the road holding two hundred of them, only those near the hero need thinking about.
+func _sleep_far_monsters(delta: float) -> void:
+	if (location == null and not world_mode) or player == null:
+		return
+	_sleep_clock -= delta
+	if _sleep_clock > 0.0:
+		return
+	_sleep_clock = 0.5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or enemy.is_ragdolled() or enemy.impaled:
+			continue
+		var distance: float = enemy.global_position.distance_to(player.global_position)
+		var asleep: bool = enemy.process_mode == Node.PROCESS_MODE_DISABLED
+		if asleep and (distance < WAKE_WITHIN or enemy.is_aggro()):
+			enemy.process_mode = Node.PROCESS_MODE_INHERIT
+		elif not asleep and distance > SLEEP_BEYOND and not enemy.is_aggro():
+			enemy.process_mode = Node.PROCESS_MODE_DISABLED
 
 func _ready() -> void:
 	add_to_group("director")   # lets enemies that summon reinforcements find it
@@ -269,7 +291,8 @@ func attach_world(place: CryptRoad) -> void:
 func hero_returned() -> void:
 	_fell = false
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_sleep_far_monsters(delta)
 	if world_mode:
 		if player != null and player.dead and not _fell:
 			_fell = true

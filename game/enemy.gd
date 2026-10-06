@@ -144,6 +144,9 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	super.receive(result, source_pos)
 
 ## It has noticed the hero (or been hit): stop what it was doing, and call the rest of its group.
+func is_aggro() -> bool:
+	return _aggro
+
 func wake() -> void:
 	if _aggro:
 		return

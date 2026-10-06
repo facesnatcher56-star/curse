@@ -18,6 +18,10 @@ static func create(for_item: Dictionary, worn: Variant, size: float = 76.0) -> I
 	tile.mouse_filter = Control.MOUSE_FILTER_STOP
 	return tile
 
+func _ready() -> void:
+	focus_mode = Control.FOCUS_ALL
+	focus_card(self, item, compare_to, show_compare)
+
 func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
 
@@ -55,3 +59,48 @@ static func _label(text: String, size: int, color: Color) -> Label:
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+static func name_label(it: Dictionary, worn: Variant, compare: bool = true) -> Label:
+	var label: Label = preload("res://game/item_name.gd").new()
+	label.item = it
+	label.worn = worn
+	label.show_compare = compare
+	label.text = String(it["name"])
+	label.tooltip_text = label.text
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 84
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Items.RARITY_COLORS[int(it["rarity"])])
+	return label
+
+static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true) -> void:
+	var holder := Control.new()
+	holder.top_level = true
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.z_index = 100
+	holder.visible = false
+	control.add_child(holder)
+	control.focus_entered.connect(func() -> void:
+		if not Gamepad.active:
+			return
+		for child in holder.get_children():
+			child.free()
+		var detail := card(it, worn, compare)
+		holder.add_child(detail)
+		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.visible = true
+		var screen: Vector2 = control.get_viewport_rect().size
+		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)
+		var extent: Vector2 = detail.get_combined_minimum_size()
+		if anchor.x + extent.x > screen.x - 8:
+			anchor.x = control.global_position.x - extent.x - 12
+		holder.global_position = Vector2(maxf(8, anchor.x), clampf(anchor.y, 8, maxf(8, screen.y - extent.y - 8))))
+	control.focus_exited.connect(func() -> void: holder.visible = false)
+
+static func decorate_button(button: Button, it: Dictionary, worn: Variant) -> void:
+	button.set_script(preload("res://game/item_button.gd"))
+	button.item = it
+	button.worn = worn
+	button.tooltip_text = String(it["name"])
+	focus_card(button, it, worn)

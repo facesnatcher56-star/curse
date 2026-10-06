@@ -15,10 +15,14 @@ var kills: int = 0
 var alive: int = 0
 # Gear panel.
 var show_gear: bool = false
+var character_panel: Control
 var banner_text: String = ""
-var _gear_hits: Array[Dictionary] = []
 var _hint_age: float = 0.0
 var banner_time: float = 0.0
+var health_orb: Control
+var mana_orb: Control
+var tray: Texture2D
+var bezel: Texture2D
 
 func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_text = text
@@ -28,9 +32,28 @@ func _ready() -> void:
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	health_orb = preload("res://game/resource_orb.gd").new()
+	health_orb.title = "Health"
+	health_orb.color = UiTheme.BLOOD
+	add_child(health_orb)
+	mana_orb = preload("res://game/resource_orb.gd").new()
+	mana_orb.title = "Mana"
+	mana_orb.color = UiTheme.MANA
+	add_child(mana_orb)
+	tray = preload("res://assets/ui/vessels/hotbar_tray.png")
+	bezel = preload("res://assets/ui/vessels/skill_bezel.png")
 
 func _process(delta: float) -> void:
-	show_gear = Input.is_action_pressed("gear")
+	if player != null:
+		var screen: Vector2 = get_viewport_rect().size
+		var hp_rect: Rect2 = orb_rect(screen, false)
+		var mp_rect: Rect2 = orb_rect(screen, true)
+		health_orb.position = hp_rect.position
+		health_orb.size = hp_rect.size
+		mana_orb.position = mp_rect.position
+		mana_orb.size = mp_rect.size
+		health_orb.update_value(player.health, player.max_health, delta, player.velocity)
+		mana_orb.update_value(player.stats.mana, player.stats.max_mana, delta, player.velocity)
 	banner_time = maxf(banner_time - delta, 0.0)
 	queue_redraw()
 
@@ -43,23 +66,16 @@ func _draw() -> void:
 	if player.hurt_flash > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0.8, 0.0, 0.0, 0.25 * player.hurt_flash))
 
-	# Resource bars, bottom left.
-	var base: Vector2 = Vector2(24, size_px.y - 92)
-	UiTheme.draw_panel(self, Rect2(base - Vector2(12, 12), Vector2(284, 90)), 0.62, false)
-	_bar(base, Vector2(260, 24), player.health / player.max_health, UiTheme.BLOOD,
-		"%d / %d" % [int(player.health), int(player.max_health)], font)
-	_bar(base + Vector2(0, 30), Vector2(260, 18), player.stats.mana / player.stats.max_mana, UiTheme.MANA,
-		"%d / %d" % [int(player.stats.mana), int(player.stats.max_mana)], font)
-	_bar(base + Vector2(0, 54), Vector2(260, 8), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
-
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
-	var slot: float = 64.0
+	var slot: float = hotbar_slot_size(size_px)
 	var slot_count: int = player.skills.hotbar.size() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var y0: float = size_px.y - slot - 24
-	UiTheme.draw_panel(self, Rect2(x0 - 12.0, y0 - 10.0, total + 24.0, slot + 20.0), 0.6)
+	draw_texture_rect(tray, Rect2(x0 - 24.0, y0 - 22.0, total + 48.0, slot + 44.0), false)
+	# Stamina stays readable as a narrow bar immediately above the skill tray.
+	_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
 	for i in player.skills.hotbar.size():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font)
@@ -124,41 +140,54 @@ func _draw() -> void:
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	# The control hints fade to a whisper after the first half minute.
 	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
-	UiTheme.text(self, font, Vector2(24, 100 + top_offset), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab gear",
+	UiTheme.text(self, font, Vector2(24, 100 + top_offset), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab character / bag",
 		14, Color(1, 1, 1, 0.5 * hint_alpha))
 
 	_draw_minimap(size_px, font)
 
-	if show_gear:
-		_draw_gear(size_px, font)
 	_draw_item_card(size_px, font)
 
 	if player.message_time > 0.0:
-		UiTheme.text(self, font, Vector2(0, size_px.y - 150), player.message, 22, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)),
-			HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		if camera != null and not camera.is_position_behind(player.global_position):
+			var anchor: Vector2 = camera.unproject_position(player.global_position + Vector3(0, player.body_height + 0.6, 0))
+			var width: float = font.get_string_size(player.message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+			UiTheme.text(self, font, anchor - Vector2(width * 0.5, 0), player.message, 18, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)))
 	if player.dead:
 		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.55))
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45), "YOU DIED", 64, Color(0.72, 0.12, 0.1), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), "Press R to restart" if TownState.job.is_empty() else "Returning to town...", 22,
 			Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 
-## True when a screen point is over a HUD panel (minimap, hotbar, resource bars): the world behind it must not react to the mouse.
+## True when a screen point is over a HUD panel (minimap, hotbar, resource vessels): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:
 	var size_px: Vector2 = get_viewport_rect().size
-	var side: float = 210.0
-	if Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side)).has_point(point):
+	if show_gear and character_panel != null and character_panel.get_global_rect().has_point(point):
 		return true
-	if Rect2(Vector2(24.0, size_px.y - 92.0), Vector2(260.0, 70.0)).has_point(point):   # health / mana / stamina bars
+	if minimap_rect(size_px).grow(7).has_point(point):
 		return true
-	var slot: float = 64.0
-	var count: int = (player.skills.hotbar.size() + 2) if player != null else 9
+	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
+		return true
+	var slot: float = hotbar_slot_size(size_px)
+	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
-	return Rect2(Vector2((size_px.x - total) * 0.5, size_px.y - slot - 24.0), Vector2(total, slot)).has_point(point)
+	return Rect2(Vector2((size_px.x - total) * 0.5 - 24, size_px.y - slot - 46), Vector2(total + 48, slot + 44)).has_point(point)
 
-## Whole-arena minimap, bottom right. It turns with the camera, so whatever is up the screen is up on the map.
+static func orb_rect(screen: Vector2, right: bool) -> Rect2:
+	var diameter: float = clampf(screen.x * 0.17, 160.0, 220.0)
+	return Rect2(Vector2(screen.x - diameter - 8 if right else 8, screen.y - diameter - 6), Vector2.ONE * diameter)
+
+static func minimap_rect(screen: Vector2) -> Rect2:
+	return Rect2(Vector2(screen.x - 234, 84), Vector2(210, 210))
+
+func hotbar_slot_size(screen: Vector2) -> float:
+	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
+	var available: float = screen.x - orb_rect(screen, false).size.x * 2.0 - 52.0
+	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
+
+## Whole-arena minimap, upper right. It turns with the camera, so whatever is up the screen is up on the map.
 func _draw_minimap(size_px: Vector2, font: Font) -> void:
 	var side: float = 210.0
-	var rect := Rect2(Vector2(size_px.x - side - 24.0, size_px.y - side - 24.0), Vector2(side, side))
+	var rect: Rect2 = minimap_rect(size_px)
 	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
 	var bounds: Vector2 = Arena.bounds_of(get_tree())
 	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
@@ -230,6 +259,16 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 ## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
 ## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
 func _draw_item_card(size_px: Vector2, font: Font) -> void:
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera != null and not show_gear:
+		for node in get_tree().get_nodes_in_group("loot"):
+			var loot := node as LootDrop
+			if loot == null or not loot.landed or camera.is_position_behind(loot.global_position):
+				continue
+			var anchor: Vector2 = camera.unproject_position(loot.global_position + Vector3(0, 2.0, 0))
+			var title: String = String(loot.item["name"])
+			var width: float = font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			UiTheme.text(self, font, anchor - Vector2(width * 0.5, 0), title, 16, Items.RARITY_COLORS[int(loot.item["rarity"])])
 	var drop: LootDrop = _drop_in_focus()
 	LootDrop.focused = drop
 	if drop == null:
@@ -310,7 +349,11 @@ func _drop_in_focus() -> LootDrop:
 		var drop := node as LootDrop
 		if drop == null or not drop.landed or camera.is_position_behind(drop.global_position):
 			continue
-		var d: float = camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0)).distance_to(mouse)
+		var d: float = minf(camera.unproject_position(drop.global_position + Vector3(0, 1.5, 0)).distance_to(mouse), camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0)).distance_to(mouse))
+		var name_pos: Vector2 = camera.unproject_position(drop.global_position + Vector3(0, 2.0, 0))
+		var name_width: float = ThemeDB.fallback_font.get_string_size(String(drop.item["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		if Rect2(name_pos - Vector2(name_width * 0.5, 20), Vector2(name_width, 24)).has_point(mouse):
+			d = 0.0
 		if d < 56.0 and d < best_d:
 			best_d = d
 			best = drop
@@ -318,47 +361,6 @@ func _drop_in_focus() -> LootDrop:
 
 func mouse_over_hud(point: Vector2) -> bool:
 	return covers(point)
-
-## What you wear and what is in the bag, as pictures, top right. Shown while holding Tab; point at one for its details.
-func _draw_gear(size_px: Vector2, font: Font) -> void:
-	var tile: float = 64.0
-	var gap: float = 10.0
-	var columns: int = 6
-	var w: float = columns * tile + (columns - 1) * gap
-	var x: float = size_px.x - w - 30.0
-	var y: float = 70.0
-	var rows: int = maxi(1, ceili(float(player.stats.bag.size()) / columns))
-	var height: float = 36.0 + 20.0 + tile + 30.0 + 20.0 + rows * (tile + gap) + 20.0
-	UiTheme.draw_panel(self, Rect2(x - 16, y - 40, w + 32, height), 0.92)
-	UiTheme.text(self, font, Vector2(x, y - 12), "Worn", 18, UiTheme.BRONZE_LIGHT.lightened(0.2))
-	_gear_hits.clear()
-	var pointer: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
-	y += 4.0
-	for slot in 3:
-		var rect := Rect2(Vector2(x + slot * (tile + gap), y), Vector2(tile, tile))
-		var worn: Variant = player.stats.equipment.get(slot)
-		if worn == null:
-			draw_rect(rect, Color(0.04, 0.04, 0.05, 0.9))
-			draw_rect(rect, Color(0.3, 0.28, 0.25), false, 2.0)
-			UiTheme.text(self, font, rect.position + Vector2(0, tile * 0.55), Items.SLOT_NAMES[slot], 12, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_CENTER, tile)
-		else:
-			draw_texture_rect(ItemIcons.badge(worn), rect, false)
-			_gear_hits.append({"rect": rect, "item": worn, "worn": true})
-	y += tile + 34.0
-	UiTheme.text(self, font, Vector2(x, y - 12), "Bag (%d)   kept for the town stash" % player.stats.bag.size(), 15, UiTheme.BRONZE_LIGHT.lightened(0.2))
-	if player.stats.bag.is_empty():
-		UiTheme.text(self, font, Vector2(x, y + 22), "Nothing yet. Items that are not upgrades go here.", 13, Color(1, 1, 1, 0.45))
-	for i in player.stats.bag.size():
-		var rect := Rect2(Vector2(x + (i % columns) * (tile + gap), y + (i / columns) * (tile + gap)), Vector2(tile, tile))
-		draw_texture_rect(ItemIcons.badge(player.stats.bag[i]), rect, false)
-		_gear_hits.append({"rect": rect, "item": player.stats.bag[i], "worn": false})
-	for hit in _gear_hits:
-		if (hit["rect"] as Rect2).has_point(pointer):
-			draw_rect((hit["rect"] as Rect2).grow(2.0), Color(1.0, 0.85, 0.5, 0.9), false, 2.0)
-			var item: Dictionary = hit["item"]
-			_draw_card(item, null if bool(hit["worn"]) else player.stats.equipment.get(int(item["slot"])), Vector2(x - 372.0, 70.0), size_px, font,
-				not bool(hit["worn"]), false)
-			break
 
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)
@@ -420,6 +422,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 			border = Color(1.0, 0.8, 0.4, 1.0)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
+	draw_texture_rect(bezel, rect.grow(3.0), false, Color.WHITE if remaining <= 0.0 and affordable else Color(0.55, 0.55, 0.6))
 	# Key hint (follows rebinding), potion count and mana cost.
 	var key_text: String = GameSettings.short_binding_text(action)
 	draw_string(font, pos + Vector2(5, 15), key_text, HORIZONTAL_ALIGNMENT_LEFT, size_px - 8, 12, Color(0, 0, 0, 0.9))
@@ -521,3 +524,29 @@ func _sweep_polygon(rect: Rect2, fraction: float) -> PackedVector2Array:
 		var t: float = half / maxf(maxf(absf(dir.x), absf(dir.y)), 0.0001)
 		points.append(centre + dir * t)
 	return points
+
+func _open_character() -> void:
+	if character_panel != null:
+		character_panel.queue_free()
+	character_panel = preload("res://game/character_view.gd").new()
+	character_panel.hero = player
+	add_child(character_panel)
+	get_tree().paused = true
+
+func close_character() -> void:
+	show_gear = false
+	if character_panel != null:
+		character_panel.queue_free()
+		character_panel = null
+	get_tree().paused = false
+
+func _input(event: InputEvent) -> void:
+	if event.is_echo():
+		return
+	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+		close_character()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("gear") and not get_tree().paused:
+		show_gear = true
+		_open_character()
+		get_viewport().set_input_as_handled()

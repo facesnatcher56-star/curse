@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jl5ywg75gci1"
-path="res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"
+uid="uid://bobtfomjmas8r"
+path="res://.godot/imported/hotbar_tray.png-273c32980c1a9cf88bdc9a85093fe66f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/icons/ui/food.png"
-dest_files=["res://.godot/imported/food.png-05a6364702069c80826916b84a2c935f.ctex"]
+source_file="res://assets/ui/vessels/hotbar_tray.png"
+dest_files=["res://.godot/imported/hotbar_tray.png-273c32980c1a9cf88bdc9a85093fe66f.ctex"]
 
 [params]
 

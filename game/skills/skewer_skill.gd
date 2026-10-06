@@ -25,7 +25,7 @@ const SKEWER_SPEED := 15.0
 const SKEWER_SLOTS: Array[float] = [1.0, 1.4, 1.8]  # distance ahead of the hero along the blade, hilt first
 const SKEWER_BIG_BONUS := 45.0   # flat extra damage against enemies too big to impale
 const SKEWER_BIG_STUN := 1.6     # they are staggered this long, so they cannot hit back
-const RAM_BIG_STUN_MULT := 2.5   # Ramming: the ones too big to move are stunned this much longer
+const RAM_BIG_STUN_MULT := 2.5   # Ramming (the affix): the ones too big to move are stunned this much longer
 const SKEWER_WINDUP := 0.28
 const SKEWER_SKID := 0.24
 const SKEWER_KICK_TIME := 0.55
@@ -185,8 +185,8 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 			p.skills.blade_blood = minf(p.skills.blade_blood + 0.2, 1.0)
 			continue
 		if skewer_impaled.size() >= 3:
-			# The blade is full. With Ramming whoever else is in the lane is knocked down and thrown aside, once, instead of ignored.
-			if p.stats.has_affix("charger") and not big_hit.has(e.get_instance_id()):
+			# The blade is full: whoever else is in the lane is knocked down and thrown aside, once, never ignored.
+			if not big_hit.has(e.get_instance_id()):
 				big_hit[e.get_instance_id()] = true
 				_ram_aside(e, skill)
 			continue
@@ -205,7 +205,7 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 		Fx.shake(p, 0.12)
 	return false
 
-## Ramming: an enemy the blade could not take is hit by the shoulder of the charge, knocked down and thrown out of the lane.
+## An enemy the blade has no room for is hit by the shoulder of the charge, knocked down and thrown out of the lane.
 func _ram_aside(e: Actor, skill: Dictionary) -> void:
 	var rel: Vector3 = e.global_position - p.global_position
 	rel.y = 0.0

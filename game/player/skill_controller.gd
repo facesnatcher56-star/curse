@@ -36,6 +36,7 @@ var aim_point: Vector3 = Vector3.ZERO
 var _aim_root: Node3D
 var _aim_sphere_mat: StandardMaterial3D
 var _aim_line: MeshInstance3D
+var _lane: SkewerPreview   # the lane Skewer shows while its key is held
 var _highlighted: Array[Actor] = []
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
@@ -154,6 +155,9 @@ func _release_aim(cursor: Vector3) -> void:
 			p._say("Not enough mana")
 		return
 	clear_aim(true)
+	if bool(SkillDb.all()[id].get("skewer", false)):
+		p.skewer.start_skewer(point)   # (its own charge, not a timed skill)
+		return
 	start_skill(id, null, point)
 
 func clear_aim(keep_orb: bool = false) -> void:
@@ -169,6 +173,8 @@ func clear_aim(keep_orb: bool = false) -> void:
 		_aim_root.visible = false
 	if _aim_line != null:
 		_aim_line.visible = false
+	if _lane != null:
+		_lane.hide_lane()
 
 ## The cursor point on the ground, pulled in to the skill's range if it is too far.
 func aim_point_for(id: String, cursor: Vector3) -> Vector3:
@@ -185,6 +191,9 @@ func update_aim(cursor: Vector3) -> void:
 	if aiming_id == "":
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
+	if bool(SkillDb.all()[aiming_id].get("skewer", false)):
+		_update_lane(cursor)
+		return
 	if bool(SkillDb.all()[aiming_id].get("charged", false)) and not busy:
 		_ensure_orb(0.28)
 	_ensure_aim_nodes()
@@ -215,6 +224,38 @@ func update_aim(cursor: Vector3) -> void:
 		gap.y = 0.0
 		if gap.length() <= radius + e.body_radius * 0.5:
 			now_hit.append(e)
+	for e in _highlighted:
+		if is_instance_valid(e) and not (e in now_hit):
+			e.set_highlighted(false)
+	for e in now_hit:
+		e.set_highlighted(true)
+	_highlighted = now_hit
+
+## Skewer's preview: the lane the charge will run and the fan the kick throws across, with the enemies the blade would take lit up.
+func _update_lane(cursor: Vector3) -> void:
+	if _lane == null:
+		_lane = SkewerPreview.new(p)
+	var dir: Vector3 = cursor - p.global_position
+	dir.y = 0.0
+	if dir.length() < 0.4:
+		dir = Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
+	dir = dir.normalized()
+	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.009)
+	_lane.show_lane(p.get_world_3d(), p.global_position, dir, float(SkillDb.all()[aiming_id]["range"]), pulse)
+	Actor.get_highlight_material().albedo_color.a = 0.3 + 0.2 * pulse
+	# The first three that fit on the blade, nearest first, are the ones it would run through.
+	var in_lane: Array[Actor] = []
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead or not e.can_be_impaled():
+			continue
+		var rel: Vector3 = e.global_position - p.global_position
+		rel.y = 0.0
+		var ahead: float = rel.dot(dir)
+		if ahead > 0.2 and ahead < _lane.length + 1.0 and absf(rel.cross(dir).y) <= SkewerPreview.LANE_HALF_WIDTH + e.body_radius * 0.3:
+			in_lane.append(e)
+	in_lane.sort_custom(func(a: Actor, b: Actor) -> bool: return a.global_position.distance_squared_to(p.global_position) < b.global_position.distance_squared_to(p.global_position))
+	var now_hit: Array[Actor] = in_lane.slice(0, 3)
 	for e in _highlighted:
 		if is_instance_valid(e) and not (e in now_hit):
 			e.set_highlighted(false)

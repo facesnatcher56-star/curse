@@ -436,11 +436,11 @@ func _item_card(item: Dictionary, button_text: String, disabled: bool, action: C
 	var tile: ItemTile = ItemTile.create(item, TownState.gear.get(int(item["slot"])), 84.0)
 	tile.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(tile)
+	column.add_child(ItemTile.name_label(item, TownState.gear.get(int(item["slot"]))))
 	var button := UiTheme.button(button_text, 110.0)
 	button.disabled = disabled
 	button.pressed.connect(action)
-	button.focus_entered.connect(func() -> void: _set_detail(item))
-	button.mouse_entered.connect(func() -> void: _set_detail(item))
+	ItemTile.decorate_button(button, item, TownState.gear.get(int(item["slot"])))
 	column.add_child(button)
 	return column
 

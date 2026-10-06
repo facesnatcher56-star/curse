@@ -15,6 +15,7 @@ const INTERACT_RANGE := 3.4
 const TAG_RANGE := 8.0
 const BARK_RANGE := 16.0
 
+var town_gate: Node3D
 var arena: Arena
 var layout: Node3D                        # the town_layout.tscn instance (its Props are gone once placed)
 var stations: Dictionary = {}             # name -> position, from the layout's Stations markers: where people go (see TownStage)
@@ -156,7 +157,12 @@ func _place_layout() -> void:
 	for node in props.get_children():
 		var prop := node as TownProp
 		if prop != null and ResourceLoader.exists(Arena.PROP_DIR + prop.model_name + "/model.glb"):
-			arena.place_prop(prop.model_name, prop.position, prop.rotation.y, prop.height, prop.collides, prop.lit)
+			if prop.model_name == "town_gate":
+				town_gate = preload("res://game/town/town_gate.gd").new()
+				town_gate.position = prop.position
+				add_child(town_gate)
+			else:
+				arena.place_prop(prop.model_name, prop.position, prop.rotation.y, prop.height, prop.collides, prop.lit)
 	props.queue_free()   # the markers have done their job
 	for marker in layout.get_node("Stations").get_children():
 		stations[String(marker.name)] = (marker as Marker3D).position
@@ -248,8 +254,24 @@ func _process(delta: float) -> void:
 	_show_barks()
 	_update_near()
 	_update_tags()
-	hud.prompt = "" if panel.is_open() or near.is_empty() else "%s   %s" % [_interact_key(), near["label"]]
-	hud.gate_hint = "" if panel.is_open() or not _near_gate() else _gate_hint()
+	var focus: Dictionary = near if Gamepad.active else pick_spot(get_viewport().get_mouse_position())
+	if combat_hud.show_gear or player.mouse_over_ui(get_viewport().get_mouse_position()):
+		focus = {}
+	hud.prompt = ""
+	if not panel.is_open() and not focus.is_empty():
+		var anchor: Vector3 = focus["pos"] + Vector3(0, 2.6, 0)
+		if focus["kind"] == "npc":
+			var def: NpcDef = TownDb.npc(focus["id"])
+			hud.prompt = "%s  -  %s" % [def.display_name, def.title]
+		else:
+			hud.prompt = focus["label"]
+		if _flat_distance(focus) <= INTERACT_RANGE:
+			hud.prompt += "  " + GameSettings.short_binding_text("interact")
+		hud.prompt_position = rig.get_viewport().get_camera_3d().unproject_position(anchor)
+	hud.gate_hint = "" if panel.is_open() or combat_hud.show_gear or not _near_gate() else _gate_hint()
+	if town_gate != null:
+		hud.gate_hint_position = rig.get_viewport().get_camera_3d().unproject_position(town_gate.position + Vector3(0, 6.5, 0))
+		town_gate.set_open(absf(player.position.x) < 8.0 and absf(player.position.z - town_gate.position.z) < 11.0)
 	_update_feed()
 	_update_world(delta)
 	if not pending.is_empty() and not panel.is_open():
@@ -296,7 +318,7 @@ func _update_tags() -> void:
 	for id in npcs:
 		var npc: TownNpc = npcs[id]
 		var d: float = player.global_position.distance_to(npc.global_position)
-		npc.set_tag_visible(d <= TAG_RANGE)
+		npc.set_tag_visible(d <= TAG_RANGE and String(pick_spot(get_viewport().get_mouse_position()).get("id", "")) != id)
 
 func _show_barks() -> void:
 	while not sim.barks.is_empty():
@@ -317,7 +339,7 @@ func _update_feed() -> void:
 # --- Interaction ---------------------------------------------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if panel.is_open():
+	if panel.is_open() or combat_hud.show_gear:
 		return
 	if event.is_action_pressed("pause") and not pause_menu.is_open():
 		pause_menu.open()
@@ -504,9 +526,12 @@ func _screenshot(args: PackedStringArray) -> void:
 			var parts: PackedStringArray = arg.substr(5).split(",")
 			player.global_position = Vector3(float(parts[0]), 0, float(parts[1]))
 			await get_tree().create_timer(1.0).timeout
-		if arg.begins_with("--panel="):   # --panel=marlow | board | stash: open that panel first
+		if arg.begins_with("--panel="):   # --panel=marlow | board | stash | character: open that panel first
 			var what: String = arg.substr(8)
 			match what:
+				"character":
+					combat_hud.show_gear = true
+					combat_hud._open_character()
 				"board":
 					panel.open_board()
 				"stash":
@@ -514,6 +539,12 @@ func _screenshot(args: PackedStringArray) -> void:
 				_:
 					panel.open_npc(what)
 			await get_tree().create_timer(0.8).timeout
+	for arg in args:
+		if arg.begins_with("--hover="):
+			var spot: Dictionary = _spot(arg.substr(8))
+			if not spot.is_empty():
+				get_viewport().warp_mouse(get_viewport().get_camera_3d().unproject_position(spot["pos"] + Vector3(0, 1.1, 0)))
+				await get_tree().create_timer(0.7).timeout
 	if args.has("--timing"):
 		print("[world] %.0f fps with %d monsters, %d people" % [Performance.get_monitor(Performance.TIME_FPS), get_tree().get_nodes_in_group("enemies").size(), npcs.size()])
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_town.png")
