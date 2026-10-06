@@ -196,30 +196,30 @@ func _test_hotkeys() -> void:
 	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.15).timeout
 	var was_busy: bool = player.skills.busy
-	Input.action_press("skill_4")
+	Input.action_press("skill_3")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_4")
+	Input.action_release("skill_3")
 	var potion_ok: bool = player.stats.potions == 2 and player.health > 80.0 and not player.skills.busy
 	# 2. Potion while stunned.
 	player.health = 30.0
 	player.stats.cooldowns.clear()
 	player.stun_time = 1.0
 	await get_tree().physics_frame
-	Input.action_press("skill_4")
+	Input.action_press("skill_3")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_4")
+	Input.action_release("skill_3")
 	var stunned_ok: bool = player.stats.potions == 1 and player.health > 60.0
 	player.stun_time = 0.0
 	# 3. A usable skill cancels the current swing and starts.
 	player.stats.cooldowns.clear()
 	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.1).timeout
-	Input.action_press("skill_5")
+	Input.action_press("skill_4")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_5")
+	Input.action_release("skill_4")
 	await get_tree().physics_frame   # Skewer is aimed: it charges when the key is let go
 	await get_tree().physics_frame
 	var skill_ok: bool = player.skills.busy_skill == "skewer" and player.skewer.skewer_phase != 0
@@ -228,10 +228,10 @@ func _test_hotkeys() -> void:
 	player.stats.cooldowns["skewer"] = 5.0
 	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.1).timeout
-	Input.action_press("skill_5")
+	Input.action_press("skill_4")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_5")
+	Input.action_release("skill_4")
 	var no_cancel_ok: bool = player.skills.busy and player.skills.busy_skill == "basic"
 	player.skills.cancel_action()
 	expect("potion works mid-swing", potion_ok)
@@ -1637,7 +1637,7 @@ func _aim_shot() -> void:
 		z.aggro_range = 0.0
 	player.set_physics_process(false)
 	player.skills.aiming_id = "fireball"
-	player.skills.aiming_action = "skill_3"
+	player.skills.aiming_action = "skill_2"
 	await get_tree().create_timer(0.8).timeout
 	var cursor: Vector3 = Vector3(1.2, 0, -5.2)
 	for i in 6:
@@ -2277,7 +2277,7 @@ func _test_sword_miss_in_air() -> void:
 		while player.skills.busy and t < 3.0:
 			await get_tree().physics_frame
 			t += 1.0 / 60.0
-		if _logged("sword_hit") >= 1:
+		if _logged("sword_hit") >= 1 and _logged("sword_miss") == 0:   # (a swing that also whiffed on someone else is not the case under test)
 			break
 		await get_tree().create_timer(0.1).timeout
 	expect("a Power Strike that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
@@ -2628,7 +2628,7 @@ func _test_pad_camera_and_aim() -> void:
 	await get_tree().physics_frame
 	player.stats.cooldowns.clear()
 	player.stats.mana = player.stats.max_mana
-	Input.action_press("skill_3")
+	Input.action_press("skill_2")
 	await get_tree().create_timer(0.2).timeout
 	expect("holding Fireball is aiming", player.skills.aiming_id == "fireball")
 	var snap_point: Vector3 = player.cursor_world()
@@ -2647,7 +2647,7 @@ func _test_pad_camera_and_aim() -> void:
 	var held: Vector3 = player.cursor_world()
 	await get_tree().create_timer(0.4).timeout
 	expect("released stick: the target area stays where it was put", player.cursor_world().distance_to(held) < 0.01)
-	Input.action_release("skill_3")
+	Input.action_release("skill_2")
 	await get_tree().create_timer(1.2).timeout
 	player.skills.cancel_action()
 	first.queue_free()
@@ -3374,27 +3374,27 @@ func _test_fireball_cancel() -> void:
 	player.skills.clear_aim()
 	expect("the fireball cooldown is at least five seconds", float(SkillDb.all()["fireball"]["cd"]) >= 5.0)
 	# Cancel while aiming with right-click.
-	Input.action_press("skill_3")
+	Input.action_press("skill_2")
 	await get_tree().create_timer(0.3).timeout
 	expect("holding the key aims", player.skills.aiming_id == "fireball")
 	Input.action_press("alt_skill")
 	await get_tree().create_timer(0.2).timeout
 	Input.action_release("alt_skill")
 	expect("right-click cancels the aim", player.skills.aiming_id == "")
-	Input.action_release("skill_3")
+	Input.action_release("skill_2")
 	await get_tree().create_timer(0.3).timeout
 	expect("letting go of the key after cancelling casts nothing", not player.skills.busy and is_equal_approx(player.stats.mana, player.stats.max_mana)
 		and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0)
 	# Cancel while aiming with dodge: the hero rolls instead.
 	player.stats.stamina = player.stats.max_stamina
 	player.stats.cooldowns["dodge"] = 0.0
-	Input.action_press("skill_3")
+	Input.action_press("skill_2")
 	await get_tree().create_timer(0.3).timeout
 	Input.action_press("dodge")
 	await get_tree().create_timer(0.15).timeout
 	Input.action_release("dodge")
 	expect("dodge cancels the aim", player.skills.aiming_id == "")
-	Input.action_release("skill_3")
+	Input.action_release("skill_2")
 	await get_tree().create_timer(0.8).timeout
 	expect("and no fireball was cast", is_equal_approx(player.stats.mana, player.stats.max_mana))
 	# Cancel during the wind-up: mana and cooldown come back.
