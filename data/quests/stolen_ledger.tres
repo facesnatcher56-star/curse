@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "stolen_ledger"
+title = "The Warden's Ledger"
+text = "Gorran had my ledger on him, the one with the grain counts. Whatever kills a brute out there, look through its pockets."
+thanks = "Every column intact. You have no idea what this saves me."
+fail_text = "Without the ledger I cannot prove what we are owed."
+kind = "fetch"
+giver = "hale"
+weight = 0.0
+min_jobs = 0
+days = 6
+target = "brute"
+count = 12
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = "Hale's ledger"
+reward = {
+"gold": 70,
+"happy": {
+"hale": 8
+}
+}
+penalty = {
+"happy": {
+"hale": -8
+}
+}
+choices = []
+links = {
+"fail": [{
+"quest": "tainted_grain",
+"chance": 0.4
+}]
+}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

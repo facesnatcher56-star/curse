@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "brute_bounty"
+title = "Bounty on Gorran"
+text = "Gorran Hollow-Eye walked off the gallows and has been killing patrols ever since. The town will pay for his head."
+thanks = "Hollow-Eye is finished. The town sleeps better."
+fail_text = "Gorran took two more patrols before the week was out."
+kind = "slay_unique"
+giver = "hale"
+weight = 1.5
+min_jobs = 1
+days = 6
+target = "brute"
+count = 1
+unique_name = "Gorran Hollow-Eye"
+unique_hp = 3.5
+unique_level = 1.6
+item_name = ""
+reward = {
+"gold": 120,
+"happy": {
+"hale": 6
+}
+}
+penalty = {
+"happy": {
+"hale": -6
+}
+}
+choices = []
+links = {
+"complete": [{
+"quest": "stolen_ledger",
+"chance": 0.25
+}]
+}
+world_mod = {}
+zone = Vector2(100.0, 220.0)

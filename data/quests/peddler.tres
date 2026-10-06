@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "peddler"
+title = "A Peddler at the Gate"
+text = "A peddler has stopped at the gate with a cart. Marlow is already eyeing it. Rumour says the best of it is in the false bottom."
+thanks = "A good trade."
+fail_text = "The peddler moved on."
+kind = "matter"
+giver = "marlow"
+weight = 1.5
+min_jobs = 0
+days = 1
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {
+"happy": {
+"marlow": 2
+}
+}
+penalty = {}
+choices = [{
+"label": "Buy the false-bottom bundle (60 gold)",
+"cost": {
+"gold": 60
+},
+"outcome": "solve",
+"result": "Something wrapped in oilcloth.",
+"reward": {
+"item": 1,
+"happy": {
+"marlow": 2
+}
+}
+}, {
+"label": "Buy bread and salt (10 gold)",
+"cost": {
+"gold": 10
+},
+"outcome": "solve",
+"result": "Plain and welcome.",
+"reward": {
+"food": 3
+}
+}, {
+"label": "Send him on",
+"cost": {},
+"outcome": "fail",
+"result": "He tips his hat and goes."
+}]
+links = {}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

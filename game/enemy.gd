@@ -197,9 +197,7 @@ func _wander(delta: float) -> void:
 		_idle_goal = Vector3.ZERO
 		_idle_wait = randf_range(1.5, 4.5) if patrol.is_empty() else randf_range(0.0, 1.5)
 		return
-	walk_to(_idle_goal, delta, 0.32)
-	if has_clip("walk"):
-		model.loop("walk", 0.9)
+	walk_to(_idle_goal, delta, 0.32, true, "walk" if has_clip("walk") else "")
 
 # --- movement helpers shared by behaviours ------------------------------------------------
 
@@ -209,12 +207,15 @@ func pace() -> float:
 
 ## Enemies run everywhere (the run clip, played faster or slower to suit their speed); "walk" is only a fallback.
 const RUN_REF_SPEED := 4.0
+const WALK_REF_SPEED := 1.3
 
 func locomotion_clip() -> String:
 	return "run" if has_clip("run") else "walk"
 
 ## Runs toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
-func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: bool = true) -> void:
+## `clip` is the clip to play while doing it (the strolling idle uses "walk"; asking for it here, not after, keeps the model from being told two
+## different clips every frame, which left a strolling monster sliding along in a half-blended pose).
+func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: bool = true, clip: String = "") -> void:
 	var dist: float = Vector2(point.x - global_position.x, point.z - global_position.z).length()
 	var aim: Vector3 = point
 	if use_nav and dist > 3.5:
@@ -224,7 +225,10 @@ func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: boo
 	face(global_position + dir, 0.2)
 	var speed: float = pace() * speed_mult
 	move_with(dir.normalized() * speed + separation() * speed)
-	model.loop(locomotion_clip(), clampf(speed / RUN_REF_SPEED, 0.6, 1.8))
+	if clip != "":
+		model.loop(clip, clampf(speed / WALK_REF_SPEED, 0.6, 1.4))
+	else:
+		model.loop(locomotion_clip(), clampf(speed / RUN_REF_SPEED, 0.6, 1.8))
 
 ## Closes in on the target.
 func advance_on_target(delta: float, dist: float) -> void:

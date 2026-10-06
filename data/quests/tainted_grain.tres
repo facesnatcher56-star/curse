@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "tainted_grain"
+title = "Tainted Grain"
+text = "Hale found black mould in the grain stores and does not know how far it has spread. Buy sound grain, burn it all, or hope it is only the one sack."
+thanks = "The stores are clean. Hale posts a guard on them."
+fail_text = "The mould was everywhere. Half the stores are lost."
+kind = "matter"
+giver = "hale"
+weight = 1.5
+min_jobs = 1
+days = 2
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {
+"happy": {
+"hale": 5
+}
+}
+penalty = {
+"food": -6,
+"happy": {
+"all": -5
+}
+}
+choices = [{
+"label": "Buy sound grain (30 gold)",
+"cost": {
+"gold": 30
+},
+"outcome": "solve",
+"result": "Marlow finds a cart of sound grain, at a price."
+}, {
+"label": "Burn what is left and go short",
+"cost": {
+"food": 4
+},
+"outcome": "solve",
+"result": "It hurts, but nothing else is spoiled."
+}, {
+"label": "Hope it is one sack",
+"cost": {},
+"outcome": "gamble",
+"chance": 0.35,
+"result": "You wait and see."
+}]
+links = {}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

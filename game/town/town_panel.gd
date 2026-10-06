@@ -64,6 +64,11 @@ func open_board() -> void:
 	notice = ""
 	_show()
 
+func open_chronicle() -> void:
+	current = "chronicle"
+	notice = ""
+	_show()
+
 func open_stash() -> void:
 	current = "stash"
 	notice = ""
@@ -84,7 +89,7 @@ func _show() -> void:
 	_rebuild()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
+	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause") or (current == "chronicle" and event.is_action_pressed("chronicle"))):
 		close()
 		get_viewport().set_input_as_handled()
 
@@ -100,6 +105,8 @@ func _rebuild() -> void:
 		_page_board()
 	elif current == "stash":
 		_page_stash()
+	elif current == "chronicle":
+		_page_chronicle()
 	for child in _footer.get_children():
 		_footer.remove_child(child)
 		child.queue_free()
@@ -143,6 +150,7 @@ func _page_npc(id: String) -> void:
 			_page_healer(id)
 		"recruit":
 			_page_recruit(id, def)
+	_page_quests(id)
 	_add_gap(4)
 	_page_opinions(id)
 
@@ -312,6 +320,73 @@ func _claim() -> void:
 	TownState.save()
 	_rebuild()
 
+## What this person has for the hero: quests of theirs that are done (hand them in), ones still open, and matters that want a decision.
+func _page_quests(id: String) -> void:
+	var ready: Array = Quests.ready_for(id)
+	var open: Array = Quests.waiting_for(id)
+	if ready.is_empty() and open.is_empty():
+		return
+	_add_gap(8)
+	_text("Matters and quests", UiTheme.ACCENT)
+	for inst in ready:
+		var def: QuestDef = Quests.def_of(inst)
+		_row("%s\n%s" % [def.title, "Done. Hand it in."], "Hand in", false, func() -> void: _hand_in(int(inst["uid"])))
+	for inst in open:
+		if String(inst["state"]) == "ready":
+			continue
+		var def: QuestDef = Quests.def_of(inst)
+		if def.kind == "matter":
+			_matter(inst)
+		else:
+			var days: String = "" if int(inst["days_left"]) < 0 else "   (%d day%s left)" % [int(inst["days_left"]), "" if int(inst["days_left"]) == 1 else "s"]
+			_text("%s: %s%s" % [def.title, Quests.progress_text(inst), days], UiTheme.TEXT)
+			_text("    " + Quests.text_of(inst), UiTheme.TEXT_DIM)
+
+## A matter: what is happening, and a button for each thing the hero can do about it (with what it costs).
+func _matter(inst: Dictionary) -> void:
+	var def: QuestDef = Quests.def_of(inst)
+	_text(def.title, UiTheme.ACCENT)
+	_text(Quests.text_of(inst), UiTheme.TEXT)
+	if int(inst["days_left"]) >= 0:
+		_text("This will not wait: %d day%s." % [int(inst["days_left"]), "" if int(inst["days_left"]) == 1 else "s"], UiTheme.TEXT_DIM)
+	for i in def.choices.size():
+		var button := UiTheme.button(Quests.choice_label(inst, i), 560.0)
+		var cost: Dictionary = def.choices[i].get("cost", {})
+		button.disabled = TownState.gold < int(cost.get("gold", 0)) or TownState.food < int(cost.get("food", 0)) or TownState.potions < int(cost.get("potions", 0))
+		button.pressed.connect(func() -> void: _decide(int(inst["uid"]), i))
+		_box.add_child(button)
+
+func _decide(uid: int, index: int) -> void:
+	var result: Dictionary = Quests.resolve_choice(uid, index)
+	notice = String(result.get("text", "")).strip_edges()
+	if bool(result.get("ok", false)):
+		var lines: Array = result.get("lines", [])
+		if not lines.is_empty():
+			notice += "   (" + ", ".join(lines) + ")"
+		town.quest_changed()
+	_rebuild()
+
+func _hand_in(uid: int) -> void:
+	var result: Dictionary = Quests.claim(uid)
+	if bool(result["ok"]):
+		var lines: Array = result["lines"]
+		notice = String(result["text"]) + ("   (" + ", ".join(lines) + ")" if not lines.is_empty() else "")
+		town.quest_changed()
+	_rebuild()
+
+## Every quest and event that is up, whoever posted it (the board shows them all; each is handed in to its own giver).
+func _page_posted() -> void:
+	var live: Array = Quests.live()
+	if live.is_empty():
+		return
+	_add_gap(8)
+	_text("Other quests and events", UiTheme.ACCENT)
+	for inst in live:
+		var def: QuestDef = Quests.def_of(inst)
+		var giver: String = TownDb.npc(def.giver).display_name if def.giver != "" else "the world"
+		var days: String = "" if int(inst["days_left"]) < 0 else "   (%d day%s)" % [int(inst["days_left"]), "" if int(inst["days_left"]) == 1 else "s"]
+		_text("%s  -  %s  -  from %s%s" % [def.title, Quests.progress_text(inst), giver, days], UiTheme.TEXT)
+
 func _page_report() -> void:
 	_add_gap(4)
 	_text("Town: food %d (%s), %d people, gold %d." % [TownState.food, "rationing" if TownState.rationing() else "enough for now",
@@ -362,7 +437,36 @@ func _page_opinions(id: String) -> void:
 func _page_board() -> void:
 	_box.add_child(UiTheme.title_label("Job Board", 38))
 	_page_jobs()
+	_page_posted()
 	_page_report()
+	_add_gap(6)
+	var chronicle := UiTheme.button("Open the Chronicle", 360.0)
+	chronicle.pressed.connect(open_chronicle)
+	_box.add_child(chronicle)
+
+## The Chronicle: what the named monsters are up to and what they have built, then everything that has happened, newest first.
+func _page_chronicle() -> void:
+	_box.add_child(UiTheme.title_label("Chronicle", 38))
+	var cards: Array[Dictionary] = Monsters.cards()
+	if cards.is_empty():
+		_text("The road is quiet. Nothing is plotting against the town.", UiTheme.TEXT_DIM)
+	else:
+		_text("Threats", UiTheme.ACCENT)
+		for card in cards:
+			var line: String = "%s   -   %s" % [card["title"], card["sub"]]
+			var bar: String = ""
+			if float(card["frac"]) >= 0.0:
+				var filled: int = int(round(float(card["frac"]) * 10.0))
+				bar = "      [" + "#".repeat(filled) + "-".repeat(10 - filled) + "]"
+			_text(line + bar, card["tint"])
+		_text("Kill a named monster and its plot ends with it, and what it built comes down.", UiTheme.TEXT_DIM)
+	_add_gap(8)
+	_text("What has happened   (day %d)" % TownState.day, UiTheme.ACCENT)
+	var entries: Array = Chronicle.recent(60)
+	if entries.is_empty():
+		_text("Nothing yet.", UiTheme.TEXT_DIM)
+	for entry in entries:
+		_text("Day %d   %s" % [int(entry["day"]), String(entry["text"])], Chronicle.color_of(String(entry["kind"])))
 
 func _page_stash() -> void:
 	_box.add_child(UiTheme.title_label("Stash", 38))

@@ -2943,7 +2943,7 @@ func _test_run_modifiers() -> void:
 	var director: RunDirector = game.director
 	var zombie: EnemyDef = EnemyDb.get_def("zombie")
 	var ghoul: EnemyDef = EnemyDb.get_def("ghoul")
-	expect("all nine modifiers load", TownDb.modifiers().size() == 9)
+	expect("all twelve modifiers load", TownDb.modifiers().size() == 12)
 	var plain_zombies: int = director.modified_count(zombie, 3)
 	var plain_ghouls: int = director.modified_count(ghoul, 3)
 	director.set_job({"name": "Test", "objective": JobObjective.clear_waves(3), "modifiers": ["swarming"], "reward": 50})
@@ -3000,8 +3000,8 @@ func _test_town_scene() -> void:
 	town.player.global_position = Vector3(0, 0, -16.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("near the gate the quest and how far it has got show, with no prompt and nothing to accept", town.near.is_empty() and town.hud.prompt == ""
-		and town.hud.gate_hint.contains("Crypt Road") and town.hud.gate_hint.contains("0 / 3"))
+	expect("near the gate nothing pops up over it (the quest is in the corner), and there is nothing to accept", town.near.is_empty() and town.hud.prompt == ""
+		and town.hud.quest_line.contains("Crypt Road") and town.hud.quest_line.contains("0 / 3"))
 	# Walking out is just walking: no loading, no scene change. The clan eats once when the hero is properly out, not at the wall.
 	var food_before_gate: int = TownState.food
 	town.player.global_position = Vector3(0, 0, -TownScene.HALF - 3.0)
@@ -3119,8 +3119,7 @@ func _test_town_scene() -> void:
 	town.player.global_position = Vector3(0, 0, -16.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("near the gate, the destination and its progress appear without a button", town.hud.gate_hint.contains(String(offer["location"]).capitalize())
-		and town.hud.gate_hint.contains("Destroy nests") and town.hud.prompt == "")
+	expect("near the gate no text appears over it and there is no button", town.hud.prompt == "" and town.hud.quest_line != "")
 	town.panel.open_stash()
 	await get_tree().process_frame
 	town.panel.close()
@@ -3451,10 +3450,16 @@ func _test_item_icons() -> void:
 	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"))
 	expect("rarity changes the frame", common_badge.get_image().get_pixel(3, 40) != badge.get_image().get_pixel(3, 40))
 	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"))
-	var card: Control = tile._make_custom_tooltip("") as Control
-	expect("a tile's tooltip card describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
-	card.free()
-	tile.free()
+	add_child(tile)
+	tile.mouse_entered.emit()   # pointing at the picture shows the card at once (the buttons beside it show nothing)
+	var card: Control = null
+	for child in tile.get_children():
+		if child is Control and (child as Control).visible and (child as Control).get_child_count() > 0:
+			card = (child as Control).get_child(0) as Control
+	expect("pointing at a tile shows a card that describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
+	tile.mouse_exited.emit()
+	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
+	tile.queue_free()
 	# The ground badge is a picture, not text.
 	var drop: LootDrop = game.director.drop_item(Vector3(40, 0, 40), item)
 	await get_tree().create_timer(0.2).timeout
@@ -3806,11 +3811,824 @@ func _wear(affix_id: String, slot: int) -> void:
 	player.stats.equipment = {}
 	player.stats.equip(Items.make(slot, Items.Rarity.RARE, 1, affix_id), false)
 
+## The quest and event rules (no scene needed): the data hangs together, things turn up by weight and clock, are measured, paid, chained,
+## expire, are decided in town, run a world event, and survive saving.
+func _test_quest_logic() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Quests.rng.seed = 7
+	Quests.clocks_in_tests = true
+	Quests.news.clear()
+	# The data.
+	var defs: Dictionary = TownDb.quests()
+	expect("twenty-one quests and events are defined", defs.size() == 21)
+	var sound: bool = true
+	for id in defs:
+		var def: QuestDef = defs[id]
+		sound = sound and def.title != "" and def.text != "" or def.kind == "world"
+		sound = sound and (def.giver == "" or TownDb.npc(def.giver) != null)
+		for when in def.links:
+			for link in def.links[when]:
+				sound = sound and TownDb.quest(String(link["quest"])) != null
+		match def.kind:
+			"kill_group":
+				sound = sound and def.count > 0 and EnemyDb.all().has(def.target)
+			"slay_unique":
+				sound = sound and def.unique_name != "" and EnemyDb.all().has(def.target)
+			"fetch":
+				sound = sound and def.item_name != "" and EnemyDb.all().has(def.target) and def.count > 0
+			"matter":
+				sound = sound and def.choices.size() >= 2
+			"world":
+				sound = sound and not def.world_mod.is_empty()
+	expect("every quest names real people, monsters and links", sound)
+	# Eligibility.
+	expect("a quest that needs more jobs done does not turn up yet", not Quests.eligible(TownDb.quest("spitter_cull")))
+	expect("one that is only ever started by another quest never rolls", not Quests.eligible(TownDb.quest("grey_alpha")))
+	expect("but a link may start it", Quests.eligible(TownDb.quest("grey_alpha"), true))
+	# Kill a group: progress, ready, hand in, mood, chain.
+	TownDb.quest("ghoul_cull").links["complete"][0]["chance"] = 1.0
+	var gold: int = TownState.gold
+	var hale_mood: float = TownState.happiness("hale")
+	var cull: Dictionary = Quests.post("ghoul_cull")
+	expect("a posted quest is active with its deadline", cull["state"] == "active" and int(cull["days_left"]) == 5)
+	expect("posting it is news", Quests.news.size() == 1 and Quests.news[0].begins_with("New:"))
+	Quests.report_kill("zombie")
+	expect("the wrong monster does not count", int(cull["progress"]) == 0)
+	for i in 7:
+		Quests.report_kill("ghoul")
+	expect("seven of eight is not enough", cull["state"] == "active" and int(cull["progress"]) == 7)
+	Quests.report_kill("ghoul")
+	expect("the eighth makes it ready", cull["state"] == "ready" and Quests.ready_for("hale").size() == 1)
+	var paid: Dictionary = Quests.claim(int(cull["uid"]))
+	expect("handing it in pays gold and lifts the keeper's mood", paid["ok"] and TownState.gold == gold + 70 and TownState.happiness("hale") > hale_mood)
+	expect("it is gone from the board and remembered", not Quests.has_live("ghoul_cull") and TownState.quest_history.size() == 1)
+	expect("finishing it started the next link (the alpha)", Quests.has_live("grey_alpha"))
+	TownDb.quest("ghoul_cull").links["complete"][0]["chance"] = 0.3
+	# A named monster.
+	var alpha: Dictionary = Quests.find(int(Quests.live()[0]["uid"]))
+	expect("it is a named monster to find", Quests.progress_text(alpha).contains("Greywhisker"))
+	expect("killing it makes it ready", Quests.report_unique_killed(int(alpha["uid"])) and alpha["state"] == "ready")
+	gold = TownState.gold
+	Quests.claim(int(alpha["uid"]))
+	expect("and pays", TownState.gold == gold + 90)
+	# Fetching: the item drops from a kill, is found, and is handed in to Maren.
+	var satchel: Dictionary = Quests.post("lost_satchel")
+	var dropped: bool = false
+	for i in 10:
+		var result: Dictionary = Quests.report_kill("zombie")
+		dropped = dropped or not (result["drops"] as Array).is_empty()
+	expect("the item turns up within ten kills (it is guaranteed by then)", dropped and bool(satchel["data"]["dropped"]))
+	expect("a quest item is not dropped twice", (Quests.report_kill("zombie")["drops"] as Array).is_empty())
+	Quests.report_fetch_lost(int(satchel["uid"]))
+	expect("one left behind can drop again", not bool(satchel["data"]["dropped"]))
+	Quests.report_fetch_found(int(satchel["uid"]))
+	var potions: int = TownState.potions
+	expect("found and handed in to the healer", satchel["state"] == "ready" and Quests.ready_for("maren").size() == 1 and Quests.claim(int(satchel["uid"]))["ok"])
+	expect("it pays potions", TownState.potions == potions + 3)
+	# Deadlines: a quest nobody did runs out and costs.
+	TownState.jobs_done = 1
+	var spit: Dictionary = Quests.post("spitter_cull")
+	var food: int = TownState.food
+	for i in 5:
+		Quests.on_day()
+	expect("an unfinished quest fails when its days run out", spit["state"] == "failed" and TownState.quest_history[-1]["id"] == "spitter_cull"
+		and TownState.quest_history[-1]["state"] == "failed")
+	expect("and its failure costs what it said", TownState.food == food - 2)
+	expect("a day is counted each time", TownState.day == 6)
+	# A matter: choose, pay, results.
+	TownState.gold = 100
+	TownState.quests = []
+	var fever: Dictionary = Quests.post("fever")
+	expect("a matter names someone", String(fever["data"]["victim"]) != "" and Quests.text_of(fever).find("{victim}") < 0)
+	TownState.gold = 10
+	var broke: Dictionary = Quests.resolve_choice(int(fever["uid"]), 0)
+	expect("a choice you cannot afford changes nothing", not broke["ok"] and Quests.has_live("fever") and TownState.gold == 10)
+	TownState.gold = 100
+	var mood_all: float = TownState.happiness("marlow")
+	var fixed: Dictionary = Quests.resolve_choice(int(fever["uid"]), 0)
+	expect("paying settles it: gold spent, mood up", fixed["ok"] and fixed["success"] and TownState.gold == 75 and TownState.happiness("marlow") > mood_all)
+	fever = Quests.post("fever")
+	var victim: String = String(fever["data"]["victim"])
+	var victim_mood: float = TownState.happiness(victim)
+	TownDb.quest("fever").links["fail"][0]["chance"] = 1.0
+	var ignored: Dictionary = Quests.resolve_choice(int(fever["uid"]), 2)
+	expect("waiting it out fails it and the victim suffers", ignored["ok"] and not ignored["success"] and TownState.happiness(victim) < victim_mood - 10.0)
+	expect("and it gets worse", Quests.has_live("spreading_fever"))
+	TownDb.quest("fever").links["fail"][0]["chance"] = 0.6
+	# A gamble.
+	TownState.quests = []
+	var thief: Dictionary = Quests.post("light_fingers")
+	var suspect: String = String(thief["data"]["suspect"])
+	TownDb.quest("light_fingers").choices[1]["chance"] = 0.0
+	var suspect_mood: float = TownState.happiness(suspect)
+	var wrong: Dictionary = Quests.resolve_choice(int(thief["uid"]), 1)
+	expect("accusing the wrong person hurts them", wrong["ok"] and not wrong["success"] and TownState.happiness(suspect) < suspect_mood)
+	TownDb.quest("light_fingers").choices[1]["chance"] = 0.5
+	# A world event.
+	TownState.quests = []
+	TownState.world_mods = []
+	Quests.post("blood_moon")
+	expect("a world event changes the road", is_equal_approx(Quests.world_mult("gold_mult"), 2.0) and is_equal_approx(Quests.world_mult("drop_mult"), 1.5))
+	Quests.on_day()
+	Quests.on_day()
+	expect("it lasts its days", Quests.world_mult("gold_mult") > 1.0)
+	Quests.on_day()
+	expect("then it ends", is_equal_approx(Quests.world_mult("gold_mult"), 1.0) and not Quests.has_live("blood_moon"))
+	# Timers: something turns up by itself.
+	TownState.quests = []
+	TownState.jobs_done = 3
+	TownState.quest_clock = {"quest": 1.0, "matter": 1.0}
+	var posted: Array[Dictionary] = Quests.tick(2.0)
+	expect("when the clocks run out something turns up (a quest and a matter)", posted.size() == 2)
+	var none: Array[Dictionary] = Quests.tick(0.5)
+	expect("and the clocks start again", none.is_empty() and float(TownState.quest_clock["quest"]) > 100.0)
+	for i in 6:
+		TownState.quest_clock["quest"] = 0.0
+		Quests.tick(0.1)
+	expect("only so many quests wait at once", Quests.posted_count() <= Quests.MAX_POSTED)
+	# Saving.
+	var live_before: int = Quests.live().size()
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	var uid_before: int = TownState.quest_uid
+	TownState.reset()
+	TownState.from_dict(saved)
+	expect("live quests, the day and the counter survive saving", Quests.live().size() == live_before and TownState.quest_uid == uid_before
+		and TownState.day >= 6 and typeof(TownState.quests[0]["uid"]) == TYPE_INT)
+	TownState.reset()
+	Quests.news.clear()
+	Quests.clocks_in_tests = false
+
+## Quests out in the world: a named monster is put on the road and killing it is measured, a kill counts toward a group, a quest item
+## drops and is picked up, the giver gets a coin over their head and takes the hand-in, matters are decided in the giver's panel, and a
+## world event pays more.
+func _test_quest_world() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.gold = 0
+	Quests.news.clear()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var hero: Player = town.player
+	var crypt: CryptRoad = town.crypt
+	# A named monster.
+	var bounty: Dictionary = Quests.post("brute_bounty")
+	town.populate_quests()
+	var named: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("quest_uid") and int(node.get_meta("quest_uid")) == int(bounty["uid"]):
+			named = node
+	expect("a quest for a named monster puts it on the road", named != null and named.display_name == "Gorran Hollow-Eye" and bool(bounty["data"]["spawned"]))
+	if named != null:
+		var def: EnemyDef = EnemyDb.get_def("brute")
+		var gate_distance: float = 174.0 - (named.global_position.z - crypt.arena.origin_offset.z)
+		expect("it is tougher than its kind and where the quest says (%.0f m from the gate)" % gate_distance, named.max_health >= def.health * 3.0
+			and gate_distance >= 95.0 and gate_distance <= 225.0)
+		var loot_before: int = get_tree().get_nodes_in_group("loot").size()
+		named.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+		await get_tree().create_timer(0.8).timeout
+		expect("killing it finishes the quest", bounty["state"] == "ready")
+		expect("it leaves a good item", get_tree().get_nodes_in_group("loot").size() > loot_before)
+		var hale: TownNpc = town.npcs["hale"]
+		expect("Hale has a coin over his head for it", hale.has_reward_marker())
+		TownState.gold = 0
+		town.panel.open_npc("hale")
+		await get_tree().process_frame
+		var hand_in: Button = _find_button(town.panel, "Hand in")
+		expect("his panel offers to take it", hand_in != null)
+		if hand_in != null:
+			hand_in.pressed.emit()
+		await get_tree().process_frame
+		expect("handing it in pays 120 gold and the coin goes", TownState.gold == 120 and not Quests.has_live("brute_bounty"))
+		town.panel.close()
+	# A group.
+	TownState.quests = []
+	TownDb.quest("ghoul_cull").count = 2
+	var cull: Dictionary = Quests.post("ghoul_cull")
+	for i in 2:
+		var ghoul: Enemy = town.director.spawn_enemy(crypt.at(0, 140 + i), "ghoul", 1.0)
+		ghoul.aggro_range = 0.0
+		ghoul.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+		await get_tree().create_timer(0.5).timeout
+	TownDb.quest("ghoul_cull").count = 8
+	expect("two ghouls killed in the world count toward the quest", cull["state"] == "ready")
+	TownState.quests = []
+	# A quest item drops from a kill and is picked up.
+	TownDb.quest("lost_satchel").count = 1
+	var satchel: Dictionary = Quests.post("lost_satchel")
+	var zombie: Enemy = town.director.spawn_enemy(crypt.at(0, 142), "zombie", 1.0)
+	zombie.aggro_range = 0.0
+	zombie.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+	await get_tree().create_timer(0.6).timeout
+	TownDb.quest("lost_satchel").count = 10
+	var pickups: Array = get_tree().get_nodes_in_group("quest_pickups")
+	expect("the satchel drops where the zombie fell", pickups.size() == 1 and bool(satchel["data"]["dropped"]))
+	if pickups.size() == 1:
+		hero.global_position = (pickups[0] as QuestPickup).global_position + Vector3(0.5, 0, 0)
+		hero.reset_physics_interpolation()
+		await get_tree().create_timer(0.4).timeout
+		expect("walking over it finds it, and the quest is ready for Maren", satchel["state"] == "ready" and (town.npcs["maren"] as TownNpc).has_reward_marker())
+		expect("it is gone from the ground", get_tree().get_nodes_in_group("quest_pickups").is_empty())
+	TownState.quests = []
+	# A matter, decided in the giver's panel.
+	TownState.gold = 100
+	var fever: Dictionary = Quests.post("fever")
+	town._refresh_reward_marker()
+	var maren: TownNpc = town.npcs["maren"]
+	expect("a matter puts a coin over its giver", maren.has_reward_marker())
+	town.panel.open_npc("maren")
+	await get_tree().process_frame
+	var poultice: Button = _find_button(town.panel, "Pay Maren")
+	expect("her panel lists what you can do about it", poultice != null and not poultice.disabled)
+	if poultice != null:
+		poultice.pressed.emit()
+	await get_tree().process_frame
+	expect("choosing one settles it", TownState.gold == 75 and not Quests.has_live("fever"))
+	town.panel.close()
+	# A world event pays more.
+	TownState.quests = []
+	TownState.world_mods = []
+	Quests.post("blood_moon")
+	var gold: int = TownState.gold
+	var kill: Enemy = town.director.spawn_enemy(crypt.at(0, 143), "zombie", 1.0)
+	kill.aggro_range = 0.0
+	kill.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+	await get_tree().create_timer(0.6).timeout
+	expect("under a blood moon a kill pays double (%d)" % (TownState.gold - gold), TownState.gold - gold == 4)
+	# The HUD tracks what is running.
+	await get_tree().process_frame
+	expect("the tracker lists the world event", town.hud.side_lines.size() >= 1)
+	town.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("quest_pickups"):
+		node.queue_free()
+	TownState.reset()
+	Quests.news.clear()
+
+## The road's rules: its stretches are data (what lives where, how tough), the road gets conditions each time it is corrupted afresh
+## (about half the time none), the conditions change what the empty stretches are stocked with and how the road looks, and world
+## events reach the monsters already out there and the town's days.
+func _test_road_rules() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.road_conditions_in_tests = true
+	# The stretches.
+	var zones: Dictionary = TownDb.zones()
+	var tidy: bool = zones.size() == 4
+	var reach: float = 0.0
+	for id in TownDb.sorted_ids(zones):
+		var zone: ZoneDef = zones[id]
+		for template in zone.groups:
+			tidy = tidy and float(template["weight"]) > 0.0 and not (template["members"] as Array).is_empty()
+			for kind in template["members"]:
+				tidy = tidy and EnemyDb.all().has(String(kind))
+	expect("four stretches, each stocked with real monsters", tidy)
+	expect("together they cover the whole road with no gap", TownDb.zone_at(0.0).id == "road_in" and TownDb.zone_at(63.9).id == "road_in"
+		and TownDb.zone_at(64.0).id == "graveyard" and TownDb.zone_at(150.0).id == "wood" and TownDb.zone_at(300.0).id == "crypt_approach")
+	expect("the further out, the tougher", TownDb.zone_at(10.0).level_offset < TownDb.zone_at(300.0).level_offset)
+	# Conditions: about half the time none, never more than two, never ones that clash, always the same for the same seed.
+	var none: int = 0
+	var most: int = 0
+	var clash: bool = false
+	var repeatable: bool = true
+	for seed_value in 400:
+		var conditions: Array[String] = TownState.roll_road_conditions(seed_value)
+		none += 1 if conditions.is_empty() else 0
+		most = maxi(most, conditions.size())
+		if conditions.size() == 2:
+			clash = clash or conditions[1] in TownDb.modifier(conditions[0]).excludes or conditions[0] in TownDb.modifier(conditions[1]).excludes
+		repeatable = repeatable and conditions == TownState.roll_road_conditions(seed_value)
+	expect("about half of all roads have no condition (%d of 400)" % none, none > 150 and none < 250)
+	expect("never more than two, never two that clash, the same every time for a seed", most <= 2 and not clash and repeatable)
+	TownState.road_seed = 3
+	var found: Dictionary = {}
+	for i in 60:
+		TownState.road_seed = i
+		var offer: Dictionary = TownState.crypt_road_offer()
+		if not (offer["modifiers"] as Array).is_empty():
+			found = offer
+			break
+	var mult: float = 1.0
+	for id in found["modifiers"]:
+		mult *= TownDb.modifier(id).reward_mult
+	expect("the board posts the road's conditions and they change its pay", not found.is_empty()
+		and int(found["reward"]) == int(round(float(150 + 20 * mini(TownState.jobs_done, 10)) * mult)))
+	TownState.reset()
+	# What a condition does to the stocking, without a scene.
+	var director := RunDirector.new()
+	add_child(director)
+	director.set_job({"modifiers": ["nest"]})
+	director.wave = 3
+	expect("a Spitters' Nest makes groups with spitters likelier", director.group_weight(["zombie", "spitter"]) > director.group_weight(["zombie", "zombie"]))
+	director.set_job({"modifiers": ["shambling"]})
+	expect("Shambling makes every group bigger", director.group_count_mult() > 1.1)
+	director.set_job({})
+	expect("no conditions change nothing", is_equal_approx(director.group_weight(["spitter"]), 1.0) and is_equal_approx(director.group_count_mult(), 1.0))
+	director.queue_free()
+	# The road itself.
+	TownState.road_conditions_in_tests = false
+	TownState.persist = false
+	TownState.reset()
+	TownState.gold = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var crypt: CryptRoad = town.crypt
+	var count_kind = func(kind: String) -> int:
+		var n: int = 0
+		for node in get_tree().get_nodes_in_group("enemies"):
+			n += 1 if (node as Enemy).variant == kind else 0
+		return n
+	TownState.road_seed = 7
+	await crypt.regrow()
+	await get_tree().process_frame
+	var plain_total: int = get_tree().get_nodes_in_group("enemies").size()
+	# Stocking, over many groups: a Spitters' Nest makes the groups with spitters in them much likelier, and Shambling makes them bigger.
+	var zone: ZoneDef = TownDb.zones()["crypt_approach"]
+	var with_spitter: Callable = func() -> int:
+		crypt._fill_rng.seed = 5
+		var n: int = 0
+		for i in 300:
+			n += 1 if "spitter" in crypt._fill_kinds(zone) else 0
+		return n
+	town.director.set_job({})
+	var plain_groups: int = with_spitter.call()
+	town.director.set_job({"modifiers": ["nest"], "objective": JobObjective.destroy_nest(3), "site": CryptRoad.SITE_ID})
+	town.director.wave = 3
+	var nest_groups: int = with_spitter.call()
+	expect("with a Spitters' Nest far more groups have spitters (%d of 300 against %d)" % [nest_groups, plain_groups], nest_groups > plain_groups * 1.3)
+	town.director.set_job({"modifiers": ["shambling"], "objective": JobObjective.destroy_nest(3), "site": CryptRoad.SITE_ID})
+	town.director.wave = 3
+	crypt._fill_rng.seed = 5
+	var sizes: int = 0
+	for i in 100:
+		sizes += crypt._fill_kinds(zone).size()
+	town.director.set_job({})
+	crypt._fill_rng.seed = 5
+	var plain_sizes: int = 0
+	for i in 100:
+		plain_sizes += crypt._fill_kinds(zone).size()
+	expect("and with Shambling the groups are bigger (%d against %d monsters in 100 groups)" % [sizes, plain_sizes], sizes > plain_sizes)
+	TownState.road_seed = 8
+	town.director.set_job({})
+	await crypt.regrow()
+	await get_tree().process_frame
+	expect("each reset of the road stocks it differently", get_tree().get_nodes_in_group("enemies").size() != plain_total or count_kind.call("ghoul") != 0)
+	# Light: a Darkness road is darker out on the road than a plain one, and the same in the plaza.
+	var hero: Player = town.player
+	hero.global_position = crypt.at(0, 100)
+	town._update_world(0.1)
+	var plain_light: float = town.world_environment.ambient_light_energy
+	town.director.set_job({"modifiers": ["darkness"], "objective": JobObjective.destroy_nest(3), "site": CryptRoad.SITE_ID})
+	town.director.wave = 3
+	town._update_world(0.1)
+	expect("a Darkness road is darker on the road", town.world_environment.ambient_light_energy < plain_light * 0.6)
+	hero.global_position = Vector3(0, 0, 10)
+	town._update_world(0.1)
+	expect("and the plaza is the same", is_equal_approx(town.world_environment.ambient_light_energy, town._base_ambient))
+	town.director.set_job({})
+	# World events: they reach the monsters already out there, and the town's days.
+	var sample: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		sample = node
+		break
+	var before: float = sample.max_health
+	Quests.post("dangerous_dead")
+	town.populate_quests()
+	expect("a world event that makes the dead tougher reaches the ones already out there", is_equal_approx(sample.max_health, before * 1.35))
+	town.populate_quests()
+	expect("and only once", is_equal_approx(sample.max_health, before * 1.35))
+	TownState.quests = []
+	TownState.world_mods = []
+	var food: int = TownState.food
+	var mood: float = TownState.happiness("marlow")
+	Quests.post("fat_harvest")
+	Quests.on_day()
+	expect("a fat harvest fills the granary and lifts moods each day", TownState.food == food + 2 and TownState.happiness("marlow") > mood)
+	TownState.quests = []
+	TownState.world_mods = []
+	food = TownState.food
+	mood = TownState.happiness("marlow")
+	Quests.post("vulnerable_town")
+	Quests.on_day()
+	expect("thin walls cost food and spirits", TownState.food == food - 1 and TownState.happiness("marlow") < mood)
+	# Saving remembers which road it is.
+	TownState.road_seed = 12
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.road_seed = 0
+	TownState.from_dict(saved)
+	expect("the road's seed survives saving", TownState.road_seed == 12 and typeof(TownState.road_seed) == TYPE_INT)
+	town.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	TownState.reset()
+	Quests.news.clear()
+
+## The monsters that act on their own: they rise on the road, grow every day, plot (raids, altars, hordes, scouts), the plots end on their
+## own days or when the monster is killed, a kill of the hero makes a nemesis, and all of it is told in the Chronicle and saved.
+func _test_monsters() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 11
+	Monsters.gossip.clear()
+	Quests.news.clear()
+	var mon: Dictionary = Monsters.rise()
+	expect("a named monster rises with a name, a level and a place on the road", TownState.monsters.size() == 1 and String(mon["name"]) != ""
+		and float(mon["level"]) == Monsters.START_LEVEL and float(mon["dist"]) >= 50.0 and EnemyDb.all().has(String(mon["kind"])))
+	expect("it is in the Chronicle, in the banner news and as gossip", TownState.chronicle.size() == 1 and String(TownState.chronicle[0]["kind"]) == "monster"
+		and Quests.news.size() == 1 and Monsters.gossip.size() == 1)
+	var uid: int = int(mon["uid"])
+	# Days: it grows.
+	var before: float = float(mon["level"])
+	Monsters.on_day()
+	TownState.monsters = [mon]   # (a second one may have risen: the checks follow this one)
+	expect("it grows every day", is_equal_approx(float(Monsters.find(uid)["level"]), before + Monsters.EVOLVE_PER_DAY))
+	# A raid, forced to end tomorrow.
+	TownState.food = 10
+	TownState.gold = 100
+	mon["level"] = 3.0
+	mon["plot"] = {"type": "raid", "days_left": 1, "total": 3}
+	var mood: float = TownState.happiness("marlow")
+	Monsters.on_day()
+	TownState.monsters = [mon]
+	expect("a raid that comes to its end costs food, gold and nerve, and is over", (mon["plot"] as Dictionary).is_empty() and TownState.food < 10
+		and TownState.gold < 100 and TownState.happiness("marlow") < mood)
+	var told: bool = false
+	for entry in TownState.chronicle:
+		told = told or String(entry["text"]).contains("hit the gate")
+	expect("and told", told)
+	# A plot that has days to go counts down and shows as a card with a bar.
+	mon["plot"] = {"type": "altar", "days_left": 3, "total": 4}
+	var card: Dictionary = Monsters.cards()[0]
+	expect("a plot in progress shows on a card with how far it has got", String(card["sub"]).contains("altar") and is_equal_approx(float(card["frac"]), 0.25))
+	# The altar finishes: a standing effect on the road, until its maker is killed.
+	mon["plot"] = {"type": "altar", "days_left": 1, "total": 4}
+	Monsters.on_day()
+	TownState.monsters = [mon]
+	expect("a finished altar makes the dead harder, and asks the road to apply it", Quests.world_mult("health_mult") > 1.19 and String(mon["fired"]) == "altar")
+	expect("and it shows as a card", Monsters.cards().size() == 2)
+	# The hero is killed by it.
+	var level_before: float = float(mon["level"])
+	var line: String = Monsters.hero_fell(uid)
+	expect("a monster that kills the hero is a nemesis: stronger, with a title and a line", bool(mon["nemesis"]) and int(mon["kills"]) == 1
+		and float(mon["level"]) > level_before and Monsters.title_of(mon).ends_with("Slayer of 1") and line.contains(String(mon["name"])))
+	# And killed in turn.
+	var gold: int = TownState.gold
+	var paid: Dictionary = Monsters.killed(uid)
+	expect("killing it pays the bounty (more for a nemesis), takes the altar down and leaves two good items", int(paid["items"]) == 2 and TownState.gold > gold + 70
+		and Quests.world_mult("health_mult") == 1.0 and Monsters.find(uid).is_empty() and TownState.monsters.is_empty())
+	# A killer that was not named is named now.
+	var promoted: Dictionary = Monsters.promote("ghoul", 120.0)
+	expect("a monster that was not named takes a name when it kills the hero", bool(promoted["nemesis"]) and int(promoted["kills"]) == 1 and TownState.monsters.size() == 1)
+	# Plots all fire.
+	var kinds_ok: bool = true
+	for type in Monsters.PLOTS:
+		promoted["plot"] = {"type": type, "days_left": 1, "total": 2}
+		TownState.world_mods = []
+		Monsters.on_day()
+		TownState.monsters = [promoted]
+		kinds_ok = kinds_ok and (promoted["plot"] as Dictionary).is_empty()
+	expect("every kind of plot comes to its end", kinds_ok)
+	# Saving.
+	TownState.chronicle.append({"day": 4, "kind": "event", "text": "x"})
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.monsters = []
+	TownState.chronicle = []
+	TownState.from_dict(saved)
+	expect("the monsters and the Chronicle survive saving, whole numbers and all", TownState.monsters.size() >= 1 and typeof(TownState.monsters[0]["uid"]) == TYPE_INT
+		and typeof(TownState.monsters[0]["kills"]) == TYPE_INT and not TownState.chronicle.is_empty() and typeof(TownState.chronicle[0]["day"]) == TYPE_INT)
+	# The Chronicle keeps its size, and the quests write to it too.
+	TownState.chronicle = []
+	for i in Chronicle.MAX_ENTRIES + 20:
+		Chronicle.add("town", "n%d" % i)
+	expect("the Chronicle keeps only the latest entries", TownState.chronicle.size() == Chronicle.MAX_ENTRIES and String(Chronicle.recent(1)[0]["text"]) == "n%d" % (Chronicle.MAX_ENTRIES + 19))
+	TownState.chronicle = []
+	Quests.clocks_in_tests = true
+	Quests.post("fog_bank")
+	expect("a world event is written to the Chronicle when it starts", TownState.chronicle.size() == 1 and String(TownState.chronicle[0]["kind"]) == "event")
+	Monsters.in_tests = false
+	Quests.clocks_in_tests = false
+	TownState.reset()
+	Quests.news.clear()
+	Monsters.gossip.clear()
+
+## The monsters on the road itself: a named monster has its body, marks and strength, a plot has its sign, a kill pays the bounty and clears the
+## sign, and a killer that was not named is named.
+func _test_monster_scene() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 5
+	TownState.gold = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var mon: Dictionary = Monsters.rise()
+	mon["kind"] = "ghoul"
+	mon["plot"] = {"type": "raid", "days_left": 2, "total": 3}
+	town.populate_monsters()
+	var body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid"):
+			body = node
+	expect("a named monster is put on the road with its name and strength", body != null and body.display_name == String(mon["name"])
+		and body.max_health > EnemyDb.get_def("ghoul").health * 1.4 and body.get_child_count() > 3)
+	expect("it is marked: a diamond and its name over its head", body.find_children("*", "Label3D", false, false).size() == 1 and body.find_children("*", "Sprite3D", false, false).size() == 1)
+	expect("its plot has a sign on the road", get_tree().get_nodes_in_group("plot_signs").size() == 1)
+	var strength: float = body.max_health
+	mon["level"] = float(mon["level"]) + 2.0
+	town.populate_monsters()
+	expect("it grows with its level, and is not made again", body.max_health > strength * 1.4 and get_tree().get_nodes_in_group("enemies").filter(func(n: Node) -> bool: return n.has_meta("monster_uid")).size() == 1)
+	var hud_cards: Array[Dictionary] = Monsters.cards()
+	expect("the HUD has a card for it", hud_cards.size() == 1)
+	# Its death: the bounty, the drop, the sign gone.
+	var drops: int = get_tree().get_nodes_in_group("loot").size()
+	TownState.gold = 0
+	town.director._report_to_quests(body)
+	town.populate_monsters()
+	await get_tree().process_frame
+	expect("killing it pays the bounty and leaves an item", TownState.gold > 50 and get_tree().get_nodes_in_group("loot").size() > drops and Monsters.alive().is_empty())
+	expect("and its sign comes down", get_tree().get_nodes_in_group("plot_signs").filter(func(n: Node) -> bool: return not n.is_queued_for_deletion()).is_empty())
+	# A killer that was not named takes a name (it can fail the roll: try a few).
+	var plain: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if not (node as Enemy).dead and not node.has_meta("quest_uid") and not node.has_meta("monster_uid"):
+			plain = node
+			break
+	var line: String = ""
+	for attempt in 12:
+		town.player.last_hit_by = plain
+		line = town._killer_takes_credit()
+		if line != "":
+			break
+	expect("a monster that kills the hero takes a name and a mark", line != "" and plain.has_meta("monster_uid") and Monsters.alive().size() == 1
+		and plain.display_name == String(Monsters.alive()[0]["name"]))
+	town.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	Monsters.in_tests = false
+	TownState.reset()
+	Quests.news.clear()
+	Monsters.gossip.clear()
+
+## Skewer and Leap while running carry the speed in (no stop to wind up), and the end of a Skewer charge deals with what is beside and
+## behind the hero: the small are knocked down, the big staggered and slowed.
+func _test_skewer_flow() -> void:
+	player.global_position = _free_lane_start(16.0, 6.0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	await get_tree().process_frame
+	var reach: float = float(SkillDb.all()["skewer"]["range"])   # beside the lane near its end: where the hero will be standing when it stops
+	var small: Enemy = _spawn_enemy(player.global_position + Vector3(reach - 1.0, 0, 2.3))
+	var big: Enemy = _spawn_enemy(player.global_position + Vector3(reach - 2.0, 0, -2.4), "brute")
+	for e in [small, big]:
+		e.aggro_range = 0.0
+		e.max_health = 900.0
+		e.health = 900.0
+	await get_tree().process_frame
+	player.velocity = Vector3(5.0, 0.0, 0.0)   # running
+	player.skewer.start_skewer(player.global_position + Vector3(11, 0, 0))
+	expect("a charge started at a run skips the wind-up", player.skewer.skewer_phase == 2 and player.skewer.skewer_t > 0.0)
+	var saw_down: bool = false
+	var saw_stagger: bool = false
+	var elapsed: float = 0.0
+	while elapsed < 3.0 and player.skewer.skewer_phase != 0:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+		saw_down = saw_down or small.is_ragdolled()
+		saw_stagger = saw_stagger or (big.stun_time > 0.3 and big.slow_time > 0.0)
+	expect("an enemy at the hero's back is knocked down when the charge ends", saw_down)
+	expect("a big one there is staggered and slowed instead", saw_stagger)
+	await get_tree().create_timer(1.5).timeout
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	player.velocity = Vector3.ZERO
+	player.leap.start_leap(player.global_position + Vector3(0, 0, 5))
+	expect("a leap from a standstill still crouches first", player.leap.leap_phase == 1)
+	player.leap.end_leap()
+	player.velocity = Vector3(0.0, 0.0, 5.0)
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	player.leap.start_leap(player.global_position + Vector3(0, 0, 5))
+	expect("a leap from a run goes straight into the air", player.leap.leap_phase == 2)
+	player.leap.end_leap()
+	# A crowd never stops the charge: a lane packed with enemies and a full blade, and the hero still runs the whole way.
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	player.global_position = _free_lane_start(16.0, 6.0)
+	player.reset_physics_interpolation()
+	var crowd: Array[Enemy] = []
+	for i in 9:
+		var z: Enemy = _spawn_enemy(player.global_position + Vector3(2.5 + i * 1.2, 0, 0.3 * (i % 3 - 1)))
+		z.aggro_range = 0.0
+		z.max_health = 900.0
+		z.health = 900.0
+		crowd.append(z)
+	await get_tree().process_frame
+	var origin: Vector3 = player.global_position
+	player.skewer.start_skewer(origin + Vector3(11, 0, 0))
+	var elapsed2: float = 0.0
+	var stalled: int = 0
+	var last_x: float = player.global_position.x
+	while elapsed2 < 4.0 and player.skewer.skewer_phase in [1, 2]:
+		await get_tree().physics_frame
+		elapsed2 += 1.0 / 60.0
+		player.knock = Vector3(-9.0, 0, 0)   # blows landing on him push him back; they must not stop him
+		# Once up to speed the hero covers ground every single frame: no hit-pause, no hitch.
+		if player.skewer.skewer_phase == 2 and player.skewer.skewer_t > 0.4:
+			if player.hitpause > 0.0 or player.global_position.x - last_x < 0.15:
+				stalled += 1
+		last_x = player.global_position.x
+	var ran: float = player.global_position.distance_to(origin)
+	expect("a packed lane does not stop the charge short (ran %.1f of %.1f m)" % [ran, reach], ran >= reach - 1.0)
+	expect("and it never hitches: no frame at speed without moving (%d stalled)" % stalled, stalled == 0)
+	player.skewer.end_skewer()
+	player.skills.cancel_action()
+	for e in crowd:
+		if is_instance_valid(e):
+			e.queue_free()
+	# Holding the Skewer key to aim does not stop a hero who is running: he keeps going, and releasing charges at once.
+	await get_tree().create_timer(1.2).timeout
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	player.global_position = _free_lane_start(16.0, 6.0)
+	player.reset_physics_interpolation()
+	player.skills.clear_aim()
+	var goal: Vector3 = player.global_position + Vector3(12, 0, 0)
+	player.movement.goal = goal
+	player.movement.has_goal = true
+	var key: String = "skill_%d" % (player.skills.hotbar.find("skewer") + 1)
+	Input.action_press(key)
+	var start_x: float = player.global_position.x
+	for i in 25:
+		await get_tree().physics_frame
+	var ran_on: bool = player.skills.aiming_id == "skewer" and player.global_position.x > start_x + 1.5
+	var speed_held: float = Vector2(player.velocity.x, player.velocity.z).length()
+	Input.action_release(key)
+	for i in 3:
+		await get_tree().physics_frame
+	expect("aiming Skewer while running keeps the hero running", ran_on and speed_held > SkewerSkill.RUNNING_START)
+	expect("and letting go charges straight away, with no stop first", player.skewer.skewer_phase == 2)
+	player.skewer.end_skewer()
+	player.skills.cancel_action()
+	for e in [small, big]:
+		if is_instance_valid(e):
+			e.queue_free()
+
+## A Power Strike whose weapon throws a shockwave shows the strip it will hit while the blow is gathered, and the effect meshes load.
+func _test_power_wave() -> void:
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	player.stats.equipment["mod_gravewarden"] = {"affix": "gravewarden", "name": "gravewarden", "rarity": 1, "slot": 0}
+	var target: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2.4))
+	target.aggro_range = 0.0
+	target.max_health = 900.0
+	target.health = 900.0
+	await get_tree().process_frame
+	expect("the shockwave mesh loads", SkillFx._fx_mesh("power_wave") != null)
+	player.skills.start_skill("power", target, null)
+	await get_tree().create_timer(0.35).timeout
+	var shown: bool = player.skills._wave_preview != null and player.skills._wave_preview.node.visible
+	expect("the strip the shockwave will hit is shown while the blow is gathered", shown)
+	await get_tree().create_timer(1.6).timeout
+	expect("and it is gone once the blow has landed", player.skills._wave_preview == null or not player.skills._wave_preview.node.visible)
+	player.stats.equipment.erase("mod_gravewarden")
+	if is_instance_valid(target):
+		target.queue_free()
+
+## Power Strike goes where the cursor points: it picks no target for the hero, so an enemy on the other side is left alone, and one in the
+## direction of the cursor is hit when the blade comes down.
+func _test_power_direction() -> void:
+	player.global_position = _free_lane_start(10.0, 6.0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	await get_tree().process_frame
+	var ahead: Enemy = _spawn_enemy(player.global_position + Vector3(2.0, 0, 0))
+	var aside: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2.0))
+	for e in [ahead, aside]:
+		e.aggro_range = 0.0
+		e.max_health = 900.0
+		e.health = 900.0
+	await get_tree().process_frame
+	player.skills.try_directional("power", player.global_position + Vector3(8, 0, 0))
+	await get_tree().create_timer(0.2).timeout
+	var turned: Vector3 = player.global_position + Vector3(0, 0, -8)   # the cursor moves during the wind-up: the blow follows it
+	player.cursor_override = turned
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("the blow follows the cursor while it is being gathered", player.skills.busy_aim.is_equal_approx(turned))
+	player.cursor_override = player.global_position + Vector3(8, 0, 0)
+	expect("a directed Power Strike starts with no target chosen", player.skills.busy and player.skills.busy_skill == "power" and player.skills.busy_target == null)
+	await get_tree().create_timer(1.8).timeout
+	for attempt in 3:   # a swing can miss: try again, the point is who it goes for
+		if ahead.health < ahead.max_health or ahead.dead:
+			break
+		player.stats.cooldowns.clear()
+		player.stats.mana = player.stats.max_mana
+		player.global_position = ahead.global_position - Vector3(2.0, 0, 0)
+		player.cursor_override = player.global_position + Vector3(8, 0, 0)
+		player.skills.try_directional("power", player.cursor_override)
+		await get_tree().create_timer(1.8).timeout
+	expect("it hits the enemy in the direction of the cursor", ahead.health < ahead.max_health or ahead.dead)
+	expect("and leaves the one in another direction alone", aside.health >= aside.max_health - 0.01)
+	player.cursor_override = Vector3.INF
+	for e in [ahead, aside]:
+		if is_instance_valid(e):
+			e.queue_free()
+
+## How long the longest frame is when a Fireball goes off in the middle of a crowd (nothing may hitch: the blast's work must not land on one frame).
+func _test_fireball_frames() -> void:
+	player.global_position = _free_lane_start(16.0, 6.0)
+	player.reset_physics_interpolation()
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	await get_tree().process_frame
+	var centre: Vector3 = player.global_position + Vector3(8, 0, 0)
+	for i in 9:
+		var z: Enemy = _spawn_enemy(centre + Vector3(randf_range(-1.8, 1.8), 0, randf_range(-1.8, 1.8)))
+		z.aggro_range = 0.0
+		z.max_health = 3000.0
+		z.health = 3000.0
+	await get_tree().create_timer(0.5).timeout
+	var ball := Projectile.new()
+	ball.owner_actor = player
+	ball.direction = Vector3.RIGHT
+	ball.damage = 40.0
+	ball.destination = centre + Vector3(0, 0.8, 0)
+	get_tree().current_scene.add_child(ball)
+	ball.global_position = centre + Vector3(0, 0.8, 0)
+	var worst: float = 0.0
+	var worst_frame: int = 0
+	var frames: Array[float] = []
+	for i in 60:
+		var t0: int = Time.get_ticks_usec()
+		await get_tree().process_frame
+		var ms: float = float(Time.get_ticks_usec() - t0) / 1000.0
+		frames.append(ms)
+		if ms > worst:
+			worst = ms
+			worst_frame = i
+	print("    fireball frames: worst %.1f ms at frame %d; first ten: %s" % [worst, worst_frame, ", ".join(frames.slice(0, 10).map(func(v: float) -> String: return "%.1f" % v))])
+	expect("no frame after a Fireball in a crowd is a hitch (worst %.1f ms)" % worst, worst < 40.0)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+
+## A dodge always wins over an auto attack: it is dropped mid-swing, and a still-held attack button does not start another one afterwards.
+func _test_dodge_cancels_attack() -> void:
+	player.global_position = _free_lane_start(8.0, 6.0)
+	player.reset_physics_interpolation()
+	player.stats.cooldowns.clear()
+	player.stats.stamina = player.stats.max_stamina
+	var foe: Enemy = _spawn_enemy(player.global_position + Vector3(1.4, 0, 0))
+	foe.aggro_range = 0.0
+	foe.max_health = 900.0
+	foe.health = 900.0
+	await get_tree().process_frame
+	player.attack_target = foe
+	player.skills.start_skill("basic", foe)
+	await get_tree().create_timer(0.1).timeout   # still gathering the swing: the blade has not come down
+	expect("the swing is under way and has not landed", player.skills.busy and not player.skills.busy_hit_done)
+	Input.action_press("alt_skill")   # the attack button is still held
+	player.movement.try_roll(player.global_position + Vector3(-5, 0, 0))
+	expect("a dodge pressed in the middle of an auto attack goes through", player.movement.rolling)
+	expect("and the attack is dropped", not player.skills.busy and player.attack_target == null and player.skills.queued_skill == "")
+	await get_tree().create_timer(1.0).timeout
+	var swung: bool = player.skills.busy
+	Input.action_release("alt_skill")
+	expect("the held attack button does not start another swing after the roll", not swung)
+	foe.queue_free()
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+"questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
 

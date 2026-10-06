@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ZoneDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/zone_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "graveyard"
+display_name = "The Graveyard Stretch"
+from_m = 64.0
+to_m = 134.0
+level_offset = 0.0
+density = 1.0
+groups = [{
+"weight": 50,
+"members": ["zombie", "zombie", "ghoul"]
+}, {
+"weight": 20,
+"members": ["zombie", "zombie", "spitter"]
+}, {
+"weight": 30,
+"members": ["zombie", "ghoul"]
+}]

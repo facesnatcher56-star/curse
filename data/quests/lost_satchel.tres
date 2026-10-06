@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "lost_satchel"
+title = "Maren's Satchel"
+text = "I dropped my satchel of dried herbs on the road, and the dead are wearing it now. I need it back. I can do nothing for the sick without it."
+thanks = "My herbs. Bless you. Here, take what I can spare."
+fail_text = "Without the herbs I can only sit with the sick."
+kind = "fetch"
+giver = "maren"
+weight = 2.0
+min_jobs = 0
+days = 6
+target = "zombie"
+count = 10
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = "herb satchel"
+reward = {
+"potions": 3,
+"happy": {
+"maren": 8
+}
+}
+penalty = {
+"happy": {
+"maren": -6
+}
+}
+choices = []
+links = {
+"fail": [{
+"quest": "fever",
+"chance": 0.5
+}]
+}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

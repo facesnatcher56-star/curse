@@ -27,6 +27,10 @@ const SKEWER_BIG_BONUS := 45.0   # flat extra damage against enemies too big to 
 const SKEWER_BIG_STUN := 1.6     # they are staggered this long, so they cannot hit back
 const RAM_BIG_STUN_MULT := 2.5   # Ramming (the affix): the ones too big to move are stunned this much longer
 const SKEWER_WINDUP := 0.28
+const RUNNING_START := 1.5       # m/s: moving faster than this when the skill goes off skips the wind-up and carries the speed into it
+const CLEAR_RADIUS := 2.9        # at the end of the charge, whatever is this close (behind the hero, beside the lane) is dealt with
+const CLEAR_SLOW := 0.5
+const CLEAR_SLOW_TIME := 2.5
 const SKEWER_SKID := 0.24
 const SKEWER_KICK_TIME := 0.55
 const KICK_START := 0.15
@@ -34,6 +38,7 @@ const KICK_STRIKE := 0.6
 const KICK_END := 1.1
 func start_skewer(cursor: Vector3) -> void:
 	var skill: Dictionary = SkillDb.all()["skewer"]
+	var run_speed: float = Vector2(p.velocity.x, p.velocity.z).length()   # already running: the charge carries on from that, with no stop to wind up
 	var dir: Vector3 = cursor - p.global_position
 	dir.y = 0.0
 	if dir.length() < 0.4:
@@ -65,6 +70,11 @@ func start_skewer(cursor: Vector3) -> void:
 	p.collision_mask = Actor.LAYER_WORLD  # run through the crowd; only the blade catches anyone
 	p.visual.rotation.y = atan2(skewer_dir.x, skewer_dir.z)
 	p.model.loop("charge_run", 0.6)
+	if run_speed > RUNNING_START:
+		skewer_phase = 2
+		skewer_t = clampf((run_speed / SKEWER_SPEED - 0.25) * 0.3, 0.0, 0.3)   # the ramp picks up at the speed the hero already has
+		p.model.loop("charge_run", 1.5)
+		Fx.punch(p, 1.8)
 	p.model.weapon_aim = skewer_dir          # the animation carries the blade diagonally; aim it down the charge instead
 	p.model.weapon_length_mult = 1.45        # long enough to carry three
 	if p._trail != null:
@@ -74,6 +84,8 @@ func start_skewer(cursor: Vector3) -> void:
 func tick_skewer(delta: float) -> void:
 	skewer_t += delta
 	var skill: Dictionary = p.skills.busy_def
+	if skewer_phase >= 1 and skewer_phase <= 3:
+		p.knock = Vector3.ZERO   # blows landing on the hero do not push him off the charge
 	match skewer_phase:
 		1:
 			# Wind-up: sink low behind the blade, then drive off.
@@ -107,14 +119,14 @@ func tick_skewer(delta: float) -> void:
 			_skewer_catch_enemies(skill)
 			p.movement.shove_enemies(delta)
 			_carry_impaled(delta)
-			var blocked: bool = skewer_t > 0.2 and moved < speed * delta * 0.35
-			if skewer_impaled.size() >= 3 and skewer_full_at < 0.0:
-				skewer_full_at = skewer_t
-			var full_run_done: bool = skewer_full_at >= 0.0 and skewer_t - skewer_full_at > 0.3
-			if skewer_travel >= float(skill["range"]) or blocked or full_run_done:
+			# Only something solid ends the charge early (a wall, a gatepost): never the crowd. A full blade does not stop it either, the
+			# rest of the lane is thrown aside as the hero runs on, and blows landing on him do not push him back.
+			var blocked: bool = skewer_t > 0.2 and moved < speed * delta * 0.35 and _hit_wall()
+			if skewer_travel >= float(skill["range"]) or blocked:
 				skewer_phase = 3
 				skewer_t = 0.0
 				p.model.loop("charge_run", 0.5)
+				_skewer_clear_melee(skill)
 		3:
 			# Skid to a stop: plant the feet, carry the momentum.
 			var u: float = clampf(skewer_t / SKEWER_SKID, 0.0, 1.0)
@@ -152,6 +164,14 @@ func tick_skewer(delta: float) -> void:
 			p.visual.rotation.x = lerpf(p.visual.rotation.x, 0.0, 1.0 - exp(-12.0 * delta))
 			if skewer_t >= 0.22:
 				end_skewer()
+
+## Whether the hero's last move ran into something that is part of the world (not a monster).
+func _hit_wall() -> bool:
+	for i in p.get_slide_collision_count():
+		var collider: Object = p.get_slide_collision(i).get_collider()
+		if collider is CollisionObject3D and ((collider as CollisionObject3D).collision_layer & Actor.LAYER_WORLD) != 0:
+			return true
+	return false
 
 ## Runs the nearest enemies in the lane onto the blade. Returns true if a boss stops the charge.
 func _skewer_catch_enemies(skill: Dictionary) -> bool:
@@ -205,6 +225,39 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 		Fx.shake(p, 0.12)
 	return false
 
+## The charge ends with the hero in the middle of whatever he ran past: everything within reach that is not on the blade (the ones behind
+## him, the ones beside the lane) would be on him the instant he stops. The small ones are knocked down and thrown clear; the big ones, which
+## cannot be moved, are staggered and slowed instead.
+func _skewer_clear_melee(skill: Dictionary) -> void:
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead or e.impaled or big_hit.has(e.get_instance_id()):
+			continue
+		if p.flat_distance_to(e) - e.body_radius > CLEAR_RADIUS:
+			continue
+		if skewer_impaled.has(e):
+			continue
+		big_hit[e.get_instance_id()] = true
+		var away: Vector3 = e.global_position - p.global_position
+		away.y = 0.0
+		away = away.normalized() if away.length() > 0.1 else -skewer_dir
+		var blow: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.5 * ItemEffects.outgoing_multiplier(p, e),
+			Combat.DamageType.PHYSICAL, false, 2.0)
+		blow["skill_id"] = "skewer"
+		blow["secondary"] = true
+		e.receive(blow, p.global_position)
+		if not is_instance_valid(e) or e.dead:
+			continue
+		if e.can_be_impaled():
+			e.ragdoll_launch(away * 9.0, 4.0, away.cross(Vector3.UP) * randf_range(5.0, 9.0))
+			e.interrupt(1.0)
+			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Knocked down", Color(1.0, 0.9, 0.5), 40)
+		else:
+			e.stun_time = maxf(e.stun_time, SKEWER_BIG_STUN * 0.6)
+			e.apply_slow(CLEAR_SLOW, CLEAR_SLOW_TIME)
+			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Staggered", Color(1.0, 0.9, 0.5), 40)
+	Fx.ring(p, p.global_position, CLEAR_RADIUS, Color(1.0, 0.85, 0.5))
+
 ## An enemy the blade has no room for is hit by the shoulder of the charge, knocked down and thrown out of the lane.
 func _ram_aside(e: Actor, skill: Dictionary) -> void:
 	var rel: Vector3 = e.global_position - p.global_position
@@ -253,11 +306,14 @@ func _carry_impaled(delta: float) -> void:
 ## The finish: a boot to the pile throws every impaled enemy off the sword and away, in a fan.
 func _skewer_kick() -> void:
 	var count: int = skewer_impaled.size()
-	var angles: Array[float] = [0.0]
-	if count == 2:
-		angles = [-0.3, 0.3]
-	elif count >= 3:
-		angles = [-0.5, 0.0, 0.5]
+	# Every kick throws them differently: each one goes off at its own random angle (spread apart, never the same fan twice), at its own
+	# speed and loft, and some of them spin harder than others.
+	var angles: Array[float] = []
+	var fan: float = randf_range(0.5, 1.1)
+	for i in count:
+		var base: float = lerpf(-fan, fan, float(i) / maxf(float(count - 1), 1.0)) if count > 1 else randf_range(-0.5, 0.5)
+		angles.append(clampf(base + randf_range(-0.35, 0.35), -SkewerPreview.KICK_FAN_ANGLE, SkewerPreview.KICK_FAN_ANGLE))
+	angles.shuffle()
 	var skill: Dictionary = p.skills.busy_def
 	for i in count:
 		var e: Actor = skewer_impaled[i]
@@ -272,7 +328,7 @@ func _skewer_kick() -> void:
 		if is_instance_valid(e):
 			# Thrown like a sack (alive or not): fast over the ground, lofted, end-over-end.
 			var spin: Vector3 = away.cross(Vector3.UP) * randf_range(7.0, 11.0) + Vector3.UP * randf_range(-3.0, 3.0)
-			e.ragdoll_launch(away * 12.0, 6.5, spin)
+			e.ragdoll_launch(away * randf_range(9.5, 14.5), randf_range(5.0, 8.0), spin)
 		Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), away + Vector3.UP * 0.4, Color(0.6, 0.05, 0.04), 20, 7.0)
 		if p.stats.has_affix("impaler"):
 			var fallback: Vector3 = p.global_position + away * 8.0

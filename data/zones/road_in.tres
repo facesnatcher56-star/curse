@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ZoneDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/zone_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "road_in"
+display_name = "The Road In"
+from_m = 0.0
+to_m = 64.0
+level_offset = 0.0
+density = 1.0
+groups = [{
+"weight": 70,
+"members": ["zombie", "zombie"]
+}, {
+"weight": 30,
+"members": ["zombie", "zombie", "zombie"]
+}]

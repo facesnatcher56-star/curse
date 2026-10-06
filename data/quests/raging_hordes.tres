@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "raging_hordes"
+title = "The Dead Are Restless"
+text = "Word from the carters: the dead are thick on the road tonight, but thin and clumsy. A good time for a strong arm."
+thanks = ""
+fail_text = ""
+kind = "world"
+giver = ""
+weight = 0.7
+min_jobs = 1
+days = 0
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {}
+penalty = {}
+choices = []
+links = {}
+world_mod = {
+"count_mult": 1.5,
+"health_mult": 0.8,
+"days": 3
+}
+zone = Vector2(60.0, 200.0)

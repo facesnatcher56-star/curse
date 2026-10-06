@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ZoneDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/zone_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "wood"
+display_name = "The Wood"
+from_m = 134.0
+to_m = 214.0
+level_offset = 0.1
+density = 1.0
+groups = [{
+"weight": 45,
+"members": ["zombie", "ghoul", "ghoul"]
+}, {
+"weight": 20,
+"members": ["bloater", "zombie"]
+}, {
+"weight": 35,
+"members": ["zombie", "zombie", "ghoul"]
+}]

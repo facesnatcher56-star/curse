@@ -32,6 +32,8 @@ var rng := RandomNumberGenerator.new()
 var barks: Array[Dictionary] = []    # {id, text, partner, activity}: drained by the town scene, which acts them out (see TownStage)
 var history: Array[String] = []
 var _clock: float = 0.0
+var _queue: Array = []        # the turns still to come this round: {id, wait}
+var _round_ids: Array = []
 var _event_clock: float = EVENT_TIME * 0.6
 
 func _init(seed_value: int = -1) -> void:
@@ -40,25 +42,53 @@ func _init(seed_value: int = -1) -> void:
 	else:
 		rng.randomize()
 
-## Advances town time. `delta` is real seconds.
+## Advances town time. `delta` is real seconds. A round is not everyone at once: each NPC's turn is spread across the round's 15 seconds,
+## in a shuffled order with some jitter, so the plaza has one thing going on at a time, not five.
 func tick(delta: float) -> void:
 	_clock += delta
 	_event_clock -= delta
 	while _clock >= ACTIVITY_TIME:
 		_clock -= ACTIVITY_TIME
-		run_round()
+		_start_round()
+	_run_due(delta)
 	if _event_clock <= 0.0:
 		_event_clock = EVENT_TIME * rng.randf_range(0.7, 1.3)
 		run_event()
 
-## One round: every NPC in town does one thing.
-func run_round() -> void:
+func _start_round() -> void:
+	if not _queue.is_empty():
+		return   # the last round is still being played out
+	var ids: Array = _shuffled_present()
+	var gap: float = ACTIVITY_TIME / maxf(float(ids.size()), 1.0)
+	for i in ids.size():
+		_queue.append({"id": ids[i], "wait": maxf(gap * (float(i) + rng.randf_range(0.0, 0.8)), 0.05)})
+	_round_ids = ids
+
+func _run_due(delta: float) -> void:
+	if _queue.is_empty():
+		return
+	for turn in _queue:
+		turn["wait"] = float(turn["wait"]) - delta
+	while not _queue.is_empty() and float((_queue[0] as Dictionary)["wait"]) <= 0.0:
+		var turn: Dictionary = _queue.pop_front()
+		var id: String = String(turn["id"])
+		if TownState.npcs.has(id) and not bool(TownState.npcs[id]["left"]):
+			_do_activity(id, _round_ids)
+		if _queue.is_empty():
+			_settle(_round_ids)
+
+func _shuffled_present() -> Array:
 	var ids: Array = TownState.present_ids()
 	for i in range(ids.size() - 1, 0, -1):   # shuffled with this sim's own generator, so a seed gives the same town
 		var j: int = rng.randi() % (i + 1)
 		var held: Variant = ids[i]
 		ids[i] = ids[j]
 		ids[j] = held
+	return ids
+
+## One round: every NPC in town does one thing.
+func run_round() -> void:
+	var ids: Array = _shuffled_present()
 	for id in ids:
 		if bool(TownState.npcs[id]["left"]):
 			continue

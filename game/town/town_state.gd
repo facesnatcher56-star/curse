@@ -32,6 +32,20 @@ static var run_in_progress: bool = false
 static var smith_gold: int = 120
 static var smith_stock: Array = []        # the smith's weapons and armour for sale: {item, price}
 static var stock: Array = []              # the vendor's items for sale: {item, price}
+## Quests and events that have turned up (see Quests): {uid, id, state, days_left, progress, data}. `day` counts the returns from the road.
+static var quests: Array = []
+## Changes each time the road is corrupted afresh: it picks which conditions the road has and how its empty stretches are stocked.
+static var road_seed: int = 0
+## The self-test keeps the road plain (no random conditions) unless a check asks for them, so the old checks stay as they were.
+static var road_conditions_in_tests: bool = false
+static var quest_uid: int = 0
+static var day: int = 1
+static var world_mods: Array = []         # running world events: {id, days_left, gold_mult, drop_mult, health_mult}
+static var quest_clock: Dictionary = {"quest": 120.0, "matter": 90.0}   # seconds until the next quest / matter may turn up
+static var quest_history: Array = []      # the last few endings: {id, state, day}
+static var monsters: Array = []           # the named monsters on the road (see Monsters)
+static var monster_uid: int = 0
+static var chronicle: Array = []          # what has happened: {day, kind, text} (see Chronicle)
 
 ## The one authored location so far (see CryptRoad): its job is always on the board, in the first slot. The other places are still the wave arena.
 const CRYPT_ROAD := "the Crypt Road"
@@ -58,6 +72,16 @@ static func reset() -> void:
 	last_run = {}
 	run_in_progress = false
 	stock = []
+	quests = []
+	road_seed = 0
+	quest_uid = 0
+	day = 1
+	world_mods = []
+	quest_clock = {"quest": 120.0, "matter": 90.0}
+	quest_history = []
+	monsters = []
+	monster_uid = 0
+	chronicle = []
 	ensure_npcs()
 	roll_board()
 
@@ -145,13 +169,38 @@ static func rationing() -> bool:
 ## The board is standing quests: whatever is posted is active, nothing has to be taken. There is one authored place in the world so far
 ## (the Crypt Road), so there is one quest. `job` mirrors it: the quest the HUD and the hero's surroundings are measuring.
 static func roll_board(_rng: RandomNumberGenerator = null) -> void:
+	road_seed += 1
 	board = [crypt_road_offer()]
 	job = (board[0] as Dictionary).duplicate(true)
 
 ## "Cleanse the Crypt Road": destroy its three corrupted nests; no waves, no timer (see JobObjective.DESTROY_NEST).
 static func crypt_road_offer() -> Dictionary:
+	var conditions: Array[String] = roll_road_conditions(road_seed)
+	var mult: float = 1.0
+	for id in conditions:
+		mult *= TownDb.modifier(id).reward_mult
 	return {"name": "Cleanse " + CRYPT_ROAD, "location": CRYPT_ROAD, "site": CryptRoad.SITE_ID, "objective": JobObjective.destroy_nest(3),
-		"modifiers": [], "reward": 150 + 20 * mini(jobs_done, 10)}
+		"modifiers": conditions, "reward": int(round((150 + 20 * mini(jobs_done, 10)) * mult))}
+
+## The conditions the road has this time (Zombasite gives about half of all levels one or two rules; see section 6 of the research doc):
+## half the time none, otherwise one, and a third of those a second that does not clash with it. Always the same for the same seed.
+static func roll_road_conditions(seed_value: int) -> Array[String]:
+	var out: Array[String] = []
+	if OS.get_cmdline_user_args().has("--selftest") and not road_conditions_in_tests:
+		return out
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9000 + seed_value * 31
+	if rng.randf() >= 0.5:
+		return out
+	var ids: Array = TownDb.sorted_ids(TownDb.modifiers())
+	out.append(String(ids[rng.randi() % ids.size()]))
+	if rng.randf() < 0.33:
+		for attempt in 10:
+			var second: String = String(ids[rng.randi() % ids.size()])
+			if not out.has(second) and _compatible(second, out):
+				out.append(second)
+				break
+	return out
 
 ## Out in the world a quest's objective is measured as it happens (for the Crypt Road, nests destroyed: `stage`). When one is met it is
 ## marked `ready`; the keeper pays it out when the hero comes back (claim_ready). Returns true when a quest has just become ready.
@@ -215,6 +264,8 @@ static func begin_expedition() -> void:
 	save()
 
 static func end_expedition() -> void:
+	if expedition:
+		Quests.on_day()   # a day has passed on the road: deadlines close in, events run down
 	expedition = false
 
 static func _compatible(id: String, chosen: Array[String]) -> bool:
@@ -288,7 +339,9 @@ static func item_price(item: Dictionary) -> int:
 static func to_dict() -> Dictionary:
 	return {"save_version": SAVE_VERSION, "gold": gold, "food": food, "potions": potions, "jobs_done": jobs_done,
 		"vendor_gold": vendor_gold, "smith_gold": smith_gold, "smith_stock": _stock_to_save(smith_stock), "gear": _gear_to_save(),
-		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress}
+		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
+		"quests": quests, "road_seed": road_seed, "quest_uid": quest_uid, "day": day, "world_mods": world_mods, "quest_clock": quest_clock, "quest_history": quest_history,
+		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle}
 
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
@@ -339,6 +392,44 @@ static func from_dict(data: Dictionary) -> void:
 		board = [crypt_road_offer()]
 	stock = _stock_from_save(data.get("stock", []))
 	last_run = data.get("last_run", {})
+	quests = []
+	for inst in data.get("quests", []):   # JSON has no integers: bring the counters back
+		inst["uid"] = int(inst["uid"])
+		inst["progress"] = int(inst.get("progress", 0))
+		inst["days_left"] = int(inst.get("days_left", -1))
+		for key in ["kills"]:
+			if (inst.get("data", {}) as Dictionary).has(key):
+				inst["data"][key] = int(inst["data"][key])
+		if TownDb.quest(String(inst["id"])) != null:   # one whose definition was removed is dropped
+			quests.append(inst)
+	quest_uid = int(data.get("quest_uid", 0))
+	road_seed = int(data.get("road_seed", 0))
+	day = int(data.get("day", 1))
+	world_mods = data.get("world_mods", [])
+	for mod in world_mods:
+		mod["days_left"] = int(mod.get("days_left", 1))
+		if mod.has("monster"):
+			mod["monster"] = int(mod["monster"])
+	quest_clock = data.get("quest_clock", {"quest": 120.0, "matter": 90.0})
+	quest_history = data.get("quest_history", [])
+	monsters = []
+	for mon in data.get("monsters", []):   # JSON has no integers
+		mon["uid"] = int(mon["uid"])
+		mon["kills"] = int(mon.get("kills", 0))
+		mon["age"] = int(mon.get("age", 0))
+		mon["spotted_day"] = int(mon.get("spotted_day", -1))
+		mon["spawned"] = false   # the monsters of a road that has just loaded are put out afresh
+		var plot: Dictionary = mon.get("plot", {})
+		if not plot.is_empty():
+			plot["days_left"] = int(plot["days_left"])
+			plot["total"] = int(plot["total"])
+		mon["plot"] = plot
+		monsters.append(mon)
+	monster_uid = int(data.get("monster_uid", 0))
+	chronicle = []
+	for entry in data.get("chronicle", []):
+		entry["day"] = int(entry.get("day", 1))
+		chronicle.append(entry)
 	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
 	job = (board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 

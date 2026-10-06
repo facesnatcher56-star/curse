@@ -104,8 +104,8 @@ func shove_enemies(delta: float) -> void:
 func try_roll(cursor: Vector3) -> void:
 	if float(p.stats.cooldowns.get("dodge", 0.0)) > 0.0:
 		return
-	if p.skills.busy and not p.skills.busy_hit_done:
-		return  # committed to the wind-up; once the blow lands the recovery can be cancelled
+	if p.skills.busy and not p.skills.busy_hit_done and p.skills.busy_skill != "basic":
+		return  # a skill is committed to its wind-up; once the blow lands the recovery can be cancelled. An auto attack never is: a dodge always wins
 	var roll_cost: float = ROLL_STAMINA * p.stats.armor_stat("roll_cost", 1.0)
 	if p.stats.stamina < roll_cost:
 		p._say("Too tired to dodge")
@@ -126,8 +126,11 @@ func try_roll(cursor: Vector3) -> void:
 	p.stats.cooldowns["dodge"] = float(SkillDb.all()["dodge"]["cd"])
 	rolling = true
 	roll_t = 0.0
+	if p.skills.busy:
+		p.skills.cancel_action()   # the swing in progress is dropped, the weapon trail and the pose with it
 	p.skills.busy = false
 	p.skills.queued_skill = ""
+	p.skills.swallow_alt = Input.is_action_pressed("alt_skill")   # a right-click (or the pad's attack button) still held does not start another swing after the roll
 	p.attack_target = null
 	p.click_mode = 0
 	has_goal = false

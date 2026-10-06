@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "grey_alpha"
+title = "The Grey Alpha"
+text = "Whoever was leading them is still out there. The carters call it Greywhisker. Find it before it finds the gate."
+thanks = "Greywhisker's head on a stick. That will keep them quiet."
+fail_text = "Greywhisker kept hunting. The road is not safe."
+kind = "slay_unique"
+giver = "hale"
+weight = 0.0
+min_jobs = 0
+days = 6
+target = "ghoul"
+count = 1
+unique_name = "Greywhisker"
+unique_hp = 5.0
+unique_level = 1.5
+item_name = ""
+reward = {
+"gold": 90,
+"happy": {
+"all": 3
+}
+}
+penalty = {
+"happy": {
+"all": -3
+}
+}
+choices = []
+links = {}
+world_mod = {}
+zone = Vector2(50.0, 140.0)

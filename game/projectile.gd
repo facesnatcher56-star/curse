@@ -44,45 +44,73 @@ func _physics_process(delta: float) -> void:
 		_explode()
 		return
 	global_position += to_target.normalized() * step
+## How many enemies a blast deals with in one frame: the blast's work is spread over a few frames (the nearest first, so it ripples out from
+## the centre) instead of landing on one, which was the hitch when it caught a crowd.
+const BATCH := 2
+
 func _explode() -> void:
 	_done = true
+	visible = false
 	var center: Vector3 = global_position
 	Destructible.blast(get_tree(), center, blast_radius, 70.0, Vector3.ZERO, 1.6)
-	var caught: int = 0
+	var victims: Array[Enemy] = []
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
-		if enemy == null or enemy.dead:
-			continue
-		var dist: float = enemy.flat_distance_to(self)
-		if dist > blast_radius:
-			continue
-		var closeness: float = 1.0 - dist / blast_radius   # 1 at the centre, 0 at the rim
-		var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4)
-		enemy.receive(result, center)
-		caught += 1
-		if not is_instance_valid(enemy):
-			continue
-		enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness)
-		# Close to the blast: thrown clear by the shockwave, further out only staggered.
-		if closeness >= 0.4 and not enemy.is_boss and enemy.impalable:
-			var away: Vector3 = enemy.global_position - center
-			away.y = 0.0
-			away = away.normalized() if away.length() > 0.05 else Vector3.FORWARD.rotated(Vector3.UP, randf() * TAU)
-			var force: float = 0.4 + closeness
-			var spin: Vector3 = away.cross(Vector3.UP) * (3.0 + 5.0 * closeness) + Vector3.UP * randf_range(-1.5, 1.5)
-			enemy.ragdoll_launch(away * (4.0 + 6.0 * force), 3.0 + 3.5 * force, spin)
-		else:
-			enemy.interrupt(0.5)
-	if owner_actor is Player:
-		ItemEffects.on_fireball_blast(owner_actor as Player, caught)
+		if enemy != null and not enemy.dead and enemy.flat_distance_to(self) <= blast_radius:
+			victims.append(enemy)
+	victims.sort_custom(func(a: Enemy, b: Enemy) -> bool: return a.flat_distance_to(self) < b.flat_distance_to(self))
 	Fx.shake(self, 0.22)
 	Fx.punch(self, 2.0)
-	Fx.hitstop(self, 0.05)
 	Sfx.sample(self, "fireball_impact", 1.0, 1.0)
-	_explosion_visuals(center)
+	_explosion_flash(center)
+	var tree: SceneTree = get_tree()
+	var caught: int = 0
+	var index: int = 0
+	var flamed: bool = false
+	while index < victims.size():
+		for k in BATCH:
+			if index >= victims.size():
+				break
+			var enemy: Enemy = victims[index]
+			index += 1
+			if is_instance_valid(enemy) and not enemy.dead:
+				_hit(enemy, center)
+				caught += 1
+		await tree.process_frame
+		if not flamed and (index >= BATCH * 2 or index >= victims.size()):
+			flamed = true
+			_explosion_flames(center)   # the heavier visuals follow the first hits, not on the same frame
+	if not flamed:
+		_explosion_flames(center)
+	if owner_actor is Player:
+		ItemEffects.on_fireball_blast(owner_actor as Player, caught)
+	await tree.process_frame
+	_explosion_ground(center)
+	await tree.process_frame
+	_explosion_smoulder(center)
 	queue_free()
 
-func _explosion_visuals(center: Vector3) -> void:
+## The blast on one enemy: damage, burning, and thrown clear if close to the centre.
+func _hit(enemy: Enemy, center: Vector3) -> void:
+	var dist: float = enemy.flat_distance_to(self)
+	var closeness: float = clampf(1.0 - dist / blast_radius, 0.0, 1.0)   # 1 at the centre, 0 at the rim
+	var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4)
+	enemy.receive(result, center)
+	if not is_instance_valid(enemy):
+		return
+	enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness)
+	# Close to the blast: thrown clear by the shockwave, further out only staggered.
+	if closeness >= 0.4 and not enemy.is_boss and enemy.impalable:
+		var away: Vector3 = enemy.global_position - center
+		away.y = 0.0
+		away = away.normalized() if away.length() > 0.05 else Vector3.FORWARD.rotated(Vector3.UP, randf() * TAU)
+		var force: float = 0.4 + closeness
+		var spin: Vector3 = away.cross(Vector3.UP) * (3.0 + 5.0 * closeness) + Vector3.UP * randf_range(-1.5, 1.5)
+		enemy.ragdoll_launch(away * (4.0 + 6.0 * force), 3.0 + 3.5 * force, spin)
+	else:
+		enemy.interrupt(0.5)
+
+func _explosion_flash(center: Vector3) -> void:
 	var scene: Node = get_parent()
 	var ground := Vector3(center.x, 0.0, center.z)
 	# Blinding flash, shockwave and flying sparks.
@@ -109,15 +137,27 @@ func _explosion_visuals(center: Vector3) -> void:
 	tween.tween_property(core, "scale", Vector3(1.9, 1.5, 1.9) * blast_radius, 0.35).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	tween.tween_property(mat, "albedo_color", Color(0.9, 0.25, 0.04, 0.0), 0.45).set_ease(Tween.EASE_IN)
 	tween.chain().tween_callback(core.queue_free)
+	
+func _explosion_flames(center: Vector3) -> void:
+	var scene: Node = get_parent()
+	var ground := Vector3(center.x, 0.0, center.z)
 	# Rolling flame, then smoke drifting up from the blast.
 	_puff(scene, ground, 46, 0.75, blast_radius * 0.5, Vector2(0.9, 0.9), 3.0, 5.0,
 		[Color(1.0, 0.8, 0.3, 0.9), Color(0.9, 0.25, 0.05, 0.5), Color(0.1, 0.05, 0.03, 0.0)], true, 0.0)
 	_puff(scene, ground + Vector3(0, 0.5, 0), 30, 2.2, blast_radius * 0.45, Vector2(1.3, 1.3), 1.4, 2.2,
 		[Color(0.18, 0.16, 0.15, 0.0), Color(0.16, 0.14, 0.13, 0.65), Color(0.1, 0.09, 0.09, 0.0)], false, 0.12)
+
+func _explosion_ground(center: Vector3) -> void:
+	var scene: Node = get_parent()
+	var ground := Vector3(center.x, 0.0, center.z)
 	# Scorched earth: a dark charred patch with a glowing ember bed that cools off.
 	Fx.blood_decal(scene, ground, blast_radius * 1.15, Color(0.02, 0.015, 0.012, 0.9))
 	Fx.blood_decal(scene, ground, blast_radius * 0.8, Color(0.0, 0.0, 0.0, 0.5))
 	_ember_bed(scene, ground)
+
+func _explosion_smoulder(center: Vector3) -> void:
+	var scene: Node = get_parent()
+	var ground := Vector3(center.x, 0.0, center.z)
 	# Smouldering afterwards: thin smoke and drifting embers for several seconds.
 	var smoulder := Node3D.new()
 	scene.add_child(smoulder)

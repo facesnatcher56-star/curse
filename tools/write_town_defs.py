@@ -95,6 +95,12 @@ MODIFIERS = {
                    spawn_weights={"priest": 3.0, "brute": 1.4}, reward_mult=1.3, min_stage=2),
     "brutal": dict(display_name="Brutal", description="Brutes, and plenty of them.",
                    spawn_weights={"brute": 2.5}, health_mult=1.15, reward_mult=1.3, min_stage=2),
+    "bloated": dict(display_name="Bloated", description="Swollen things lurch out of every ditch. Keep your distance.",
+                    spawn_weights={"bloater": 3.5}, reward_mult=1.15),
+    "shambling": dict(display_name="Shambling", description="Slow, thin and many. An easier road, and it pays less.",
+                      spawn_weights={"zombie": 1.8}, count_mult=1.2, health_mult=0.85, speed_mult=0.9, reward_mult=0.9),
+    "plague": dict(display_name="Plague Road", description="Spitters and priests, in a low fog that hides who is casting what.",
+                   spawn_weights={"spitter": 2.0, "priest": 2.5}, fog_mult=1.8, ambient_mult=0.85, reward_mult=1.25, min_stage=2),
 }
 
 

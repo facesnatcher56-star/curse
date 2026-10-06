@@ -37,6 +37,8 @@ var _aim_root: Node3D
 var _aim_sphere_mat: StandardMaterial3D
 var _aim_line: MeshInstance3D
 var _lane: SkewerPreview   # the lane Skewer shows while its key is held
+var _wave_preview: PowerPreview   # the strip a Power Strike's shockwave will tear along, shown while the blow is gathered
+var _wave_clock: float = 0.0
 var _highlighted: Array[Actor] = []
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
@@ -109,6 +111,8 @@ func try_directional(id: String, cursor: Vector3) -> void:
 		p.earthshatter.start(cursor)
 	elif bool(SkillDb.all()[id].get("leap", false)):
 		p.leap.start_leap(cursor)
+	elif id == "power":
+		start_skill("power", null, cursor)   # no target is picked for the hero: the blow goes where the cursor points (see _power_target)
 	else:
 		p.skewer.start_skewer(cursor)
 
@@ -140,7 +144,8 @@ func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 			return   # cancelled while this key was held: nothing happens until it is released
 		aiming_id = id
 		aiming_action = action
-		p.movement.has_goal = false
+		if not bool(SkillDb.all()[id].get("skewer", false)):
+			p.movement.has_goal = false   # (Skewer is aimed on the move: the hero keeps running while its lane shows, and charges from that speed)
 	elif aim_blocked == action:
 		aim_blocked = ""
 	elif aiming_id == id and aiming_action == action:
@@ -188,6 +193,11 @@ func aim_point_for(id: String, cursor: Vector3) -> Vector3:
 ## Per-frame preview while aiming: sphere at the impact point, ring on the ground, a line from the hero,
 ## and every enemy inside the blast lit up.
 func update_aim(cursor: Vector3) -> void:
+	# A directed Power Strike follows the cursor for the whole of its wind-up: the hero turns with it and the blow lands where it ends up.
+	if busy and busy_skill == "power" and not busy_hit_done and busy_target == null and not p.movement.rolling:
+		busy_aim = cursor
+		p.face(busy_aim, 0.4)
+	_update_wave_preview()
 	if aiming_id == "":
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
@@ -567,6 +577,42 @@ func _lunge(max_distance: float) -> void:
 static func hit_fraction(skill: Dictionary) -> float:
 	return (float(skill["strike"]) - float(skill["start"])) / (float(skill["end"]) - float(skill["start"]))
 
+## While a Power Strike is being gathered and the weapon throws a shockwave, show the strip it will hit.
+func _update_wave_preview() -> void:
+	var gathering: bool = busy and busy_skill == "power" and not busy_hit_done and p.stats.has_affix("gravewarden")
+	if not gathering:
+		if _wave_preview != null:
+			_wave_preview.hide_wave()
+		return
+	if _wave_preview == null:
+		_wave_preview = PowerPreview.new(p)
+	_wave_clock += p.get_process_delta_time()
+	var dir: Vector3 = busy_aim - p.global_position
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
+	var duration: float = maxf(busy_time, 0.01)
+	var strength: float = clampf(busy_t / duration / maxf(hit_fraction(busy_def), 0.01) * 1.6, 0.25, 1.0)
+	_wave_preview.show_wave(p.global_position, dir, strength, _wave_clock)
+
+## The enemy a directed Power Strike lands on: the nearest one to the point the blow lands on (a stride out toward the cursor), if any is
+## in reach. Chosen when the blade comes down, not when the key is pressed.
+func _power_target() -> Actor:
+	var dir: Vector3 = busy_aim - p.global_position
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
+	var point: Vector3 = p.global_position + dir * 1.9
+	var best: Actor = null
+	var best_d: float = 2.1
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead or e.impaled:
+			continue
+		var d: float = Vector2(e.global_position.x - point.x, e.global_position.z - point.z).length() - e.body_radius * 0.5
+		if d < best_d and p.flat_distance_to(e) - e.body_radius <= float(SkillDb.all()["power"]["range"]) + 0.5:
+			best_d = d
+			best = e
+	return best
+
 ## Power Strike lands: crater, rings, rocks and cracks at the point of impact, splash on neighbours, and a shove.
 func _power_impact() -> void:
 	var dir: Vector3 = busy_aim - p.global_position
@@ -611,6 +657,8 @@ const POWER_STUN := 1.5
 const POWER_SPLASH_STUN := 1.1
 func _apply_skill(skill: Dictionary) -> void:
 	var mult: float = skill["mult"]
+	if busy_skill == "power" and busy_target == null:
+		busy_target = _power_target()
 	match String(skill["kind"]):
 		"melee":
 			# The basic combo's stagger and knockback follow the weapon: light for a falchion, heavy for a greatsword.

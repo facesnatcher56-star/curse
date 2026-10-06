@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="RunModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/run_modifier_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "plague"
+display_name = "Plague Road"
+description = "Spitters and priests, in a low fog that hides who is casting what."
+spawn_weights = {
+"spitter": 2.0,
+"priest": 2.5
+}
+count_mult = 1.0
+health_mult = 1.0
+speed_mult = 1.0
+size_mult = 1.0
+ambient_mult = 0.85
+fog_mult = 1.8
+reward_mult = 1.25
+min_stage = 2
+excludes = Array[String]([])

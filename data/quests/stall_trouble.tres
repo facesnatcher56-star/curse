@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "stall_trouble"
+title = "Trouble at the Stall"
+text = "Marlow and Cutter are at each other's throats over a dice game. Settle it before it turns into a brawl."
+thanks = "They are not friends, but they are not fighting."
+fail_text = "It ended in a brawl and neither will say who started it."
+kind = "matter"
+giver = "marlow"
+weight = 1.5
+min_jobs = 0
+days = 2
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {
+"relation": [["marlow", "cutter", 12]],
+"happy": {
+"marlow": 2,
+"cutter": 2
+}
+}
+penalty = {
+"relation": [["marlow", "cutter", -10]],
+"happy": {
+"marlow": -8,
+"cutter": -8
+}
+}
+choices = [{
+"label": "Pay their stake and end the game (10 gold)",
+"cost": {
+"gold": 10
+},
+"outcome": "solve",
+"result": "Neither wins. Both grumble."
+}, {
+"label": "Take Marlow's side",
+"cost": {},
+"outcome": "solve",
+"result": "Cutter will not forget it.",
+"reward": {
+"relation": [["marlow", "cutter", -6]],
+"happy": {
+"marlow": 5,
+"cutter": -6
+}
+}
+}, {
+"label": "Stay out of it",
+"cost": {},
+"outcome": "fail",
+"result": "You walk past."
+}]
+links = {}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

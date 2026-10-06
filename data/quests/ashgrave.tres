@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ashgrave"
+title = "Mother Ashgrave"
+text = "The shrine priests answer to someone, a woman I knew once. They call her Mother Ashgrave now. End it, for her sake and ours."
+thanks = "She was not herself for a long time. Thank you."
+fail_text = "The shrine is louder than ever."
+kind = "slay_unique"
+giver = "maren"
+weight = 1.2
+min_jobs = 2
+days = 7
+target = "priest"
+count = 1
+unique_name = "Mother Ashgrave"
+unique_hp = 3.0
+unique_level = 1.7
+item_name = ""
+reward = {
+"gold": 60,
+"potions": 3,
+"happy": {
+"maren": 10
+}
+}
+penalty = {
+"happy": {
+"maren": -8
+}
+}
+choices = []
+links = {}
+world_mod = {}
+zone = Vector2(200.0, 300.0)

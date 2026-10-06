@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "fat_harvest"
+title = "A Fat Harvest"
+text = "The late fields came in better than anyone hoped. For a few days the granary fills and the mood lifts."
+thanks = ""
+fail_text = ""
+kind = "world"
+giver = ""
+weight = 0.7
+min_jobs = 0
+days = 0
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {}
+penalty = {}
+choices = []
+links = {}
+world_mod = {
+"happy_per_day": 2.0,
+"food_per_day": 2,
+"days": 3
+}
+zone = Vector2(60.0, 200.0)

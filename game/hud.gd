@@ -17,7 +17,6 @@ var alive: int = 0
 var show_gear: bool = false
 var character_panel: Control
 var banner_text: String = ""
-var _hint_age: float = 0.0
 var banner_time: float = 0.0
 var health_orb: Control
 var mana_orb: Control
@@ -83,9 +82,7 @@ func _draw() -> void:
 	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	_draw_tooltip(font, size_px)
-	if player.skills.aiming_id != "":
-		draw_string(font, Vector2(0, y0 - 14.0), "Release %s to cast %s" % [GameSettings.short_binding_text(player.skills.aiming_action),
-			SkillDb.all()[player.skills.aiming_id]["name"]], HORIZONTAL_ALIGNMENT_CENTER, size_px.x, 20, Color(1.0, 0.75, 0.4))
+
 
 	# Target bar, top centre: whatever the mouse is over, else what we are attacking.
 	var target: Actor = player.hover_target
@@ -99,19 +96,19 @@ func _draw() -> void:
 		_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
 			"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
 
-	# Small bars over enemies that were hurt recently or are hovered.
+	# Small bars over every enemy that has been hurt (and stays hurt), and over the one the pointer is on.
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera != null:
 		for node in get_tree().get_nodes_in_group("enemies"):
 			var enemy := node as Actor
-			if enemy == null or enemy.dead or (enemy.bar_timer <= 0.0 and enemy != player.hover_target):
+			if enemy == null or enemy.dead or (enemy.health >= enemy.max_health - 0.01 and enemy.bar_timer <= 0.0 and enemy != player.hover_target):
 				continue
 			var head: Vector3 = enemy.get_global_transform_interpolated().origin + Vector3(0, enemy.body_height + 0.25, 0)
 			if camera.is_position_behind(head):
 				continue
 			var screen: Vector2 = camera.unproject_position(head)
 			var bar_w: float = 44.0 + enemy.body_radius * 30.0
-			var alpha: float = 1.0 if enemy == player.hover_target else clampf(enemy.bar_timer, 0.0, 1.0)
+			var alpha: float = 1.0 if (enemy == player.hover_target or enemy.health < enemy.max_health - 0.01) else clampf(enemy.bar_timer, 0.0, 1.0)
 			var pos := Vector2(screen.x - bar_w * 0.5, screen.y - 8.0)
 			draw_rect(Rect2(pos, Vector2(bar_w, 6)), Color(0, 0, 0, 0.7 * alpha))
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 6)), Color(0.8, 0.15, 0.12, alpha))
@@ -127,7 +124,6 @@ func _draw() -> void:
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.28), lines[0], 50, Color(1.0, 0.9, 0.7, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 		for i in range(1, lines.size()):
 			UiTheme.text(self, font, Vector2(0, size_px.y * 0.28 + 30.0 * i), lines[i], 22, Color(0.85, 0.78, 0.65, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
-	_hint_age += get_process_delta_time()
 	var has_title: bool = objective != "" or wave > 0   # the world draws its quest elsewhere: just the kill and enemy counts here
 	var row_y: float = (50.0 if has_title else 22.0) + top_offset
 	UiTheme.draw_panel(self, Rect2(14, 14 + top_offset, 250, 62 if has_title else 38), 0.7)
@@ -138,11 +134,6 @@ func _draw() -> void:
 	var kills_text: String = str(kills)
 	var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
-	# The control hints fade to a whisper after the first half minute.
-	var hint_alpha: float = clampf(1.0 - (_hint_age - 25.0) / 10.0, 0.3, 1.0)
-	UiTheme.text(self, font, Vector2(24, 100 + top_offset), Gamepad.help_text() if Gamepad.active else "LMB move/attack   1-2, 4-6 skills   3 potion   RMB attack   Ctrl stand still   Space dodge   Tab character / bag",
-		14, Color(1, 1, 1, 0.5 * hint_alpha))
-
 	_draw_minimap(size_px, font)
 
 	_draw_item_card(size_px, font)
@@ -221,11 +212,17 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 			continue
 		count += 1
 		var p: Vector3 = enemy.global_position - origin
-		if windowed and (absf(p.x) > half or absf(p.z) > half):
-			continue
+		if windowed and (absf(p.x) > half or absf(p.z) > half) and not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")):
+			continue   # (a named monster is pinned to the edge of the map instead, so it can be found)
 		var rel: Vector2 = Vector2(p.x, p.z).rotated(Gamepad.view_yaw)
 		var at: Vector2 = centre + Vector2(clampf(rel.x, -half, half), clampf(rel.y, -half, half)) * scale_px
-		if enemy.is_boss or enemy.max_health >= 150.0:
+		if enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid"):   # a named monster: a diamond (red for a nemesis), not a dot
+			var named: Color = Color(1.0, 0.75, 0.3) if enemy.has_meta("quest_uid") else Color(1.0, 0.5, 0.18)
+			if enemy.has_meta("monster_uid") and bool(Monsters.find(int(enemy.get_meta("monster_uid"))).get("nemesis", false)):
+				named = Color(0.95, 0.2, 0.14)
+			draw_colored_polygon(PackedVector2Array([at + Vector2(0, -8), at + Vector2(8, 0), at + Vector2(0, 8), at + Vector2(-8, 0)]), Color(0, 0, 0, 0.9))
+			draw_colored_polygon(PackedVector2Array([at + Vector2(0, -6), at + Vector2(6, 0), at + Vector2(0, 6), at + Vector2(-6, 0)]), named)
+		elif enemy.is_boss or enemy.max_health >= 150.0:
 			draw_circle(at, 5.0, Color(0, 0, 0, 0.8))
 			draw_circle(at, 3.8, Color(1.0, 0.55, 0.12))
 		else:
@@ -246,6 +243,19 @@ func _draw_minimap(size_px: Vector2, font: Font) -> void:
 		var tint: Color = Items.RARITY_COLORS[rarity] if rarity > 0 else Color(0.78, 0.76, 0.7)
 		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r - 1), lat + Vector2(r + 1, 0), lat + Vector2(0, r + 1), lat + Vector2(-r - 1, 0)]), Color(0, 0, 0, 0.85))
 		draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)
+	# What a monster's plot has put up (altar, war banner, bones), a violet triangle; a quest item lying on the road, a small gold ring.
+	for node in get_tree().get_nodes_in_group("plot_signs"):
+		var sp: Vector3 = (node as Node3D).global_position - origin
+		var srel: Vector2 = Vector2(sp.x, sp.z).rotated(Gamepad.view_yaw)
+		var sat: Vector2 = centre + Vector2(clampf(srel.x, -half, half), clampf(srel.y, -half, half)) * scale_px
+		draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -9), sat + Vector2(8, 6), sat + Vector2(-8, 6)]), Color(0, 0, 0, 0.9))
+		draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -6.5), sat + Vector2(5.5, 4.5), sat + Vector2(-5.5, 4.5)]), Color(0.75, 0.4, 0.9))
+	for node in get_tree().get_nodes_in_group("quest_pickups"):
+		var qp: Vector3 = (node as Node3D).global_position - origin
+		var qrel: Vector2 = Vector2(qp.x, qp.z).rotated(Gamepad.view_yaw)
+		var qat: Vector2 = centre + Vector2(clampf(qrel.x, -half, half), clampf(qrel.y, -half, half)) * scale_px
+		draw_circle(qat, 5.5, Color(0, 0, 0, 0.85))
+		draw_arc(qat, 4.0, 0.0, TAU, 14, Color(1.0, 0.8, 0.3), 2.0)
 	# The hero: a white arrow pointing the way they face.
 	var pp: Vector3 = player.global_position - origin
 	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px

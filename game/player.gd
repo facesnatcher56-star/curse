@@ -104,7 +104,19 @@ func refresh_weapon_model() -> void:
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
 
+## Whether a Skewer charge is under way (wind-up, run or skid): nothing may stall or push the hero then.
+func is_charging() -> bool:
+	return skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3
+
+## The hero is never frozen by the blows he lands while charging: every enemy the blade takes would otherwise stop him for a beat.
+func add_hitpause(duration: float) -> void:
+	if is_charging():
+		return
+	super.add_hitpause(duration)
+
 func _physics_process(delta: float) -> void:
+	if skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3:
+		knock = Vector3.ZERO   # nothing pushes the hero off a Skewer charge, not even a hit-pause frame
 	if _actor_tick(delta):
 		move_with(Vector3.ZERO)
 		return
@@ -167,7 +179,12 @@ func _physics_process(delta: float) -> void:
 # --- Input -------------------------------------------------------------------
 
 ## Where the hero is "pointing": the mouse position on the ground, or with a controller the right-stick aim point.
+## The self-test points the cursor with this (there is no mouse); INF means use the real one.
+var cursor_override: Vector3 = Vector3.INF
+
 func cursor_world() -> Vector3:
+	if cursor_override != Vector3.INF:
+		return cursor_override
 	if Gamepad.active:
 		return _pad_cursor()
 	var camera: Camera3D = get_viewport().get_camera_3d()

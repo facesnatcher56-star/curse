@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ghoul_cull"
+title = "Thin the Ghouls"
+text = "The ghouls are working the trees along the road and the carters will not pass. Put eight of them down."
+thanks = "Eight less. The carters will risk it again."
+fail_text = "The road stayed closed. Folk went hungry for it."
+kind = "kill_group"
+giver = "hale"
+weight = 3.0
+min_jobs = 0
+days = 5
+target = "ghoul"
+count = 8
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {
+"gold": 70,
+"happy": {
+"hale": 4
+}
+}
+penalty = {
+"happy": {
+"hale": -4
+}
+}
+choices = []
+links = {
+"complete": [{
+"quest": "grey_alpha",
+"chance": 0.3
+}]
+}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

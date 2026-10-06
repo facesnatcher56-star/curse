@@ -22,6 +22,9 @@ var world_mode: bool = false
 var gold_per_kill: int = 0
 var _fell: bool = false
 signal hero_fell
+## The quests heard something on the road (see Quests): a line to show, and where a quest item dropped.
+signal quest_news(line: String)
+signal quest_item_dropped(inst: Dictionary, at: Vector3)
 ## Set for a job played in an authored location (see CryptRoad) instead of the wave loop: the monsters are already out there.
 var location: CryptRoad
 const SLEEP_BEYOND := 85.0   # an unaware monster this far from the hero is switched off...
@@ -62,6 +65,24 @@ func modifier_product(field: String) -> float:
 	for m in active_modifiers():
 		product *= float(m.get(field))
 	return product
+
+## How much more (or less) likely a group made of these kinds is, once the modifiers have had their say: the average of what each kind's
+## weight is multiplied by (a Spitters' Nest makes groups with spitters in them more likely, and leaves the rest alone).
+func group_weight(kinds: Array) -> float:
+	if kinds.is_empty():
+		return 1.0
+	var total: float = 0.0
+	for kind in kinds:
+		var mult: float = 1.0
+		for m in active_modifiers():
+			mult *= float(m.spawn_weights.get(String(kind), 1.0))
+		total += mult
+	return total / float(kinds.size())
+
+## How much bigger (or smaller) a group is made, by the modifiers and by world events (Raging Hordes).
+func group_count_mult() -> float:
+	var mult: float = modifier_product("count_mult")
+	return mult * (Quests.world_mult("count_mult") if world_mode else 1.0)
 
 ## Names of the active modifiers, for the wave banner.
 func modifier_names() -> String:
@@ -267,6 +288,10 @@ func spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -
 	if not modifiers.is_empty():
 		_apply_modifiers(enemy)
 	# Teleported bodies would otherwise be drawn sliding in from their previous position.
+	if world_mode:
+		enemy.max_health *= Quests.world_mult("health_mult")
+		enemy.health = enemy.max_health
+		enemy.move_speed *= Quests.world_mult("speed_mult")
 	enemy.reset_physics_interpolation()
 	return enemy
 
@@ -302,10 +327,34 @@ func _process(delta: float) -> void:
 	if not job.is_empty() and not _ending and not selftest and player != null and player.dead:
 		_end_run(false)
 
+## What a kill means to the quests: a named monster done (and a good item from it), or one of a kind being counted (and maybe a quest item).
+func _report_to_quests(actor: Actor) -> void:
+	var enemy := actor as Enemy
+	if enemy == null:
+		return
+	if enemy.has_meta("monster_uid"):   # a named monster (see Monsters): the bounty is paid and it leaves its best behind
+		var paid: Dictionary = Monsters.killed(int(enemy.get_meta("monster_uid")))
+		for i in int(paid.get("items", 0)):
+			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(wave, 1.0, owned_uniques()))
+		for line in Quests.pop_news():
+			quest_news.emit(line)
+		return
+	if enemy.has_meta("quest_uid"):
+		if Quests.report_unique_killed(int(enemy.get_meta("quest_uid"))):
+			drop_item(enemy.global_position, Items.roll_drop(wave, 1.0, owned_uniques()))   # a named monster always leaves something good
+		for line in Quests.pop_news():
+			quest_news.emit(line)
+		return
+	var result: Dictionary = Quests.report_kill(enemy.variant)
+	for inst in result["drops"]:
+		quest_item_dropped.emit(inst, enemy.global_position)
+	for line in Quests.pop_news():
+		quest_news.emit(line)
+
 ## A dead monster may drop an item (see EnemyDef.drop_chance): it lands near the body and waits to be walked over.
 func _drop_loot(actor: Actor) -> void:
 	var enemy := actor as Enemy
-	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance:
+	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance * (Quests.world_mult("drop_mult") if world_mode else 1.0):
 		return
 	drop_item(enemy.global_position, Items.roll_drop(wave, enemy.def.drop_luck, owned_uniques()))
 
@@ -344,7 +393,9 @@ func _end_run(completed: bool, walked_out: bool = false) -> void:
 func _on_enemy_died(actor: Actor) -> void:
 	kills += 1
 	if gold_per_kill > 0:
-		TownState.gold += gold_per_kill
+		TownState.gold += int(round(gold_per_kill * Quests.world_mult("gold_mult")))
+	if world_mode:
+		_report_to_quests(actor)
 	player.on_enemy_killed(actor)
 	_drop_loot(actor)
 	await get_tree().process_frame

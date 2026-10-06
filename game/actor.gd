@@ -25,6 +25,8 @@ var stun_time: float = 0.0
 var knock: Vector3 = Vector3.ZERO
 ## The hero who last hit this actor: credit for what a knock-back does when it ends against something (see _knock_impact).
 var knocked_by: Actor
+## Whoever last landed a blow on this actor (for the hero: who to hold responsible for a death, see Monsters.hero_fell).
+var last_hit_by: Actor
 var _impact_cooldown: float = 0.0
 ## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
 var snare_time: float = 0.0
@@ -208,6 +210,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	_last_hit_ms = Time.get_ticks_msec()
 	if result.get("source") is Player:
 		knocked_by = result["source"]
+	if result.get("source") is Actor:
+		last_hit_by = result["source"]
 	if invulnerable_time > 0.0:
 		Fx.text_at(self, global_position + Vector3(0, 2.2, 0), "Dodge", Color(0.6, 0.95, 1.0), 40)
 		return
@@ -292,9 +296,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 			add_hitpause(pause)
 		if source != null and source != self:
 			source.add_hitpause(pause)
-		if outcome == Combat.Outcome.CRUSHING:
+		var charging: bool = source is Player and (source as Player).is_charging()   # no stutter in the middle of a charge
+		if outcome == Combat.Outcome.CRUSHING and not charging:
 			Fx.hitstop(self, 0.07)
-		elif outcome == Combat.Outcome.CRITICAL:
+		elif outcome == Combat.Outcome.CRITICAL and not charging:
 			Fx.hitstop(self, 0.045)
 
 	# Equipment reacts to every landed hit (including the one that killed).
@@ -599,11 +604,28 @@ func apply_burn(dps: float, seconds: float) -> void:
 		_flames = _make_flames()
 		add_child(_flames)
 
+const BURN_TICK := 0.5
+var _burn_clock: float = 0.0
+var _burn_owed: float = 0.0
+
 func _tick_burn(delta: float) -> void:
 	if burn_time <= 0.0:
 		return
 	burn_time -= delta
 	_apply_damage(burn_dps * delta)
+	# The burning shows in ticks: every half second a fiery number for what it took, a puff of embers and a flare of the flames.
+	_burn_owed += burn_dps * delta
+	_burn_clock += delta
+	if _burn_clock >= BURN_TICK:
+		_burn_clock = 0.0
+		if not dead and _burn_owed >= 0.5:
+			Fx.text_at(self, global_position + Vector3(randf_range(-0.3, 0.3), body_height + 0.4, randf_range(-0.2, 0.2)), str(maxi(roundi(_burn_owed), 1)), Color(1.0, 0.55, 0.12), 34)
+			Fx.burst(self, global_position + Vector3(0, body_height * 0.6, 0), Vector3.UP, Color(1.0, 0.5, 0.1), 6, 2.8, 0.03)
+			if _flames != null:
+				_flames.scale = Vector3.ONE * 1.35
+		_burn_owed = 0.0
+	if _flames != null:
+		_flames.scale = _flames.scale.lerp(Vector3.ONE, 1.0 - exp(-10.0 * delta))
 	if _flames != null:
 		_flames.visible = not is_ragdolled()   # no flame trail across the sky while thrown, and none on a body lying stunned
 	if burn_time <= 0.0 or dead:

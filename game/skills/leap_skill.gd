@@ -12,12 +12,12 @@ func _init(player: Player) -> void:
 # plant a boot on it and wrench the sword free. Onto open ground (or standing enemies): a two-handed overhead chop.
 
 const LEAP_WINDUP := 0.2
-const LEAP_SLAM_HOLD := 0.5
-const LEAP_PULL_TIME := 1.0
+const LEAP_SLAM_HOLD := 0.25     # (halved: the recovery after landing on a downed enemy was too long)
+const LEAP_PULL_TIME := 0.5
 const LEAP_SLAM_MULT := 3.6
 const LEAP_CHOP_MULT := 1.3
 const LEAP_CHOP_RADIUS := 2.3
-const LEAP_PIN_TIME := 1.7
+const LEAP_PIN_TIME := 1.0
 const LEAP_SLAM_REACH := 0.5      # landing spot sits this far short of the victim: the blade comes down in front of the knight
 const LEAP_CHOP_RECOVER := 0.6
 # Key times in the "leap" clip (Meshy Basic_Jump): crouch, take-off, plunge landing, then the rise that pulls the blade up.
@@ -56,6 +56,7 @@ func _downed_near(point: Vector3, radius: float) -> Actor:
 
 func start_leap(cursor: Vector3) -> void:
 	var skill: Dictionary = SkillDb.all()["leap"]
+	var running: bool = Vector2(p.velocity.x, p.velocity.z).length() > SkewerSkill.RUNNING_START   # already running: spring straight off, no crouch
 	var reach: Vector3 = p.skills.aim_point_for("leap", cursor)
 	leap_victim = _downed_near(cursor, 3.2)
 	leap_slam = leap_victim != null
@@ -100,6 +101,11 @@ func start_leap(cursor: Vector3) -> void:
 	p.visual.rotation.y = atan2(leap_dir.x, leap_dir.z)
 	p.model.manual("leap")
 	p.model.scrub(LEAP_CLIP_CROUCH)
+	if running:
+		leap_phase = 2
+		p.model.scrub(LEAP_CLIP_TAKEOFF)
+		Fx.burst(p, p.global_position + Vector3(0, 0.1, 0), Vector3.UP, Color(0.5, 0.45, 0.38), 12, 3.5, 0.04)
+		Fx.punch(p, 1.6)
 	if p._trail != null:
 		p._trail.active = false
 	Fx.ring(p, p.global_position, 1.4, Color(0.9, 0.85, 0.7))

@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/quest_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "light_fingers"
+title = "Light Fingers"
+text = "Marlow's cash box is twenty gold lighter and he is shouting about it. {suspect} was seen near the stall. He wants it settled."
+thanks = "Settled. Marlow stops shouting, mostly."
+fail_text = "The gold is gone and the stall is a sour place to stand."
+kind = "matter"
+giver = "marlow"
+weight = 2.0
+min_jobs = 0
+days = 2
+target = ""
+count = 1
+unique_name = ""
+unique_hp = 3.0
+unique_level = 1.3
+item_name = ""
+reward = {
+"happy": {
+"marlow": 3
+}
+}
+penalty = {
+"gold": -20,
+"happy": {
+"marlow": -6
+}
+}
+choices = [{
+"label": "Search the stalls quietly (10 gold)",
+"cost": {
+"gold": 10
+},
+"outcome": "gamble",
+"chance": 0.7,
+"result": "You check every corner."
+}, {
+"label": "Accuse {suspect}",
+"cost": {},
+"outcome": "gamble",
+"chance": 0.5,
+"result": "You point the finger.",
+"penalty": {
+"happy": {
+"{suspect}": -8,
+"marlow": -2
+},
+"gold": -20
+}
+}, {
+"label": "Tell Marlow to let it go",
+"cost": {},
+"outcome": "fail",
+"result": "Marlow stares at you."
+}]
+links = {}
+world_mod = {}
+zone = Vector2(60.0, 200.0)

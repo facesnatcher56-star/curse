@@ -26,6 +26,7 @@ const ACTIONS: Array = [
 	["zoom_in", "Camera zoom in"],
 	["zoom_out", "Camera zoom out"],
 	["interact", "Talk / use (in town)"],
+	["chronicle", "Chronicle (events and threats)"],
 	["pause", "Pause menu"],
 	["restart", "Restart after death"],
 ]
@@ -43,6 +44,8 @@ static var window_mode: int = 0
 static var resolution_index: int = 0
 static var vsync: bool = true
 static var msaa_index: int = 2
+static var ui_size: float = 1.0   # the player's own multiplier on how big the interface is (on top of the resolution-aware default)
+static var _watching_size: bool = false
 static var screen_shake: float = 1.0
 static var show_damage_numbers: bool = true
 static var slow_motion: bool = true   # brief slow-motion on the biggest hits (Skewer kick, Earthshatter)
@@ -67,7 +70,21 @@ static func apply_audio() -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(master_volume, 0.0001)))
 	AudioServer.set_bus_mute(0, master_volume <= 0.001)
 
+## The interface is laid out for a 1280 x 720 window and scales with the window, but not all the way: the bigger the window, the smaller
+## the interface is as a share of the screen (a quarter of the window's growth is not applied), so it never swallows a big monitor.
+## `ui_size` is the player's own adjustment on top.
+static func apply_ui_scale() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var root: Window = (Engine.get_main_loop() as SceneTree).root
+	var fitted: float = maxf(minf(float(root.size.x) / 1280.0, float(root.size.y) / 720.0), 0.01)
+	root.content_scale_factor = clampf(pow(fitted, -0.45) * ui_size, 0.3, 3.0)
+
 static func apply_video() -> void:
+	if not _watching_size:
+		_watching_size = true
+		((Engine.get_main_loop() as SceneTree).root as Window).size_changed.connect(apply_ui_scale)
+	apply_ui_scale()
 	var root: Window = (Engine.get_main_loop() as SceneTree).root
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	root.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][msaa_index]
@@ -296,6 +313,7 @@ static func save_to_disk() -> void:
 	config.set_value("video", "resolution_index", resolution_index)
 	config.set_value("video", "vsync", vsync)
 	config.set_value("video", "msaa_index", msaa_index)
+	config.set_value("video", "ui_size", ui_size)
 	config.set_value("gameplay", "screen_shake", screen_shake)
 	config.set_value("gameplay", "show_damage_numbers", show_damage_numbers)
 	config.set_value("gameplay", "slow_motion", slow_motion)
@@ -319,6 +337,7 @@ static func load_from_disk() -> void:
 	resolution_index = int(config.get_value("video", "resolution_index", resolution_index))
 	vsync = bool(config.get_value("video", "vsync", vsync))
 	msaa_index = int(config.get_value("video", "msaa_index", msaa_index))
+	ui_size = clampf(float(config.get_value("video", "ui_size", ui_size)), 0.5, 1.5)
 	screen_shake = float(config.get_value("gameplay", "screen_shake", screen_shake))
 	show_damage_numbers = bool(config.get_value("gameplay", "show_damage_numbers", show_damage_numbers))
 	slow_motion = bool(config.get_value("gameplay", "slow_motion", slow_motion))

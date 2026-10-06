@@ -41,6 +41,8 @@ var _world_nav: NavigationRegion3D        # one navigation mesh for the plaza an
 var _base_ambient: float = 0.7
 var _base_fog: float = 0.012
 var _announced_road: bool = false
+var _monster_clock: float = 0.0
+var _gossip_clock: float = 4.0
 
 func _ready() -> void:
 	var built_at: int = Time.get_ticks_msec()
@@ -251,6 +253,7 @@ func _welcome_back() -> void:
 func _process(delta: float) -> void:
 	TownState.potions = player.stats.potions
 	sim.tick(delta)
+	_tick_quests(delta)
 	_show_barks()
 	_update_near()
 	_update_tags()
@@ -265,12 +268,8 @@ func _process(delta: float) -> void:
 			hud.prompt = "%s  -  %s" % [def.display_name, def.title]
 		else:
 			hud.prompt = focus["label"]
-		if _flat_distance(focus) <= INTERACT_RANGE:
-			hud.prompt += "  " + GameSettings.short_binding_text("interact")
 		hud.prompt_position = rig.get_viewport().get_camera_3d().unproject_position(anchor)
-	hud.gate_hint = "" if panel.is_open() or combat_hud.show_gear or not _near_gate() else _gate_hint()
 	if town_gate != null:
-		hud.gate_hint_position = rig.get_viewport().get_camera_3d().unproject_position(town_gate.position + Vector3(0, 6.5, 0))
 		town_gate.set_open(absf(player.position.x) < 8.0 and absf(player.position.z - town_gate.position.z) < 11.0)
 	_update_feed()
 	_update_world(delta)
@@ -283,16 +282,6 @@ func _process(delta: float) -> void:
 
 func _interact_key() -> String:
 	return "[A]" if Gamepad.active else "[E]"
-
-func _near_gate() -> bool:
-	return absf(player.global_position.x) <= GATE_HALF_WIDTH + 1.0 and player.global_position.z <= -HALF + 7.0 and player.global_position.z >= -HALF - 12.0
-
-func _gate_hint() -> String:
-	if TownState.job.is_empty():
-		return "The road beyond"
-	if TownState.has_reward():
-		return "%s: done. Warden Hale has your reward" % String(TownState.job.get("location", "The road")).capitalize()
-	return "%s — %s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.progress_text(TownState.job, {"stage": quest_stage()})]
 
 func _flat_distance(spot: Dictionary) -> float:
 	var offset: Vector3 = player.global_position - (spot["pos"] as Vector3)
@@ -345,6 +334,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		pause_menu.open()
 		return
 	if pause_menu.is_open():
+		return
+	if event.is_action_pressed("chronicle"):
+		panel.open_chronicle()
 		return
 	if event.is_action_pressed("interact") and not near.is_empty():
 		interact(near)
@@ -420,10 +412,13 @@ func _start_director() -> void:
 	director.world_mode = true
 	director.gold_per_kill = 2
 	director.hero_fell.connect(_hero_fell)
+	director.quest_news.connect(_on_quest_news)
+	director.quest_item_dropped.connect(_on_quest_item)
 	add_child(director)
 	director.set_job(TownState.job)
 	await crypt.wait_for_navigation()
 	director.attach_world(crypt)
+	populate_quests()
 
 ## How far the quest has got, in its own terms (nests destroyed); a finished quest stays finished until it is handed in.
 func quest_stage() -> int:
@@ -438,11 +433,232 @@ func _on_nest_destroyed(count: int, total: int) -> void:
 	else:
 		hud.show_banner("Nest destroyed  %d / %d" % [count, total], 3.0)
 
+# --- Quests and events -----------------------------------------------------------------------------------------------------------
+
+## New quests and matters turn up as time passes (see Quests.tick); what turns up is told once and, if it lives on the road, put there.
+func _tick_quests(delta: float) -> void:
+	var posted: Array[Dictionary] = Quests.tick(delta)
+	if not posted.is_empty():
+		populate_quests()
+		_refresh_reward_marker()
+		TownState.save()
+	_flush_quest_news()
+	hud.side_lines = Quests.tracker_lines()
+	hud.cards = Monsters.cards()
+	hud.on_road = outside
+	hud.pointers = _pointers()
+	_tick_monsters(delta)
+
+## Tells the player what the quests have done since last time, in one banner.
+func _flush_quest_news() -> void:
+	var lines: Array[String] = Quests.pop_news()
+	if lines.is_empty():
+		return
+	_on_quest_news("\n".join(lines))
+
+func _on_quest_news(line: String) -> void:
+	hud.show_banner(line, 4.0)
+	_refresh_reward_marker()
+
+## A quest item dropped from a monster: it lies where it fell until the hero walks over it.
+func _on_quest_item(inst: Dictionary, at: Vector3) -> void:
+	var def: QuestDef = Quests.def_of(inst)
+	var pickup: QuestPickup = QuestPickup.spawn(self, at, int(inst["uid"]), def.item_name)
+	pickup.found.connect(_on_quest_item_found)
+	hud.show_banner("It dropped: the %s" % def.item_name, 3.0)
+
+func _on_quest_item_found(uid: int) -> void:
+	if Quests.report_fetch_found(uid):
+		_flush_quest_news()
+		_refresh_reward_marker()
+		TownState.save()
+
+## What the quests want out on the road is put there: a named monster for each such quest that does not have one yet. Quest items that
+## were dropped and then left behind (the hero was dragged home, the road was reset) can drop again.
+func populate_quests() -> void:
+	if director == null or crypt == null:
+		return
+	for inst in Quests.live():
+		var def: QuestDef = Quests.def_of(inst)
+		if String(inst["state"]) != "active":
+			continue
+		if def.kind == "world" and not bool(inst["data"].get("applied", true)):
+			inst["data"]["applied"] = true
+			_toughen_living(def.world_mod)
+		if def.kind == "slay_unique" and not bool(inst["data"].get("spawned", false)):
+			crypt.spawn_unique(inst)
+		elif def.kind == "fetch" and bool(inst["data"].get("dropped", false)):
+			var lying: bool = false
+			for node in get_tree().get_nodes_in_group("quest_pickups"):
+				lying = lying or (node as QuestPickup).uid == int(inst["uid"])
+			if not lying:
+				Quests.report_fetch_lost(int(inst["uid"]))
+	populate_monsters()
+
+## What the monsters are doing is put on the road: each named monster has its body (strength by level, name, marks), the plot it is
+## running has its sign, what a plot did when it ended happens (an altar's toughening, a horde climbing out), and what is gone is cleared.
+func populate_monsters() -> void:
+	if director == null or crypt == null:
+		return
+	var bodies: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and not e.is_queued_for_deletion() and e.has_meta("monster_uid"):
+			bodies[int(e.get_meta("monster_uid"))] = e
+	var signs: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("plot_signs"):
+		signs[int((node as PlotSign).monster_uid)] = node
+	var wanted: Dictionary = {}
+	for mon in Monsters.alive():
+		var uid: int = int(mon["uid"])
+		var body: Enemy = bodies.get(uid)
+		var tag: String = Monsters.tag_of(mon) + ("!" if bool(mon["nemesis"]) else "")
+		if body == null:
+			body = crypt.spawn_named(mon)
+		else:
+			MonsterMark.apply(body, mon)
+			if String(body.get_meta("mark_tag", "")) != tag:
+				MonsterMark.attach(body, mon)
+		match String(mon["fired"]):
+			"altar":
+				for mod in TownState.world_mods:
+					if int(mod.get("monster", -1)) == uid and not bool(mod.get("applied", true)):
+						mod["applied"] = true
+						_toughen_living(mod)
+			"uprising":
+				crypt.spawn_horde(mon)
+		mon["fired"] = ""
+		var type: String = ""
+		var progress: float = 1.0
+		if not (mon["plot"] as Dictionary).is_empty():
+			type = String(mon["plot"]["type"])
+			progress = Monsters.plot_progress(mon)
+		else:
+			for mod in TownState.world_mods:
+				if int(mod.get("monster", -1)) == uid and String(mod["id"]) == "altar":
+					type = "altar"
+		if type != "" and type != "scout":
+			wanted[uid] = true
+			var marker: PlotSign = signs.get(uid)
+			if marker != null and marker.plot_type != type:
+				marker.queue_free()
+				marker = null
+			if marker == null:
+				marker = PlotSign.spawn(crypt, Nav.snap(crypt, crypt.monster_spot(mon) + Vector3(6.0, 0.0, 2.0)), type, uid)
+			marker.set_progress(progress)
+	for uid in signs:
+		if not wanted.has(uid):
+			(signs[uid] as Node).queue_free()
+
+## A townsperson passes on what is being said (see Monsters.gossip): one at a time, only while the hero is inside the walls and nobody
+## else is speaking.
+func _say_gossip() -> void:
+	if Monsters.gossip.is_empty() or outside or panel.is_open() or _gossip_clock > 0.0:
+		return
+	var entry: Dictionary = Monsters.gossip[0]
+	for id in entry["who"]:
+		if npcs.has(id) and TownState.npcs.has(id) and not bool(TownState.npcs[id]["left"]) and not (npcs[id] as TownNpc).is_speaking():
+			(npcs[id] as TownNpc).say(String(entry["text"]))
+			Monsters.gossip.pop_front()
+			_gossip_clock = 7.0
+			return
+	Monsters.gossip.pop_front()
+
+## Every half second: a named monster close to the hero speaks once a day.
+func _tick_monsters(delta: float) -> void:
+	_gossip_clock = maxf(_gossip_clock - delta, 0.0)
+	if Monsters.gossip.size() > 6:
+		Monsters.gossip = Monsters.gossip.slice(Monsters.gossip.size() - 6)
+	_say_gossip()
+	_monster_clock -= delta
+	if _monster_clock > 0.0 or player == null or player.dead:
+		return
+	_monster_clock = 0.5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead or not e.has_meta("monster_uid"):
+			continue
+		if e.flat_distance_to(player) < 22.0:
+			var line: String = Monsters.spot(int(e.get_meta("monster_uid")))
+			if line != "":
+				hud.show_banner(line, 3.5)
+			break
+
+## Where the arrows at the edge of the screen point: the named monsters, the quest's monster and the plots' signs that are off screen.
+func _pointers() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera == null:
+		return out
+	var size_px: Vector2 = get_viewport().get_visible_rect().size
+	var targets: Array[Dictionary] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead:
+			continue
+		if e.has_meta("monster_uid"):
+			var mon: Dictionary = Monsters.find(int(e.get_meta("monster_uid")))
+			targets.append({"at": e.global_position, "tint": Color(0.9, 0.2, 0.14) if bool(mon.get("nemesis", false)) else Color(1.0, 0.5, 0.18)})
+		elif e.has_meta("quest_uid"):
+			targets.append({"at": e.global_position, "tint": Color(1.0, 0.75, 0.3)})
+	for node in get_tree().get_nodes_in_group("plot_signs"):
+		targets.append({"at": (node as Node3D).global_position, "tint": Color(0.75, 0.4, 0.9)})
+	for target in targets:
+		var point: Vector3 = target["at"]
+		var screen: Vector2 = camera.unproject_position(point)
+		var behind: bool = camera.is_position_behind(point)
+		if behind:
+			screen = size_px - screen
+		if behind or screen.x < 30.0 or screen.y < 30.0 or screen.x > size_px.x - 30.0 or screen.y > size_px.y - 30.0:
+			out.append({"screen": screen, "tint": target["tint"]})
+	return out
+
+## A world event that makes the dead tougher or quicker reaches the ones already out there too (the ones that come later are made so as
+## they appear, see RunDirector.spawn_enemy); it does not wear off them when the event ends, only when the road is corrupted afresh.
+func _toughen_living(mod: Dictionary) -> void:
+	var health: float = float(mod.get("health_mult", 1.0))
+	var speed: float = float(mod.get("speed_mult", 1.0))
+	if is_equal_approx(health, 1.0) and is_equal_approx(speed, 1.0):
+		return
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead:
+			continue
+		e.max_health *= health
+		e.health *= health
+		e.move_speed *= speed
+
+## The road was corrupted afresh: every monster was cleared away, so the named ones are put out again.
+func _repopulate_after_regrow() -> void:
+	for inst in Quests.live():
+		if Quests.def_of(inst).kind == "slay_unique":
+			inst["data"]["spawned"] = false
+	await crypt.regrow()
+	populate_quests()
+
+## The panel changed a quest (handed one in, decided a matter): what that started is put out, the coins are redone, the town is saved.
+func quest_changed() -> void:
+	populate_quests()
+	_flush_quest_news()
+	_refresh_reward_marker()
+	TownState.save()
+
+## The coin over a townsperson's head while they have something for the hero: a finished quest to hand in, or a matter waiting for a decision.
+func _wants_hero(id: String) -> bool:
+	if TownDb.npc(id).role == "keeper" and TownState.has_reward():
+		return true
+	if not Quests.ready_for(id).is_empty():
+		return true
+	for inst in Quests.live():
+		if Quests.def_of(inst).kind == "matter" and Quests.def_of(inst).giver == id:
+			return true
+	return false
+
 ## The coin over Warden Hale's head while a finished quest waits for him to pay it.
 func _refresh_reward_marker() -> void:
 	for id in npcs:
 		var npc: TownNpc = npcs[id]
-		npc.set_reward_marker(TownDb.npc(id).role == "keeper" and TownState.has_reward())
+		npc.set_reward_marker(_wants_hero(id))
 
 ## Handing in: the keeper pays every finished quest, the next one is posted, and the road is corrupted afresh behind the hero.
 func claim_rewards() -> Dictionary:
@@ -453,7 +669,7 @@ func claim_rewards() -> Dictionary:
 		if director != null:
 			director.set_job(TownState.job)
 		if crypt != null:
-			crypt.regrow()
+			_repopulate_after_regrow()
 	return paid
 
 ## Every frame: where the hero is decides the light (colder, thicker fog out on the road), whether the clan has eaten (once per
@@ -462,14 +678,19 @@ func _update_world(delta: float) -> void:
 	var z: float = player.global_position.z
 	var depth: float = clampf(inverse_lerp(-HALF - 2.0, -HALF - 40.0, z), 0.0, 1.0)
 	if with_road:
-		world_environment.ambient_light_energy = _base_ambient * lerpf(1.0, CryptRoad.AMBIENT_MULT, depth)
-		world_environment.fog_density = _base_fog * lerpf(1.0, CryptRoad.FOG_MULT, depth)
+		var rule_light: float = (director.modifier_product("ambient_mult") if director != null else 1.0) * Quests.world_mult("ambient_mult")
+		var rule_fog: float = (director.modifier_product("fog_mult") if director != null else 1.0) * Quests.world_mult("fog_mult")
+		world_environment.ambient_light_energy = _base_ambient * lerpf(1.0, CryptRoad.AMBIENT_MULT * rule_light, depth)
+		world_environment.fog_density = _base_fog * lerpf(1.0, CryptRoad.FOG_MULT * rule_fog, depth)
 	if not outside and z < -HALF - 10.0:
 		outside = true
 		TownState.begin_expedition()
 		if not _announced_road and not TownState.job.is_empty():
 			_announced_road = true
-			hud.show_banner("%s\n%s" % [String(TownState.job.get("location", "The road")).capitalize(), JobObjective.describe(TownState.job)], 4.0)
+			var rules: String = ""
+			if director != null and not director.modifiers.is_empty():
+				rules = "\n" + director.modifier_names()
+			hud.show_banner("%s%s\n%s" % [String(TownState.job.get("location", "The road")).capitalize(), rules, JobObjective.describe(TownState.job)], 4.0)
 	elif outside and z > -HALF + 1.5 and not player.dead:
 		outside = false
 		_arrive_in_town()
@@ -491,6 +712,9 @@ func _quest_line() -> String:
 ## Back inside the walls: what the hero carries is recorded (gear worn, potions held) and the bag goes to the stash.
 func _arrive_in_town() -> void:
 	TownState.end_expedition()
+	populate_quests()
+	_flush_quest_news()
+	_refresh_reward_marker()
 	TownState.take_gear(player.stats.equipment)
 	var carried: int = player.stats.bag.size()
 	for item in player.stats.bag:
@@ -503,9 +727,28 @@ func _arrive_in_town() -> void:
 	elif TownState.has_reward():
 		hud.show_banner("Warden Hale has your reward", 3.0)
 
+## Whatever killed the hero is remembered: a named monster becomes a nemesis (stronger, with a title); one that was not named is, most of
+## the time, given a name now. Returns what it says.
+func _killer_takes_credit() -> String:
+	var killer := player.last_hit_by as Enemy
+	player.last_hit_by = null
+	if killer == null or not is_instance_valid(killer) or crypt == null:
+		return ""
+	if killer.has_meta("monster_uid"):
+		return Monsters.hero_fell(int(killer.get_meta("monster_uid")))
+	if killer.has_meta("quest_uid") or killer.is_boss or Monsters.rng.randf() > 0.6:
+		return ""
+	var mon: Dictionary = Monsters.promote(killer.variant, crypt.distance_of(killer.global_position))
+	mon["lane"] = 0.0
+	MonsterMark.attach(killer, mon)
+	MonsterMark.apply(killer, mon)
+	killer.display_name = String(mon["name"])
+	return "%s: \"%s\"" % [mon["name"], Monsters.taunt("kill")]
+
 ## The hero fell out on the road: after a moment he is dragged back to the plaza, whole, with the monsters where they were.
 func _hero_fell() -> void:
-	hud.show_banner("You were dragged back", 3.0)
+	var taunt: String = _killer_takes_credit()
+	hud.show_banner("You were dragged back" + ("\n" + taunt if taunt != "" else ""), 4.0)
 	await get_tree().create_timer(3.2).timeout
 	player.revive_at(Vector3(0, 0, 10.0))
 	rig.global_position = player.global_position
@@ -514,12 +757,36 @@ func _hero_fell() -> void:
 	director.hero_returned()
 
 func _screenshot(args: PackedStringArray) -> void:
+	TownState.persist = false   # a developer screenshot never writes the player's save
 	await get_tree().create_timer(3.0).timeout
 	for arg in args:
 		if arg == "--ready":   # developer tool: pretend the quest is done, to see Hale's coin and the HUD
 			TownState.board[0]["ready"] = true
 			TownState.job = (TownState.board[0] as Dictionary).duplicate(true)
 			_refresh_reward_marker()
+		if arg == "--quests":   # developer tool: put some quests and matters up, to see the tracker and the panels
+			TownState.jobs_done = 2
+			for id in ["ghoul_cull", "brute_bounty", "lost_satchel", "fever", "light_fingers", "blood_moon"]:
+				Quests.post(id)
+			populate_quests()
+			_refresh_reward_marker()
+			_flush_quest_news()
+		if arg == "--monsters":   # developer tool: two named monsters (one a nemesis) with plots under way, and the hero near the first
+			TownState.jobs_done = 2
+			for i in 2:
+				var made: Dictionary = Monsters.rise()
+				made["dist"] = 60.0 + 12.0 * i
+				made["level"] = 3.4 + i
+			var first: Dictionary = TownState.monsters[0]
+			first["nemesis"] = true
+			first["kills"] = 2
+			first["plot"] = {"type": "altar", "days_left": 2, "total": 4}
+			TownState.monsters[1]["plot"] = {"type": "raid", "days_left": 1, "total": 3}
+			Quests.tell("The Hollow has been seen near the wood.", "monster")
+			Quests.tell("Fog Bank: a fog bank has rolled in.", "event")
+			populate_monsters()
+			player.global_position = crypt.monster_spot(first) + Vector3(0, 0, 14)
+			await get_tree().create_timer(1.5).timeout
 		if arg.begins_with("--zoom="):   # --zoom=n: pull the camera back (the plaza opens at 2.6)
 			rig.set_zoom_now(float(arg.substr(7)))
 		if arg.begins_with("--at="):   # --at=x,z: move the hero first
@@ -532,6 +799,8 @@ func _screenshot(args: PackedStringArray) -> void:
 				"character":
 					combat_hud.show_gear = true
 					combat_hud._open_character()
+				"chronicle":
+					panel.open_chronicle()
 				"board":
 					panel.open_board()
 				"stash":

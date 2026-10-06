@@ -1,6 +1,6 @@
 class_name SkillFx
 extends RefCounted
-## Heavy-hitting visuals for the sword skills and the gear that modifies them: crater impacts, sweeping slash discs,
+## Heavy-hitting visuals for the sword skills and the gear that modifies them: impacts, sweeping slash discs,
 ## ground cracks, dust, travelling shockwaves and vortexes. Everything spawns into the current scene and cleans itself up.
 
 const FACING_FORWARD := Vector3(0, 0, 1)
@@ -155,7 +155,68 @@ static func debris(from: Node, pos: Vector3, amount: int, speed: float) -> void:
 
 # --- Power Strike ----------------------------------------------------------------------
 
-## The crushing blow: crater flash, expanding rings, dust, rocks, cracks, kick and hit-stop.
+static var _fx_meshes: Dictionary = {}
+
+## A mesh made in Blender for the Power Strike (tools/blender/make_power_fx.py): "power_wave".
+static func _fx_mesh(model: String) -> Mesh:
+	if not _fx_meshes.has(model):
+		var scene: PackedScene = load("res://assets/models/fx/%s/model.glb" % model)
+		var found: Mesh = null
+		if scene != null:
+			var root: Node = scene.instantiate()
+			for node in root.find_children("*", "MeshInstance3D", true, false):
+				found = (node as MeshInstance3D).mesh
+				break
+			root.free()
+		_fx_meshes[model] = found
+	return _fx_meshes[model]
+
+## Draws one of those meshes with its own vertex colours (and alpha), unlit, fading with `albedo_color.a`.
+static func _fx_instance(scene: Node, model: String, solid: bool = false) -> MeshInstance3D:
+	var mesh: Mesh = _fx_mesh(model)
+	if mesh == null:
+		return null
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if solid:   # lit solid rock (turns transparent only when it fades), not a glowing sheet
+		mat.roughness = 1.0
+		mat.emission_enabled = true
+		mat.emission = Color(0.55, 0.22, 0.06)
+		mat.emission_energy_multiplier = 0.0
+	else:
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	node.material_override = mat
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	scene.get_tree().current_scene.add_child(node)
+	return node
+
+## The shockwave: a crescent of torn earth that runs out along the ground from `origin` to `reach` metres away, widening as it goes and
+## fading at the end. `width` scales it side to side.
+static func earth_wave(scene: Node, origin: Vector3, dir: Vector3, reach: float, width: float, life: float, delay: float = 0.0) -> void:
+	var wave: MeshInstance3D = _fx_instance(scene, "power_wave")
+	if wave == null:
+		return
+	var yaw: float = atan2(dir.x, dir.z)
+	wave.global_position = Vector3(origin.x, 0.05, origin.z) + dir * 0.6
+	wave.rotation.y = yaw
+	wave.scale = Vector3(width * 0.55, 0.9, 0.55)
+	wave.visible = delay <= 0.0
+	var mat: StandardMaterial3D = wave.material_override
+	var tween: Tween = wave.create_tween()
+	if delay > 0.0:
+		tween.tween_interval(delay)
+		tween.tween_callback(func() -> void: wave.visible = true)
+	tween.set_parallel(true)
+	tween.tween_property(wave, "global_position", Vector3(origin.x, 0.05, origin.z) + dir * reach, life).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(wave, "scale", Vector3(width * 1.15, 1.5, 1.2), life * 0.8).set_ease(Tween.EASE_OUT)
+	tween.tween_property(mat, "albedo_color:a", 0.0, life * 0.55).set_delay(life * 0.5)
+	tween.chain().tween_callback(wave.queue_free)
+
+## The crushing blow: flash, expanding rings, dust, rocks, cracks, kick and hit-stop.
 static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered: bool) -> void:
 	var scene: Node = player
 	var flash_color: Color = Color(1.0, 0.7, 0.35)
@@ -166,6 +227,7 @@ static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered
 	debris(scene, point, 22, 7.0)
 	Fx.burst(scene, point + Vector3(0, 0.3, 0), Vector3.UP, Color(1.0, 0.8, 0.4), 26, 9.0, 0.03, true)   # sparks
 	ground_cracks(scene, point, 7, 0.9, 2.4)
+	earth_wave(scene, point, dir, 3.6, 0.3, 0.4)   # a short run of broken ground in the direction of the blow
 	slash_arc(scene, player.global_position, atan2(dir.x, dir.z), 0.5, 2.9, 1.7, Color(1.0, 0.65, 0.3, 0.85), 0.22, 0.7, 1.15)
 	Fx.shake(scene, 0.32)
 	Fx.punch(scene, 3.4)
@@ -176,6 +238,8 @@ static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered
 ## Gravewarden: a shockwave that tears forward along the line, ring after ring, with a glowing fissure underneath.
 static func gravewarden_wave(player: Player, dir: Vector3) -> void:
 	var origin: Vector3 = player.global_position
+	earth_wave(player, origin, dir, 9.0, 0.5, 0.55)
+	earth_wave(player, origin, dir, 8.0, 0.4, 0.5, 0.1)
 	for i in 8:
 		var at: Vector3 = origin + dir * (1.4 + i * 1.0)
 		var delay: float = i * 0.05

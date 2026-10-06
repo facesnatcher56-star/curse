@@ -6,7 +6,7 @@ extends RefCounted
 
 const LANE_HALF_WIDTH := 1.1     # the catch width: SkewerSkill._skewer_catch_enemies (0.75 plus a zombie's reach)
 const SKID := 0.7                # about how far the planted-feet skid carries on after the charge
-const KICK_FAN_ANGLE := 0.5      # the three kicked enemies leave at -0.5, 0 and +0.5 radians (SkewerSkill._skewer_kick)
+const KICK_FAN_ANGLE := 1.2      # the kicked enemies leave at random angles within this fan (SkewerSkill._skewer_kick throws each one differently)
 const KICK_FAN_RANGE := 9.0      # and fly about this far (measured by the self-test: the farthest victim reached 9.1 m)
 const WALL_MARGIN := 0.55        # the hero's body: the charge stops this far short of what blocks it
 const HEIGHT := 0.07             # just above the ground
@@ -59,9 +59,6 @@ func show_lane(world: World3D, from: Vector3, dir: Vector3, reach: float, pulse:
 		var a0: float = -KICK_FAN_ANGLE + 2.0 * KICK_FAN_ANGLE * float(i) / steps
 		var a1: float = -KICK_FAN_ANGLE + 2.0 * KICK_FAN_ANGLE * float(i + 1) / steps
 		_tri(end, end + dir.rotated(Vector3.UP, a0) * KICK_FAN_RANGE, end + dir.rotated(Vector3.UP, a1) * KICK_FAN_RANGE, fan)
-	for angle in [-KICK_FAN_ANGLE, 0.0, KICK_FAN_ANGLE]:   # the three throws
-		var along: Vector3 = dir.rotated(Vector3.UP, angle)
-		_strip(end, end + along * KICK_FAN_RANGE, 0.07, Color(0.75, 0.16, 0.08, 0.45))
 	# The lane itself: a faint steel fill, bright edges and a bar across the end.
 	_quad(origin - side * LANE_HALF_WIDTH, origin + side * LANE_HALF_WIDTH, end + side * LANE_HALF_WIDTH, end - side * LANE_HALF_WIDTH,
 		Color(0.85, 0.78, 0.62, 0.08 + 0.04 * pulse))

@@ -371,7 +371,7 @@ func _exit_gate() -> void:
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
 ## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
-		patrol: Array[Vector2] = []) -> void:
+		patrol: Array[Vector2] = [], level_offset: float = 0.0) -> void:
 	_homes.append(home)
 	for m in members:
 		var copies: int = PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1
@@ -379,7 +379,7 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
-			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), director.level_for_location())
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), director.level_for_location() + level_offset)
 			e.group_id = id
 			e.idle_mode = mode
 			e.home = at(home.x, home.y)
@@ -428,7 +428,7 @@ func spawn_encounters(for_director: RunDirector) -> void:
 ## zombies near the town, ghouls and the odd spitter in the middle, bloaters in the wood, spitters, brutes and priests towards the crypt.
 ## Every cell of a grid across the whole strip is checked, and the same seed gives the same monsters each time.
 func _fill_gaps() -> void:
-	_fill_rng.seed = FILL_SEED
+	_fill_rng.seed = FILL_SEED + TownState.road_seed * 977   # every reset of the road (TownState.road_seed) stocks the empty stretches differently
 	var group: int = 200
 	var z: float = HALF_Z - 12.0
 	while z > -HALF_Z + 14.0:
@@ -448,25 +448,41 @@ func _fill_gaps() -> void:
 				continue
 			_homes.append(spot)
 			group += 1
+			var zone: ZoneDef = TownDb.zone_at(EXIT_Z - spot.y)
+			if zone == null or _fill_rng.randf() >= zone.density:
+				continue
 			var members: Array = []
-			for kind in _fill_kinds(spot.y):
+			for kind in _fill_kinds(zone):
 				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
 				members.append([kind, spot.x + offset.x, spot.y + offset.y])
-			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0)
+			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [], zone.level_offset)
 		z -= FILL_CELL
 
-## What a gap-filling group is made of at this z (north is the crypt).
-func _fill_kinds(z: float) -> Array[String]:
-	var roll: float = _fill_rng.randf()
+## What a gap-filling group is made of in this stretch: one of the zone's group templates, picked by weight (the run's modifiers make some
+## likelier: a Spitters' Nest favours the groups with spitters in them), and made bigger or smaller by the modifiers' count multiplier.
+func _fill_kinds(zone: ZoneDef) -> Array[String]:
+	var total: float = 0.0
+	var weights: Array[float] = []
+	for template in zone.groups:
+		var w: float = float(template["weight"]) * director.group_weight(template["members"])
+		weights.append(w)
+		total += w
+	var roll: float = _fill_rng.randf() * total
+	var chosen: Array = zone.groups[0]["members"]
+	for i in zone.groups.size():
+		roll -= weights[i]
+		if roll <= 0.0:
+			chosen = zone.groups[i]["members"]
+			break
 	var out: Array[String] = []
-	if z > 110.0:   # the road in from the town
-		out.assign(["zombie", "zombie"] if roll < 0.7 else ["zombie", "zombie", "zombie"])
-	elif z > 40.0:
-		out.assign(["zombie", "zombie", "ghoul"] if roll < 0.5 else (["zombie", "zombie", "spitter"] if roll < 0.7 else ["zombie", "ghoul"]))
-	elif z > -40.0:
-		out.assign(["zombie", "ghoul", "ghoul"] if roll < 0.45 else (["bloater", "zombie"] if roll < 0.65 else (["zombie", "zombie", "ghoul"])))
-	else:
-		out.assign(["zombie", "ghoul", "spitter"] if roll < 0.4 else (["brute", "zombie"] if roll < 0.55 else (["priest", "zombie", "zombie"] if roll < 0.65 else ["zombie", "ghoul", "ghoul"])))
+	for kind in chosen:
+		out.append(String(kind))
+	var mult: float = director.group_count_mult()
+	var wanted: int = maxi(int(round(float(out.size()) * mult)), 1)
+	while out.size() < wanted:
+		out.append(out[_fill_rng.randi() % out.size()])
+	while out.size() > wanted:
+		out.pop_back()
 	return out
 
 # --- The nests ------------------------------------------------------------------------------------------------------------------
@@ -495,6 +511,81 @@ func _on_nest_destroyed(prop: Destructible) -> void:
 
 ## The quest was handed in: the road is corrupted again. Whatever is left of the monsters goes, the nests grow back where they were and
 ## every group is put out again.
+## Where the road runs at a given z (its centre line), for putting something on it.
+func road_centre_x(z: float) -> float:
+	for i in range(ROAD.size() - 1):
+		var a: Vector2 = ROAD[i]
+		var b: Vector2 = ROAD[i + 1]
+		if (z <= a.y and z >= b.y) or (z >= a.y and z <= b.y):
+			var t: float = 0.0 if is_equal_approx(a.y, b.y) else (z - a.y) / (b.y - a.y)
+			return lerpf(a.x, b.x, t)
+	return ROAD[ROAD.size() - 1].x
+
+## A named monster for a quest (see Quests, kind "slay_unique"): a tougher one of its kind, somewhere in the stretch of road the quest
+## names (distances from the town gate), wandering about its spot. It drops a good item when it dies.
+func spawn_unique(inst: Dictionary) -> Enemy:
+	var def: QuestDef = Quests.def_of(inst)
+	if director == null or def == null:
+		return null
+	var z: float = clampf(EXIT_Z - randf_range(def.zone.x, def.zone.y), -140.0, 130.0)
+	var spot: Vector3 = Nav.snap(self, at(road_centre_x(z) + randf_range(-4.0, 4.0), z))
+	var e: Enemy = director.spawn_enemy(spot, def.target, def.unique_level)
+	e.display_name = def.unique_name
+	e.max_health *= def.unique_hp
+	e.health = e.max_health
+	if e.visual != null:
+		e.visual.scale *= 1.2
+	e.idle_mode = "wander"
+	e.home = spot
+	e.idle_radius = 8.0
+	e.group_id = 300 + int(inst["uid"])
+	e.alert_delay = 0.0
+	e.set_meta("quest_uid", int(inst["uid"]))
+	QuestMarker.attach(e)
+	inst["data"]["spawned"] = true
+	return e
+
+## How far out from the town gate a point on the road is (metres), the measure a named monster's place is kept in.
+func distance_of(point: Vector3) -> float:
+	return EXIT_Z - (point.z - arena.origin_offset.z)
+
+## Where a named monster (see Monsters) lives on the road, from its distance out from the gate and its side of the road.
+func monster_spot(mon: Dictionary) -> Vector3:
+	var z: float = clampf(EXIT_Z - float(mon["dist"]), -140.0, 130.0)
+	return Nav.snap(self, at(road_centre_x(z) + float(mon["lane"]), z))
+
+## A named monster, put on the road at its place: a body of its kind with its level's strength, marked so it can be found.
+func spawn_named(mon: Dictionary) -> Enemy:
+	if director == null:
+		return null
+	var spot: Vector3 = monster_spot(mon)
+	var e: Enemy = director.spawn_enemy(spot, String(mon["kind"]), director.level_for_location())
+	e.display_name = String(mon["name"])
+	e.idle_mode = "wander"
+	e.home = spot
+	e.idle_radius = 8.0
+	e.group_id = 500 + int(mon["uid"])
+	e.alert_delay = 0.0
+	MonsterMark.apply(e, mon)
+	MonsterMark.attach(e, mon)
+	mon["spawned"] = true
+	return e
+
+## A horde climbs out of the ground around a named monster (its uprising).
+func spawn_horde(mon: Dictionary, count: int = 8) -> void:
+	if director == null:
+		return
+	var centre: Vector3 = monster_spot(mon)
+	for i in count:
+		var angle: float = TAU * float(i) / count
+		var spot: Vector3 = Nav.snap(self, centre + Vector3(cos(angle), 0.0, sin(angle)) * randf_range(3.0, 6.0))
+		var e: Enemy = director.spawn_enemy(spot, "ghoul" if i % 3 == 0 else "zombie", director.level_for_location())
+		e.group_id = 600 + int(mon["uid"])
+		e.alert_delay = 0.0
+		e.idle_mode = "wander"
+		e.home = centre
+		e.idle_radius = 9.0
+
 func regrow() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()

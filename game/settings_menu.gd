@@ -144,6 +144,16 @@ func _build_video() -> Control:
 		GameSettings.apply_video())
 	_resolution_option.disabled = GameSettings.window_mode != 0
 	page.add_child(_row("Resolution (windowed)", _resolution_option))
+	var ui_slider := HSlider.new()
+	ui_slider.min_value = 0.5
+	ui_slider.max_value = 1.5
+	ui_slider.step = 0.05
+	ui_slider.value = GameSettings.ui_size
+	ui_slider.custom_minimum_size = Vector2(240, 28)
+	ui_slider.value_changed.connect(func(v: float) -> void:
+		GameSettings.ui_size = v
+		GameSettings.apply_ui_scale())
+	page.add_child(_row("Interface size", ui_slider))
 	page.add_child(_row("Anti-aliasing", _options(GameSettings.MSAA_LEVELS, GameSettings.msaa_index, func(i: int) -> void:
 		GameSettings.msaa_index = i
 		GameSettings.apply_video())))

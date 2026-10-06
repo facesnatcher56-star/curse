@@ -14,19 +14,15 @@ static func create(for_item: Dictionary, worn: Variant, size: float = 76.0) -> I
 	tile.compare_to = worn
 	tile.tile_size = size
 	tile.custom_minimum_size = Vector2(size, size)
-	tile.tooltip_text = String(for_item["name"])   # any text switches the custom tooltip on
 	tile.mouse_filter = Control.MOUSE_FILTER_STOP
 	return tile
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
-	focus_card(self, item, compare_to, show_compare)
+	focus_card(self, item, compare_to, show_compare, true)
 
 func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
-
-func _make_custom_tooltip(_for_text: String) -> Object:
-	return ItemTile.card(item, compare_to if show_compare else null, show_compare)
 
 ## The details card for an item: name in its rarity colour, kind, stats and effect, then the comparison.
 static func card(it: Dictionary, worn: Variant, with_compare: bool = true) -> Control:
@@ -74,16 +70,16 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true) -> L
 	label.add_theme_color_override("font_color", Items.RARITY_COLORS[int(it["rarity"])])
 	return label
 
-static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true) -> void:
+## The details card shown beside `control`: with a controller while it has focus, and with `on_hover` the moment the mouse is over it (an
+## item's picture shows its card at once, like the item on the ground does; its buttons do not).
+static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false) -> void:
 	var holder := Control.new()
 	holder.top_level = true
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.z_index = 100
 	holder.visible = false
 	control.add_child(holder)
-	control.focus_entered.connect(func() -> void:
-		if not Gamepad.active:
-			return
+	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
 		var detail := card(it, worn, compare)
@@ -95,12 +91,17 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		var extent: Vector2 = detail.get_combined_minimum_size()
 		if anchor.x + extent.x > screen.x - 8:
 			anchor.x = control.global_position.x - extent.x - 12
-		holder.global_position = Vector2(maxf(8, anchor.x), clampf(anchor.y, 8, maxf(8, screen.y - extent.y - 8))))
+		holder.global_position = Vector2(maxf(8, anchor.x), clampf(anchor.y, 8, maxf(8, screen.y - extent.y - 8)))
+	control.focus_entered.connect(func() -> void:
+		if Gamepad.active:
+			open.call())
 	control.focus_exited.connect(func() -> void: holder.visible = false)
+	if on_hover:
+		control.mouse_entered.connect(open)
+		control.mouse_exited.connect(func() -> void: holder.visible = false)
 
 static func decorate_button(button: Button, it: Dictionary, worn: Variant) -> void:
 	button.set_script(preload("res://game/item_button.gd"))
 	button.item = it
 	button.worn = worn
-	button.tooltip_text = String(it["name"])
 	focus_card(button, it, worn)
