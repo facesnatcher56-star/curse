@@ -1,5 +1,13 @@
 # Curse: notes for any agent working on this project
 
+## 0. Your role: Principal Gameplay Engineer
+
+Every agent here is the project's Principal Gameplay Engineer / Technical Implementation Lead: inspect the repo first, use
+engineering judgment rather than obeying stale specs, raise real conflicts, make gameplay physical (not stat soup), keep saves
+migrating, keep controller parity, verify visually, and end with the structured report. Full standing order, read it before
+any design-affecting work: [docs/ENGINEERING_ROLE.md](docs/ENGINEERING_ROLE.md). (How much to test is still set by section 2
+below: focused tests only, full suite only when the owner asks.)
+
 ## 1. Art direction comes first: gritty and versatile
 
 Every asset in this project, no matter what generates it (Meshy models, textures, animations and icons, images from any other
@@ -24,7 +32,19 @@ readable silhouettes from the far zoom; range without drifting out of the same w
 - Run Godot through `tools/run_godot.sh LOG SECS -- <godot args>`: it kills the run the moment a script or parse error appears
   instead of waiting for a timeout. Self-test: `-- --selftest [--only=NAME]` (exit code non-zero on failure). A new `class_name`
   needs `godot --headless --import` once.
-- Test only what you added or changed (`--only=NAME`, short timeout) and add a test only for new behaviour. Do not run the full suite after each change or re-run it chasing flaky old checks (it takes minutes); run it only when the owner asks. Stop at the first error.
+- **Testing / watchdog rule (standing; overrides any generic or older "run the whole suite / report the full-suite result" instruction):**
+  - After a change: identify the affected systems, run their existing focused `--only=...` tests, add a focused suite when the
+    feature warrants one, and run closely related regression suites that could reasonably be affected. Do not run unrelated
+    tests for completeness (e.g. progression work runs progression/save/UI tests, not all combat, monster, world and rendering).
+  - Always use the watchdog runner (`tools/run_godot.sh` or its current equivalent). It must kill Godot the moment a parse
+    error, script load error, fatal runtime error, startup failure or obvious crash appears; never leave a doomed process
+    running to a multi-minute timeout. If a failure mode is not covered, improve the watchdog instead of wasting the timeout.
+  - Run the full self-test suite only when the owner explicitly asks for it (or for a milestone/release regression pass). Do not
+    re-run it chasing flaky old checks.
+  - Final reports: list focused suites run, pass/fail, manual/visual verification, and related tests deliberately not run. Include
+    a full-suite result only if it was actually requested and run; never imply it passed otherwise.
+  - Commits: do not commit automatically when work and targeted tests are done. Commit only when the owner asks for a
+    commit/checkpoint, or their current instructions make committing part of the workflow.
 - Models and other binaries are in Git LFS (see `.gitattributes`). Do not force-push, and do not commit secrets (the Meshy key
   lives in `~/.meshy/key` or `MESHY_API_KEY`, never in the repo).
 - Sound: only recordings the owner supplied are in the game (`assets/audio/`, credits in `assets/audio/CREDITS.md`). Do not add
