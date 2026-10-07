@@ -37,6 +37,8 @@ const KICK_START := 0.15
 const KICK_STRIKE := 0.6
 const KICK_END := 1.1
 func start_skewer(cursor: Vector3) -> void:
+	if p.dead or p.skills.busy or not p.stats.can_use("skewer") or not p.skills.weapon_ready("skewer"):
+		return
 	var skill: Dictionary = SkillDb.all()["skewer"]
 	var run_speed: float = Vector2(p.velocity.x, p.velocity.z).length()   # already running: the charge carries on from that, with no stop to wind up
 	var dir: Vector3 = cursor - p.global_position
@@ -341,7 +343,7 @@ func _skewer_kick() -> void:
 	Fx.punch(p, 3.8)
 	Fx.hitstop(p, 0.09)
 	Fx.slowmo(p, 0.2, 0.4, 0.5)   # the boot lands and the pile flies off the blade in slow motion
-func end_skewer() -> void:
+func end_skewer(restore_pose: bool = true) -> void:
 	for e in skewer_impaled:
 		if is_instance_valid(e):
 			e.set_impaled(false)
@@ -349,6 +351,9 @@ func end_skewer() -> void:
 	skewer_impaled.clear()
 	skewer_phase = 0
 	p.skills.busy = false
+	p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
+	if not restore_pose:
+		return
 	p.model.weapon_aim = null
 	p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
 	p.visual.rotation.x = 0.0

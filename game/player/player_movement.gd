@@ -142,7 +142,7 @@ func try_roll(cursor: Vector3) -> void:
 	if p.skills.busy:
 		p.skills.cancel_action()   # the swing in progress is dropped, the weapon trail and the pose with it
 	p.skills.busy = false
-	p.skills.queued_skill = ""
+	p.skills.clear_queue()
 	p.skills.swallow_alt = Input.is_action_pressed("alt_skill")   # a right-click (or the pad's attack button) still held does not start another swing after the roll
 	p.attack_target = null
 	p.click_mode = 0

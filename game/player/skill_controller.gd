@@ -82,7 +82,7 @@ func handle_hotkeys(cursor: Vector3) -> void:
 
 ## Drinks a potion at once, even mid-swing or stunned (it cancels a swing that was in progress).
 func drink_potion() -> void:
-	if p.stats.use_potion() and busy and not p.movement.rolling:
+	if not p.dead and p.stats.use_potion() and not p.movement.rolling:
 		cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).
@@ -94,8 +94,10 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 
 ## Aborts the current swing, cast or charge immediately.
 func cancel_action() -> void:
+	clear_queue()
 	if not busy:
 		return
+	_refund_unreleased_cast()
 	if bool(busy_def.get("skewer", false)):
 		p.skewer.end_skewer()  # releases anyone on the blade and restores collision
 	if bool(busy_def.get("leap", false)):
@@ -107,11 +109,54 @@ func cancel_action() -> void:
 	busy = false
 	busy_hit_done = true
 	queued_skill = ""
+	queued_target = null
 	if p._trail != null:
 		p._trail.active = false
 	if p.visual != null:
 		p.visual.rotation.x = 0.0
 	p.model.loop("idle_alert")
+	busy_skill = ""
+	busy_def = {}
+	busy_target = null
+	busy_t = 0.0
+	_release_started = false
+
+## The charged cast reserves its cost at start; every abort path settles the same reservation.
+func _refund_unreleased_cast() -> void:
+	if busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
+		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
+		p.stats.cooldowns[busy_skill] = 0.0
+
+## Death/revive cleanup without changing the actor's animation or transition.
+func reset() -> void:
+	_refund_unreleased_cast()
+	clear_aim()
+	if p.skewer.skewer_phase != 0:
+		p.skewer.end_skewer(false)
+	if p.leap.leap_phase != 0:
+		p.leap.end_leap(false)
+	if p.earthshatter.phase != 0:
+		p.earthshatter.end(false)
+	if p.model != null:
+		p.model.weapon_aim = null
+		p.model.leg_raise = 0.0
+	if p._trail != null:
+		p._trail.active = false
+	if _glow_light != null:
+		_glow_light.light_energy = 0.0
+	busy = false
+	busy_skill = ""
+	busy_def = {}
+	busy_target = null
+	busy_t = 0.0
+	busy_hit_done = false
+	_release_started = false
+	queued_skill = ""
+	queued_target = null
+	aim_blocked = ""
+	swallow_alt = false
+	combo_step = 0
+	combo_timer = 0.0
 
 ## Skills that need the sword in his hand: with it thrown (or being thrown) none of them can start, and he is told why.
 const SWORD_SKILLS: Array[String] = ["basic", "power", "skewer", "leap", "earthshatter"]
@@ -137,6 +182,7 @@ func _handle_throw_key(action: String, cursor: Vector3) -> void:
 		if not Input.is_action_just_pressed(action):
 			return   # (a key still held from before is not a new wind-up)
 		if throw.can_begin():
+			clear_queue()
 			aiming_id = WeaponThrowSkill.SKILL_ID
 			aiming_action = action
 			throw.begin_charge()
@@ -151,6 +197,8 @@ func _handle_throw_key(action: String, cursor: Vector3) -> void:
 
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
 func try_directional(id: String, cursor: Vector3) -> void:
+	if busy or p.dead:
+		return
 	if not weapon_ready(id):
 		return
 	if not p.stats.can_use(id):
@@ -160,12 +208,15 @@ func try_directional(id: String, cursor: Vector3) -> void:
 			p._say("Not enough mana")
 		return
 	if bool(SkillDb.all()[id].get("earthshatter", false)):
+		clear_queue()
 		p.earthshatter.start(cursor)
 	elif bool(SkillDb.all()[id].get("leap", false)):
+		clear_queue()
 		p.leap.start_leap(cursor)
 	elif id == "power":
 		start_skill("power", null, cursor)   # no target is picked for the hero: the blow goes where the cursor points (see _power_target)
 	else:
+		clear_queue()
 		p.skewer.start_skewer(cursor)
 
 ## Right-click or dodge backs out of a Fireball. While aiming nothing has been spent; during the wind-up the mana and cooldown come
@@ -182,8 +233,6 @@ func check_cancel() -> void:
 			swallow_alt = true
 		p._say("Cancelled")
 	elif busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
-		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
-		p.stats.cooldowns[busy_skill] = 0.0
 		cancel_action()
 		if alt:
 			swallow_alt = true
@@ -218,6 +267,7 @@ func _release_aim(cursor: Vector3) -> void:
 		return
 	clear_aim(true)
 	if bool(SkillDb.all()[id].get("skewer", false)):
+		clear_queue()
 		p.skewer.start_skewer(point)   # (its own charge, not a timed skill)
 		return
 	start_skill(id, null, point)
@@ -405,7 +455,13 @@ func _ensure_aim_nodes() -> void:
 	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.add_child(_aim_line)
 
+func clear_queue() -> void:
+	queued_skill = ""
+	queued_target = null
+
 func queue_skill(id: String, cursor: Vector3) -> void:
+	if p.dead:
+		return
 	if not weapon_ready(id):
 		return
 	var target: Actor = p.enemy_near(cursor, 12.0)
@@ -416,9 +472,14 @@ func queue_skill(id: String, cursor: Vector3) -> void:
 	p.movement.has_goal = false
 
 func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
+	if busy or p.dead or not p.stats.can_use(id):
+		return
+	if aim == null and not is_instance_valid(target):
+		return
 	if not weapon_ready(id):
 		return
 	var skill: Dictionary = SkillDb.all()[id]
+	clear_queue()   # an accepted immediate action replaces any pending order
 	if id == "basic":
 		skill = _next_basic()
 	busy_def = skill
@@ -428,7 +489,8 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	else:
 		p.stats.mana -= float(skill["mana"])
 		p.stats.cooldowns[id] = float(skill["cd"])
-	ItemEffects.on_skill_start(p, id)
+	if not bool(skill.get("charged", false)):
+		ItemEffects.on_skill_start(p, id)
 	busy = true
 	busy_skill = id
 	busy_target = target
@@ -438,8 +500,6 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	p.combat_timer = 5.0
 	p.movement.has_goal = false
 	p.face(busy_aim)
-	if id == queued_skill:
-		queued_skill = ""
 	# A click attacks once; the hero only keeps swinging while the attack button is held. Any other skill
 	# replaces the attack order, so the hero never starts auto-attacking again once the skill ends.
 	if id != "basic" or not (Input.is_action_pressed("click") or Input.is_action_pressed("alt_skill")):
@@ -537,6 +597,8 @@ func _next_basic() -> Dictionary:
 	return skill
 
 func tick_busy(delta: float) -> void:
+	if not busy or p.dead:
+		return
 	var skill: Dictionary = busy_def
 	if bool(skill.get("weapon_throw", false)):
 		p.weapon_throw.tick_busy(delta)   # the throw's release and the catch are timed by the throw itself
@@ -554,7 +616,7 @@ func tick_busy(delta: float) -> void:
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
 		return
-	if busy_target != null and not busy_target.dead:
+	if is_instance_valid(busy_target) and not busy_target.dead:
 		busy_aim = busy_target.global_position
 	var duration: float = busy_time
 	var hit_at: float = duration * hit_fraction(skill)
@@ -607,6 +669,7 @@ func _tick_charged(skill: Dictionary) -> void:
 		p.visual.rotation.x = 0.22 * (1.0 - clampf((busy_t - t_throw) / 0.3, 0.0, 1.0))
 		if not busy_hit_done and busy_t >= t_throw:
 			busy_hit_done = true
+			ItemEffects.on_skill_start(p, busy_skill)
 			_apply_skill(skill)
 			Fx.shake(p, 0.12)
 			Fx.punch(p, 2.4)

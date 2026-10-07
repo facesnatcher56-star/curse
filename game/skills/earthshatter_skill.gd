@@ -41,6 +41,8 @@ var victims: int = 0           # how many enemies the last shockwave threw
 var last_spread: int = 0       # how many debuff transfers the last shockwave made
 
 func start(cursor: Vector3) -> void:
+	if p.dead or p.skills.busy or not p.stats.can_use("earthshatter") or not p.skills.weapon_ready("earthshatter"):
+		return
 	var skill: Dictionary = SkillDb.all()["earthshatter"]
 	var flat: Vector3 = cursor - p.global_position
 	flat.y = 0.0
@@ -187,9 +189,11 @@ static func _flat(v: Vector3) -> Vector3:
 	v.y = 0.0
 	return v
 
-func end() -> void:
+func end(restore_pose: bool = true) -> void:
 	phase = 0
 	p.skills.busy = false
+	if not restore_pose:
+		return
 	p.visual.rotation.x = 0.0
 	if p.skills._glow_light != null:
 		p.skills._glow_light.light_energy = 0.0

@@ -155,6 +155,8 @@ func can_begin() -> bool:
 		and p.stats.can_use(SKILL_ID)
 
 func begin_charge() -> void:
+	if not can_begin():
+		return
 	_profile = profile()
 	evolution = p.evolution_of(SKILL_ID)   # what is bought now is what this throw does
 	state = State.CHARGING
@@ -294,10 +296,13 @@ func tick_busy(delta: float) -> void:
 ## Every physics tick (called by the hero, before anything else).
 func tick(delta: float) -> void:
 	_clock += delta
+	if is_away() and (not is_instance_valid(thrown) or thrown.is_queued_for_deletion()):
+		reset() # world cleanup removed the copy: never strand the equipment lock
+		return
 	match state:
 		State.RELEASING:
 			if not p.skills.busy and thrown == null:   # the release was knocked out of him before the weapon left his hand: nothing was thrown
-				state = State.IN_HAND
+				reset()
 		State.CATCHING:
 			if not p.skills.busy:   # something cut the catch short: the weapon is in his hand all the same
 				_complete_catch()
@@ -764,10 +769,13 @@ func _tick_catch(delta: float) -> void:
 
 ## The catch frame: the thrown weapon is gone and the one in his hand is back, once.
 func _complete_catch() -> void:
+	if state != State.CATCHING and state != State.RETURNING:
+		return # an interrupted or already completed catch must not play its effects again
 	var mass: float = float(_profile.get("mass", 1.0))
-	if thrown != null:
+	if is_instance_valid(thrown):
+		thrown.hide() # queue_free is deferred; the held blade becomes visible now
 		thrown.queue_free()
-		thrown = null
+	thrown = null
 	if p.model.weapon != null:
 		p.model.weapon.visible = true
 	state = State.IN_HAND
@@ -787,14 +795,18 @@ func reset() -> void:
 	if pinned != null:
 		_release_pinned()
 	if thrown != null and is_instance_valid(thrown):
+		thrown.hide()
 		thrown.queue_free()
 	thrown = null
 	if p.model != null and p.model.weapon != null and is_instance_valid(p.model.weapon):
 		p.model.weapon.visible = true
 	if preview != null:
 		preview.hide_lane()
-	if state != State.IN_HAND and p.skills.busy_skill == SKILL_ID:
+	if p.skills.busy_skill == SKILL_ID:
 		p.skills.busy = false
+	if p.skills.aiming_id == SKILL_ID:
+		p.skills.aiming_id = ""
+		p.skills.aiming_action = ""
 	state = State.IN_HAND
 	charge = 0.0
 	_hold = 0.0

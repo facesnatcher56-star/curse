@@ -478,7 +478,7 @@ func _read_input(cursor: Vector3) -> void:
 	if Input.is_action_just_pressed("click") and not _ui_click:
 		var hover: Actor = _hover_pick(cursor)
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
-		skills.queued_skill = ""
+		skills.clear_queue()
 		pickup_target = null
 		if loot != null and not ctrl:   # an item, or its name, under the pointer: go and take it
 			click_mode = 4
@@ -596,7 +596,7 @@ func _exit_tree() -> void:
 
 func _on_death() -> void:
 	weapon_throw.reset()   # a weapon out in the world comes back to his hand: it is never left lying where he fell
-	skills.drop_orb()
+	skills.reset()
 
 ## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
 ## animation put away, and a moment of grace before anything can hurt him.
@@ -621,8 +621,7 @@ func revive_at(pos: Vector3) -> void:
 	velocity = Vector3.ZERO
 	attack_target = null
 	attack_prop = null
-	skills.busy = false
-	skills.queued_skill = ""
+	skills.reset()
 	movement.has_goal = false
 	global_position = pos
 	reset_physics_interpolation()
@@ -651,14 +650,15 @@ func _act(delta: float, cursor: Vector3) -> void:
 				movement.has_goal = true
 	var skill_id: String = ""
 	var target: Actor = null
-	if skills.queued_skill != "" and skills.queued_target != null and not skills.queued_target.dead:
+	if skills.queued_skill != "" and is_instance_valid(skills.queued_target) and not skills.queued_target.dead:
 		skill_id = skills.queued_skill
 		target = skills.queued_target
-	elif attack_target != null and not attack_target.dead:
+	elif is_instance_valid(attack_target) and not attack_target.dead:
+		skills.clear_queue()
 		skill_id = "basic"
 		target = attack_target
 	else:
-		skills.queued_skill = ""
+		skills.clear_queue()
 		attack_target = null
 
 	if skill_id != "" and target != null:
@@ -670,7 +670,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 				return
 			if stats.mana < float(skill["mana"]):
 				_say("Not enough mana")
-			skills.queued_skill = ""
+			skills.clear_queue()
 			move_with(Vector3.ZERO)
 			face(target.global_position, 0.4)
 			return
