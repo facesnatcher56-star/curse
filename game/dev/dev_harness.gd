@@ -33,7 +33,9 @@ func _next_wave() -> void:
 
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
-	if OS.get_cmdline_user_args().has("--skillshot=skewer"):
+	if OS.get_cmdline_user_args().has("--wardenshot"):
+		_warden_shots()
+	elif OS.get_cmdline_user_args().has("--skillshot=skewer"):
 		_skill_shots("skewer")
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
 		_skill_shots("fireball")
@@ -6531,7 +6533,7 @@ const ONLY_TESTS := {
 "actionqueue": "_test_action_queue",
 "throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices", "herodown": "_test_hero_knockdown",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
+	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
 
 ## Loot on the ground: nothing is picked up by walking over it; clicking an item (or its name) sends the hero to take it, the use key takes the
@@ -8281,3 +8283,147 @@ func _inventory_mouse_click(control: Control, button: int, double: bool = false)
 	click.pressed = false
 	get_viewport().push_input(click, true)
 	await get_tree().process_frame
+
+## Deterministic Warden state/geometry coverage; no random combat outcomes inferred.
+func _warden_fixture() -> Enemy:
+	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2.8), "warden")
+	enemy.set_physics_process(false)
+	enemy.target = player
+	enemy.xp_eligible = false
+	enemy.aggro_range = 0.0
+	return enemy
+
+func _warden_begin(enemy: Enemy) -> WardenBehavior:
+	var behavior := enemy.behavior as WardenBehavior
+	behavior._special_cool = 0.0
+	behavior._cool = 0.0
+	behavior.tick(0.01, enemy.flat_distance_to(player))
+	return behavior
+
+func _warden_events() -> int:
+	var count: int = 0
+	for value in Combat.tally.values():
+		count += int(value)
+	return count
+
+func _test_warden() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.set_physics_process(false)
+	player.global_position = Vector3(20, 0, 20)
+	player.reset_physics_interpolation()
+	player.health = player.max_health
+	player.invulnerable_time = 0.0
+	var definition: EnemyDef = EnemyDb.get_def("warden")
+	expect("Warden definition and mapping load", definition.display_name == "Crypt Warden" and EnemyBehaviors.create(definition.behavior) is WardenBehavior)
+	expect("Warden is authored-only at every wave", EnemyDb.count_for(definition, 9999) == 0 and not EnemyDb.spawnable(9999).has(definition))
+	expect("elite health exceeds Brute without immunity", definition.health == 300.0 and definition.health > EnemyDb.get_def("brute").health and definition.knock_resist < 1.0 and definition.stun_resist < 1.0)
+	var enemy: Enemy = _warden_fixture()
+	enemy.global_position = player.global_position + Vector3(0, 0, -8)
+	var start: float = enemy.flat_distance_to(player)
+	for i in 30:
+		enemy.behavior.tick(1.0 / 60.0, enemy.flat_distance_to(player))
+		await get_tree().physics_frame
+	expect("Warden approaches from outside melee range", enemy.flat_distance_to(player) < start - 0.3 and not enemy.behavior.is_attacking())
+	enemy.global_position = player.global_position + Vector3(0, 0, -2.8)
+	var behavior: WardenBehavior = _warden_begin(enemy)
+	Combat.tally.clear()
+	behavior.tick(0.94, 2.8)
+	expect("wind-up owns token without damage", behavior._state == WardenBehavior.State.WINDUP and enemy._attacking and Enemy._token_holders.has(enemy.get_instance_id()) and _warden_events() == 0)
+	behavior.tick(0.02, 2.8)
+	var facing: float = enemy.visual.rotation.y
+	expect("wind-up reaches committed strike", behavior._state == WardenBehavior.State.STRIKE)
+	player.global_position += Vector3(3, 0, 0)
+	behavior.tick(0.30, enemy.flat_distance_to(player))
+	expect("sidestep after commitment evades fixed strike", _warden_events() == 0 and is_equal_approx(facing, enemy.visual.rotation.y))
+	expect("strike releases token and enters recovery", behavior._state == WardenBehavior.State.RECOVER and not Enemy._token_holders.has(enemy.get_instance_id()))
+	behavior.tick(0.9, enemy.flat_distance_to(player))
+	player.global_position = enemy.global_position + Vector3(0, 0, 2.8)
+	behavior.tick(0.01, 2.8)
+	expect("cooldown prevents immediate special repeat", behavior._state == WardenBehavior.State.PRESSURE and behavior._special_cool > 4.0)
+	enemy.queue_free()
+	await get_tree().physics_frame
+
+	# In-area strike: count actual Combat.resolve events, including any miss.
+	enemy = _warden_fixture()
+	behavior = _warden_begin(enemy)
+	Combat.tally.clear()
+	seed(1)
+	var health_before: float = player.health
+	behavior.tick(1.26, 2.8)
+	var health_after: float = player.health
+	for i in 10:
+		behavior.tick(0.02, 2.8)
+	expect("strike resolves exactly once and damages hero", _warden_events() == 1 and health_after < health_before and player.health == health_after)
+	expect("recovery prevents another attack", behavior._state == WardenBehavior.State.RECOVER)
+	enemy.queue_free()
+	await get_tree().physics_frame
+
+	for kind in ["stun", "knockdown", "death"]:
+		for committed in [false, true]:
+			enemy = _warden_fixture()
+			behavior = _warden_begin(enemy)
+			if committed:
+				behavior.tick(0.97, 2.8)
+			Combat.tally.clear()
+			if kind == "stun":
+				enemy.interrupt(0.8)
+				enemy._physics_process(0.01)
+			elif kind == "knockdown":
+				enemy.ragdoll_launch(Vector3(2, 0, 0), 1.0, Vector3.ZERO)
+			else:
+				enemy.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "weight": 0.0, "source": null}, player.global_position)
+			expect("%s cancels %s attack/token" % [kind, "committed" if committed else "windup"], not enemy._attacking and not behavior.is_attacking() and not Enemy._token_holders.has(enemy.get_instance_id()))
+			behavior.tick(2.0, 2.8)
+			expect("%s interruption leaves no pending damage" % kind, _warden_events() == 0)
+			enemy.queue_free()
+			await get_tree().physics_frame
+	enemy = _warden_fixture()
+	enemy.global_position = player.global_position + Vector3(0, 0, -2)
+	behavior = enemy.behavior as WardenBehavior
+	behavior._special_cool = 10.0
+	behavior.tick(0.01, 2.0)
+	expect("Warden applies ordinary close-range melee pressure between specials", behavior._active and behavior._state == WardenBehavior.State.PRESSURE)
+	behavior.on_interrupted()
+	expect("ordinary Warden pressure also releases its token", not enemy._attacking and not behavior.is_attacking() and not Enemy._token_holders.has(enemy.get_instance_id()))
+	enemy.queue_free()
+	await get_tree().physics_frame
+	var brute: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2), "brute")
+	brute.set_physics_process(false)
+	brute.target = player
+	expect("existing Brute still maps to MeleeBehavior", brute.behavior is MeleeBehavior and not brute.behavior is WardenBehavior)
+	brute.behavior.tick(0.01, 2.0)
+	expect("existing Brute starts close-range pressure", brute.behavior.is_attacking() and Enemy._token_holders.has(brute.get_instance_id()))
+	brute.ragdoll_launch(Vector3.ZERO, 1.0, Vector3.ZERO)
+	expect("shared launch hook cancels Brute attack/token", not brute.behavior.is_attacking() and not brute._attacking and not Enemy._token_holders.has(brute.get_instance_id()))
+	brute.queue_free()
+	player.set_physics_process(true)
+
+## Focused pose evidence, using the exact runtime attack clip/timings.
+func _warden_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	player.set_physics_process(false)
+	var enemy: Enemy = _warden_fixture()
+	var brute: Enemy = _spawn_enemy(Vector3(-3.2, 0, -2.8), "brute")
+	brute.set_physics_process(false)
+	brute.visual.rotation.y = PI
+	var behavior: WardenBehavior = _warden_begin(enemy)
+	var folder: String = "res://.agentbridge/warden033-png"
+	DirAccess.make_dir_recursive_absolute(folder)
+	for sample in [["windup", 0.70], ["commit", 0.27], ["strike-evaded", 0.30], ["recovery", 0.50]]:
+		if sample[0] == "strike-evaded":
+			player.global_position.x = 3.0
+			player.reset_physics_interpolation()
+		behavior.tick(float(sample[1]), enemy.flat_distance_to(player))
+		enemy.reset_physics_interpolation()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var path: String = folder + "/" + str(sample[0]) + ".png"
+		var error: Error = get_viewport().get_texture().get_image().save_png(path)
+		print("WARDEN PNG ", path, " error=", error)
+	get_tree().quit()

@@ -105,6 +105,14 @@ func _ready() -> void:
 	behavior = EnemyBehaviors.create(def.behavior)
 	behavior.setup(self)
 
+## Launch suspends AI, so cancel its attack before the body leaves the ground.
+func ragdoll_launch(launch_velocity: Vector3, lift: float, spin: Vector3) -> void:
+	_attacking = false
+	release_token()
+	if behavior != null:
+		behavior.on_interrupted()
+	super.ragdoll_launch(launch_velocity, lift, spin)
+
 func _physics_process(delta: float) -> void:
 	var frozen: bool = _actor_tick(delta)
 	if is_ragdolled() or impaled:
