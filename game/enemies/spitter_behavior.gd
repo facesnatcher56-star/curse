@@ -63,7 +63,7 @@ func _tick_windup(delta: float) -> void:
 	_timer -= delta
 	e.move_with(Vector3.ZERO)
 	e.face(_aim, 0.35)
-	e.telegraph(0.3)
+	e.telegraph(0.3, "spit")
 	if e.has_clip("throw"):
 		e.model.manual("throw")
 		e.model.scrub(lerpf(0.55, 1.0, clampf(1.0 - _timer / total, 0.0, 1.0)))

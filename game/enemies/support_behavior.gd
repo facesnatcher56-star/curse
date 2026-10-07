@@ -86,7 +86,7 @@ func _tick_cast(delta: float) -> void:
 	var total: float = 1.1
 	e.move_with(Vector3.ZERO)
 	e.face(e.target.global_position, 0.2)
-	e.telegraph(0.3)
+	e.telegraph(0.3, "cast")
 	if e.has_clip("cast"):
 		e.model.scrub(lerpf(0.4, 1.6, clampf(_cast_t / total, 0.0, 1.0)))
 	if _cast_t >= total:

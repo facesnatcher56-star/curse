@@ -115,6 +115,7 @@ func ragdoll_launch(launch_velocity: Vector3, lift: float, spin: Vector3) -> voi
 
 func _physics_process(delta: float) -> void:
 	var frozen: bool = _actor_tick(delta)
+	_update_telegraph(delta)
 	if is_ragdolled() or impaled:
 		return  # the ragdoll (or the skewering player) is driving this actor
 	if frozen:
@@ -372,10 +373,62 @@ func has_line_to(other: Actor) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 1.0, 0), other.global_position + Vector3(0, 1.0, 0), LAYER_WORLD)
 	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
-## Red glow: the wind-up cue that tells the hero a heavy attack is coming.
-func telegraph(strength: float = 0.55) -> void:
-	_flash = maxf(_flash, strength)
-	model.set_overlay(_flash_mat)
+## Attack telegraph kinds: tint (muted, no neon), pulse rate and peak alpha of the wind-up overlay. Deliberately not red: the red,
+## fast-decaying flash is reserved for "I was just hit". Unknown kinds fall back to "windup".
+const TELEGRAPH_LOOKS := {
+	"windup": [Color(0.95, 0.55, 0.15), 9.0, 0.5],   # heavy blows and the pouncer's crouch: slow ember-orange throb
+	"spit":   [Color(0.55, 0.78, 0.2), 14.0, 0.5],   # spitter: sickly green, quicker
+	"fuse":   [Color(0.92, 0.78, 0.18), 22.0, 0.55],   # bloater: sulphur yellow, racing as the fuse burns down
+	"cast":   [Color(0.6, 0.45, 0.95), 6.0, 0.5],     # support: cold violet, slow
+}
+const TELEGRAPH_HOLD := 0.12   # the behaviours call telegraph() every frame of the wind-up; it ends this long after the last call
+var _tele_mat: StandardMaterial3D
+var _tele_hold: float = 0.0
+var _tele_t: float = 0.0
+var _tele_look: Array = []
+var _tele_strength: float = 0.0
+
+## Wind-up cue that tells the hero an attack is coming: a pulsing, kind-tinted overlay (not the red hit flash). Call each frame of
+## the wind-up; `strength` scales the peak (0.55 = full). Never changes timing or damage.
+func telegraph(strength: float = 0.55, kind: String = "windup") -> void:
+	if model == null:
+		return
+	if _tele_mat == null:
+		_tele_mat = StandardMaterial3D.new()
+		_tele_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_tele_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tele_look = TELEGRAPH_LOOKS.get(kind, TELEGRAPH_LOOKS["windup"])
+	_tele_strength = maxf(_tele_strength if _tele_hold > 0.0 else 0.0, strength)
+	_tele_hold = TELEGRAPH_HOLD
+	_update_telegraph(0.0)
+
+func is_telegraphing() -> bool:
+	return _tele_hold > 0.0
+
+func _update_telegraph(delta: float) -> void:
+	if _tele_hold <= 0.0:
+		return
+	_tele_hold -= delta
+	if _tele_hold <= 0.0 or dead:
+		_tele_hold = 0.0
+		_tele_strength = 0.0
+		_refresh_overlay()
+		return
+	_tele_t += delta
+	var pulse: float = 0.5 + 0.5 * sin(_tele_t * float(_tele_look[1]))
+	var c: Color = _tele_look[0]
+	c.a = float(_tele_look[2]) * clampf(_tele_strength / 0.55, 0.3, 1.2) * (0.5 + 0.5 * pulse)
+	_tele_mat.albedo_color = c
+	_refresh_overlay()
+
+## The hit flash wins; then the telegraph; then the highlight glow.
+func _refresh_overlay() -> void:
+	if _flash > 0.0 or model == null:
+		return
+	if _tele_hold > 0.0 and _tele_mat != null:
+		model.set_overlay(_tele_mat)
+		return
+	model.set_overlay(get_highlight_material() if highlighted else null)
 
 ## One melee blow at the target. `power` scales the damage roll, `weight` the knock-back and stagger.
 func strike_target(power: float, weight: float) -> void:
