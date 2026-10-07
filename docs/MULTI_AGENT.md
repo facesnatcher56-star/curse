@@ -92,3 +92,14 @@ Each worktree has its own `.agentbridge/` runtime folder, so watcher state/inbox
 The OWNER's development PC has Blender installed and available to every implementation lane. See `docs/AGENT_ENVIRONMENT.md`.
 
 Claude Code, Codex, and Antigravity may use Blender when a task requires or materially benefits from 3D modeling, rigging, animation, collision/proxy geometry, asset conversion/export, or scripted Blender processing. Do not reinstall it by default; verify the local executable/version when first needed.
+
+
+## Autonomous usage reserve
+
+All autonomous lanes must obey `docs/AGENT_USAGE_POLICY.md`.
+
+The OWNER's reserve is defined in remaining allowance:
+- pause when five-hour remaining <= 85%;
+- pause when weekly remaining <= 95%.
+
+Dispatchers must fail closed when they cannot obtain a trustworthy provider usage reading.
