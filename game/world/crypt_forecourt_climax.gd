@@ -175,6 +175,9 @@ func complete_encounter() -> void:
 	current_stage = Stage.CLEARED
 	stage_changed.emit(Stage.CLEARED)
 	encounter_cleared.emit()
+	if road != null and road.return_waystone != null:
+		road.return_waystone.reveal()
+	TownState.report_forecourt_cleared(CryptRoad.SITE_ID)
 	if director != null and director.hud != null:
 		director.hud.show_banner(CLEAR_BANNER_TEXT, CLEAR_BANNER_DURATION)
 	set_physics_process(false)

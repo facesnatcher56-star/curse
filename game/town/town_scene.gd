@@ -385,6 +385,34 @@ func interact(spot: Dictionary) -> void:
 		"stone":
 			player.health = player.max_health
 			hud.show_banner("The stone is warm. You feel whole.", 2.5)
+		"waystone":
+			_use_return_waystone()
+
+func _use_return_waystone() -> void:
+	if not outside or player == null or player.dead:
+		return
+	if crypt != null and crypt.return_waystone != null:
+		if not crypt.return_waystone.can_interact():
+			return
+		crypt.return_waystone.mark_used()
+	hud.show_banner("The waystone hums with warmth. Returning to Last Hearth...", 2.5)
+	player.global_position = Vector3(0.0, 0.0, 8.0)
+	player.visual.rotation.y = PI
+	player.reset_physics_interpolation()
+	player.velocity = Vector3.ZERO
+	player.attack_target = null
+	player.attack_prop = null
+	player.movement.has_goal = false
+	rig.global_position = player.global_position
+	rig.set_zoom_now(2.6)
+	outside = false
+	_arrive_in_town()
+	if TownState.has_reward():
+		hud.show_banner("Forecourt secured — the road is cleansed.\nWarden Hale has your reward", 4.0)
+	else:
+		hud.show_banner("Returned safely to Last Hearth", 3.0)
+	if crypt != null and crypt.return_waystone != null:
+		crypt.return_waystone.reset_used()
 
 ## The one way gear changes in town: what is worn is recorded in TownState and put on the hero standing here, so the weapon in his
 ## hand (and his armour) is what the shop or stash just gave him. Returns what was worn in that slot before, or null.
@@ -414,6 +442,12 @@ func _build_road() -> void:
 	add_child(crypt)
 	crypt.build(road_arena)
 	crypt.nest_destroyed.connect(_on_nest_destroyed)
+	if crypt.return_waystone != null:
+		crypt.return_waystone.revealed.connect(_on_return_waystone_revealed)
+
+func _on_return_waystone_revealed() -> void:
+	if crypt != null and crypt.return_waystone != null:
+		_register("return_waystone", "waystone", "return_waystone", crypt.return_waystone.global_position, CryptReturnWaystone.INTERACT_LABEL)
 
 ## The director spawns and tracks the monsters, drops the loot and pays the gold for kills; the road's monsters are placed as soon as the
 ## navigation map really holds the road, a moment after the scene appears.
@@ -646,6 +680,7 @@ func _repopulate_after_regrow() -> void:
 	for inst in Quests.live():
 		if Quests.def_of(inst).kind == "slay_unique":
 			inst["data"]["spawned"] = false
+	spots = spots.filter(func(s: Dictionary) -> bool: return String(s.get("key", "")) != "return_waystone")
 	await crypt.regrow()
 	populate_quests()
 

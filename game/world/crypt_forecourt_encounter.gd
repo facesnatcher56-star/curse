@@ -86,10 +86,14 @@ static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
 	])
 
 	# Attach and initialize the staged encounter climax controller
+	var old_climax: Node = road.get_node_or_null("CryptForecourtClimax")
+	if old_climax != null:
+		old_climax.queue_free()
 	var climax := CryptForecourtClimax.new()
 	climax.name = "CryptForecourtClimax"
 	road.add_child(climax)
 	climax.setup(road, director)
+	road.forecourt_climax = climax
 
 ## Returns the staged climax controller attached to the CryptRoad instance.
 static func get_climax(road: CryptRoad) -> CryptForecourtClimax:

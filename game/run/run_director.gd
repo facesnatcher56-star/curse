@@ -118,13 +118,22 @@ func is_ending() -> bool:
 
 ## Where the job stands, in the objective's own terms (see JobObjective): the wave number for waves, nests destroyed for nests.
 func progress() -> Dictionary:
-	return {"stage": location.nests_destroyed if location != null else wave}
+	var p: Dictionary = {"stage": location.nests_destroyed if location != null else wave}
+	if is_forecourt_cleared():
+		p["climax_cleared"] = true
+		p["forecourt_cleared"] = true
+	return p
 
 ## The line for the HUD while a job in a location is on: "Destroy nests: 1 / 3" ("" for the wave loop, which shows its wave).
 func objective_line() -> String:
 	if location == null or job.is_empty():
 		return ""
+	if is_forecourt_cleared():
+		return "Forecourt secured — Return to Last Hearth"
 	return JobObjective.progress_text(job, progress())
+
+func is_forecourt_cleared() -> bool:
+	return location != null and location.is_forecourt_cleared()
 
 ## True for the connected world and for a job in an authored location, false for the wave arena. `wave` belongs to the arena alone:
 ## nothing in the connected world reads it (see WorldThreat for what the world uses).

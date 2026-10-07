@@ -50,6 +50,8 @@ var nests: Array[Destructible] = []
 var placed: Array[Dictionary] = []   # {name, pos (Vector3), radius}: every prop put down, for the tests and the minimap
 var nests_destroyed: int = 0
 var total_nests: int = 3
+var return_waystone: CryptReturnWaystone = null
+var forecourt_climax: CryptForecourtClimax = null
 
 var _rng := RandomNumberGenerator.new()
 var _fill_rng := RandomNumberGenerator.new()
@@ -263,6 +265,10 @@ func _landmarks() -> void:
 		fire.position = Vector3(sx, 0, 3.95)
 		gate.add_child(fire)
 		_light(fire, Color(1.0, 0.55, 0.2), 2.0, 10.0, 1.9)
+	return_waystone = CryptReturnWaystone.new()
+	return_waystone.name = "ReturnWaystone"
+	return_waystone.position = at(0.0, -163.5)
+	add_child(return_waystone)
 
 func _graveyard() -> void:
 	# West of the road, z 95..45: rows of stones in a fenced yard open to the road at two gaps, one nest at the back.
@@ -599,9 +605,14 @@ func regrow() -> void:
 		if not present:
 			_nest(spot.x, spot.y, spot.z)
 	nests_destroyed = 0
+	if return_waystone != null:
+		return_waystone.hide_waystone()
 	arena.request_nav_refresh()
 	await get_tree().process_frame
 	spawn_encounters(director)
+
+func is_forecourt_cleared() -> bool:
+	return forecourt_climax != null and forecourt_climax.is_cleared()
 
 # --- Leaving ----------------------------------------------------------------------------------------------------------------------
 

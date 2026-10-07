@@ -236,6 +236,19 @@ static func report_progress(site: String, stage: int) -> bool:
 		save()
 	return became
 
+## Forecourt / Warden climax cleared: marks the site's standing quest ready for reward hand-in.
+static func report_forecourt_cleared(site: String = CryptRoad.SITE_ID) -> bool:
+	var became: bool = false
+	for offer in board:
+		if String(offer.get("site", "")) == site and not bool(offer.get("ready", false)):
+			offer["ready"] = true
+			offer["forecourt_cleared"] = true
+			became = true
+	if became:
+		job = (board[0] as Dictionary).duplicate(true) if not board.is_empty() else {}
+		save()
+	return became
+
 static func has_reward() -> bool:
 	for offer in board:
 		if bool(offer.get("ready", false)):
