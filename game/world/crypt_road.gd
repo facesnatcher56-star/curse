@@ -354,15 +354,16 @@ func _exit_gate() -> void:
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
 ## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
-		patrol: Array[Vector2] = [], level_offset: float = 0.0) -> void:
+		patrol: Array[Vector2] = []) -> void:
 	_homes.append(home)
+	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
 	for m in members:
 		var copies: int = PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1
 		for c in copies:
 			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
-			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), director.level_for_location() + level_offset)
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), threat)
 			e.group_id = id
 			e.idle_mode = mode
 			e.home = at(home.x, home.y)
@@ -438,7 +439,7 @@ func _fill_gaps() -> void:
 			for kind in _fill_kinds(zone):
 				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
 				members.append([kind, spot.x + offset.x, spot.y + offset.y])
-			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [], zone.level_offset)
+			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [])
 		z -= FILL_CELL
 
 ## What a gap-filling group is made of in this stretch: one of the zone's group templates, picked by weight (the run's modifiers make some
@@ -472,6 +473,8 @@ func _fill_kinds(zone: ZoneDef) -> Array[String]:
 
 func _on_nest_destroyed(prop: Destructible) -> void:
 	nests_destroyed += 1
+	TownState.add_hero_xp(HeroProgression.NEST_XP)   # when it breaks (a prop breaks once), not when the quest is handed in
+	HeroProgression.log_xp("nest %d of %d: %d" % [nests_destroyed, total_nests, HeroProgression.NEST_XP])
 	nest_destroyed.emit(nests_destroyed, total_nests)
 	if director == null:
 		return
@@ -487,7 +490,7 @@ func _on_nest_destroyed(prop: Destructible) -> void:
 	for i in kinds.size():
 		var angle: float = TAU * float(i) / kinds.size()
 		var spot: Vector3 = Nav.snap(self, at + Vector3(cos(angle), 0.0, sin(angle)) * 2.4)
-		var e: Enemy = director.spawn_enemy(spot, kinds[i], director.level_for_location())
+		var e: Enemy = director.spawn_enemy(spot, kinds[i], threat_at(at))
 		e.group_id = 100 + nests_destroyed
 		e.alert_delay = 0.0
 		e.wake()
@@ -512,7 +515,7 @@ func spawn_unique(inst: Dictionary) -> Enemy:
 		return null
 	var z: float = clampf(EXIT_Z - randf_range(def.zone.x, def.zone.y), -140.0, 130.0)
 	var spot: Vector3 = Nav.snap(self, at(road_centre_x(z) + randf_range(-4.0, 4.0), z))
-	var e: Enemy = director.spawn_enemy(spot, def.target, def.unique_level)
+	var e: Enemy = director.spawn_enemy(spot, def.target, def.unique_level)   # unique_level is an absolute threat, on the zones' scale
 	e.display_name = def.unique_name
 	e.max_health *= def.unique_hp
 	e.health = e.max_health
@@ -528,6 +531,10 @@ func spawn_unique(inst: Dictionary) -> Enemy:
 	inst["data"]["spawned"] = true
 	return e
 
+## The threat of ordinary monsters where a point on the road is (see WorldThreat): the stretch's own, whatever the hero has become.
+func threat_at(point: Vector3) -> float:
+	return WorldThreat.for_distance(distance_of(point))
+
 ## How far out from the town gate a point on the road is (metres), the measure a named monster's place is kept in.
 func distance_of(point: Vector3) -> float:
 	return EXIT_Z - (point.z - arena.origin_offset.z)
@@ -542,14 +549,14 @@ func spawn_named(mon: Dictionary) -> Enemy:
 	if director == null:
 		return null
 	var spot: Vector3 = monster_spot(mon)
-	var e: Enemy = director.spawn_enemy(spot, String(mon["kind"]), director.level_for_location())
+	var e: Enemy = director.spawn_enemy(spot, String(mon["kind"]), float(mon["level"]))   # its threat is its own level, not the stretch's
 	e.display_name = String(mon["name"])
 	e.idle_mode = "wander"
 	e.home = spot
 	e.idle_radius = 8.0
 	e.group_id = 500 + int(mon["uid"])
 	e.alert_delay = 0.0
-	MonsterMark.apply(e, mon)
+	MonsterMark.apply_look(e, mon)
 	MonsterMark.attach(e, mon)
 	mon["spawned"] = true
 	return e
@@ -562,7 +569,7 @@ func spawn_horde(mon: Dictionary, count: int = 8) -> void:
 	for i in count:
 		var angle: float = TAU * float(i) / count
 		var spot: Vector3 = Nav.snap(self, centre + Vector3(cos(angle), 0.0, sin(angle)) * randf_range(3.0, 6.0))
-		var e: Enemy = director.spawn_enemy(spot, "ghoul" if i % 3 == 0 else "zombie", director.level_for_location())
+		var e: Enemy = director.spawn_enemy(spot, "ghoul" if i % 3 == 0 else "zombie", threat_at(centre))
 		e.group_id = 600 + int(mon["uid"])
 		e.alert_delay = 0.0
 		e.idle_mode = "wander"

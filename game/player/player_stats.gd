@@ -194,11 +194,15 @@ func collect_orbs() -> void:
 				heal(HealthOrb.HEAL)
 			orb.queue_free()
 
+## Seconds left in which stamina recovers at its normal rate whatever the fight is doing (Bloody Recovery, after a physical kill).
+var stamina_free_time: float = 0.0
+
 func regen(delta: float) -> void:
 	var in_combat: bool = p.combat_timer > 0.0
 	p.health = minf(p.health + 1.5 * (0.3 if in_combat else 1.0) * delta, p.max_health)
 	mana = minf(mana + 3.0 * delta, max_mana)
-	if not in_combat or p.velocity.length() < 0.5:
+	stamina_free_time = maxf(stamina_free_time - delta, 0.0)
+	if not in_combat or p.velocity.length() < 0.5 or stamina_free_time > 0.0:
 		stamina = minf(stamina + 14.0 * delta, max_stamina)
 
 func cooldown_fraction(id: String) -> float:

@@ -98,7 +98,7 @@ func _hit(enemy: Enemy, center: Vector3) -> void:
 	enemy.receive(result, center)
 	if not is_instance_valid(enemy):
 		return
-	enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness)
+	enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness, owner_actor is Player)
 	# Close to the blast: thrown clear by the shockwave, further out only staggered.
 	if closeness >= 0.4 and not enemy.is_boss and enemy.impalable:
 		var away: Vector3 = enemy.global_position - center

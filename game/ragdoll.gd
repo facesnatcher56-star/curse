@@ -47,6 +47,7 @@ var _lie_blend: float = 0.0
 var _pin_time: float = 0.0
 var _impact_cooldown: float = 0.0
 var _bowled: Dictionary = {}   # instance ids already struck by this flight
+var transfer_used: int = 0     # Mass Transfers this body has made (tests)
 var _trail_travel: float = 0.0
 var _last_hang_pos: Vector3 = Vector3.ZERO
 var _hang_velocity: Vector3 = Vector3.ZERO
@@ -268,6 +269,10 @@ func _bowl_into_enemies(speed: float) -> void:
 			continue
 		_bowled[other.get_instance_id()] = true
 		actor.spread_debuffs_to(other)
+		var transfer: bool = actor.mass_transfer_charges > 0
+		if actor.hero_credited():   # the hero threw the first body: what it hurts is his doing too (kill credit, collision ownership)
+			other.credit_hero()
+			other.knocked_by = actor.knocked_by
 		var hit: Dictionary = Combat.resolve(actor, other, BOWL_DAMAGE + speed * 0.8, Combat.DamageType.FIRE, false, 1.5)
 		hit["type"] = Combat.DamageType.PHYSICAL
 		hit["skill_id"] = "collision"
@@ -277,7 +282,12 @@ func _bowl_into_enemies(speed: float) -> void:
 			other.interrupt(0.9)
 			if other.can_be_impaled() and not other.dead:   # the one it hit falls down too (the very big ones only stagger)
 				var along: Vector3 = _velocity.normalized() if _velocity.length() > 0.1 else rel.normalized()
-				other.ragdoll_launch(Vector3(along.x, 0.0, along.z) * 3.0, 2.0, along.cross(Vector3.UP) * randf_range(3.0, 6.0))
+				var carry: float = maxf(BuildDefs.MASS_TRANSFER_FLOOR, speed * BuildDefs.MASS_TRANSFER_KEEP) if transfer else 3.0   # Mass Transfer: it leaves with real speed
+				other.ragdoll_launch(Vector3(along.x, 0.0, along.z) * carry, 2.0 + (1.2 if transfer else 0.0), along.cross(Vector3.UP) * randf_range(3.0, 6.0))
+				other.mass_transfer_charges = 0   # one transfer only: what it bowls is never carried on again
+		if transfer:
+			actor.mass_transfer_charges = 0
+			transfer_used += 1
 		_velocity *= 0.7
 		Fx.burst(actor, other.global_position + Vector3(0, 1.0, 0), _velocity.normalized() + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 10, 4.0)
 		Fx.shake(actor, 0.08)

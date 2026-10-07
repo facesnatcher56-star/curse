@@ -117,6 +117,78 @@ func add_hitpause(duration: float) -> void:
 		return
 	super.add_hitpause(duration)
 
+# --- Build (see BuildDefs, TownState): what the hero has bought; read straight from the one saved source, never cached here -----------------
+
+func has_passive(id: String) -> bool:
+	return TownState.has_passive(id)
+
+func evolution_of(skill_id: String) -> String:
+	return TownState.selected_evolution(skill_id)
+
+## One blow is HEAVY at a tenth of max health or an enemy's heavy attack; anything else is light. (The one definition: Unbowed, Stubborn
+## Advance, Iron Recovery and Retaliation all ask it.)
+func is_heavy_hit(result: Dictionary) -> bool:
+	return float(result.get("damage", 0.0)) >= max_health * BuildDefs.HEAVY_HIT_FRACTION or float(result.get("weight", 1.0)) >= BuildDefs.HEAVY_HIT_WEIGHT
+
+const COMMITTED_SKILLS: Array[String] = ["power", "skewer", "leap", "throw"]
+
+## Winding up or charging one of the heavy skills (aiming a held one, or between the start of a committed one and its strike).
+func is_committed_windup() -> bool:
+	return skills.aiming_id != "" or weapon_throw.charging() or (skills.busy and not skills.busy_hit_done and skills.busy_skill in COMMITTED_SKILLS)
+
+## Pressing in on a target (clicked or locked on), not busy with a skill, not in town idling.
+func is_advancing() -> bool:
+	return attack_target != null and is_instance_valid(attack_target) and not attack_target.dead and not skills.busy and not movement.rolling
+
+var retaliation_time: float = 0.0           # Retaliation: seconds left in which the next basic strike staggers hard
+var unbowed_suppressed: int = 0             # how often Unbowed / Stubborn Advance have shrugged a light stagger off (tests, diagnostics)
+var stubborn_suppressed: int = 0
+var iron_shoves: int = 0
+var retaliations_fired: int = 0
+var last_stun_blocked: String = ""
+var _unbowed_ready_ms: int = 0
+var _recovery_shove_armed: bool = false
+var _stun_prev: bool = false
+
+## A stagger that would stop him. A LIGHT one is shrugged off while he winds up a heavy skill (Unbowed, then a short cooldown so chip
+## damage cannot make him unstoppable) or presses in on a target (Stubborn Advance: he only flinches, slowed a moment). A HEAVY one always
+## lands, and with Iron Recovery arms the shove he makes when he shakes it off. None of this is damage immunity.
+func _gain_stun(duration: float, result: Dictionary = {}) -> void:
+	var heavy: bool = is_heavy_hit(result)
+	if not heavy:
+		if has_passive("unbowed") and is_committed_windup() and Time.get_ticks_msec() >= _unbowed_ready_ms:
+			_unbowed_ready_ms = Time.get_ticks_msec() + int(BuildDefs.UNBOWED_COOLDOWN * 1000.0)
+			unbowed_suppressed += 1
+			last_stun_blocked = "unbowed"
+			return
+		if has_passive("stubborn_advance") and is_advancing():
+			apply_slow(BuildDefs.STUBBORN_SLOW, BuildDefs.STUBBORN_SLOW_TIME)
+			stubborn_suppressed += 1
+			last_stun_blocked = "stubborn_advance"
+			return
+	super._gain_stun(duration, result)
+	if heavy and has_passive("iron_recovery"):
+		_recovery_shove_armed = true
+
+## Iron Recovery: shaking off a heavy stagger, he drives the lesser enemies round him back with his whole body (no damage; bosses and
+## heavy bodies resist).
+func _iron_recovery() -> void:
+	iron_shoves += 1
+	var centre: Vector3 = global_position
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Actor
+		if e == null or e.dead or e.impaled or e.is_boss or e.knock_resist >= 0.5 or e.flat_distance_to(self) > BuildDefs.IRON_RADIUS + e.body_radius:
+			continue
+		var away: Vector3 = e.global_position - centre
+		away.y = 0.0
+		away = away.normalized() if away.length() > 0.05 else Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
+		e.knock += away * BuildDefs.IRON_KNOCK * (1.0 - e.knock_resist)
+		e.interrupt(BuildDefs.IRON_STAGGER)
+	Fx.ring(self, centre + Vector3(0, 0.08, 0), BuildDefs.IRON_RADIUS * 0.8, Color(0.75, 0.62, 0.45))
+	Fx.burst(self, centre + Vector3(0, 0.2, 0), Vector3.UP, Color(0.42, 0.36, 0.28), 14, 3.5, 0.05)
+	Fx.shake(self, 0.1)
+	Fx.punch(self, 1.4)
+
 func _physics_process(delta: float) -> void:
 	weapon_throw.tick(delta)
 	_dormancy_timer -= delta
@@ -130,6 +202,12 @@ func _physics_process(delta: float) -> void:
 		return
 	if dead:
 		return
+	retaliation_time = maxf(retaliation_time - delta, 0.0)
+	var stunned_now: bool = stun_time > 0.0
+	if _stun_prev and not stunned_now and _recovery_shove_armed:
+		_recovery_shove_armed = false
+		_iron_recovery()
+	_stun_prev = stunned_now
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
 	skills.update_buff_visuals()
@@ -612,6 +690,8 @@ func _act(delta: float, cursor: Vector3) -> void:
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	var outcome: int = result.get("outcome", 0)
+	if retaliation_time > 0.0 and String(result.get("skill_id", "")) == "basic" and not result.get("secondary", false):
+		_retaliate(target)
 	if outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
@@ -622,6 +702,20 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 
 func on_enemy_killed(enemy: Actor) -> void:
 	ItemEffects.on_kill(self, enemy)
+	if has_passive("bloody_recovery") and enemy.hero_credited() and String(enemy.last_result.get("skill_id", "")) in BuildDefs.PHYSICAL_FINISHERS:
+		stats.stamina_free_time = BuildDefs.BLOODY_RECOVERY_SECONDS   # a physical finish: the normal wait for stamina is gone at once
+
+## Retaliation: the basic strike that lands inside the window sends its target reeling (no extra damage), and uses the window up.
+func _retaliate(target: Actor) -> void:
+	retaliation_time = 0.0
+	retaliations_fired += 1
+	var away: Vector3 = target.global_position - global_position
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.05 else Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
+	target.interrupt(BuildDefs.RETALIATION_STAGGER)
+	target.knock += away * BuildDefs.RETALIATION_KNOCK * (1.0 - target.knock_resist)
+	Fx.ring(self, target.global_position + Vector3(0, 0.08, 0), 1.6, Color(0.9, 0.55, 0.25))
+	Fx.punch(self, 1.6)
 
 func _filter_incoming(result: Dictionary) -> Dictionary:
 	return ItemEffects.filter_incoming(self, result)
@@ -652,6 +746,8 @@ func _say(text: String) -> void:
 
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	ItemEffects.on_player_hurt(self)
+	if has_passive("retaliation") and is_heavy_hit(result) and float(result.get("damage", 0.0)) > 0.0:
+		retaliation_time = BuildDefs.RETALIATION_SECONDS   # a heavy hit taken: the next basic strike will send its target reeling
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0

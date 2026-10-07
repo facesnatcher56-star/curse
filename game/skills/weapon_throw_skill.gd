@@ -9,6 +9,16 @@ extends RefCounted
 ## The weapon in the hero's hand is hidden for as long as the thrown copy (ThrownWeapon) exists, so there is never one in each. Nothing
 ## here is a hitscan: the weapon moves a little each physics tick and sweeps the ground it covered for enemies, props and walls.
 ## The numbers are all in DEFAULTS and in each weapon's `throw` profile (data/items, tools/write_item_defs.py).
+##
+## EVOLUTIONS (BuildDefs, bought with an Evolution Point; one at most, read when the charge starts): all three keep the baseline throw,
+## embed and recall, and change what the weapon does on the way:
+##   wallspike      a full-strength throw spears the first ordinary enemy it hits and carries it on the blade; into a wall it is pinned there
+##                  (a real held state: the victim is impaled and out of the fight) until the recall rips the weapon free and drops it;
+##                  in open ground the carried body is thrown on. Big, boss and non-impalable enemies are hit as normal; one victim per throw.
+##   reaping_recall on the way back each lesser enemy the weapon strikes is dragged in toward the hero (a skid along the ground that comes
+##                  to rest near him, not a teleport), once per return; heavy and boss enemies take the baseline blow.
+##   ricochet       a strong throw glances off the first wall it meets (reflected about the wall's real normal), loses some speed and range,
+##                  and flies on; it bounces once, then embeds normally. The charge lane shows the predicted bounce.
 
 enum State { IN_HAND, CHARGING, RELEASING, FLYING_OUT, EMBEDDED, RIPPING, RETURNING, CATCHING }
 
@@ -56,6 +66,13 @@ var charge: float = 0.0                 # 0..1 while charging (kept after the re
 var thrown: ThrownWeapon
 var preview: ThrowPreview
 var aim_dir: Vector3 = Vector3.FORWARD
+# Evolutions (see the header).
+var evolution: String = ""               # the evolution in force for the throw being made ("" is the baseline throw)
+var bounces: int = 0                     # Ricochet: wall bounces this throw (0 or 1)
+var carried: Actor                       # Wallspike: the enemy riding the blade on its way out
+var pinned: Actor                        # Wallspike: the enemy nailed to the wall the weapon is embedded in
+var _pin_normal: Vector3 = Vector3.ZERO
+var pulled_ids: Array[int] = []          # Reaping Recall: who has been dragged on this return
 
 # The throw being made.
 var _hold: float = 0.0
@@ -139,6 +156,7 @@ func can_begin() -> bool:
 
 func begin_charge() -> void:
 	_profile = profile()
+	evolution = p.evolution_of(SKILL_ID)   # what is bought now is what this throw does
 	state = State.CHARGING
 	_hold = 0.0
 	charge = 0.0
@@ -167,7 +185,8 @@ func update_preview(aim_point: Vector3) -> void:
 	aim_dir = flat.normalized() if flat.length() > 0.4 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
 	if preview == null:
 		preview = ThrowPreview.new(p)
-	preview.show_lane(p.get_world_3d(), p.global_position, aim_dir, range_at(charge_fraction(), _profile), 0.5 + 0.5 * sin(_clock * 8.0), _clock)
+	var bank: bool = evolution == "ricochet" and charge_fraction() >= BuildDefs.RICOCHET_MIN_CHARGE
+	preview.show_lane(p.get_world_3d(), p.global_position, aim_dir, range_at(charge_fraction(), _profile), 0.5 + 0.5 * sin(_clock * 8.0), _clock, bank)
 
 ## The wind-up pose, scrubbed by how long the key has been held: the planted stance, the twist of the body and the weapon drawn back
 ## all deepen as the charge builds. Called after the hero's movement each tick, so it is the last word on his pose and facing.
@@ -199,7 +218,9 @@ func release(aim_point: Vector3) -> void:
 	flat.y = 0.0
 	_throw_dir = flat.normalized() if flat.length() > 0.4 else aim_dir
 	_range = range_at(_throw_charge, _profile)
-	_range = minf(_range, ThrowPreview.clear_length(p.get_world_3d(), p.global_position, _throw_dir, _range))
+	if not _can_ricochet():   # a Ricochet throw is not cut short by the wall: it bounces off it and flies on
+		_range = minf(_range, ThrowPreview.clear_length(p.get_world_3d(), p.global_position, _throw_dir, _range))
+	bounces = 0
 	state = State.RELEASING
 	_release_t = 0.0
 	if preview != null:
@@ -236,6 +257,8 @@ func _spawn_weapon() -> void:
 	_pass_hits = 0
 	last_out_hits.clear()
 	proc_hits = 0
+	carried = null
+	pinned = null
 	p.stats.weapon_locked = true   # the weapon is out: the one in the equipment slot may not be swapped for another until it is back
 	p.stats.cooldowns[SKILL_ID] = float(SkillDb.all()[SKILL_ID]["cd"]) * float(_profile["cooldown_mult"])   # the cooldown starts when it is thrown
 	thrown_at_msec = Time.get_ticks_msec()
@@ -313,16 +336,142 @@ func _tick_flight(delta: float) -> void:
 		_failsafe_outbound()
 		return
 	if not stop.is_empty():
-		_embed(stop["position"], stop["normal"], true)
+		if _can_bounce(stop["normal"]):
+			_bounce(stop["position"], stop["normal"])
+		else:
+			_embed(stop["position"], stop["normal"], true)
 		return
 	_pos = to
 	_last_valid = to
 	_place_flying()
+	_carry_victim()
 	if f >= 1.0 or f_before >= 1.0:
 		_embed(Vector3(_pos.x, 0.0, _pos.z), Vector3.UP, false)
 		return
 	if _speed < _start_speed * 0.35:   # it has lost its speed to what it hit: it drops where it is
 		_embed(Vector3(_pos.x, 0.0, _pos.z), Vector3.UP, false)
+
+## Ricochet: a throw of this strength can glance off a wall (the flag read at the release, before the wall is met).
+func _can_ricochet() -> bool:
+	return evolution == "ricochet" and _throw_charge >= BuildDefs.RICOCHET_MIN_CHARGE
+
+func _can_bounce(normal: Vector3) -> bool:
+	return _can_ricochet() and bounces == 0 and absf(normal.y) < 0.6
+
+## Glances off the wall it struck: the direction is reflected about the wall's actual normal, it loses speed and range, and it flies on.
+## Once only (the next wall embeds it).
+func _bounce(point: Vector3, normal: Vector3) -> void:
+	var n: Vector3 = Vector3(normal.x, 0.0, normal.z).normalized()
+	_throw_dir = _throw_dir.bounce(n)
+	_throw_dir.y = 0.0
+	_throw_dir = _throw_dir.normalized()
+	var left: float = maxf(_range - _travelled, 1.0) * BuildDefs.RICOCHET_RANGE_KEEP
+	_range = _travelled + maxf(left, 2.5)
+	_speed *= BuildDefs.RICOCHET_SPEED_KEEP
+	_pos = Vector3(point.x + n.x * 0.35, _pos.y, point.z + n.z * 0.35)
+	_last_valid = _pos
+	bounces += 1
+	_place_flying()
+	var spark: Vector3 = Vector3(point.x, _pos.y, point.z)
+	Fx.burst(p, spark, n + Vector3.UP * 0.3, Color(1.0, 0.75, 0.4), 14, 5.0, 0.03, true)
+	Fx.ring(p, Vector3(point.x, 0.1, point.z), 0.9, Color(0.85, 0.72, 0.5))
+	Sfx.sample(p, "sword_hit_2", 1.0, 1.15 * float(_profile["pitch"]))
+	Fx.shake(p, 0.05)
+
+# --- Wallspike -------------------------------------------------------------------------------------------------------------------
+
+## Whether the enemy just struck can be spiked: a full-strength outgoing throw, nothing carried yet, an ordinary body (not too big to impale).
+func _can_spike(e: Actor, outgoing: bool, heft: float) -> bool:
+	return outgoing and evolution == "wallspike" and _throw_charge >= BuildDefs.WALLSPIKE_MIN_CHARGE and carried == null and not e.dead \
+		and e.can_be_impaled() and heft <= LIGHT_HEFT
+
+func _spike(e: Actor, flat: Vector3) -> void:
+	carried = e
+	e.set_impaled(true)
+	e.ragdoll_hang(atan2(-flat.x, -flat.z))
+	e.credit_hero()
+	e.knocked_by = p
+	_speed *= BuildDefs.WALLSPIKE_SPEED_KEEP
+	Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Spiked", Color(1.0, 0.8, 0.55), 44)
+	Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), flat + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 16, 5.0)
+	Fx.punch(p, 2.0)
+
+## Keeps the spiked enemy on the blade as it flies (just ahead of the weapon, hanging).
+func _carry_victim() -> void:
+	if carried == null:
+		return
+	if not is_instance_valid(carried):
+		carried = null
+		return
+	var at: Vector3 = _pos + _throw_dir * 0.55
+	carried.global_position = Vector3(at.x, 0.3, at.z)
+	carried.reset_physics_interpolation()
+	if carried.ragdoll != null:
+		carried.ragdoll.yaw = atan2(-_throw_dir.x, -_throw_dir.z)
+
+## The weapon met a wall with someone on it: nailed to the wall, held there (impaled, out of the fight) until the recall.
+func _pin_carried(point: Vector3, normal: Vector3) -> void:
+	var e: Actor = carried
+	carried = null
+	if e == null or not is_instance_valid(e):
+		return
+	var n: Vector3 = Vector3(normal.x, 0.0, normal.z).normalized()
+	pinned = e
+	_pin_normal = n
+	e.global_position = Vector3(point.x + n.x * 0.5, 0.3, point.z + n.z * 0.5)
+	e.reset_physics_interpolation()
+	if e.ragdoll != null:
+		e.ragdoll.yaw = atan2(-_throw_dir.x, -_throw_dir.z)
+	if not e.dead:
+		var pin: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(BuildDefs.WALLSPIKE_PIN_DAMAGE), Combat.DamageType.PHYSICAL, false, 2.0)
+		pin["skill_id"] = "wallspike"
+		pin["secondary"] = true
+		e.receive(pin, e.global_position - _throw_dir)
+	if is_instance_valid(e):
+		Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Pinned", Color(1.0, 0.9, 0.5), 46)
+		Fx.burst(p, Vector3(point.x, 1.0, point.z), n + Vector3.UP * 0.2, Color(0.55, 0.5, 0.42), 14, 4.0, 0.05)
+
+## Open ground instead of a wall: the carried body is thrown on, down and forward, and the weapon embeds as it always does.
+func _throw_carried(velocity_dir: Vector3) -> void:
+	var e: Actor = carried
+	carried = null
+	if e == null or not is_instance_valid(e):
+		return
+	e.set_impaled(false)
+	e.credit_hero()
+	var spin: Vector3 = velocity_dir.cross(Vector3.UP) * randf_range(5.0, 8.0)
+	e.ragdoll_launch(velocity_dir * 8.0, 2.0, spin)
+
+## The recall: the weapon rips out of the wall and the pinned enemy drops, knocked down.
+func _release_pinned() -> void:
+	var e: Actor = pinned
+	pinned = null
+	if e == null or not is_instance_valid(e):
+		return
+	e.set_impaled(false)
+	e.credit_hero()
+	e.knocked_by = p
+	e.ragdoll_launch(_pin_normal * 3.0, 2.2, _pin_normal.cross(Vector3.UP) * randf_range(3.0, 6.0))
+	if not e.dead:
+		e.interrupt(1.5)
+	Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), _pin_normal + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 12, 4.0)
+
+# --- Reaping Recall --------------------------------------------------------------------------------------------------------------
+
+## A lesser enemy struck on the way home is dragged in toward the hero: a skid along the ground (the knock-back every body already obeys,
+## slowing at a steady rate) timed so it comes to rest close to him. Nothing teleports; a wall or another body in the way stops it.
+func _reap(e: Actor) -> void:
+	pulled_ids.append(e.get_instance_id())
+	var to_hero: Vector3 = p.global_position - e.global_position
+	to_hero.y = 0.0
+	var dist: float = to_hero.length()
+	var travel: float = clampf(dist - BuildDefs.REAPING_STOP_DISTANCE, 0.0, BuildDefs.REAPING_MAX_PULL)
+	e.knocked_by = p
+	e.credit_hero()
+	e.interrupt(BuildDefs.REAPING_STAGGER)
+	if travel > 0.1:
+		e.knock = to_hero.normalized() * sqrt(2.0 * 22.0 * travel)   # knock slows at 22 m/s^2: this speed stops it `travel` metres on
+	Fx.burst(p, Vector3(e.global_position.x, 0.15, e.global_position.z), to_hero.normalized() + Vector3.UP * 0.2, Color(0.42, 0.36, 0.28), 10, 3.0, 0.05)
 
 func _valid(point: Vector3) -> bool:
 	return point.is_finite() and point.y > -4.0 and point.distance_to(p.global_position) < 220.0
@@ -405,6 +554,13 @@ func _hit_enemy(e: Actor, dir: Vector3, outgoing: bool) -> void:
 	Fx.shake(p, 0.03 + 0.05 * c * mass)
 	if not is_instance_valid(e):
 		return
+	if _can_spike(e, outgoing, heft):
+		_spike(e, flat)
+		return
+	if not outgoing and evolution == "reaping_recall" and not e.dead and heft <= LIGHT_HEFT and not e.is_boss and not pulled_ids.has(e.get_instance_id()):
+		_reap(e)
+		_speed *= 1.0 - minf(0.03 * heft * mass, 0.2)
+		return
 	var impulse: float = (5.0 + 11.0 * c) * mass * (1.0 if outgoing else 0.8)
 	if heft >= MASSIVE_HEFT:
 		# Something this size takes the blow and barely moves; the weapon loses most of its speed to it.
@@ -448,6 +604,11 @@ func _embed(point: Vector3, normal: Vector3, wall_ok: bool) -> void:
 	state = State.EMBEDDED
 	_embed_t = 0.0
 	thrown.set_pose(_embed_center, _embed_axis, 0.0)
+	if carried != null:
+		if wall_ok and absf(normal.y) < 0.6:
+			_pin_carried(point, normal)
+		else:
+			_throw_carried(_throw_dir)
 	var dust: Vector3 = Vector3(point.x, 0.1, point.z)
 	Fx.burst(p, dust, Vector3.UP + _throw_dir * 0.3, Color(0.42, 0.36, 0.28), int(10 + 22 * c * mass), 3.0 + 3.0 * c * mass, 0.05)
 	Fx.ring(p, dust, 0.8 + 1.6 * c * mass, Color(0.7, 0.62, 0.5))
@@ -463,6 +624,12 @@ func _embed(point: Vector3, normal: Vector3, wall_ok: bool) -> void:
 
 func _tick_embedded(delta: float) -> void:
 	_embed_t += delta
+	if pinned != null:   # held on the wall for as long as the weapon is: nothing shoves it free
+		if is_instance_valid(pinned):
+			pinned.knock = Vector3.ZERO
+			pinned.velocity = Vector3.ZERO
+		else:
+			pinned = null
 	if _embed_t < 0.7 and thrown != null:   # it hums in the ground for a moment after the blow
 		var lateral: Vector3 = _embed_axis.cross(Vector3.UP).normalized()
 		var wobble: float = sin(_embed_t * 46.0) * 0.07 * exp(-_embed_t * 5.5)
@@ -471,6 +638,8 @@ func _tick_embedded(delta: float) -> void:
 		_failsafe_outbound()
 
 func _failsafe_outbound() -> void:
+	if carried != null:
+		_throw_carried(_throw_dir)
 	# It left the world (fell through, or ended up somewhere that is not valid): put it back on the nearest good ground so a recall works.
 	var safe: Vector3 = _last_valid if _valid(_last_valid) else p.global_position + Vector3(0, 0, 1.5)
 	_pos = Vector3(safe.x, 0.5, safe.z)
@@ -487,10 +656,13 @@ func recall() -> bool:
 		State.EMBEDDED:
 			state = State.RIPPING
 			_rip_t = 0.0
+			_release_pinned()
 			Fx.burst(p, Vector3(_embed_center.x, 0.1, _embed_center.z), Vector3.UP, Color(0.42, 0.36, 0.28), 24, 4.5, 0.05)
 			Sfx.sample(p, "sword_miss", 0.0, 0.7 * float(_profile.get("pitch", 1.0)))
 			return true
 		State.FLYING_OUT:
+			if carried != null:
+				_throw_carried(_throw_dir)   # called back with someone on the blade: it comes off and is thrown on
 			_begin_return(_pos)   # turned round in the air
 			return true
 	return false
@@ -522,6 +694,7 @@ func _begin_return(from: Vector3) -> void:
 	_hit_ids.clear()
 	_pass_hits = 0
 	last_return_hits.clear()
+	pulled_ids.clear()
 	proc_hits = 0
 	_spin = 0.0
 	Sfx.sample(p, "sword_miss", 1.0, 0.8 * float(_profile.get("pitch", 1.0)))
@@ -609,6 +782,10 @@ func _complete_catch() -> void:
 
 ## Puts everything back: the weapon in his hand, no thrown copy, nothing locked. Called when he dies, is revived, or leaves the world.
 func reset() -> void:
+	if carried != null:
+		_throw_carried(_throw_dir)
+	if pinned != null:
+		_release_pinned()
 	if thrown != null and is_instance_valid(thrown):
 		thrown.queue_free()
 	thrown = null

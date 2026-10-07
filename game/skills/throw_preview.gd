@@ -11,6 +11,8 @@ const WALL_MARGIN := 0.45
 var node: MeshInstance3D
 var length: float = 0.0          # the lane as drawn, for tests
 var blocked: bool = false        # true when a wall or a prop cut it short
+var bounce_length: float = 0.0   # Ricochet: the second segment as drawn (0 when none is predicted)
+var bounce_dir: Vector3 = Vector3.ZERO
 var _mesh := ImmediateMesh.new()
 
 func _init(owner_node: Node3D) -> void:
@@ -42,9 +44,28 @@ static func clear_length(world: World3D, from: Vector3, dir: Vector3, reach: flo
 			shortest = minf(shortest, maxf(start.distance_to(hit["position"]) - WALL_MARGIN, 0.5))
 	return shortest
 
-func show_lane(world: World3D, from: Vector3, dir: Vector3, reach: float, pulse: float, clock: float) -> void:
+## The first wall in the way (three rays, as `clear_length`): {position, normal, distance}, or {} when the reach is clear.
+static func wall_ahead(world: World3D, from: Vector3, dir: Vector3, reach: float, height: float = 1.0) -> Dictionary:
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)
+	var start: Vector3 = Vector3(from.x, height, from.z)
+	var query := PhysicsRayQueryParameters3D.create(start, start + dir * (reach + WALL_MARGIN), Actor.LAYER_WORLD)
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty() or absf((hit["normal"] as Vector3).y) >= 0.6:
+		return {}
+	return {"position": hit["position"], "normal": hit["normal"], "distance": start.distance_to(hit["position"])}
+
+func show_lane(world: World3D, from: Vector3, dir: Vector3, reach: float, pulse: float, clock: float, bank: bool = false) -> void:
 	length = clear_length(world, from, dir, reach)
 	blocked = length < reach - 0.01
+	bounce_length = 0.0
+	bounce_dir = Vector3.ZERO
+	var bounce: Dictionary = {}
+	if bank:   # Ricochet: the lane runs to the wall and a dimmer one carries on, reflected about the wall's real normal
+		bounce = wall_ahead(world, from, dir, reach)
+		if not bounce.is_empty():
+			length = maxf(float(bounce["distance"]) - 0.1, 0.5)
+			blocked = false
 	var origin := Vector3(from.x, from.y + HEIGHT, from.z)
 	var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)
 	var end: Vector3 = origin + dir * length
@@ -70,6 +91,25 @@ func show_lane(world: World3D, from: Vector3, dir: Vector3, reach: float, pulse:
 	_strip(end - side * HALF_WIDTH * 1.5, end + side * HALF_WIDTH * 1.5, 0.12, mark)
 	_strip(end - side * 0.22 - dir * 0.22, end + side * 0.22 + dir * 0.22, 0.07, mark)
 	_strip(end + side * 0.22 - dir * 0.22, end - side * 0.22 + dir * 0.22, 0.07, mark)
+	if not bounce.is_empty():
+		var n: Vector3 = Vector3(bounce["normal"].x, 0.0, bounce["normal"].z).normalized()
+		var out: Vector3 = dir.bounce(n)
+		out.y = 0.0
+		out = out.normalized()
+		var wall_point: Vector3 = Vector3(bounce["position"].x, origin.y, bounce["position"].z) + n * 0.3
+		var left: float = maxf(reach - float(bounce["distance"]), 1.0) * BuildDefs.RICOCHET_RANGE_KEEP
+		var after: float = clear_length(world, wall_point, out, maxf(left, 2.5))
+		bounce_dir = out
+		bounce_length = after
+		var bounce_side: Vector3 = Vector3(-out.z, 0.0, out.x)
+		var bend := Color(1.0, 0.82, 0.45, 0.8)
+		var tail: Vector3 = wall_point + out * after
+		_quad(wall_point - bounce_side * HALF_WIDTH * 0.7, wall_point + bounce_side * HALF_WIDTH * 0.7, tail + bounce_side * HALF_WIDTH * 0.7, tail - bounce_side * HALF_WIDTH * 0.7,
+			Color(0.85, 0.78, 0.62, 0.05 + 0.03 * pulse))
+		_strip(wall_point + bounce_side * HALF_WIDTH * 0.7, tail + bounce_side * HALF_WIDTH * 0.7, 0.06, Color(1.0, 0.74, 0.34, 0.45))
+		_strip(wall_point - bounce_side * HALF_WIDTH * 0.7, tail - bounce_side * HALF_WIDTH * 0.7, 0.06, Color(1.0, 0.74, 0.34, 0.45))
+		_strip(end - side * HALF_WIDTH * 1.6, end + side * HALF_WIDTH * 1.6, 0.12, bend)   # the wall mark, where it will glance
+		_strip(tail - bounce_side * HALF_WIDTH * 1.2, tail + bounce_side * HALF_WIDTH * 1.2, 0.1, mark)
 	_mesh.surface_end()
 	node.global_transform = Transform3D.IDENTITY
 	node.visible = true

@@ -4,3 +4,6 @@
 
 # Editor plugin (third-party binary, not part of the game)
 /addons/ziva_agent/
+
+# AgentBridge local runtime state / inbox / logs
+.agentbridge/

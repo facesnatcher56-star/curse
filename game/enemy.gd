@@ -7,6 +7,9 @@ extends Actor
 ## Set before adding to the tree. `variant` is the EnemyDef id.
 var variant: String = "zombie"
 var level_scale: float = 1.0
+## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
+## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
+var xp_eligible: bool = true
 
 var def: EnemyDef
 var behavior: EnemyBehavior
@@ -49,6 +52,19 @@ var _orbit_flip: float = 2.0
 # Crowd behaviour: only a few enemies may swing at once (attack tokens); the rest circle and wait their turn.
 static var max_tokens: int = 2
 static var _token_holders: Dictionary = {}   # instance id -> [weight, expiry (ms)]
+
+## Sets how dangerous the body is (a world threat, see WorldThreat: the same scale as `level_scale`) on one that already exists: health and
+## damage follow, the share of health left stays. A named monster calls this as it grows; spawning it with its threat does the same job.
+func set_threat(threat: float) -> void:
+	threat = maxf(threat, 0.1)
+	var fraction: float = health / maxf(max_health, 1.0)
+	var old_damage: float = 1.0 + 0.4 * (level_scale - 1.0)
+	var new_damage: float = 1.0 + 0.4 * (threat - 1.0)
+	max_health *= threat / maxf(level_scale, 0.1)
+	health = max_health * fraction
+	damage_min *= new_damage / old_damage
+	damage_max *= new_damage / old_damage
+	level_scale = threat
 
 func _ready() -> void:
 	add_to_group("enemies")

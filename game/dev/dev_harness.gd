@@ -1825,6 +1825,9 @@ func _item_sheet() -> void:
 		for i in 8:
 			player.stats.add_to_bag(drops[i].item)
 		hud.show_gear = true
+		TownState.persist = false   # a picture of a mid-level hero (--maxlevel: the capped one) must not touch the real save
+		TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL if OS.get_cmdline_user_args().has("--maxlevel") else 6)
+		TownState.add_hero_xp(0 if OS.get_cmdline_user_args().has("--maxlevel") else 420)
 		hud._open_character()
 		await get_tree().create_timer(0.5).timeout
 		var size_px: Vector2 = get_viewport().get_visible_rect().size
@@ -3273,6 +3276,1293 @@ func _test_town_sim() -> void:
 	expect("moods stay in range over a long time", in_range)
 	TownState.reset()
 
+## The hero's permanent level: the curve, awarding XP (several levels at once, the cap), saving, loading, repairing and migrating, and
+## how the character screen and the HUD show it.
+func _test_progression() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var l2: int = HeroProgression.xp_for_level(2)
+	expect("a fresh hero is level 1 with 0 XP", TownState.hero_level == 1 and TownState.hero_xp == 0)
+	expect("the curve starts at 0 and rises every level", HeroProgression.xp_for_level(1) == 0 and HeroProgression.XP_FOR_LEVEL.size() == HeroProgression.MAX_LEVEL)
+	var rising: bool = true
+	for level in range(2, HeroProgression.MAX_LEVEL + 1):
+		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
+	expect("every level needs more total XP than the one before", rising)
+	var late_gap_ok: bool = true
+	for level in range(20, HeroProgression.MAX_LEVEL):
+		var gap: int = HeroProgression.xp_for_level(level + 1) - HeroProgression.xp_for_level(level)
+		late_gap_ok = late_gap_ok and gap >= 900 and gap <= 1400
+	expect("late levels take 900-1400 XP each", late_gap_ok)
+	TownState.add_hero_xp(l2 - 1)
+	expect("one XP short of level 2 is still level 1", TownState.hero_level == 1 and TownState.hero_xp == l2 - 1)
+	var up: Dictionary = TownState.add_hero_xp(1)
+	expect("exactly the level 2 threshold is level 2, and the result says so", TownState.hero_level == 2 and int(up["old_level"]) == 1
+		and int(up["new_level"]) == 2 and int(up["levels_gained"]) == 1 and int(up["xp_gained"]) == 1)
+	expect("a level is not paid for out of the XP: it is the total", TownState.hero_xp == l2)
+	var before: int = TownState.hero_xp
+	var none_zero: Dictionary = TownState.add_hero_xp(0)
+	var none_neg: Dictionary = TownState.add_hero_xp(-50)
+	expect("zero and negative awards change nothing", TownState.hero_xp == before and int(none_zero["xp_gained"]) == 0 and int(none_neg["levels_gained"]) == 0)
+	var seen: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: seen.append([old_level, new_level])
+	TownState.events.hero_leveled.connect(on_level)
+	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(5) - TownState.hero_xp)
+	expect("one award can gain several levels (2 to 5)", TownState.hero_level == 5 and int(jump["levels_gained"]) == 3 and int(jump["old_level"]) == 2 and int(jump["new_level"]) == 5)
+	expect("several levels is one event, old level to new level", seen == [[2, 5]])
+	TownState.add_hero_xp(5)
+	expect("an award inside a level fires no level event", seen.size() == 1)
+	# Fractions, spans and the cap.
+	var l3: int = HeroProgression.xp_for_level(3)
+	var l4: int = HeroProgression.xp_for_level(4)
+	expect("a level's progress is 0 at its start, half-way, and under 1 at its last point", is_equal_approx(HeroProgression.level_fraction(l3), 0.0)
+		and is_equal_approx(HeroProgression.level_fraction(l3 + (l4 - l3) / 2), 0.5) and HeroProgression.level_fraction(l4 - 1) < 1.0 and HeroProgression.level_fraction(l4 - 1) > 0.95)
+	expect("progress is read as 'into level / level span'", HeroProgression.xp_into_level(l3 + 20) == 20 and HeroProgression.xp_span_of_level(l3) == l4 - l3
+		and HeroProgression.xp_to_next_level(l3 + 20) == l4 - l3 - 20 and HeroProgression.progress_text(l3 + 20) == "20 / %d XP" % (l4 - l3))
+	TownState.add_hero_xp(10000000)
+	expect("a huge award stops at the cap", TownState.hero_level == HeroProgression.MAX_LEVEL and TownState.hero_xp == HeroProgression.max_xp())
+	var past: Dictionary = TownState.add_hero_xp(500)
+	expect("XP past the cap is not kept and levels nothing", TownState.hero_level == HeroProgression.MAX_LEVEL and TownState.hero_xp == HeroProgression.max_xp()
+		and int(past["xp_gained"]) == 0 and int(past["levels_gained"]) == 0 and seen.size() == 2)
+	TownState.add_hero_xp(9223372036854775807)
+	expect("an enormous award does not overflow", TownState.hero_xp == HeroProgression.max_xp())
+	expect("at the cap the bar is full, nothing is left to earn and nothing divides by zero", is_equal_approx(HeroProgression.level_fraction(HeroProgression.max_xp()), 1.0)
+		and HeroProgression.xp_to_next_level(HeroProgression.max_xp()) == 0 and HeroProgression.xp_span_of_level(HeroProgression.max_xp()) == 0
+		and HeroProgression.progress_text(HeroProgression.max_xp()) == "MAX LEVEL")
+	expect("XP is never negative and level never leaves 1..cap", HeroProgression.sanitize_xp(-5) == 0 and HeroProgression.level_for_xp(-5) == 1
+		and HeroProgression.level_for_xp(99999999) == HeroProgression.MAX_LEVEL)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Developer commands.
+	TownState.reset()
+	TownState.apply_dev_progression(PackedStringArray(["--level=10"]))
+	expect("--level=N sets the hero to the start of that level", TownState.hero_level == 10 and TownState.hero_xp == HeroProgression.xp_for_level(10))
+	TownState.apply_dev_progression(PackedStringArray(["--xp=50", "--level=abc"]))
+	expect("--xp=N grants XP; a bad value is ignored", TownState.hero_xp == HeroProgression.xp_for_level(10) + 50 and TownState.hero_level == 10)
+	# Saving: the save carries the progression, loads it back, and the XP decides the level.
+	TownState.reset()
+	TownState.add_hero_xp(HeroProgression.xp_for_level(7) + 123)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds the hero's level and XP", int(saved["hero_xp"]) == HeroProgression.xp_for_level(7) + 123 and int(saved["hero_level"]) == 7)
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved))
+	expect("save and load keep the XP and the level it makes", TownState.hero_xp == HeroProgression.xp_for_level(7) + 123 and TownState.hero_level == 7)
+	var drifted: Dictionary = saved.duplicate(true)
+	drifted["hero_level"] = 25
+	TownState.from_dict(TownState.migrate(drifted))
+	expect("a saved level that disagrees with the XP is repaired from the XP", TownState.hero_level == 7)
+	for bad in [-40, 1e18, "lots", null, [], {}, 12.9, NAN]:
+		var broken: Dictionary = saved.duplicate(true)
+		broken["hero_xp"] = bad
+		broken["hero_level"] = bad
+		TownState.from_dict(TownState.migrate(broken))
+		expect("a malformed hero_xp (%s) loads as a valid hero" % str(bad), TownState.hero_xp >= 0 and TownState.hero_xp <= HeroProgression.max_xp()
+			and TownState.hero_level == HeroProgression.level_for_xp(TownState.hero_xp))
+	var no_fields: Dictionary = saved.duplicate(true)
+	no_fields.erase("hero_xp")
+	no_fields.erase("hero_level")
+	TownState.from_dict(TownState.migrate(no_fields))
+	expect("a save missing the fields loads at level 1", TownState.hero_level == 1 and TownState.hero_xp == 0)
+	# Migration: a version 2 save keeps everything and begins at level 1.
+	var v2: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	v2["save_version"] = 2
+	v2.erase("hero_xp")
+	v2.erase("hero_level")
+	v2["gold"] = 311
+	v2["day"] = 9
+	v2["jobs_done"] = 14   # not a measure of the hero's level
+	var migrated: Dictionary = TownState.migrate(v2)
+	expect("a version 2 save is migrated to the current version at level 1 with 0 XP", int(migrated["save_version"]) == TownState.SAVE_VERSION
+		and int(migrated["hero_level"]) == 1 and int(migrated["hero_xp"]) == 0)
+	TownState.reset()
+	TownState.from_dict(migrated)
+	expect("migrating keeps the gold, day, job count and level 1", TownState.gold == 311 and TownState.day == 9 and TownState.jobs_done == 14
+		and TownState.hero_level == 1 and TownState.hero_xp == 0)
+	# What it shows: the character screen and the HUD.
+	TownState.reset()
+	var town := TownScene.new()
+	town.with_road = false
+	game.add_child(town)
+	await get_tree().process_frame
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	expect("a fresh character screen reads Level 1 and 0 / 100 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 100 XP")
+	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
+	expect("a level-up puts one small LEVEL plate on the HUD", town.combat_hud.level_toast_text == "LEVEL 2" and town.combat_hud.level_toast_time > 1.0)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 2" and view.xp_label.text == "30 / 150 XP")
+	var close_button: Button = view.find_children("*", "Button", true, false).back()
+	var overlap: bool = false
+	for tile in view.find_children("*", "SubViewportContainer", true, false):
+		overlap = overlap or (tile as Control).get_global_rect().intersects(view.level_label.get_global_rect()) \
+			or (tile as Control).get_global_rect().intersects(view.xp_bar.get_global_rect())
+	expect("the level and XP bar do not overlap the portrait", not overlap and view.xp_bar.get_global_rect().size.x > 100.0)
+	expect("the character screen keeps its Close button focusable", close_button.focus_mode != Control.FOCUS_NONE and close_button.has_focus())
+	expect("the level text sits inside the panel", view.get_global_rect().encloses(view.level_label.get_global_rect()) and view.get_global_rect().encloses(view.xp_bar.get_global_rect()))
+	TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	expect("at the cap the screen reads Level 30 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.MAX_LEVEL and view.xp_label.text == "MAX LEVEL")
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+
+## Hero Level, world threat, item tier and rarity are four different things, and only the last three are connected: a stronger hero (or one
+## who has done more jobs) never makes the world harder; a place or a monster is as dangerous as it is; a drop's tier comes from its source.
+func _test_world_progression() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	# Zone threat and the tier it makes.
+	var road_in: float = WorldThreat.for_distance(10.0)
+	var deep: float = WorldThreat.for_distance(300.0)
+	expect("each stretch has its own threat, rising with distance", is_equal_approx(road_in, TownDb.zone_at(10.0).base_threat) and road_in < WorldThreat.for_distance(100.0)
+		and WorldThreat.for_distance(100.0) < WorldThreat.for_distance(170.0) and WorldThreat.for_distance(170.0) < deep)
+	expect("an item tier is one per whole point of threat, on top of tier 1", Items.tier_for_source(0.5) == 1 and Items.tier_for_source(1.0) == 2
+		and Items.tier_for_source(1.99) == 2 and Items.tier_for_source(2.0) == 3 and Items.tier_for_source(5.0) == 6)
+	expect("a little more threat is not a new tier", Items.tier_for_source(road_in) == Items.tier_for_source(deep))
+	expect("the arena has its own tier by wave, separate from the world's", Items.tier_for_wave(1) == 1 and Items.tier_for_wave(3) == 2 and Items.tier_for_wave(6) == 3)
+	# The arena director still runs on its waves.
+	var arena_director := RunDirector.new()
+	add_child(arena_director)
+	arena_director.wave = 6
+	expect("the arena scales by its wave and drops by its wave", is_equal_approx(RunDirector.arena_level(1), 1.0) and is_equal_approx(RunDirector.arena_level(6), 1.6)
+		and not arena_director.connected() and arena_director.drop_tier(9.0) == Items.tier_for_wave(6) and arena_director.drop_tier_at(Vector3.ZERO) == Items.tier_for_wave(6))
+	arena_director.queue_free()
+	# The connected world.
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var crypt: CryptRoad = town.crypt
+	var director: RunDirector = town.director
+	expect("the world does not borrow an arena wave", director.connected() and director.wave == 0)
+	var placed_right: bool = true
+	var checked: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
+			checked += 1
+			placed_right = placed_right and absf(e.level_scale - crypt.threat_at(e.home)) < 0.001
+	expect("every ordinary monster on the road has its stretch's threat (%d checked)" % checked, checked > 20 and placed_right)
+	var spawn_at: Callable = func(group: int, z: float) -> Enemy:
+		crypt._group(group, "", [["zombie", 0.0, z]], Vector2(0.0, z))
+		for node in get_tree().get_nodes_in_group("enemies"):
+			if (node as Enemy).group_id == group:
+				return node as Enemy
+		return null
+	var near_before: Enemy = spawn_at.call(950, 160.0)
+	var far_before: Enemy = spawn_at.call(951, -40.0)
+	var first_tier: int = director.drop_tier_at(crypt.at(0.0, 160.0))
+	TownState.dev_set_hero_level(20)
+	TownState.jobs_done += 6
+	var near_after: Enemy = spawn_at.call(952, 160.0)
+	var far_after: Enemy = spawn_at.call(953, -40.0)
+	expect("a level 20 hero faces the same Road In zombie as a level 1 hero (%.2f, %.2f)" % [near_before.level_scale, near_after.level_scale],
+		is_equal_approx(near_before.level_scale, road_in) and is_equal_approx(near_after.level_scale, near_before.level_scale)
+		and is_equal_approx(near_after.max_health, near_before.max_health) and is_equal_approx(near_after.damage_max, near_before.damage_max))
+	expect("six more jobs done do not make the road harder either", is_equal_approx(far_after.level_scale, far_before.level_scale) and TownState.jobs_done == 6)
+	expect("deeper authored ground is still tougher", far_before.level_scale > near_before.level_scale and far_before.max_health > near_before.max_health)
+	expect("the same place drops the same tier whatever the hero is", director.drop_tier_at(crypt.at(0.0, 160.0)) == first_tier
+		and director.drop_tier(road_in) == Items.tier_for_source(road_in) and director.drop_tier(road_in + 1.0) > director.drop_tier(road_in))
+	for e in [near_before, far_before, near_after, far_after]:
+		e.queue_free()
+	# A named monster is its own measure, wherever it lives.
+	var mon: Dictionary = Monsters.rise()
+	mon["kind"] = "zombie"
+	mon["dist"] = 20.0
+	mon["level"] = 5.0
+	town.populate_monsters()
+	var body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid"):
+			body = node
+	var plain: Enemy = spawn_at.call(954, 160.0)
+	expect("a level 5 named monster in the Road In is far stronger than the ordinary zombies there", body != null and body.max_health > plain.max_health * 2.0
+		and body.damage_max > plain.damage_max * 1.3)
+	var named_strength: float = body.max_health
+	TownState.dev_set_hero_level(1)
+	town.populate_monsters()
+	expect("its strength follows its own level, not the hero's", is_equal_approx(body.max_health, named_strength))
+	# Its strength is its own threat, set where it is spawned: the marker is only a picture.
+	var bare: Enemy = director.spawn_enemy(body.global_position + Vector3(3, 0, 0), "zombie", 5.0)   # the same monster with no marker at all
+	var stats_before: Array = [body.level_scale, body.max_health, body.damage_min, body.damage_max, body.armor, body.move_speed]
+	MonsterMark.apply_look(body, mon)
+	MonsterMark.attach(body, mon)
+	var stats_after: Array = [body.level_scale, body.max_health, body.damage_min, body.damage_max, body.armor, body.move_speed]
+	expect("a named monster's level_scale is its own level", is_equal_approx(body.level_scale, 5.0) and is_equal_approx(bare.level_scale, 5.0))
+	expect("the marker changes no combat statistic", stats_before == stats_after)
+	expect("a named monster with no marker has exactly the same strength", is_equal_approx(bare.max_health, body.max_health)
+		and is_equal_approx(bare.damage_min, body.damage_min) and is_equal_approx(bare.damage_max, body.damage_max) and is_equal_approx(bare.armor, body.armor))
+	bare.set_threat(2.0)
+	expect("a body can be given a new threat in place: health and damage follow, the share of health stays", is_equal_approx(bare.max_health, EnemyDb.get_def("zombie").health * 2.0)
+		and is_equal_approx(bare.health, bare.max_health) and is_equal_approx(bare.level_scale, 2.0))
+	bare.queue_free()
+	var loot_before: int = get_tree().get_nodes_in_group("loot").size()
+	director._report_to_quests(body)
+	var tiers: Array[int] = []
+	for node in get_tree().get_nodes_in_group("loot"):
+		tiers.append(int((node as LootDrop).item["tier"]))
+	expect("its drops are of its own level's tier (%s), not the road's" % str(tiers), get_tree().get_nodes_in_group("loot").size() > loot_before
+		and tiers.all(func(t: int) -> bool: return t == Items.tier_for_source(5.0)) and Items.tier_for_source(5.0) > Items.tier_for_source(road_in))
+	# A quest's unique monster has an absolute threat on the same scale.
+	var uniques: Array = TownDb.quests().values().filter(func(q: QuestDef) -> bool: return q.kind == "slay_unique")
+	expect("a unique quest monster has its own absolute threat, on the zones' scale", not uniques.is_empty()
+		and uniques.all(func(q: QuestDef) -> bool: return q.unique_level >= 1.0 and q.unique_level <= 3.0))
+	plain.queue_free()
+	# Rarity is not tier.
+	var owned: Array[String] = []
+	var lucky_tiers: Array[int] = []
+	var lucky_rare: bool = true
+	var plain_commons: int = 0
+	var plain_tiers: Array[int] = []
+	for i in 120:
+		var lucky: Dictionary = Items.roll_drop(3, 1.0, owned)
+		lucky_tiers.append(int(lucky["tier"]))
+		lucky_rare = lucky_rare and int(lucky["rarity"]) >= Items.Rarity.RARE
+		var ordinary: Dictionary = Items.roll_drop(3, 0.0, owned)
+		plain_tiers.append(int(ordinary["tier"]))
+		plain_commons += 1 if int(ordinary["rarity"]) == Items.Rarity.COMMON else 0
+	expect("a Brute's luck makes rarer items but not a higher tier", lucky_rare and lucky_tiers.all(func(t: int) -> bool: return t == 3)
+		and plain_tiers.all(func(t: int) -> bool: return t == 3) and plain_commons > 10)
+	# The shops and quest rewards do not read jobs done.
+	TownState.jobs_done = 0
+	var shop_a: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	TownState.jobs_done = 40
+	var shop_b: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	var shop_tier: int = Items.tier_for_source(WorldThreat.MERCHANT_THREAT)
+	expect("merchant stock is a fixed explicit tier (%d), whatever has been done" % shop_tier,
+		shop_a.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier) and shop_b.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier))
+	TownState.stash = []
+	Quests.apply_bundle({"item": 1})
+	Quests.apply_bundle({"item": 1, "threat": 4.0})
+	expect("a quest reward item has a tier from its own named source threat, not jobs done",
+		int(TownState.stash[0]["tier"]) == Items.tier_for_source(WorldThreat.QUEST_REWARD_THREAT) and int(TownState.stash[1]["tier"]) == Items.tier_for_source(4.0))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+	Monsters.in_tests = false
+
+## The gameplay XP economy: what pays, what does not (no renewable summons, no kills the hero had no hand in), that rewards are paid once, and
+## that the hero's level never changes what a source is worth.
+func _test_xp() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var director: RunDirector = town.director
+	var crypt: CryptRoad = town.crypt
+	var hero: Player = town.player
+	var spot: Vector3 = crypt.at(0.0, 150.0)
+	# Base values and the formula.
+	var xp_of: Callable = func(kind: String) -> int: return EnemyDb.get_def(kind).xp_reward
+	expect("trash is worth least, dangerous kinds more, a Brute most", xp_of.call("zombie") < xp_of.call("ghoul") and xp_of.call("ghoul") < xp_of.call("spitter")
+		and xp_of.call("spitter") < xp_of.call("bloater") and xp_of.call("bloater") < xp_of.call("priest") and xp_of.call("priest") * 2 < xp_of.call("brute"))
+	expect("kill XP is base x threat, at least 1, and 0 for something worth nothing", HeroProgression.kill_xp(1, 1.25) == 1 and HeroProgression.kill_xp(12, 1.25) == 15
+		and HeroProgression.kill_xp(12, 3.0) == 36 and HeroProgression.kill_xp(1, 0.1) == 1 and HeroProgression.kill_xp(0, 5.0) == 0)
+	# A kill the hero is credited with pays; the same kill in a stronger place pays more.
+	var kill: Callable = func(kind: String, threat: float, credited: bool) -> int:
+		var before: int = TownState.hero_xp
+		var e: Enemy = director.spawn_enemy(spot, kind, threat)
+		await get_tree().process_frame
+		if credited:
+			e.credit_hero()
+		e._apply_damage(e.max_health + 10.0)
+		await get_tree().process_frame
+		return TownState.hero_xp - before
+	var zombie_xp: int = await kill.call("zombie", 1.25, true)
+	expect("an ordinary kill pays a little (%d)" % zombie_xp, zombie_xp == 1)
+	var brute_near: int = await kill.call("brute", 1.25, true)
+	var brute_deep: int = await kill.call("brute", 3.0, true)
+	expect("a Brute pays far more than a zombie (%d), and a stronger Brute more again (%d)" % [brute_near, brute_deep], brute_near == 15 and brute_deep == 36 and brute_near > zombie_xp * 10)
+	TownState.dev_set_hero_level(20)
+	var brute_high: int = await kill.call("brute", 1.25, true)
+	expect("the hero's level does not change what the same Brute is worth", brute_high == brute_near)
+	TownState.dev_set_hero_level(1)
+	# Credit: burn, collision, and monsters hurting each other.
+	var uncredited: int = await kill.call("zombie", 1.25, false)
+	expect("a death the hero had no hand in pays nothing", uncredited == 0)
+	var burner: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	await get_tree().process_frame
+	var xp_before: int = TownState.hero_xp
+	burner.apply_burn(5000.0, 2.0, true)
+	burner._tick_burn(0.1)
+	await get_tree().process_frame
+	expect("a kill by fire the hero lit is theirs", burner.dead and TownState.hero_xp - xp_before == brute_near)
+	var other_fire: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	await get_tree().process_frame
+	xp_before = TownState.hero_xp
+	other_fire.apply_burn(5000.0, 2.0)   # a monster's fire, not the hero's
+	other_fire._tick_burn(0.1)
+	await get_tree().process_frame
+	expect("a kill by fire the hero did not light is not", other_fire.dead and TownState.hero_xp == xp_before)
+	var thrown: Enemy = director.spawn_enemy(spot, "zombie", 1.25)
+	var struck: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
+	await get_tree().process_frame
+	thrown.knocked_by = hero   # the hero's blow sent it into the other
+	xp_before = TownState.hero_xp
+	struck.receive(thrown._impact_hit(struck.max_health + 50.0), thrown.global_position)
+	await get_tree().process_frame
+	expect("a monster killed by one the hero knocked into it is the hero's kill", struck.dead and TownState.hero_xp - xp_before == brute_near)
+	var biter: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	var bitten: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
+	await get_tree().process_frame
+	xp_before = TownState.hero_xp
+	var tries: int = 0
+	while not bitten.dead and tries < 30:
+		tries += 1
+		bitten.receive(Combat.resolve(biter, bitten, 5000.0, Combat.DamageType.PHYSICAL, false, 1.0), biter.global_position)
+	await get_tree().process_frame
+	expect("monsters killing each other earns nothing", bitten.dead and TownState.hero_xp == xp_before)
+	# Renewable summons pay nothing; finite spawns do.
+	var priest: Enemy = director.spawn_enemy(spot, "priest", 1.25)
+	await get_tree().process_frame
+	var support: SupportBehavior = priest.behavior as SupportBehavior
+	var before_summons: int = get_tree().get_nodes_in_group("enemies").size()
+	support._summon()
+	var summoned: Array[Enemy] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var s := node as Enemy
+		if s != null and not s.xp_eligible:
+			summoned.append(s)
+	expect("a priest's summons are marked as paying nothing", summoned.size() >= 2 and get_tree().get_nodes_in_group("enemies").size() > before_summons)
+	xp_before = TownState.hero_xp
+	for s in summoned:
+		s.credit_hero()
+		s._apply_damage(s.max_health + 10.0)
+	await get_tree().process_frame
+	expect("killing summons, credited or not, earns no XP", TownState.hero_xp == xp_before)
+	var horde_mon: Dictionary = Monsters.rise()
+	horde_mon["dist"] = 20.0
+	horde_mon["level"] = 2.0
+	var group_before: Dictionary = {}
+	crypt.spawn_horde(horde_mon, 3)
+	var horde: Array[Enemy] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var h := node as Enemy
+		if h != null and h.group_id == 600 + int(horde_mon["uid"]):
+			horde.append(h)
+	expect("an uprising's horde and the road's own groups are worth XP", horde.size() == 3 and horde.all(func(h: Enemy) -> bool: return h.xp_eligible)
+		and get_tree().get_nodes_in_group("enemies").filter(func(n: Node) -> bool: return (n as Enemy).group_id in range(1, 6) and (n as Enemy).xp_eligible).size() > 0)
+	for h in horde:
+		h.queue_free()
+	Monsters.killed(int(horde_mon["uid"]))
+	# Named monsters: their own level, their history, their plot; once.
+	var mon: Dictionary = Monsters.rise()
+	mon["kind"] = "zombie"
+	mon["dist"] = 20.0
+	mon["level"] = 2.0
+	mon["kills"] = 0
+	mon["plot"] = {}
+	town.populate_monsters()
+	var body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid") and int(node.get_meta("monster_uid")) == int(mon["uid"]):
+			body = node
+	expect("a level 2 named monster's bounty is about 80 XP", HeroProgression.named_xp(2.0, 0, false) == 80 and HeroProgression.named_xp(5.0, 0, false) == 140)
+	expect("a monster that has killed the hero is worth more, and so is one with a plot", HeroProgression.named_xp(2.0, 2, false) == 80 + 2 * HeroProgression.NEMESIS_PER_KILL
+		and HeroProgression.named_xp(2.0, 0, true) == 80 + HeroProgression.PLOT_BONUS_XP)
+	xp_before = TownState.hero_xp
+	body.credit_hero()
+	body._apply_damage(body.max_health + 10.0)
+	await get_tree().process_frame
+	var paid: int = TownState.hero_xp - xp_before
+	expect("killing a level 2 named monster pays its kill value and its bounty (%d)" % paid, paid == HeroProgression.kill_xp(1, 2.0) + 80)
+	var again: int = director._report_to_quests(body)
+	expect("the bounty is paid once", again == 0 and TownState.hero_xp - xp_before == paid)
+	var strong: Dictionary = Monsters.rise()
+	strong["kind"] = "zombie"
+	strong["dist"] = 20.0
+	strong["level"] = 5.0
+	strong["kills"] = 2
+	strong["plot"] = {"type": "raid", "days_left": 2, "total": 3}
+	town.populate_monsters()
+	var strong_body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid") and int(node.get_meta("monster_uid")) == int(strong["uid"]):
+			strong_body = node
+	xp_before = TownState.hero_xp
+	strong_body.credit_hero()
+	strong_body._apply_damage(strong_body.max_health + 10.0)
+	await get_tree().process_frame
+	var strong_paid: int = TownState.hero_xp - xp_before
+	expect("a level 5 nemesis that beat the hero twice, with a plot, pays much more (%d)" % strong_paid,
+		strong_paid == HeroProgression.kill_xp(1, 5.0) + 140 + 2 * HeroProgression.NEMESIS_PER_KILL + HeroProgression.PLOT_BONUS_XP and strong_paid > paid * 2)
+	# Nests: once each, when they break.
+	xp_before = TownState.hero_xp
+	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	var after_nest: int = TownState.hero_xp
+	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	expect("a nest pays its XP when it breaks, once", after_nest - xp_before == HeroProgression.NEST_XP and TownState.hero_xp == after_nest)
+	# The standing quest: on hand-in, once.
+	TownState.board[0]["ready"] = true
+	xp_before = TownState.hero_xp
+	var claimed: Dictionary = TownState.claim_ready()
+	var after_claim: int = TownState.hero_xp
+	var claimed_again: Dictionary = TownState.claim_ready()
+	expect("handing in the standing quest pays its XP once", after_claim - xp_before == HeroProgression.STANDING_QUEST_XP and int(claimed["xp"]) == HeroProgression.STANDING_QUEST_XP
+		and int(claimed_again["count"]) == 0 and TownState.hero_xp == after_claim)
+	expect("the new standing quest carries its XP", int(TownState.board[0].get("xp", 0)) == HeroProgression.STANDING_QUEST_XP)
+	# Dynamic quests: the quest's own XP, once; matters pay none.
+	var inst: Dictionary = Quests.post("ghoul_cull")
+	inst["state"] = "ready"
+	xp_before = TownState.hero_xp
+	var first: Dictionary = Quests.claim(int(inst["uid"]))
+	var after_first: int = TownState.hero_xp
+	var second: Dictionary = Quests.claim(int(inst["uid"]))
+	expect("a quest pays the XP written in it once (%d)" % (after_first - xp_before), bool(first["ok"]) and after_first - xp_before == int(TownDb.quest("ghoul_cull").reward["xp"])
+		and not bool(second["ok"]) and TownState.hero_xp == after_first)
+	var matter: QuestDef = TownDb.quest("fever")
+	expect("a matter in town pays no XP", not matter.reward.has("xp"))
+	# Saving: XP is in memory at once, written lazily for kills, kept across a reload, and never lost on death.
+	TownState.flush_progression(true)
+	expect("nothing waits for the disk after a flush", not TownState.has_unsaved_xp())
+	TownState.add_hero_xp(1, false)
+	expect("an ordinary kill's XP waits to be saved, and is in the save data already", TownState.has_unsaved_xp() and int(TownState.to_dict()["hero_xp"]) == TownState.hero_xp)
+	TownState.flush_progression(true)
+	var saved: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	var kept: int = TownState.hero_xp
+	var kept_level: int = TownState.hero_level
+	TownState.from_dict(TownState.migrate(saved))
+	expect("save and load keep XP earned in play", TownState.hero_xp == kept and TownState.hero_level == kept_level)
+	hero._apply_damage(hero.max_health + 100.0)
+	await get_tree().create_timer(3.6).timeout
+	expect("dying costs no XP", TownState.hero_xp == kept and not hero.dead)
+	# Levels from one reward: one event, one plate; the cap; the open character screen.
+	TownState.dev_set_hero_level(1)
+	var events: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: events.append([old_level, new_level])
+	TownState.events.hero_leveled.connect(on_level)
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	TownState.add_hero_xp(HeroProgression.xp_for_level(4) + 10)
+	expect("one large reward is one level-up, and one plate for the level reached", events == [[1, 4]] and town.combat_hud.level_toast_text == "LEVEL 4")
+	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 4" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
+		and town.combat_hud.character_panel == view)
+	TownState.add_hero_xp(HeroProgression.max_xp() * 2)
+	expect("and it follows to MAX LEVEL", view.level_label.text == "Level 30" and view.xp_label.text == "MAX LEVEL")
+	var capped_events: int = events.size()
+	var at_cap: int = await kill.call("brute", 3.0, true)
+	expect("at the cap XP stops and nothing levels", at_cap == 0 and TownState.hero_level == 30 and TownState.hero_xp == HeroProgression.max_xp() and events.size() == capped_events)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Diagnostics change nothing.
+	TownState.dev_set_hero_level(1)
+	var enemies_before: int = get_tree().get_nodes_in_group("enemies").size()
+	var xp_now: int = TownState.hero_xp
+	var report_a: Dictionary = director.xp_report()
+	var report_b: Dictionary = director.xp_report()
+	expect("the XP report reads the road and changes nothing", report_a == report_b and int(report_a["total"]) > 0 and TownState.hero_xp == xp_now
+		and get_tree().get_nodes_in_group("enemies").size() == enemies_before)
+	# The marker is only a picture: its size, never the body's collision.
+	var marked: Enemy = director.spawn_enemy(spot, "zombie", 2.0)
+	await get_tree().process_frame
+	var shape: CollisionShape3D = marked.find_children("*", "CollisionShape3D", false, false)[0]
+	var radius_before: float = (shape.shape as CapsuleShape3D).radius if shape.shape is CapsuleShape3D else 0.0
+	var gameplay_before: Array = [marked.body_radius, marked.level_scale, marked.max_health, marked.damage_max, marked.armor, shape.scale, shape.transform.origin]
+	MonsterMark.apply_look(marked, {"level": 9.0})
+	var gameplay_after: Array = [marked.body_radius, marked.level_scale, marked.max_health, marked.damage_max, marked.armor, shape.scale, shape.transform.origin]
+	var radius_after: float = (shape.shape as CapsuleShape3D).radius if shape.shape is CapsuleShape3D else 0.0
+	expect("the marker changes no collision or combat value", gameplay_before == gameplay_after and is_equal_approx(radius_before, radius_after))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+	Monsters.in_tests = false
+
+## What the hero's level earns: Passive Points at every even level, Evolution Points every third, derived from the level and never stored.
+func _test_level_rewards() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var table: Array = [[1, 0, 0], [2, 1, 0], [3, 1, 1], [4, 2, 1], [6, 3, 2], [9, 4, 3], [12, 6, 4], [20, 10, 6], [30, 15, 10]]
+	var table_ok: bool = true
+	for row in table:
+		table_ok = table_ok and HeroProgression.passive_points_for_level(int(row[0])) == int(row[1]) and HeroProgression.evolution_points_for_level(int(row[0])) == int(row[2])
+	expect("the point schedule: L1 0/0, L2 1/0, L3 1/1, L6 3/2, L12 6/4, L20 10/6, L30 15/10", table_ok)
+	expect("above the cap there is nothing more (and below 1 nothing)", HeroProgression.passive_points_for_level(31) == 15 and HeroProgression.evolution_points_for_level(99) == 10
+		and HeroProgression.passive_points_for_level(0) == 0 and HeroProgression.evolution_points_for_level(-3) == 0)
+	var passive_levels: Array[int] = []
+	var evolution_levels: Array[int] = []
+	for level in range(2, HeroProgression.MAX_LEVEL + 1):
+		if HeroProgression.passive_points_for_level(level) > HeroProgression.passive_points_for_level(level - 1):
+			passive_levels.append(level)
+		if HeroProgression.evolution_points_for_level(level) > HeroProgression.evolution_points_for_level(level - 1):
+			evolution_levels.append(level)
+	expect("Passive Points come at every even level and Evolution Points at every third", passive_levels == [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
+		and evolution_levels == [3, 6, 9, 12, 15, 18, 21, 24, 27, 30])
+	# Awards report what they crossed.
+	var one: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(2))
+	expect("a one-level award to level 2 reports one Passive Point", int(one["passive_points_gained"]) == 1 and int(one["evolution_points_gained"]) == 0)
+	var three: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(3) - TownState.hero_xp)
+	expect("level 3 reports an Evolution Point", int(three["passive_points_gained"]) == 0 and int(three["evolution_points_gained"]) == 1)
+	var none: Dictionary = TownState.add_hero_xp(5)
+	expect("an award that does not level gives no points", int(none["passive_points_gained"]) == 0 and int(none["evolution_points_gained"]) == 0)
+	TownState.dev_set_hero_level(4)
+	var events: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, passive: int, evolution: int) -> void: events.append([old_level, new_level, passive, evolution])
+	TownState.events.hero_leveled.connect(on_level)
+	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(7) - TownState.hero_xp)
+	expect("4 to 7 crosses level 6 (and 5, 7): 1 Passive and 1 Evolution Point, counted from every level crossed", int(jump["passive_points_gained"]) == 1
+		and int(jump["evolution_points_gained"]) == 1 and int(jump["old_level"]) == 4 and int(jump["new_level"]) == 7)
+	expect("the level-up event carries the same totals, once", events == [[4, 7, 1, 1]])
+	var big: Dictionary = TownState.add_hero_xp(HeroProgression.max_xp())
+	expect("a jump from 7 to the cap reports all that was left (12 Passive, 8 Evolution)", int(big["passive_points_gained"]) == 12 and int(big["evolution_points_gained"]) == 8)
+	var past: Dictionary = TownState.add_hero_xp(1000)
+	expect("at the cap nothing more is earned", int(past["passive_points_gained"]) == 0 and TownState.passive_points_available() == 15 and TownState.evolution_points_available() == 10)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Derived, not saved: a level N hero has its entitlement the moment it loads.
+	TownState.reset()
+	TownState.dev_set_hero_level(20)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds no point counters (they are worked out from the level) and the version is unchanged", not saved.has("passive_points") and not saved.has("evolution_points")
+		and not saved.has("points") and int(saved["save_version"]) == TownState.SAVE_VERSION and saved.keys().filter(func(k: String) -> bool: return "point" in k).is_empty())
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved))
+	expect("a loaded level 20 hero has 10 Passive and 6 Evolution Points with no level-ups replayed", TownState.hero_level == 20 and TownState.passive_points_available() == 10
+		and TownState.evolution_points_available() == 6)
+	TownState.reset()
+	TownState.apply_dev_progression(PackedStringArray(["--level=12"]))
+	expect("--level=12 gives 6 Passive and 4 Evolution Points", TownState.passive_points_available() == 6 and TownState.evolution_points_available() == 4)
+	expect("the text for a reward names both, with plurals", HeroProgression.points_text(1, 1) == "+1 Passive Point   +1 Evolution Point" and HeroProgression.points_text(2, 0) == "+2 Passive Points"
+		and HeroProgression.points_text(0, 0) == "")
+	# The screen and the plate.
+	TownState.reset()
+	var town := TownScene.new()
+	town.with_road = false
+	game.add_child(town)
+	await get_tree().process_frame
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	expect("a fresh character screen shows 0 and 0", view.points_label.text == "Passive Points 0     Evolution Points 0")
+	TownState.add_hero_xp(HeroProgression.xp_for_level(6))
+	expect("reaching level 6 puts both rewards on the one plate", town.combat_hud.level_toast_text == "LEVEL 6" and town.combat_hud.level_toast_points == "+3 Passive Points   +2 Evolution Points")
+	expect("the open character screen updates its totals", view.points_label.text == "Passive Points 3     Evolution Points 2" and view.level_label.text == "Level 6")
+	TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	expect("at level 30 it shows 15 and 10, and MAX LEVEL", view.points_label.text == "Passive Points 15     Evolution Points 10" and view.xp_label.text == "MAX LEVEL"
+		and view.level_label.text == "Level 30")
+	var close_button: Button = view.find_children("*", "Button", true, false).back()
+	expect("the points line sits inside the panel and the Close button keeps focus", view.get_global_rect().encloses(view.points_label.get_global_rect())
+		and close_button.has_focus() and not view.points_label.get_global_rect().intersects(view.xp_bar.get_global_rect()))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+
+## Where a session may save: a developer session (any user argument) never uses the production save unless it says so, loudly.
+func _test_save_policy() -> void:
+	var production: String = SavePolicy.PRODUCTION_PATH
+	var normal: PackedStringArray = PackedStringArray([])
+	expect("a normal launch uses the production save and saves", SavePolicy.path_for(normal) == production and SavePolicy.persists_by_default(normal)
+		and not SavePolicy.is_dev_session(normal))
+	var sessions: Dictionary = {"self-test": ["--selftest", "--only=xp"], "screenshot": ["--townshot", "--zoom=4"], "xp demo": ["--townshot", "--xpdemo", "--xplog"],
+		"xp report": ["--townshot", "--xpreport"], "threats": ["--townshot", "--threats", "--road=40"], "item sheet": ["--itemsheet", "--gear"],
+		"developer level": ["--level=10"], "an unknown future flag": ["--some-new-debug-mode"], "pose": ["--poses"]}
+	var all_isolated: bool = true
+	for label in sessions:
+		var args := PackedStringArray(sessions[label])
+		var isolated: bool = SavePolicy.is_dev_session(args) and SavePolicy.path_for(args) != production and not SavePolicy.persists_by_default(args) \
+			and not SavePolicy.may_modify(production, args) and SavePolicy.may_modify(SavePolicy.DEV_PATH, args)
+		if not isolated:
+			print("  not isolated: ", label)
+		all_isolated = all_isolated and isolated
+	expect("every developer mode (self-test, screenshots, XP diagnostics, item sheets, dev commands, flags not yet written) is kept off the production save", all_isolated)
+	var opted_in := PackedStringArray(["--townshot", SavePolicy.REAL_SAVE_FLAG])
+	expect("only the explicit flag lets a developer session use the production save", SavePolicy.path_for(opted_in) == production and SavePolicy.persists_by_default(opted_in)
+		and SavePolicy.may_modify(production, opted_in) and not SavePolicy.allows_production(PackedStringArray(["--xp=5", "--allow-real-save"])))
+	expect("the override flag is not something an ordinary argument could be", SavePolicy.REAL_SAVE_FLAG == "--write-production-save")
+	var selftest := PackedStringArray(["--selftest"])
+	expect("cleanup in a developer session cannot delete the production save, and backups and copies of it are refused too",
+		not SavePolicy.may_modify(production, selftest) and not SavePolicy.may_modify(production + ".tmp", selftest) and not SavePolicy.may_modify(production + ".newer.bak", selftest)
+		and SavePolicy.may_modify(production, normal))
+	# This very session.
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	expect("this self-test session is a developer session with its own save file", SavePolicy.is_dev_session(args) and TownState.save_path() == SavePolicy.DEV_PATH
+		and TownState.save_path() != production)
+	# What saving does here: writes the developer file, leaves the production file exactly as it was.
+	var production_before: int = FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1
+	var production_size: int = FileAccess.open(production, FileAccess.READ).get_length() if FileAccess.file_exists(production) else -1
+	var was_persisting: bool = TownState.persist
+	TownState.reset()
+	TownState.persist = true
+	TownState.gold = 12345
+	TownState.save()
+	var dev_written: bool = FileAccess.file_exists(SavePolicy.DEV_PATH)
+	var production_after: int = FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1
+	var production_size_after: int = FileAccess.open(production, FileAccess.READ).get_length() if FileAccess.file_exists(production) else -1
+	expect("even with saving switched on a self-test writes only its own file and leaves the production save untouched", dev_written and production_after == production_before
+		and production_size_after == production_size)
+	var reloaded_ok: bool = false
+	TownState.gold = 1
+	TownState.load_or_start()
+	reloaded_ok = TownState.gold == 12345
+	expect("and reads it back from there", reloaded_ok)
+	expect("the session's own cleanup removes the developer file and nothing else", SavePolicy.delete_session_save(args) and not FileAccess.file_exists(SavePolicy.DEV_PATH)
+		and (FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1) == production_before)
+	TownState.persist = was_persisting
+	TownState.persist = false
+	TownState.reset()
+
+## The first build choices: what points buy (passives, one Weapon Throw evolution), that the choices save, load, repair and survive death, what
+## each evolution and passive does in the world, and that the Progression screen asks before it spends.
+func _test_build_choices() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var skills: SkillController = player.skills
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.cooldowns.clear()
+	# --- Points and spending --------------------------------------------------------------------------------------------------------------
+	TownState.dev_set_hero_level(6)   # 3 Passive, 2 Evolution
+	expect("a level 6 hero with nothing bought has all of its points (3 and 2)", TownState.passive_points_available() == 3 and TownState.evolution_points_available() == 2
+		and TownState.purchased_passives.is_empty() and TownState.skill_evolutions.is_empty())
+	expect("a passive costs exactly 1 Passive Point", TownState.buy_passive("unbowed") and TownState.passive_points_available() == 2 and TownState.has_passive("unbowed"))
+	expect("it cannot be bought twice", not TownState.can_buy_passive("unbowed") and not TownState.buy_passive("unbowed") and TownState.passive_points_available() == 2)
+	expect("an unknown passive is refused", not TownState.buy_passive("not_a_passive") and TownState.passive_points_available() == 2)
+	expect("a Weapon Throw evolution costs exactly 1 Evolution Point", TownState.select_evolution("throw", "wallspike") and TownState.evolution_points_available() == 1
+		and TownState.selected_evolution("throw") == "wallspike")
+	expect("a second evolution of the same skill is refused (one only, no respec)", not TownState.can_select_evolution("throw", "ricochet") and not TownState.select_evolution("throw", "ricochet")
+		and not TownState.select_evolution("throw", "wallspike") and TownState.selected_evolution("throw") == "wallspike" and TownState.evolution_points_available() == 1)
+	expect("an evolution that does not exist is refused", not TownState.select_evolution("throw", "nonsense") and not TownState.select_evolution("nonsense", "wallspike"))
+	TownState.reset()
+	expect("without points nothing can be bought (level 1)", not TownState.can_buy_passive("unbowed") and not TownState.buy_passive("unbowed") and not TownState.select_evolution("throw", "ricochet")
+		and TownState.passive_points_available() == 0 and TownState.evolution_points_available() == 0)
+	# --- Saving: round trip, migration, and bad data never make points ---------------------------------------------------------------------
+	TownState.dev_set_hero_level(12)   # 6 Passive, 4 Evolution
+	TownState.buy_passive("unbowed")
+	TownState.buy_passive("retaliation")
+	TownState.select_evolution("throw", "reaping_recall")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds only the choices, not points", saved["purchased_passives"] == ["unbowed", "retaliation"] and saved["skill_evolutions"] == {"throw": "reaping_recall"}
+		and not saved.has("passive_points") and not saved.has("evolution_points") and int(saved["save_version"]) == 4)
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved.duplicate(true)))
+	expect("a save and load keep the choices and the points left (4, 3)", TownState.has_passive("unbowed") and TownState.has_passive("retaliation") and TownState.selected_evolution("throw") == "reaping_recall"
+		and TownState.passive_points_available() == 4 and TownState.evolution_points_available() == 3)
+	var old: Dictionary = saved.duplicate(true)
+	old["save_version"] = 3
+	old.erase("purchased_passives")
+	old.erase("skill_evolutions")
+	var migrated: Dictionary = TownState.migrate(old)
+	TownState.reset()
+	TownState.from_dict(migrated)
+	expect("a version 3 save migrates with nothing bought and every point it earned free (6, 4)", int(migrated["save_version"]) == TownState.SAVE_VERSION and TownState.purchased_passives.is_empty()
+		and TownState.skill_evolutions.is_empty() and TownState.passive_points_available() == 6 and TownState.evolution_points_available() == 4)
+	var bad: Dictionary = saved.duplicate(true)
+	bad["purchased_passives"] = ["unbowed", "unbowed", "bogus", 7, null, "retaliation", "retaliation", ["x"]]
+	bad["skill_evolutions"] = {"throw": "ricochet", "other_skill": "wallspike"}
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(bad))
+	expect("unknown and repeated saved choices are dropped, not paid for twice", TownState.purchased_passives == ["unbowed", "retaliation"] and TownState.skill_evolutions == {"throw": "ricochet"}
+		and TownState.passive_points_available() == 4 and TownState.evolution_points_available() == 3)
+	var greedy: Dictionary = saved.duplicate(true)
+	greedy["hero_xp"] = 0   # level 1: nothing earned
+	greedy["purchased_passives"] = ["unbowed", "mass_transfer", "bloody_recovery"]
+	greedy["skill_evolutions"] = {"throw": "wallspike"}
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(greedy))
+	expect("choices a level never paid for are dropped (no free points, never negative)", TownState.purchased_passives.is_empty() and TownState.skill_evolutions.is_empty()
+		and TownState.passive_points_available() == 0 and TownState.evolution_points_available() == 0)
+	for junk in [null, 5, "text", [], {}, [1, 2], {"throw": 3}, {"throw": null}]:
+		var weird: Dictionary = saved.duplicate(true)
+		weird["purchased_passives"] = junk
+		weird["skill_evolutions"] = junk
+		TownState.reset()
+		TownState.from_dict(TownState.migrate(weird))
+		expect("a malformed build (%s) loads without a crash or a negative count" % str(junk), TownState.passive_points_available() >= 0 and TownState.evolution_points_available() >= 0
+			and TownState.passive_points_available() <= HeroProgression.passive_points_for_level(TownState.hero_level))
+	TownState.reset()
+	TownState.dev_set_hero_level(30)
+	for id in BuildDefs.PASSIVE_ORDER:
+		TownState.buy_passive(id)
+	TownState.select_evolution("throw", "ricochet")
+	TownState.dev_set_hero_level(4)
+	expect("lowering the level drops what it no longer pays for (developer only)", TownState.purchased_passives.size() <= 2 and TownState.skill_evolutions.size() <= 1
+		and TownState.passive_points_available() >= 0 and TownState.evolution_points_available() >= 0)
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.buy_passive("mass_transfer")
+	TownState.select_evolution("throw", "wallspike")
+	player._on_death()
+	player.dead = false
+	player.health = player.max_health
+	expect("dying clears nothing: the build is the hero's, not the run's", TownState.has_passive("mass_transfer") and TownState.selected_evolution("throw") == "wallspike"
+		and TownState.passive_points_available() == 2 and TownState.evolution_points_available() == 1)
+	var build_events: Array = [0]
+	var on_build: Callable = func() -> void: build_events[0] = int(build_events[0]) + 1
+	TownState.events.hero_build_changed.connect(on_build)
+	TownState.buy_passive("retaliation")
+	TownState.buy_passive("retaliation")
+	TownState.events.hero_build_changed.disconnect(on_build)
+	expect("a purchase announces itself once (and a refused one says nothing)", int(build_events[0]) == 1)
+
+	# --- Weapon Throw: the baseline, then each evolution ---------------------------------------------------------------------------------------
+	var throw: Callable = func(aim: Vector3, hold: float) -> void:
+		wt._profile = wt.profile()
+		wt.evolution = player.evolution_of("throw")
+		wt.state = WeaponThrowSkill.State.CHARGING
+		wt._hold = hold
+		wt.charge = wt.charge_fraction()
+		wt.release(aim)
+	var make_wall: Callable = func(centre: Vector3, wall_size: Vector3) -> StaticBody3D:
+		var wall := StaticBody3D.new()
+		wall.collision_layer = Actor.LAYER_WORLD
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = wall_size
+		shape.shape = box
+		wall.add_child(shape)
+		game.add_child(wall)
+		wall.global_position = centre
+		return wall
+	var clear_field: Callable = func() -> void:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		wt.reset()
+		player.stats.cooldowns.clear()
+		await get_tree().process_frame
+	var full: float = 10.0   # a hold far past full charge
+	# Baseline: no evolution, nothing special happens.
+	TownState.reset()
+	await clear_field.call()
+	var lane: Vector3 = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var base_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 5.0))
+	var base_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("baseline throw: nothing is carried or pinned, no bounce, and it sticks in the wall", wt.evolution == "" and wt.carried == null and wt.pinned == null and wt.bounces == 0
+		and not base_victim.impaled and wt.thrown.center().x > lane.x + 10.0 and wt.thrown.center().x < lane.x + 13.5)
+	base_wall.queue_free()
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+
+	# Wallspike.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "wallspike")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var open_line: Array[Enemy] = []
+	for d in [5.5, 8.0, 10.5]:
+		open_line.append(_throw_dummy(lane + Vector3(d, 0, 0)))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	var ever_carried: Dictionary = {}
+	var frames: int = 0
+	while wt.state != WeaponThrowSkill.State.EMBEDDED and frames < 400:
+		await get_tree().physics_frame
+		frames += 1
+		for e in open_line:
+			if is_instance_valid(e) and e.impaled:
+				ever_carried[e.get_instance_id()] = true
+	expect("Wallspike spears exactly one of three enemies in the line (the first)", ever_carried.size() == 1 and ever_carried.has(open_line[0].get_instance_id()))
+	expect("in open ground the carried body is thrown on and nobody stays held", wt.carried == null and wt.pinned == null and open_line.all(func(e: Enemy) -> bool: return not is_instance_valid(e) or not e.impaled))
+	expect("the weapon still embeds as normal after throwing the body on", wt.state == WeaponThrowSkill.State.EMBEDDED)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var pin_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 6.0))
+	var pin_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	var pin_start_hp: float = pin_victim.health
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	await get_tree().physics_frame
+	expect("Wallspike pins the enemy on the wall: a held state, not a picture", wt.pinned == pin_victim and pin_victim.impaled and pin_victim.health < pin_start_hp
+		and pin_victim.global_position.x > lane.x + 11.0 and pin_victim.global_position.x < lane.x + 13.5)
+	var pin_spot: Vector3 = pin_victim.global_position
+	await get_tree().create_timer(1.0).timeout
+	expect("it stays pinned for as long as the weapon is in the wall", wt.pinned == pin_victim and pin_victim.impaled and pin_victim.global_position.distance_to(pin_spot) < 0.2)
+	wt.recall()
+	await get_tree().physics_frame
+	expect("the recall rips the weapon free and drops the victim, knocked down", wt.pinned == null and not pin_victim.impaled and (pin_victim.is_ragdolled() or pin_victim.stun_time > 0.5))
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	expect("and the weapon comes home and is caught", wt.state == WeaponThrowSkill.State.IN_HAND and wt.thrown == null)
+	pin_wall.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var big_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 6.0))
+	var brute: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0), "brute")
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a Brute is not spiked or pinned: it takes the baseline blow", wt.pinned == null and wt.carried == null and not brute.impaled and brute.health < brute.max_health)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var boss: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	boss.is_boss = true
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a boss-flagged enemy is never spiked", wt.pinned == null and wt.carried == null and not boss.impaled)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	big_wall.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var weak_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), 0.3 * wt.profile()["charge_time"])   # about 30% charge: under the 80% a spear needs
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a weak throw does not spear anyone", wt.carried == null and wt.pinned == null and not weak_victim.impaled)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+
+	# Reaping Recall.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "reaping_recall")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	var rest: Vector3 = wt.thrown.center()
+	var hero_spot: Vector3 = Vector3(rest.x - 14.0, 0.0, rest.z + 7.0)
+	player.global_position = hero_spot
+	player.reset_physics_interpolation()
+	var reaped: Array[Enemy] = []
+	var before: Array[float] = []
+	for fraction in [0.35, 0.6]:
+		var spot: Vector3 = Vector3(rest.x, 0.0, rest.z).lerp(hero_spot, fraction)
+		var z: Enemy = _throw_dummy(spot)
+		reaped.append(z)
+		before.append(z.flat_distance_to(player))
+	var heavy_on_path: Enemy = _throw_dummy(Vector3(rest.x, 0.0, rest.z).lerp(hero_spot, 0.8), "brute")
+	var heavy_before: float = heavy_on_path.flat_distance_to(player)
+	await get_tree().create_timer(0.2).timeout
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.RETURNING, 2.0)
+	await _wait_state(WeaponThrowSkill.State.CATCHING, 6.0)
+	await get_tree().create_timer(1.3).timeout
+	var pulled_ok: bool = true
+	for i in reaped.size():
+		pulled_ok = pulled_ok and is_instance_valid(reaped[i]) and wt.pulled_ids.has(reaped[i].get_instance_id()) and reaped[i].flat_distance_to(player) < before[i] - 1.5
+	expect("Reaping Recall drags each lesser enemy the weapon strikes on the way back in toward him", pulled_ok)
+	var unique: Dictionary = {}
+	for id in wt.pulled_ids:
+		unique[id] = true
+	expect("each enemy is pulled once per return (no juggling)", unique.size() == wt.pulled_ids.size() and wt.pulled_ids.size() == reaped.size())
+	expect("a Brute on the line is hit but not dragged", not wt.pulled_ids.has(heavy_on_path.get_instance_id()) and heavy_on_path.flat_distance_to(player) > heavy_before - 1.0)
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 4.0)
+	expect("the weapon is caught as usual", wt.state == WeaponThrowSkill.State.IN_HAND and wt.thrown == null)
+
+	# Ricochet.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "ricochet")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var bank_wall: StaticBody3D = make_wall.call(lane + Vector3(11.5, 2.0, 0.0), Vector3(1.0, 4.0, 30.0))
+	var aim_dir: Vector3 = Vector3(1.0, 0.0, 0.5).normalized()
+	var hit_t: float = 11.0 / aim_dir.x   # to the wall's face at x + 11
+	var hit_point: Vector3 = lane + aim_dir * hit_t
+	var expected_out: Vector3 = aim_dir.bounce(Vector3(-1, 0, 0)).normalized()
+	var on_return: Enemy = _throw_dummy(hit_point + expected_out * 3.5)
+	await get_tree().process_frame
+	# The preview shows the bank.
+	wt._profile = wt.profile()
+	wt.evolution = "ricochet"
+	wt.state = WeaponThrowSkill.State.CHARGING
+	wt._hold = 10.0
+	wt.charge = 1.0
+	wt.update_preview(lane + aim_dir * 20.0)
+	await get_tree().process_frame
+	expect("the throw lane shows the bounce segment, reflected away from the wall", wt.preview != null and wt.preview.bounce_length > 1.0 and wt.preview.bounce_dir.x < -0.5 and wt.preview.bounce_dir.z > 0.0)
+	wt.cancel_charge()
+	wt.evolution = ""
+	wt.update_preview(lane + aim_dir * 20.0)
+	wt.state = WeaponThrowSkill.State.IN_HAND
+	throw.call(lane + aim_dir * 40.0, full)
+	var bounce_frame: int = 0
+	while wt.bounces == 0 and bounce_frame < 400:
+		await get_tree().physics_frame
+		bounce_frame += 1
+	var after_dir: Vector3 = wt._throw_dir
+	expect("Ricochet bounces off the first wall using its real normal (out %.2f, %.2f)" % [after_dir.x, after_dir.z], wt.bounces == 1 and after_dir.x < -0.5 and absf(after_dir.dot(expected_out) - 1.0) < 0.05)
+	expect("it keeps flying: it did not embed in the wall", wt.state == WeaponThrowSkill.State.FLYING_OUT)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("after the bounce it still strikes what is on its new line", wt.last_out_hits.has(on_return.get_instance_id()))
+	expect("it bounced exactly once", wt.bounces == 1)
+	wt.recall()
+	var homed: bool = await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	expect("the recall brings it home and he catches it, as ever", homed and wt.thrown == null and not player.stats.weapon_locked)
+	# A second wall: it cannot bounce twice.
+	await clear_field.call()
+	bank_wall.queue_free()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var wall_a: StaticBody3D = make_wall.call(lane + Vector3(7.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	var wall_b: StaticBody3D = make_wall.call(lane + Vector3(-2.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a second wall embeds it: no second bounce", wt.bounces == 1 and wt.thrown.center().x < lane.x + 7.0 and wt.thrown.center().x > lane.x - 2.5 and not wt._can_bounce(Vector3(1, 0, 0)))
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	wall_a.queue_free()
+	wall_b.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var weak_wall: StaticBody3D = make_wall.call(lane + Vector3(9.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), 0.2 * wt.profile()["charge_time"])
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a weak throw does not ricochet", wt.bounces == 0)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	weak_wall.queue_free()
+
+	# --- Passives -------------------------------------------------------------------------------------------------------------------------------
+	var hit_hero: Callable = func(damage: float, weight: float) -> void:
+		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
+		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
+		result["outcome"] = Combat.Outcome.CRUSHING
+		result["damage"] = damage
+		result["weight"] = weight
+		player.invulnerable_time = 0.0
+		player.receive(result, attacker.global_position)
+		player.knock = Vector3.ZERO   # (the blow's shove would walk him out of the test's geometry)
+		attacker.queue_free()
+	var calm_hero: Callable = func() -> void:
+		player.stun_time = 0.0
+		player.slow_time = 0.0
+		player.invulnerable_time = 0.0
+		player.health = player.max_health
+		player.attack_target = null
+		player.movement.has_goal = false
+		player.click_mode = 0
+		skills.aiming_id = ""
+		skills.busy = false
+		player._unbowed_ready_ms = 0
+		player.retaliation_time = 0.0
+		player._recovery_shove_armed = false
+		player.combat_timer = 0.0
+	await clear_field.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	# Unbowed.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	await calm_hero.call()
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 1.0)
+	var baseline_stun: float = player.stun_time
+	await calm_hero.call()
+	TownState.buy_passive("unbowed")
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 1.0)
+	expect("without Unbowed a light crushing hit stuns him mid-wind-up (%.2f)" % baseline_stun, baseline_stun > 0.3)
+	expect("with Unbowed the first light stagger during a committed wind-up is shrugged off, and it was not free damage", player.stun_time == 0.0 and player.unbowed_suppressed == 1 and player.health < player.max_health)
+	hit_hero.call(4.0, 1.0)
+	expect("a second light hit right after still lands (a short cooldown, not permanent)", player.stun_time > 0.3)
+	await calm_hero.call()
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 2.7)
+	expect("a heavy blow still staggers him through Unbowed", player.stun_time > 0.3)
+	await calm_hero.call()
+	hit_hero.call(4.0, 1.0)
+	expect("Unbowed does nothing when he is not committed to a wind-up", player.stun_time > 0.3)
+	# Stubborn Advance.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	var target: Enemy = _throw_dummy(Vector3(9, 0, 0))
+	await calm_hero.call()
+	player.attack_target = target
+	hit_hero.call(4.0, 1.0)
+	var advance_baseline: float = player.stun_time
+	await calm_hero.call()
+	TownState.buy_passive("stubborn_advance")
+	player.attack_target = target
+	hit_hero.call(4.0, 1.0)
+	expect("without Stubborn Advance a light crushing hit stops the approach (%.2f)" % advance_baseline, advance_baseline > 0.3)
+	expect("with it a light hit only slows him while he presses in", player.stun_time == 0.0 and player.slow_time > 0.0 and player.stubborn_suppressed == 1)
+	await calm_hero.call()
+	player.attack_target = target
+	hit_hero.call(20.0, 1.0)
+	expect("a heavy hit (a tenth of his health) still stops him", player.stun_time > 0.3)
+	await calm_hero.call()
+	hit_hero.call(4.0, 1.0)
+	expect("walking about with no target he is stopped as ever", player.stun_time > 0.3)
+	target.queue_free()
+	# Retaliation.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("retaliation")
+	await calm_hero.call()
+	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 0))
+	hit_hero.call(2.0, 1.0)
+	expect("a chip hit does not arm Retaliation", player.retaliation_time == 0.0)
+	await calm_hero.call()
+	hit_hero.call(20.0, 1.0)
+	expect("a heavy hit arms it for about 3 seconds", player.retaliation_time > 2.5 and player.retaliation_time <= BuildDefs.RETALIATION_SECONDS)
+	var power_hit: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	power_hit["skill_id"] = "power"
+	foe.receive(power_hit, player.global_position)
+	expect("only a basic strike uses it up: Power Strike does not", player.retaliations_fired == 0 and player.retaliation_time > 0.0)
+	foe.stun_time = 0.0
+	foe.knock = Vector3.ZERO
+	var basic_hit: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	basic_hit["skill_id"] = "basic"
+	basic_hit["damage"] = 5.0
+	basic_hit["outcome"] = Combat.Outcome.HIT
+	basic_hit["outcome"] = Combat.Outcome.HIT
+	var foe_health: float = foe.health
+	foe.receive(basic_hit, player.global_position)
+	expect("the next basic strike sends its target reeling (fired %d, stagger %.2f, knock %.1f, hp lost %.1f), with no extra damage" % [player.retaliations_fired, foe.stun_time, foe.knock.length(), foe_health - foe.health], player.retaliations_fired == 1 and foe.stun_time >= 1.0 and foe.knock.length() > 4.0
+		and foe_health - foe.health < 8.0)
+	foe.stun_time = 0.0
+	foe.knock = Vector3.ZERO
+	var again: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	again["skill_id"] = "basic"
+	again["damage"] = 5.0
+	again["outcome"] = Combat.Outcome.HIT
+	foe.receive(again, player.global_position)
+	expect("it is used up: the strike after that is an ordinary one", player.retaliations_fired == 1 and player.retaliation_time == 0.0 and foe.stun_time < 0.9)
+	await calm_hero.call()
+	hit_hero.call(20.0, 1.0)
+	player.retaliation_time = 0.05
+	await get_tree().create_timer(0.25).timeout
+	foe.stun_time = 0.0
+	var late: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	late["skill_id"] = "basic"
+	late["damage"] = 5.0
+	late["outcome"] = Combat.Outcome.HIT
+	foe.receive(late, player.global_position)
+	expect("it expires: a late basic strike does nothing special", player.retaliations_fired == 1)
+	foe.queue_free()
+	# Iron Recovery.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("iron_recovery")
+	await clear_field.call()
+	await calm_hero.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var ring: Array[Enemy] = []
+	for angle in [0.0, 2.1, 4.2]:
+		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
+	var iron_brute: Enemy = _throw_dummy(Vector3(cos(1.05), 0, sin(1.05)) * 2.2, "brute")
+	hit_hero.call(4.0, 1.0)   # a light stagger: no shove to come
+	await get_tree().create_timer(0.9).timeout
+	expect("a light stagger does not arm Iron Recovery", player.iron_shoves == 0)
+	await calm_hero.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	iron_brute.global_position = Vector3(cos(1.05), 0, sin(1.05)) * 2.2
+	iron_brute.knock = Vector3.ZERO
+	for i in ring.size():
+		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
+		ring[i].knock = Vector3.ZERO
+		ring[i].stun_time = 0.0
+	var ring_before: Array[float] = []
+	for e in ring:
+		ring_before.append(e.flat_distance_to(player))
+	hit_hero.call(20.0, 2.7)
+	expect("a heavy hit staggers him", player.stun_time > 0.3)
+	await get_tree().create_timer(1.1).timeout
+	var shoved: bool = true
+	for i in ring.size():
+		shoved = shoved and ring[i].flat_distance_to(player) > ring_before[i] + 1.0
+	expect("when he shakes it off he shoves the lesser enemies round him back, once", player.iron_shoves == 1 and shoved)
+	expect("the Brute shrugs the shove off", iron_brute.flat_distance_to(player) < 3.0)
+	await get_tree().create_timer(0.6).timeout
+	expect("no second shove without a second heavy stagger", player.iron_shoves == 1)
+	for e in ring:
+		e.queue_free()
+	iron_brute.queue_free()
+	# Mass Transfer.
+	await clear_field.call()
+	var transfer_runs: Array[Dictionary] = []
+	for with_passive in [false, true]:
+		TownState.reset()
+		TownState.dev_set_hero_level(10)
+		if with_passive:
+			TownState.buy_passive("mass_transfer")
+		await clear_field.call()
+		player.global_position = Vector3(-6, 0, 0)
+		player.reset_physics_interpolation()
+		var first: Enemy = _throw_dummy(Vector3(0, 0, 0))
+		var second: Enemy = _throw_dummy(Vector3(2.0, 0, 0))
+		var third: Enemy = _throw_dummy(Vector3(4.2, 0, 0))
+		await get_tree().process_frame
+		first.knocked_by = player
+		first.credit_hero()
+		first.ragdoll_launch(Vector3(9.0, 0, 0), 2.0, Vector3(0, 0, 4))
+		var second_peak: float = 0.0
+		for i in 80:
+			await get_tree().physics_frame
+			second_peak = maxf(second_peak, second.global_position.x - 2.0)
+		transfer_runs.append({"charges": first.ragdoll.transfer_used, "second_charges": second.mass_transfer_charges, "third_used": third.ragdoll.transfer_used if third.ragdoll != null else 0,
+			"second_moved": second_peak, "third_moved": third.global_position.x - 4.2, "credited": second.hero_credited(), "second_knocked_down": second.is_ragdolled() or second.stun_time > 0.0})
+	expect("without Mass Transfer nothing is passed on", int(transfer_runs[0]["charges"]) == 0)
+	expect("with it the launched body passes its force to the one it hits, once (second moved %.1f against %.1f)" % [float(transfer_runs[1]["second_moved"]), float(transfer_runs[0]["second_moved"])],
+		int(transfer_runs[1]["charges"]) == 1 and float(transfer_runs[1]["second_moved"]) > float(transfer_runs[0]["second_moved"]) + 1.0 and bool(transfer_runs[1]["second_knocked_down"]))
+	expect("the chain is capped: what was bowled carries no transfer on", int(transfer_runs[1]["second_charges"]) == 0 and int(transfer_runs[1]["third_used"]) == 0)
+	expect("the hero is credited for what a body he threw bowls over", bool(transfer_runs[1]["credited"]))
+	# Bloody Recovery.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("bloody_recovery")
+	await clear_field.call()
+	await calm_hero.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	player.combat_timer = 5.0
+	player.velocity = Vector3(5, 0, 0)
+	player.stats.stamina = 20.0
+	player.stats.stamina_free_time = 0.0
+	player.stats.regen(1.0)
+	expect("in a fight on the move stamina does not recover (as before)", is_equal_approx(player.stats.stamina, 20.0))
+	var finish_spot: Array = [0]
+	var finish: Callable = func(skill: String, credited: bool) -> void:
+		finish_spot[0] = int(finish_spot[0]) + 1
+		var victim: Enemy = _throw_dummy(Vector3(3, 0, 12.0 * float(finish_spot[0])))
+		victim.max_health = 10.0
+		victim.health = 10.0
+		await get_tree().process_frame
+		if credited:
+			victim.credit_hero()
+		var blow: Dictionary = Combat.resolve(player, victim, 500.0, Combat.DamageType.PHYSICAL, false, 1.0)
+		blow["skill_id"] = skill
+		blow["outcome"] = Combat.Outcome.HIT
+		blow["damage"] = 500.0
+		if not credited:
+			blow["source"] = null
+		victim.receive(blow, Vector3.ZERO)
+		await get_tree().process_frame
+	player.stats.stamina_free_time = 0.0
+	await finish.call("basic", true)
+	expect("an ordinary sword kill does not clear the wait", player.stats.stamina_free_time == 0.0)
+	await finish.call("impact", false)
+	expect("a kill the hero had no hand in does not either", player.stats.stamina_free_time == 0.0)
+	await finish.call("impact", true)
+	expect("a heavy-impact kill clears the wait at once", player.stats.stamina_free_time > 1.5)
+	player.combat_timer = 5.0
+	player.velocity = Vector3(5, 0, 0)
+	player.stats.stamina = 20.0
+	player.stats.regen(1.0)
+	expect("and stamina flows again at its normal rate (+14 in a second)", is_equal_approx(player.stats.stamina, 34.0))
+	player.stats.stamina_free_time = 0.0
+	await finish.call("collision", true)
+	expect("a collision kill he caused counts too", player.stats.stamina_free_time > 1.5)
+
+	# --- The Progression screen ----------------------------------------------------------------------------------------------------------
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	Gamepad.active = true
+	hud.show_gear = true
+	hud._open_character()
+	await get_tree().process_frame
+	var character: Control = hud.character_panel
+	expect("the character screen has a PROGRESSION button", character.progression_button != null and character.progression_button.text == "PROGRESSION")
+	hud.open_progression()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var panel: ProgressionPanel = hud.progression_panel
+	expect("it opens two sections, passives first, with the points shown", panel != null and panel.section == "passives" and panel.passive_cards.size() == 6
+		and panel.points_label.text == "Passive Points 3     Evolution Points 2")
+	var focus: Control = panel.get_viewport().gui_get_focus_owner()
+	expect("controller focus lands inside it (a card)", focus != null and panel.is_ancestor_of(focus) and panel.passive_cards.values().has(focus))
+	expect("every control can take focus and the tabs link left and right", panel.passive_tab.focus_mode == Control.FOCUS_ALL and panel.back_button.focus_mode == Control.FOCUS_ALL
+		and panel.passive_tab.get_node(panel.passive_tab.focus_neighbor_right) == panel.evolution_tab
+		and panel.passive_cards.values().all(func(c: Button) -> bool: return c.focus_mode == Control.FOCUS_ALL))
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("choosing a passive asks first and spends nothing", panel.confirm_box != null and TownState.passive_points_available() == 3 and not TownState.has_passive("unbowed"))
+	panel.back()
+	await get_tree().process_frame
+	expect("Escape / back dismisses the question, not the screen", panel.confirm_box == null and hud.progression_panel == panel and TownState.passive_points_available() == 3)
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	panel.confirm_button.pressed.emit()
+	await get_tree().process_frame
+	expect("confirming buys it and the screen updates at once (2 left, PURCHASED)", TownState.has_passive("unbowed") and TownState.passive_points_available() == 2
+		and panel.points_label.text == "Passive Points 2     Evolution Points 2" and (panel.passive_cards["unbowed"] as Button).text.contains("PURCHASED"))
+	expect("the character screen's own count follows", character.points_label.text == "Passive Points 2     Evolution Points 2")
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("a purchased passive asks nothing and cannot be bought again", panel.confirm_box == null and TownState.passive_points_available() == 2)
+	panel.evolution_tab.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the EVOLUTIONS section shows Weapon Throw and its three choices", panel.section == "evolutions" and panel.evolution_cards.size() == 3 and panel.evolution_cards.has("throw/wallspike")
+		and panel.evolution_cards.has("throw/reaping_recall") and panel.evolution_cards.has("throw/ricochet"))
+	focus = panel.get_viewport().gui_get_focus_owner()
+	expect("focus moves into the new section", focus != null and panel.is_ancestor_of(focus) and panel.evolution_cards.values().has(focus))
+	(panel.evolution_cards["throw/ricochet"] as Button).pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("an evolution asks first, warns it is permanent, spends nothing, and defaults to NO", panel.confirm_box != null and panel.confirm_text.text.contains("permanent") and TownState.selected_evolution("throw") == ""
+		and TownState.evolution_points_available() == 2 and panel.cancel_button.has_focus())
+	panel.cancel_button.pressed.emit()
+	await get_tree().process_frame
+	expect("cancelling leaves it unspent", TownState.selected_evolution("throw") == "" and TownState.evolution_points_available() == 2 and panel.confirm_box == null)
+	(panel.evolution_cards["throw/ricochet"] as Button).pressed.emit()
+	await get_tree().process_frame
+	panel.confirm_button.pressed.emit()
+	await get_tree().process_frame
+	expect("confirming selects it for good: 1 Evolution Point left, Ricochet SELECTED, the others closed", TownState.selected_evolution("throw") == "ricochet" and TownState.evolution_points_available() == 1
+		and (panel.evolution_cards["throw/ricochet"] as Button).text.contains("SELECTED") and (panel.evolution_cards["throw/wallspike"] as Button).text.contains("closed")
+		and (panel.evolution_cards["throw/reaping_recall"] as Button).text.contains("closed"))
+	(panel.evolution_cards["throw/wallspike"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("a closed evolution cannot be chosen", panel.confirm_box == null and TownState.selected_evolution("throw") == "ricochet")
+	expect("and the throw uses it at once, with no restart", player.evolution_of("throw") == "ricochet")
+	panel.back_button.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("Back returns to the character screen with focus on PROGRESSION", hud.progression_panel == null and hud.character_panel.visible and hud.character_panel.progression_button.has_focus())
+	hud.close_character()
+	Gamepad.active = false
+	TownState.reset()
+
 ## What the town keeps: pay-out for a run, gear handed over, the job board, the food bill, and saving without losing a thing.
 func _test_town_state() -> void:
 	TownState.persist = false
@@ -4562,7 +5852,7 @@ func _test_road_rules() -> void:
 	expect("four stretches, each stocked with real monsters", tidy)
 	expect("together they cover the whole road with no gap", TownDb.zone_at(0.0).id == "road_in" and TownDb.zone_at(63.9).id == "road_in"
 		and TownDb.zone_at(64.0).id == "graveyard" and TownDb.zone_at(150.0).id == "wood" and TownDb.zone_at(300.0).id == "crypt_approach")
-	expect("the further out, the tougher", TownDb.zone_at(10.0).level_offset < TownDb.zone_at(300.0).level_offset)
+	expect("the further out, the tougher", TownDb.zone_at(10.0).base_threat < TownDb.zone_at(300.0).base_threat)
 	# Conditions: about half the time none, never more than two, never ones that clash, always the same for the same seed.
 	var none: int = 0
 	var most: int = 0
@@ -5097,6 +6387,7 @@ func _test_dodge_cancels_attack() -> void:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
+"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
@@ -6121,7 +7412,7 @@ func _test_crypt_road() -> void:
 		and run.objective_line() == "Destroy nests: 1 / 3")
 	expect("it stirs up what lived nearby", nearby == null or nearby._aggro)
 	expect("something climbs out of the broken nest", get_tree().get_nodes_in_group("enemies").size() >= count_before + 3)
-	expect("there is no wave, and the run does not end when the field is cleared", run.location == null or run.wave >= 3)
+	expect("there is no wave (the world does not borrow one), and the run does not end when the field is cleared", run.location == null or run.wave == 0)
 	place.nests[1].hit(999.0, Vector3.FORWARD)
 	place.nests[2].hit(999.0, Vector3.FORWARD)
 	await get_tree().process_frame

@@ -45,7 +45,7 @@ func active_modifiers(at_wave: int = -1) -> Array[RunModifierDef]:
 	var w: int = wave if at_wave < 0 else at_wave
 	var out: Array[RunModifierDef] = []
 	for m in modifiers:
-		if m.min_stage <= w:
+		if connected() or m.min_stage <= w:   # a stage that starts later is a wave idea; the world's conditions are in force from the start
 			out.append(m)
 	return out
 
@@ -126,14 +126,28 @@ func objective_line() -> String:
 		return ""
 	return JobObjective.progress_text(job, progress())
 
-## Monster level in an authored location: what a few waves in would be, rising a little with every job done.
-func level_for_location() -> float:
-	return 1.0 + 0.12 * (wave - 1)
+## True for the connected world and for a job in an authored location, false for the wave arena. `wave` belongs to the arena alone:
+## nothing in the connected world reads it (see WorldThreat for what the world uses).
+func connected() -> bool:
+	return location != null or world_mode
+
+## The arena's own monster level for a wave (a development mode; the connected world uses WorldThreat).
+static func arena_level(at_wave: int) -> float:
+	return 1.0 + 0.12 * (at_wave - 1)
+
+## The item tier a drop from a source of this threat has: the arena goes by its wave, the connected world by the source.
+func drop_tier(source_threat: float) -> int:
+	return Items.tier_for_source(source_threat) if connected() else Items.tier_for_wave(wave)
+
+## The item tier for something with no monster behind it (a smashed prop) at a place: the stretch of road it stands in.
+func drop_tier_at(point: Vector3) -> int:
+	if not connected():
+		return Items.tier_for_wave(wave)
+	return Items.tier_for_source(location.threat_at(point) if location != null else WorldThreat.for_distance(0.0))
 
 ## Starts the job in an authored location: every group is already there, doing its own thing, so there is no wave and no timer.
 func start_location(place: CryptRoad) -> void:
 	location = place
-	wave = 3 + TownState.jobs_done   # only sets how good the drops are (Items.roll_drop) and how tough the monsters are
 	Enemy.max_tokens = 3
 	place.nest_destroyed.connect(_on_nest_destroyed)
 	hud.show_banner("%s\n%s" % [String(job.get("location", "The road")).capitalize(), JobObjective.describe(job)], 4.0)
@@ -162,7 +176,7 @@ func _wave_cleared() -> void:
 
 func start_wave() -> void:
 	wave += 1
-	var level: float = 1.0 + 0.12 * (wave - 1)
+	var level: float = arena_level(wave)
 	var defs: Array[EnemyDef] = EnemyDb.spawnable(wave)
 	var banner: String = "Wave %d" % wave
 	# Wave 1 starts farther out and every enemy holds still for a few seconds, so the hero can take in the arena first.
@@ -308,7 +322,6 @@ func _apply_modifiers(enemy: Enemy) -> void:
 ## Starts watching the road as part of the world: its monsters are placed where the layout says and wait there. No banner, no timer.
 func attach_world(place: CryptRoad) -> void:
 	location = place
-	wave = 3 + TownState.jobs_done
 	Enemy.max_tokens = 3
 	place.spawn_encounters(self)
 
@@ -319,6 +332,7 @@ func hero_returned() -> void:
 func _process(delta: float) -> void:
 	_sleep_far_monsters(delta)
 	if world_mode:
+		TownState.flush_progression()   # ordinary kills' XP reaches the disk within a few seconds
 		if player != null and player.dead and not _fell:
 			_fell = true
 			hero_fell.emit()
@@ -328,35 +342,82 @@ func _process(delta: float) -> void:
 		_end_run(false)
 
 ## What a kill means to the quests: a named monster done (and a good item from it), or one of a kind being counted (and maybe a quest item).
-func _report_to_quests(actor: Actor) -> void:
+func _report_to_quests(actor: Actor) -> int:
 	var enemy := actor as Enemy
 	if enemy == null:
-		return
+		return 0
 	if enemy.has_meta("monster_uid"):   # a named monster (see Monsters): the bounty is paid and it leaves its best behind
+		var named_level: float = float(Monsters.find(int(enemy.get_meta("monster_uid"))).get("level", enemy.level_scale))   # its own, not the road's
 		var paid: Dictionary = Monsters.killed(int(enemy.get_meta("monster_uid")))
 		for i in int(paid.get("items", 0)):
-			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(wave, 1.0, owned_uniques()))
+			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(drop_tier(named_level), 1.0, owned_uniques()))
 		for line in Quests.pop_news():
 			quest_news.emit(line)
-		return
+		return int(paid.get("xp", 0)) if enemy.hero_credited() else 0   # the bounty is paid regardless; the XP is for the hero's own kill
 	if enemy.has_meta("quest_uid"):
 		if Quests.report_unique_killed(int(enemy.get_meta("quest_uid"))):
-			drop_item(enemy.global_position, Items.roll_drop(wave, 1.0, owned_uniques()))   # a named monster always leaves something good
+			drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), 1.0, owned_uniques()))   # a named monster always leaves something good
 		for line in Quests.pop_news():
 			quest_news.emit(line)
-		return
+		return 0
 	var result: Dictionary = Quests.report_kill(enemy.variant)
 	for inst in result["drops"]:
 		quest_item_dropped.emit(inst, enemy.global_position)
 	for line in Quests.pop_news():
 		quest_news.emit(line)
+	return 0
+
+## What a death pays the hero in XP, as ONE award (so several levels at once make one level-up): the enemy's own kill value at the threat it
+## was killed at, plus a named monster's bounty XP. Only a death the hero is credited with (Actor.hero_credited), of an enemy that is
+## worth XP (`xp_eligible`: no renewable summons), pays anything. The hero's level is never an input. Ordinary kills are saved lazily
+## (TownState.add_hero_xp); a named monster's bounty is saved at once.
+func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
+	var enemy := actor as Enemy
+	if enemy == null or enemy.def == null or not enemy.xp_eligible or not enemy.hero_credited():
+		return
+	var kill_xp: int = HeroProgression.kill_xp(enemy.def.xp_reward, enemy.level_scale)
+	var total: int = kill_xp + bounty_xp
+	if total <= 0:
+		return
+	HeroProgression.log_xp("kill: %s base=%d threat=%.2f kill=%d%s final=%d" % [enemy.display_name, enemy.def.xp_reward, enemy.level_scale, kill_xp,
+		(" named bounty=%d" % bounty_xp) if bounty_xp > 0 else "", total])
+	TownState.add_hero_xp(total, bounty_xp > 0)
+
+## What the road as it stands now could pay in XP if all of it were cleared (developer diagnostic, `--xpreport`; changes nothing):
+## {kills (ordinary, per kind too), kill_xp, nests, nest_xp, quest_xp (the standing quest), named (count), named_xp (their bounties and
+## kill values, kept apart), total (kills + nests + quest, without the named extras)}.
+func xp_report() -> Dictionary:
+	var by_kind: Dictionary = {}
+	var kills_n: int = 0
+	var kill_total: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead or e.def == null or not e.xp_eligible or e.has_meta("monster_uid"):
+			continue
+		var xp: int = HeroProgression.kill_xp(e.def.xp_reward, e.level_scale)
+		kills_n += 1
+		kill_total += xp
+		by_kind[e.variant] = int(by_kind.get(e.variant, 0)) + 1
+	var nests: int = 0
+	if location != null:
+		nests = maxi(location.total_nests - location.nests_destroyed, 0)
+	var quest_xp: int = 0
+	for offer in TownState.board:
+		quest_xp += int((offer as Dictionary).get("xp", 0))
+	var named_n: int = 0
+	var named_total: int = 0
+	for mon in Monsters.alive():
+		named_n += 1
+		named_total += HeroProgression.named_xp(float(mon["level"]), int(mon.get("kills", 0)), not (mon["plot"] as Dictionary).is_empty())
+	return {"kills": kills_n, "by_kind": by_kind, "kill_xp": kill_total, "nests": nests, "nest_xp": nests * HeroProgression.NEST_XP, "quest_xp": quest_xp,
+		"named": named_n, "named_xp": named_total, "total": kill_total + nests * HeroProgression.NEST_XP + quest_xp}
 
 ## A dead monster may drop an item (see EnemyDef.drop_chance): it lands near the body and waits to be walked over.
 func _drop_loot(actor: Actor) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance * (Quests.world_mult("drop_mult") if world_mode else 1.0):
 		return
-	drop_item(enemy.global_position, Items.roll_drop(wave, enemy.def.drop_luck, owned_uniques()))
+	drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), enemy.def.drop_luck, owned_uniques()))
 
 func owned_uniques() -> Array[String]:
 	var owned: Array[String] = []
@@ -395,7 +456,8 @@ func _on_enemy_died(actor: Actor) -> void:
 	if gold_per_kill > 0:
 		TownState.gold += int(round(gold_per_kill * Quests.world_mult("gold_mult")))
 	if world_mode:
-		_report_to_quests(actor)
+		var named_xp: int = _report_to_quests(actor)
+		_pay_kill_xp(actor, named_xp)
 	player.on_enemy_killed(actor)
 	_drop_loot(actor)
 	await get_tree().process_frame

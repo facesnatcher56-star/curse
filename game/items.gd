@@ -82,9 +82,22 @@ static func make_unique(entry: Dictionary, tier: int) -> Dictionary:
 	item["flavor"] = entry["flavor"]
 	return item
 
-## One random item. `unique_chance` and `rare_chance` are the odds of each (otherwise common); trinkets are never common.
-static func roll_one(wave: int, unique_chance: float, rare_chance: float, owned_uniques: Array[String]) -> Dictionary:
-	var tier: int = 1 + wave / 3
+## The item tier a source of this threat drops (see WorldThreat). Item tier and threat are DIFFERENT SCALES and their numbers are not meant
+## to match: this is a loot-progression mapping, provisional, and it deliberately keeps the early road's loot as it was before the world
+## had a threat (the first stretch, 1.25, is tier 2). Today it is one tier per whole point of threat on top of tier 1, coarse on purpose
+## (0.1 of threat is nothing). Never assume tier == monster level or tier == threat; ask this. It and `tier_for_wave` are the only
+## places a tier is worked out; the hero's level plays no part.
+static func tier_for_source(source_threat: float) -> int:
+	return 1 + maxi(int(floor(source_threat)), 0)
+
+## The wave arena's own tier (a development mode: its waves are not the connected world's progression, see RunDirector).
+static func tier_for_wave(wave: int) -> int:
+	return 1 + wave / 3
+
+## One random item of the given numerical `tier` (1 and up). `unique_chance` and `rare_chance` are the odds of each (otherwise common);
+## trinkets are never common. The tier says how strong the numbers are; the chances say how special the item is: separate things.
+static func roll_one(tier: int, unique_chance: float, rare_chance: float, owned_uniques: Array[String]) -> Dictionary:
+	tier = maxi(tier, 1)
 	var slot: int = randi() % 3
 	var roll: float = randf()
 	var rarity: int = Rarity.COMMON
@@ -114,19 +127,20 @@ static func roll_one(wave: int, unique_chance: float, rare_chance: float, owned_
 		item = make(slot, Rarity.COMMON, tier)
 	return item
 
-## What a dead monster drops. `luck` 0 is an ordinary monster; 1 is a Brute (guaranteed rare or better, a fair chance of a unique).
-static func roll_drop(wave: int, luck: float, owned_uniques: Array[String]) -> Dictionary:
-	var unique_chance: float = (0.20 if luck >= 1.0 else (0.08 if wave >= 4 else 0.04))
+## What a dead monster drops, as an item of `tier` (from its source: `tier_for_source`). `luck` 0 is an ordinary monster; 1 is a Brute
+## (guaranteed rare or better, a fair chance of a unique): luck changes the rarity, never the tier.
+static func roll_drop(tier: int, luck: float, owned_uniques: Array[String]) -> Dictionary:
+	var unique_chance: float = (0.20 if luck >= 1.0 else (0.08 if tier >= 3 else 0.04))
 	var rare_chance: float = 1.0 if luck >= 1.0 else 0.55
-	return roll_one(wave, unique_chance, rare_chance, owned_uniques)
+	return roll_one(tier, unique_chance, rare_chance, owned_uniques)
 
 ## Three different items (the trader's stock). Brutes guarantee at least rare; trinkets are always rare or better.
-static func roll_choices(wave: int, brute_killed: bool, owned_uniques: Array[String]) -> Array[Dictionary]:
+static func roll_choices(tier: int, brute_killed: bool, owned_uniques: Array[String]) -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
 	var attempts: int = 0
 	while choices.size() < 3 and attempts < 40:
 		attempts += 1
-		var item: Dictionary = roll_drop(wave, 1.0 if brute_killed else 0.0, owned_uniques)
+		var item: Dictionary = roll_drop(tier, 1.0 if brute_killed else 0.0, owned_uniques)
 		var duplicate: bool = false
 		for existing in choices:
 			if existing["name"] == item["name"]:

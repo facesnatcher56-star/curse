@@ -27,7 +27,25 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_text = text
 	banner_time = seconds
 
+var level_toast_text: String = ""
+var level_toast_points: String = ""
+var level_toast_time: float = 0.0
+const LEVEL_TOAST_SECONDS := 2.2
+
+## The hero reached a new level (see ProgressionEvents): one quiet plate and a low thud, however many levels the award crossed.
+func _on_hero_leveled(_old_level: int, new_level: int, _new_xp: int, passive_gained: int, evolution_gained: int) -> void:
+	level_toast_text = "LEVEL %d" % new_level
+	level_toast_points = HeroProgression.points_text(passive_gained, evolution_gained)   # the totals of every level crossed, once
+	level_toast_time = LEVEL_TOAST_SECONDS
+	if is_inside_tree():
+		Sfx.sample(self, "leap_land", -12.0, 0.75)
+
+func _exit_tree() -> void:
+	if TownState.events.hero_leveled.is_connected(_on_hero_leveled):
+		TownState.events.hero_leveled.disconnect(_on_hero_leveled)
+
 func _ready() -> void:
+	TownState.events.hero_leveled.connect(_on_hero_leveled)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -74,6 +92,7 @@ func _process(delta: float) -> void:
 		health_orb.update_value(player.health, player.max_health, delta, player.velocity)
 		mana_orb.update_value(player.stats.mana, player.stats.max_mana, delta, player.velocity)
 	banner_time = maxf(banner_time - delta, 0.0)
+	level_toast_time = maxf(level_toast_time - delta, 0.0)
 	queue_redraw()
 
 func _draw() -> void:
@@ -137,6 +156,21 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 6)), Color(0.8, 0.15, 0.12, alpha))
 			draw_rect(Rect2(pos, Vector2(bar_w, 6)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
 
+		# Objectives that must be destroyed (the nests) always carry a bar, even before the first hit.
+		for node in get_tree().get_nodes_in_group("nests"):
+			var nest := node as Destructible
+			if nest == null or nest.broken:
+				continue
+			var nest_head: Vector3 = nest.global_position + Vector3(0, nest.height + 0.3, 0)
+			if camera.is_position_behind(nest_head):
+				continue
+			var nest_screen: Vector2 = camera.unproject_position(nest_head)
+			var nest_w: float = 90.0
+			var nest_pos := Vector2(nest_screen.x - nest_w * 0.5, nest_screen.y - 8.0)
+			draw_rect(Rect2(nest_pos, Vector2(nest_w, 8)), Color(0, 0, 0, 0.75))
+			draw_rect(Rect2(nest_pos, Vector2(nest_w * clampf(nest.hp / nest.max_hp, 0.0, 1.0), 8)), Color(0.55, 0.8, 0.2))
+			draw_rect(Rect2(nest_pos, Vector2(nest_w, 8)), Color(1, 1, 1, 0.45), false, 1.0)
+
 	if banner_time > 0.0:
 		var fade: float = clampf(minf(banner_time, 0.8) / 0.8, 0.0, 1.0)
 		var lines: PackedStringArray = banner_text.split("\n")
@@ -159,6 +193,15 @@ func _draw() -> void:
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	_draw_item_card(size_px, font)
 
+	if level_toast_time > 0.0:   # a small worn plate with an ember edge, not a banner
+		var toast_fade: float = clampf(minf(level_toast_time, 0.6) / 0.6, 0.0, 1.0)
+		var has_points: bool = level_toast_points != ""
+		var toast := Rect2(Vector2(size_px.x * 0.5 - (150.0 if has_points else 110.0), 16.0), Vector2(300 if has_points else 220, 68 if has_points else 46))
+		UiTheme.draw_panel(self, toast, 0.82 * toast_fade, false)
+		draw_rect(Rect2(toast.position + Vector2(24, toast.size.y - 5.0), Vector2(toast.size.x - 48, 2)), Color(UiTheme.EMBER.r, UiTheme.EMBER.g, UiTheme.EMBER.b, 0.7 * toast_fade))
+		UiTheme.text(self, font, toast.position + Vector2(0, 32), level_toast_text, 26, Color(UiTheme.BRONZE_LIGHT.lightened(0.3), toast_fade), HORIZONTAL_ALIGNMENT_CENTER, toast.size.x)
+		if has_points:
+			UiTheme.text(self, font, toast.position + Vector2(0, 54), level_toast_points, 15, Color(UiTheme.TEXT_DIM, toast_fade), HORIZONTAL_ALIGNMENT_CENTER, toast.size.x)
 	if player.message_time > 0.0:
 		if camera != null and not camera.is_position_behind(player.global_position):
 			var anchor: Vector2 = camera.unproject_position(player.global_position + Vector3(0, player.body_height + 0.6, 0))
@@ -752,8 +795,32 @@ func _open_character() -> void:
 	add_child(character_panel)
 	get_tree().paused = true
 
+## The Progression screen (passives and evolutions), opened from the character screen: it sits over it and leaves it as it was.
+var progression_panel: ProgressionPanel
+
+func open_progression() -> void:
+	if progression_panel != null:
+		return
+	if character_panel != null:
+		character_panel.visible = false
+	progression_panel = ProgressionPanel.new()
+	progression_panel.closed.connect(close_progression)
+	add_child(progression_panel)
+
+func close_progression() -> void:
+	if progression_panel != null:
+		progression_panel.queue_free()
+		progression_panel = null
+	if character_panel != null:
+		character_panel.visible = true
+		if character_panel.has_method("focus_progression_button"):
+			character_panel.call_deferred("focus_progression_button")
+
 func close_character() -> void:
 	show_gear = false
+	if progression_panel != null:
+		progression_panel.queue_free()
+		progression_panel = null
 	if character_panel != null:
 		character_panel.queue_free()
 		character_panel = null
@@ -771,7 +838,10 @@ func _input(event: InputEvent) -> void:
 		if click != null and click.pressed and _picker_click(click):
 			get_viewport().set_input_as_handled()
 			return
-	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+	if progression_panel != null and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
+		progression_panel.back()   # a question first, then the screen
+		get_viewport().set_input_as_handled()
+	elif show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
 		close_character()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("gear") and not get_tree().paused:

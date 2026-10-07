@@ -40,7 +40,9 @@ func _ready() -> void:
 	_add_button("Main menu", func() -> void:
 		close()
 		main_menu_requested.emit())
-	_add_button("Quit game", func() -> void: get_tree().quit())
+	_add_button("Quit game", func() -> void:
+		TownState.flush_progression(true)
+		get_tree().quit())
 
 	_settings_holder = CenterContainer.new()
 	_settings_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

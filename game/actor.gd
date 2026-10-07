@@ -27,7 +27,23 @@ var knock: Vector3 = Vector3.ZERO
 var knocked_by: Actor
 ## Whoever last landed a blow on this actor (for the hero: who to hold responsible for a death, see Monsters.hero_fell).
 var last_hit_by: Actor
+## KILL CREDIT. The hero gets credit for a death when they were, in the last CREDIT_MS, the cause of any harm to this actor: they hit it
+## (any skill, Fireball, Weapon Throw, the recalled weapon), it was knocked into something by a blow of theirs (`knocked_by`: a wall, a
+## prop or another monster, both ways), or it is burning from fire they lit. Monsters hurting each other, or an enemy dying of nothing
+## the hero did, earns nothing. Only XP reads this (quests count kills regardless).
+const CREDIT_MS := 15000
+var _hero_credit_ms: int = -1000000
+var _burn_by_hero: bool = false
+
+func credit_hero() -> void:
+	_hero_credit_ms = Time.get_ticks_msec()
+
+func hero_credited() -> bool:
+	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
 var _impact_cooldown: float = 0.0
+## Mass Transfer (a passive of the hero): a body launched by a heavy hit of his may pass its force on to ONE more enemy it flies into
+## (see Ragdoll._bowl_into_enemies). Set when it is launched, spent at once when it is used; the one it bowls never gets one.
+var mass_transfer_charges: int = 0
 ## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
 var snare_time: float = 0.0
 var snare_amount: float = 0.0
@@ -210,6 +226,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	_last_hit_ms = Time.get_ticks_msec()
 	if result.get("source") is Player:
 		knocked_by = result["source"]
+		credit_hero()
 	if result.get("source") is Actor:
 		last_hit_by = result["source"]
 	if invulnerable_time > 0.0:
@@ -312,7 +329,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	match outcome:
 		Combat.Outcome.CRUSHING:
 			push = 9.0
-			stun_time = maxf(stun_time, (0.5 if hero else 0.8) * (1.0 - stun_resist))
+			_gain_stun((0.5 if hero else 0.8) * (1.0 - stun_resist), result)
 		Combat.Outcome.CRITICAL:
 			push = 5.5
 			if not hero:
@@ -329,6 +346,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		bleed_dps = result["bleed_dps"]
 		bleed_time = result["bleed_time"]
 	_on_hurt(result, source_pos)
+
+## Staggered by a blow. The hero overrides this (his passives can shrug a light one off, see Player._gain_stun).
+func _gain_stun(duration: float, _result: Dictionary = {}) -> void:
+	stun_time = maxf(stun_time, duration)
 
 func _blood_color() -> Color:
 	return Color(0.55, 0.05, 0.04)
@@ -364,6 +385,9 @@ func ragdoll_hang(yaw: float) -> void:
 	ragdoll.hang(yaw)
 
 func ragdoll_launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
+	if knocked_by is Player and (knocked_by as Player).has_passive("mass_transfer") and not dead \
+			and Vector2(velocity.x, velocity.z).length() >= BuildDefs.MASS_TRANSFER_MIN_SPEED:
+		mass_transfer_charges = 1   # a heavy launch of his: it can carry its force into one more body
 	if ragdoll == null:
 		ragdoll = Ragdoll.new(self)
 	if not ragdoll.is_active():
@@ -587,7 +611,7 @@ func _make_daze() -> Node3D:
 ## Passes burn, bleed and slow on to another actor (e.g. a burning body thrown into a crowd).
 func spread_debuffs_to(other: Actor) -> void:
 	if burn_time > 0.0:
-		other.apply_burn(burn_dps, burn_time)
+		other.apply_burn(burn_dps, burn_time, _burn_by_hero)
 	if bleed_time > 0.0:
 		other.bleed_dps = maxf(other.bleed_dps, bleed_dps)
 		other.bleed_time = maxf(other.bleed_time, bleed_time)
@@ -595,9 +619,12 @@ func spread_debuffs_to(other: Actor) -> void:
 		other.apply_slow(slow_amount, slow_time)
 
 ## Sets the actor alight: fire damage over time with visible flames until it burns out or dies.
-func apply_burn(dps: float, seconds: float) -> void:
+func apply_burn(dps: float, seconds: float, by_hero: bool = false) -> void:
 	if dead:
 		return
+	if by_hero:
+		_burn_by_hero = true
+		credit_hero()
 	burn_dps = maxf(burn_dps, dps)
 	burn_time = maxf(burn_time, seconds)
 	if _flames == null and model != null:
@@ -612,6 +639,8 @@ func _tick_burn(delta: float) -> void:
 	if burn_time <= 0.0:
 		return
 	burn_time -= delta
+	if _burn_by_hero:
+		credit_hero()   # fire the hero lit keeps the credit while it burns
 	_apply_damage(burn_dps * delta)
 	# The burning shows in ticks: every half second a fiery number for what it took, a puff of embers and a flare of the flames.
 	_burn_owed += burn_dps * delta
@@ -632,6 +661,7 @@ func _tick_burn(delta: float) -> void:
 		stop_burning()
 
 func stop_burning() -> void:
+	_burn_by_hero = false
 	burn_time = 0.0
 	burn_dps = 0.0
 	if _flames != null:

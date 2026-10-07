@@ -120,6 +120,7 @@ func _summon() -> void:
 		var offset: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * randf_range(1.8, 3.0)
 		var spot: Vector3 = e.global_position + offset
 		var zombie: Enemy = director.spawn_enemy(spot, "zombie", e.level_scale)
+		zombie.xp_eligible = false   # renewable: a priest can make these forever, so they pay nothing
 		zombie.stun_time = 0.9   # clawing its way out of the ground
 		zombie._aggro = true
 		var tween: Tween = zombie.create_tween()

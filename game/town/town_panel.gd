@@ -211,11 +211,11 @@ func _restock_smith() -> void:
 	TownState.smith_stock = []
 	var none: Array[String] = []
 	var names: Array[String] = []
-	var rare_chance: float = minf(0.25 + 0.1 * TownState.jobs_done, 0.6)
+	var rare_chance: float = WorldThreat.MERCHANT_RARE_CHANCE   # a placeholder, not a count of jobs done
 	for attempt in 80:
 		if TownState.smith_stock.size() >= 4:
 			break
-		var item: Dictionary = Items.roll_one(1 + TownState.jobs_done, 0.0, rare_chance, none)
+		var item: Dictionary = Items.roll_one(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), 0.0, rare_chance, none)
 		if int(item["slot"]) == Items.Slot.TRINKET or String(item["name"]) in names:
 			continue
 		names.append(String(item["name"]))
@@ -253,7 +253,7 @@ func _restock() -> void:
 	for item in TownState.gear.values():
 		if int((item as Dictionary)["rarity"]) == Items.Rarity.UNIQUE:
 			owned.append(String((item as Dictionary)["name"]))
-	for item in Items.roll_choices(1 + TownState.jobs_done, false, owned):
+	for item in Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned):
 		TownState.stock.append({"item": item, "price": TownState.item_price(item)})
 
 func _buy(index: int, price: int) -> void:
@@ -310,7 +310,7 @@ func _page_jobs() -> void:
 ## Hale pays what is done (the world posts the next quest and puts the road back as it was).
 func _claim() -> void:
 	var paid: Dictionary = town.claim_rewards()
-	notice = "Paid: %dg. A new quest is posted." % int(paid["gold"]) if int(paid["count"]) > 0 else "Nothing to collect yet."
+	notice = "Paid: %dg%s. A new quest is posted." % [int(paid["gold"]), (", %d XP" % int(paid["xp"])) if int(paid["xp"]) > 0 else ""] if int(paid["count"]) > 0 else "Nothing to collect yet."
 	TownState.save()
 	_rebuild()
 

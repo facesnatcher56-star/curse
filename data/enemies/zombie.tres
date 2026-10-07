@@ -36,6 +36,7 @@ params = {
 token_weight = 1
 drop_chance = 0.07
 drop_luck = 0.0
+xp_reward = 1
 min_wave = 1
 spawn_mode = "pack"
 base_count = 11.0

@@ -2,16 +2,21 @@ class_name TownState
 extends RefCounted
 ## Everything about the town that outlives a run: gold, food, the hero's gear and stash, each townsperson's mood and how they feel
 ## about each other, the job board and the job being run. Static, so the town scene, the run and the menus all see the same
-## thing; saved to user://town.json (the self-test turns saving off).
+## thing; saved to user://town.json in a normal game. Which file, and whether at all, is SavePolicy's decision: a developer session (any
+## user arguments: the self-test, screenshots, diagnostics) never touches the production save unless it passes SavePolicy.REAL_SAVE_FLAG.
 
-const SAVE_PATH := "user://town.json"
+const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 2
+const SAVE_VERSION := 4
 const MAX_STASH := 12
 const LOW_FOOD := 3
 
-static var persist: bool = true
+static var persist: bool = SavePolicy.persists_by_default(OS.get_cmdline_user_args())
+
+## The file this session reads and writes (the production save in a normal game, the developer-session file otherwise).
+static func save_path() -> String:
+	return SavePolicy.path_for(OS.get_cmdline_user_args())
 
 static var gold: int = 40
 static var food: int = 12
@@ -46,6 +51,17 @@ static var quest_history: Array = []      # the last few endings: {id, state, da
 static var monsters: Array = []           # the named monsters on the road (see Monsters)
 static var monster_uid: int = 0
 static var chronicle: Array = []          # what has happened: {day, kind, text} (see Chronicle)
+## The hero's permanent progression (see HeroProgression). `hero_xp` is the total lifetime XP and the only authority: `hero_level` is
+## always derived from it (here and on load), kept as a field so everything can simply read `TownState.hero_level`. Nothing else holds a level.
+static var hero_xp: int = 0
+static var hero_level: int = 1
+## What the hero has BOUGHT with the points his level earns (see BuildDefs): the passive ids, and skill id -> chosen evolution id. The only
+## things saved about the build: points are never stored, available = earned (from the level) - what these cost. Change them only through
+## `buy_passive` / `select_evolution`; a load repairs anything unknown, repeated or unaffordable (it can never give points).
+static var purchased_passives: Array[String] = []
+static var skill_evolutions: Dictionary = {}
+## Announces XP and level changes (see ProgressionEvents); the HUD listens, this never knows about any scene.
+static var events := ProgressionEvents.new()
 
 ## The one authored location so far (see CryptRoad): its job is always on the board, in the first slot. The other places are still the wave arena.
 const CRYPT_ROAD := "the Crypt Road"
@@ -82,6 +98,10 @@ static func reset() -> void:
 	monsters = []
 	monster_uid = 0
 	chronicle = []
+	hero_xp = 0
+	hero_level = 1
+	purchased_passives = []
+	skill_evolutions = {}
 	ensure_npcs()
 	roll_board()
 
@@ -180,7 +200,7 @@ static func crypt_road_offer() -> Dictionary:
 	for id in conditions:
 		mult *= TownDb.modifier(id).reward_mult
 	return {"name": "Cleanse " + CRYPT_ROAD, "location": CRYPT_ROAD, "site": CryptRoad.SITE_ID, "objective": JobObjective.destroy_nest(3),
-		"modifiers": conditions, "reward": int(round((150 + 20 * mini(jobs_done, 10)) * mult))}
+		"modifiers": conditions, "reward": int(round((150 + 20 * mini(jobs_done, 10)) * mult)), "xp": HeroProgression.STANDING_QUEST_XP}
 
 ## The conditions the road has this time (Zombasite gives about half of all levels one or two rules; see section 6 of the research doc):
 ## half the time none, otherwise one, and a third of those a second that does not clash with it. Always the same for the same seed.
@@ -226,15 +246,17 @@ static func has_reward() -> bool:
 ## {"gold", "count", "names"} (count 0 when there was nothing to claim).
 static func claim_ready() -> Dictionary:
 	var gold_paid: int = 0
+	var xp_paid: int = 0
 	var names: Array[String] = []
 	for offer in board.duplicate():
 		if bool(offer.get("ready", false)):
 			gold_paid += int(offer.get("reward", 0))
+			xp_paid += int(offer.get("xp", 0))
 			names.append(String(offer.get("name", "")))
 			jobs_done += 1
 			board.erase(offer)
 	if names.is_empty():
-		return {"gold": 0, "count": 0, "names": names}
+		return {"gold": 0, "count": 0, "names": names, "xp": 0}
 	gold += gold_paid
 	for id in member_ids():
 		var def: NpcDef = TownDb.npc(id)
@@ -247,7 +269,8 @@ static func claim_ready() -> Dictionary:
 	smith_stock = []
 	roll_board()
 	save()
-	return {"gold": gold_paid, "count": names.size(), "names": names}
+	add_hero_xp(xp_paid)   # after the board is settled: the claim is done, so it can only be paid once
+	return {"gold": gold_paid, "count": names.size(), "names": names, "xp": xp_paid}
 
 ## True while the hero is out beyond the town. The clan eats once per expedition, not every time the hero steps through the gate.
 static var expedition: bool = false
@@ -334,6 +357,129 @@ static func stash_item(item: Dictionary) -> void:
 static func item_price(item: Dictionary) -> int:
 	return [30, 80, 220][clampi(int(item.get("rarity", 0)), 0, 2)]
 
+# --- Hero progression ----------------------------------------------------------------------------------------------------
+
+## Gives the hero XP and announces it; the one door every XP reward goes through. Zero and negative amounts do nothing. XP past the level
+## cap is not kept (there is no level 31). One award can cross several levels: that is one `hero_leveled` event, old level to new level.
+## XP is in memory (and announced) at once. It is written to disk at once when `save_now` (quests, named monsters, nests, a level-up
+## always), but the many small awards of ordinary kills pass false: they are written within XP_SAVE_DELAY_MS (see `flush_progression`)
+## or at the next save, so a road full of zombies is not hundreds of file rewrites. A save writes the whole town (about a millisecond or
+## two), which is fine now and then and wasteful per kill.
+## Returns {xp_gained (what was actually kept), old_xp, new_xp, old_level, new_level, levels_gained}.
+static func add_hero_xp(amount: int, save_now: bool = true) -> Dictionary:
+	if amount <= 0:
+		return _progress_result(hero_xp, hero_xp)
+	var capped: int = mini(amount, HeroProgression.max_xp())   # nothing past the cap is kept: this also keeps the sum from overflowing
+	return _set_hero_xp(hero_xp + capped, save_now)
+
+const XP_SAVE_DELAY_MS := 8000
+static var _xp_unsaved_ms: int = 0   # when the oldest XP not yet on disk was earned (0: all of it is saved)
+
+## Writes XP waiting for the disk once it has waited long enough (or at once with `force`). Cheap when there is nothing to write: the
+## world calls it every frame, and on leaving, quitting and coming home.
+static func flush_progression(force: bool = false) -> void:
+	if _xp_unsaved_ms != 0 and (force or Time.get_ticks_msec() - _xp_unsaved_ms >= XP_SAVE_DELAY_MS):
+		save()
+
+static func has_unsaved_xp() -> bool:
+	return _xp_unsaved_ms != 0
+
+## For `--level=N` and tests: puts the hero exactly at the start of a level (down as well as up).
+static func dev_set_hero_level(level: int) -> Dictionary:
+	return _set_hero_xp(HeroProgression.xp_for_level(level))
+
+## Developer command line: `--level=N` puts the hero at the start of level N, then `--xp=N` grants N XP (so both together mean "level N plus
+## N XP"). Not part of the game's own UI. Returns what was applied (tests read it).
+static func apply_dev_progression(args: PackedStringArray) -> Array:
+	var applied: Array = []
+	for arg in args:
+		if arg.begins_with("--level=") and arg.substr(8).is_valid_int():
+			applied.append(dev_set_hero_level(arg.substr(8).to_int()))
+	for arg in args:
+		if arg.begins_with("--xp=") and arg.substr(5).is_valid_int():
+			applied.append(add_hero_xp(arg.substr(5).to_int()))
+	return applied
+
+static func _set_hero_xp(total: int, save_now: bool = true) -> Dictionary:
+	var old_xp: int = hero_xp
+	var old_level: int = hero_level
+	hero_xp = HeroProgression.sanitize_xp(total)
+	hero_level = HeroProgression.level_for_xp(hero_xp)
+	if hero_level < old_level:
+		_repair_build()
+	var result: Dictionary = _progress_result(old_xp, hero_xp)
+	result["old_level"] = old_level
+	result["levels_gained"] = maxi(hero_level - old_level, 0)
+	var gained: Dictionary = HeroProgression.points_between(old_level, hero_level)
+	result["passive_points_gained"] = int(gained["passive"])
+	result["evolution_points_gained"] = int(gained["evolution"])
+	if hero_xp != old_xp:
+		if save_now or hero_level > old_level:
+			save()
+		elif _xp_unsaved_ms == 0:
+			_xp_unsaved_ms = maxi(Time.get_ticks_msec(), 1)
+		events.hero_xp_changed.emit(old_xp, hero_xp)
+		if hero_level > old_level:
+			var points: Dictionary = HeroProgression.points_between(old_level, hero_level)
+			events.hero_leveled.emit(old_level, hero_level, hero_xp, int(points["passive"]), int(points["evolution"]))
+	return result
+
+static func _progress_result(old_xp: int, new_xp: int) -> Dictionary:
+	var old_level: int = HeroProgression.level_for_xp(old_xp)
+	var new_level: int = HeroProgression.level_for_xp(new_xp)
+	var gained: Dictionary = HeroProgression.points_between(old_level, new_level)
+	return {"xp_gained": maxi(new_xp - old_xp, 0), "old_xp": old_xp, "new_xp": new_xp, "old_level": old_level, "new_level": new_level,
+		"levels_gained": maxi(new_level - old_level, 0), "passive_points_gained": int(gained["passive"]), "evolution_points_gained": int(gained["evolution"])}
+
+## Points earned by the hero's level and not yet spent: earned (derived from the level) minus what the saved choices cost. Never negative.
+static func passive_points_available() -> int:
+	return maxi(HeroProgression.passive_points_for_level(hero_level) - purchased_passives.size() * BuildDefs.PASSIVE_COST, 0)
+
+static func evolution_points_available() -> int:
+	return maxi(HeroProgression.evolution_points_for_level(hero_level) - skill_evolutions.size() * BuildDefs.EVOLUTION_COST, 0)
+
+# --- Build choices ------------------------------------------------------------------------------------------------------------------
+
+static func has_passive(id: String) -> bool:
+	return purchased_passives.has(id)
+
+static func can_buy_passive(id: String) -> bool:
+	return BuildDefs.is_passive(id) and not has_passive(id) and passive_points_available() >= BuildDefs.PASSIVE_COST
+
+## Spends one Passive Point on a passive, once. Returns whether it was bought.
+static func buy_passive(id: String) -> bool:
+	if not can_buy_passive(id):
+		return false
+	purchased_passives.append(id)
+	save()
+	events.hero_build_changed.emit()
+	return true
+
+## The evolution chosen for a skill, or "" (the baseline skill).
+static func selected_evolution(skill_id: String) -> String:
+	return String(skill_evolutions.get(skill_id, ""))
+
+static func can_select_evolution(skill_id: String, evolution_id: String) -> bool:
+	return BuildDefs.is_evolution(skill_id, evolution_id) and not skill_evolutions.has(skill_id) 		and evolution_points_available() >= BuildDefs.EVOLUTION_COST
+
+## Spends one Evolution Point on a skill's evolution. Permanent (there is no respec): a skill takes one, and the others are then closed.
+static func select_evolution(skill_id: String, evolution_id: String) -> bool:
+	if not can_select_evolution(skill_id, evolution_id):
+		return false
+	skill_evolutions[skill_id] = evolution_id
+	save()
+	events.hero_build_changed.emit()
+	return true
+
+## After the level changes (a developer command can lower it): choices the level no longer pays for are dropped, so points never go negative.
+static func _repair_build() -> void:
+	var clean: Dictionary = BuildDefs.sanitize(purchased_passives, skill_evolutions, HeroProgression.passive_points_for_level(hero_level),
+		HeroProgression.evolution_points_for_level(hero_level))
+	if (clean["passives"] as Array).size() != purchased_passives.size() or (clean["evolutions"] as Dictionary).size() != skill_evolutions.size():
+		purchased_passives.assign(clean["passives"])
+		skill_evolutions = clean["evolutions"]
+		events.hero_build_changed.emit()
+
 # --- Saving --------------------------------------------------------------------------------------------------------------
 
 static func to_dict() -> Dictionary:
@@ -341,7 +487,8 @@ static func to_dict() -> Dictionary:
 		"vendor_gold": vendor_gold, "smith_gold": smith_gold, "smith_stock": _stock_to_save(smith_stock), "gear": _gear_to_save(),
 		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
 		"quests": quests, "road_seed": road_seed, "quest_uid": quest_uid, "day": day, "world_mods": world_mods, "quest_clock": quest_clock, "quest_history": quest_history,
-		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle}
+		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp,
+		"purchased_passives": purchased_passives.duplicate(), "skill_evolutions": skill_evolutions.duplicate()}
 
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
@@ -363,6 +510,12 @@ static func migrate(data: Dictionary) -> Dictionary:
 				data["stash"] = _items_to_save(_items_from_save(data.get("stash", [])))
 				data["stock"] = _stock_to_save(_stock_from_save(data.get("stock", [])))
 				data["smith_stock"] = _stock_to_save(_stock_from_save(data.get("smith_stock", [])))
+			3:   # the build arrives: a save from before it has bought nothing, and every point its level earned is free
+				data["purchased_passives"] = []
+				data["skill_evolutions"] = {}
+			2:   # the hero's permanent level arrives: a save from before it starts at level 1 (nothing else says how far the hero has come)
+				data["hero_xp"] = 0
+				data["hero_level"] = 1
 		version += 1
 		data["save_version"] = version
 	return data
@@ -386,6 +539,7 @@ static func from_dict(data: Dictionary) -> void:
 	var posted: Array = []
 	for offer in board:
 		if String(offer.get("site", "")) != "":   # only quests that exist in the world; the old wave jobs are gone from the board
+			offer["xp"] = int(offer.get("xp", HeroProgression.STANDING_QUEST_XP))   # a quest posted before XP existed still pays it
 			posted.append(offer)
 	board = posted
 	if board.is_empty():
@@ -430,8 +584,15 @@ static func from_dict(data: Dictionary) -> void:
 	for entry in data.get("chronicle", []):
 		entry["day"] = int(entry.get("day", 1))
 		chronicle.append(entry)
+	hero_xp = HeroProgression.sanitize_xp(data.get("hero_xp", 0))   # the XP decides; a saved level that disagrees with it is repaired
+	hero_level = HeroProgression.level_for_xp(hero_xp)
+	var clean: Dictionary = BuildDefs.sanitize(data.get("purchased_passives", []), data.get("skill_evolutions", {}),
+		HeroProgression.passive_points_for_level(hero_level), HeroProgression.evolution_points_for_level(hero_level))
+	purchased_passives.assign(clean["passives"])
+	skill_evolutions = clean["evolutions"]
+	events.hero_build_changed.emit()
 	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
-	job = (board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
+	job =(board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 
 ## Items are saved as {def, tier, rarity, affix} (see Items.to_save) and built again on load; one whose base or affix no longer exists
 ## is dropped rather than breaking the save.
@@ -480,21 +641,26 @@ static func _stock_from_save(saved: Array) -> Array:
 
 ## Written to a temporary file and moved into place, so a crash while saving cannot leave half a save.
 static func save() -> void:
+	_xp_unsaved_ms = 0   # the whole town goes out, the hero's XP with it
 	if not persist:
 		return
-	var temp: String = SAVE_PATH + ".tmp"
+	var path: String = save_path()
+	if not SavePolicy.may_modify(path, OS.get_cmdline_user_args()):
+		return
+	SavePolicy.ensure_folder(path)
+	var temp: String = path + ".tmp"
 	var file := FileAccess.open(temp, FileAccess.WRITE)
 	if file == null:
 		return
 	file.store_string(JSON.stringify(to_dict()))
 	file.close()
-	DirAccess.rename_absolute(temp, SAVE_PATH)
+	DirAccess.rename_absolute(temp, path)
 
 ## Loads the saved town, or starts a new one when there is none. A save that cannot be read, or that is from a newer build, is
 ## copied to user://town.json.<reason>.bak first so starting fresh never destroys it.
 static func load_or_start() -> void:
-	if persist and FileAccess.file_exists(SAVE_PATH):
-		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	if persist and FileAccess.file_exists(save_path()):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(save_path()))
 		if parsed is Dictionary:
 			var data: Dictionary = migrate(parsed)
 			if data.is_empty():
@@ -508,4 +674,6 @@ static func load_or_start() -> void:
 	start_if_needed()
 
 static func _back_up(reason: String) -> void:
-	DirAccess.copy_absolute(SAVE_PATH, "%s.%s.bak" % [SAVE_PATH, reason])
+	var path: String = save_path()
+	if SavePolicy.may_modify(path, OS.get_cmdline_user_args()):
+		DirAccess.copy_absolute(path, "%s.%s.bak" % [path, reason])

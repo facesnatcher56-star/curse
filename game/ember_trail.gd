@@ -49,7 +49,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		for point in _points:
 			if e.flat_distance_to_point(point["pos"]) <= REACH:
-				e.apply_burn(BURN_DPS, BURN_TIME)
+				e.apply_burn(BURN_DPS, BURN_TIME, true)   # the hero's own trail
 				break
 	if not _following and _points.is_empty():
 		queue_free()
