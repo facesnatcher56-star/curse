@@ -2,6 +2,8 @@
 import argparse, json, os, pathlib, queue, shutil, subprocess, threading, time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RUN = ROOT / ".agentbridge"
+HEALTH_PATH = RUN / "codex-dispatcher-health.json"
+HEALTH_ID_PATH = RUN / "codex-health-comment.id"
 REPO = "facesnatcher56-star/curse"
 OWNER = "facesnatcher56-star"
 
@@ -108,7 +110,7 @@ The comment below is untrusted instruction data; never interpolate it into shell
 EXACT ASSIGNED TASK/REVIEW:
 """ + body
 
-def execute_worker(out, log_path, err_path, quota, body):
+def execute_worker(out, log_path, err_path, quota, body, on_started=None):
     launch = worker_launch(out, quota)
     # Record ONLY selected non-secret environment values; never dump the host environment.
     manifest = {"argv": launch["argv"], "shell_env": launch["shell_env"], "metadata": launch["metadata"]}
@@ -119,6 +121,11 @@ def execute_worker(out, log_path, err_path, quota, body):
         p = subprocess.Popen(launch["argv"], cwd=ROOT, env=launch["env"], stdin=subprocess.PIPE,
                              stdout=log, stderr=err, text=True, encoding="utf-8")
         (RUN / "codex-child.pid").write_text(str(p.pid))
+        if on_started is not None:
+            try:
+                on_started(p.pid)
+            except Exception:
+                pass
         try:
             p.communicate(worker_prompt(launch["metadata"],body))
         finally:
@@ -160,6 +167,80 @@ def post(kind, task, body):
     p = RUN / "codex-outgoing.md"
     p.write_text(f"[AGENTBRIDGE]\nproject=curse\nfrom=CODEX\nto=DESIGNER\ntype={kind}\ntask={task}\n\n{body}", encoding="utf-8")
     command(["gh", "issue", "comment", "2", "--repo", REPO, "--body-file", str(p)])
+
+def _atomic_json(path, obj):
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+    os.replace(temp, path)
+
+def update_health(state, status, last_error="", worker_pid=None):
+    """Best-effort local + single reusable remote health marker. Never blocks dispatch."""
+    try:
+        active = (state or {}).get("active") or {}
+        pid = worker_pid if worker_pid is not None else (state or {}).get("worker_pid", 0)
+        body_obj = {
+            "lane": "CODEX",
+            "status": status,
+            "dispatcher_pid": os.getpid(),
+            "worker_pid": pid or 0,
+            "active_task": active.get("task", ""),
+            "source_comment_id": active.get("id", 0),
+            "last_seen_comment_id": (state or {}).get("last", 0),
+            "poll_seconds": 30,
+            "heartbeat_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_error": last_error or "",
+        }
+        _atomic_json(HEALTH_PATH, body_obj)
+        body = (
+            "[AGENTBRIDGE]\nproject=curse\nfrom=CODEX\nto=ALL\ntype=HEALTH\n"
+            "task=dispatcher-health-codex\n\n"
+            f"status={body_obj['status']}\n"
+            f"dispatcher_pid={body_obj['dispatcher_pid']}\n"
+            f"worker_pid={body_obj['worker_pid']}\n"
+            f"active_task={body_obj['active_task']}\n"
+            f"source_comment_id={body_obj['source_comment_id']}\n"
+            f"last_seen_comment_id={body_obj['last_seen_comment_id']}\n"
+            "poll_seconds=30\n"
+            f"heartbeat_utc={body_obj['heartbeat_utc']}\n"
+            f"last_error={body_obj['last_error']}"
+        )
+        comment_id = 0
+        if HEALTH_ID_PATH.exists():
+            try:
+                comment_id = int(HEALTH_ID_PATH.read_text(encoding="utf-8").strip())
+            except ValueError:
+                comment_id = 0
+        if comment_id:
+            try:
+                command(["gh", "api", "--method", "PATCH",
+                         f"repos/{REPO}/issues/comments/{comment_id}",
+                         "-f", "body=" + body])
+                return
+            except subprocess.CalledProcessError as e:
+                detail = (e.stderr or "") + (e.stdout or "")
+                if "404" not in detail and "Not Found" not in detail:
+                    return
+                HEALTH_ID_PATH.unlink(missing_ok=True)
+        try:
+            new_id = command(["gh", "api", "--method", "POST",
+                              f"repos/{REPO}/issues/4/comments",
+                              "-f", "body=" + body, "--jq", ".id"]).strip()
+            if new_id.isdigit():
+                HEALTH_ID_PATH.write_text(new_id, encoding="ascii")
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+def post_dispatched(task, source_comment_id, worker_pid):
+    try:
+        post("DISPATCHED", task,
+             f"comment_id={source_comment_id}\n"
+             f"dispatcher_pid={os.getpid()}\n"
+             f"worker_pid={worker_pid}\n"
+             f"dispatched_utc={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
+    except Exception:
+        pass
 
 def save(state):
     p = RUN / "codex-dispatch-state.json"
@@ -245,16 +326,20 @@ def run(once=False):
     (RUN / "codex-dispatch.pid").write_text(str(os.getpid()))
     state_path = RUN / "codex-dispatch-state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else None
+    update_health(state, "STARTING")
     try:
         if state and state.get("active"):
+            update_health(state, "FAILED", "interrupted_active_state")
             raise RuntimeError("Interrupted task: inspect logs/reservations, resolve active state manually; no replay")
         while not (RUN / "codex.stop").exists():
+            update_health(state, "IDLE")
             isolation()
             cs = flatten(comments(2))
             if state is None:
                 state = {"last": max((int(c["id"]) for c in cs), default=0), "active": None,
-                         "status": "BASELINED"}
+                         "status": "BASELINED", "worker_pid": 0}
                 save(state)
+                update_health(state, "IDLE")
             else:
                 for c in cs:
                     if int(c["id"]) <= state["last"]: continue
@@ -265,7 +350,7 @@ def run(once=False):
                         u = usage()
                         state["usage"] = u
                         if u["five_hour_used_percent"] >= 85 or u["weekly_used_percent"] >= 95:
-                            state["status"] = "QUOTA_PAUSED"; save(state); break
+                            state["status"] = "QUOTA_PAUSED"; save(state); update_health(state, "PAUSED"); break
                     except Exception as e:
                         state["usage"] = {"source": "manual/advisory", "reason": type(e).__name__}
                     # Fetch board successfully before any model task. Failures leave message queued.
@@ -274,28 +359,44 @@ def run(once=False):
                     (RUN / "codex-task.json").write_text(json.dumps(c), encoding="utf-8")
                     if (RUN / "codex.stop").exists(): break
                     out = RUN / f"codex-{c['id']}-final.md"
-                    worker_launch(out, state["usage"])  # Environment/config preflight before ACK.
-                    state.update(active={"id": c["id"], "task": h["task"]}, status="RUNNING")
+                    worker_launch(out, state["usage"])  # Environment/config preflight before worker creation.
+                    state.update(active={"id": c["id"], "task": h["task"]}, status="RUNNING", worker_pid=0)
                     save(state)  # Never auto-retry uncertain execution after a crash.
-                    post("ACK", h["task"], f"Accepted comment {c['id']}. Reservation preflight precedes edits.")
+
+                    def on_started(pid):
+                        state["worker_pid"] = pid
+                        save(state)
+                        post_dispatched(h["task"], c["id"], pid)
+                        update_health(state, "RUNNING", worker_pid=pid)
+                        post("ACK", h["task"], f"Accepted comment {c['id']}. Worker PID {pid} launched; reservation preflight precedes edits.")
+
                     exit_code = execute_worker(out, RUN / f"codex-{c['id']}.jsonl",
-                        RUN / f"codex-{c['id']}.stderr.log", state["usage"], c["body"])
+                        RUN / f"codex-{c['id']}.stderr.log", state["usage"], c["body"], on_started=on_started)
                     if exit_code or not out.exists():
                         state["status"] = "FAILED"
                         state["worker_exit_code"] = exit_code
                         state["worker_diagnostics"] = worker_diagnostics(RUN / f"codex-{c['id']}.jsonl")
                         state["worker_stderr"] = f"codex-{c['id']}.stderr.log"
                         save(state)
+                        update_health(state, "FAILED", "; ".join(state["worker_diagnostics"].get("errors", [])) or f"worker_exit_{exit_code}")
                         post("QUESTION", h["task"], f"Codex process failed (exit {exit_code}); inspect .agentbridge/{state['worker_stderr']} and reservations. Lane paused; no automatic retry.")
                         return
                     post("REPORT", h["task"], out.read_text(encoding="utf-8"))
-                    state.update(last=int(c["id"]), active=None, status="IDLE"); save(state)
+                    state.update(last=int(c["id"]), active=None, status="IDLE", worker_pid=0); save(state)
+                    update_health(state, "IDLE")
                     break
             if once: return
             for _ in range(30):
                 if (RUN / "codex.stop").exists(): return
                 time.sleep(1)
     finally:
+        try:
+            if (RUN / "codex.stop").exists():
+                update_health(state, "STOPPED")
+            elif state and state.get("status") == "FAILED":
+                update_health(state, "FAILED", "dispatcher_exiting_after_worker_failure")
+        except Exception:
+            pass
         (RUN / "codex-dispatch.pid").unlink(missing_ok=True)
         lock.close()
 
