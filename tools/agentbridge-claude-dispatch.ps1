@@ -294,7 +294,7 @@ function Update-DispatcherHealth($State, [string]$Status, [string]$LastError = "
         Write-AtomicJson $healthPath $health
 
         $body = "[AGENTBRIDGE]`nproject=curse`nfrom=CLAUDE`nto=ALL`ntype=HEALTH`ntask=dispatcher-health-claude`n`nstatus=$Status`ndispatcher_pid=$PID`nworker_pid=$workerPid`nactive_task=$activeTask`nsource_comment_id=$sourceComment`nlast_seen_comment_id=$lastSeen`npoll_seconds=$PollSeconds`nheartbeat_utc=$heartbeat`nlast_error=$LastError"
-        $commentId = 0
+        [long]$commentId = 0
         if (Test-Path -LiteralPath $healthCommentIdPath) {
             [void][long]::TryParse((Get-Content -LiteralPath $healthCommentIdPath -Raw).Trim(), [ref]$commentId)
         }
