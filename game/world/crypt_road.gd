@@ -3,13 +3,15 @@ extends Node3D
 ## The first authored location: a long, narrow stretch of ruined road from the town's side gate to a sealed crypt, about 60 m across
 ## and 360 m long (three and a half times the old arena, and elongated rather than square).
 ##
-##   road gate (town side)  z = +170   the way home; the hero starts a little way in
-##   ruined road            z = +150..115   two walkers on the road
-##   abandoned wagon        z = +105..95    a pack feeding on the dead
+##   road gate (town side)        z = +170        the way home; the hero starts a little way in
+##   Hearthward Waystation        z = +142..118   ruined tollpost, breached barricade, tollhouse sentry
+##   Burned Pilgrim Camp          z = +108..92    refugee disaster, burned wagons, firepit, flank ambush
+##   Graveyard Threshold          z = +89..73     broken funeral hearse, disturbed graves, mourning shrine
 ##   graveyard (west)  /  collapsed cottage (east)    z = +95..45   both open onto the road; a nest in each
 ##   wooded choke           z = +40..8      trees close in to a gap a few metres wide, with a brute
 ##   old shrine             z = 0           a plague priest among its guard
-##   crypt courtyard        z = -45..-155   walled; the third nest, the strongest groups
+##   crypt courtyard        z = -45..-145   walled; the third nest, avenue columns, courtyard packs
+##   crypt forecourt        z = -146..-164  ruined mortuary shed, ossuary niches, portal vanguard
 ##   crypt entrance         z = -165        a sealed facade (the way on, for a later job)
 ##
 ## Everything is placed by hand (no random scatter of encounters): the monsters exist in the world from the start, doing something
@@ -243,13 +245,14 @@ func _landmarks() -> void:
 	# Stakes and stones either side of it close the road's mouth to the wilds.
 	_row("dead_tree", Vector2(-27, 174), Vector2(-8, 174), 4.5, 5.0, 0.6)
 	_row("dead_tree", Vector2(8, 174), Vector2(27, 174), 4.5, 5.0, 0.6)
-	# The abandoned wagon: two carts, one on its side, barrels split open, and the dead beside them.
-	_prop("wrecked_cart", -5.0, 106.0, 0.5, 1.9)
-	_prop("wrecked_cart", 8.0, 97.0, 2.2, 1.7)
-	for spot in [Vector2(-2.5, 101), Vector2(-7.5, 100), Vector2(10.5, 101)]:
-		_prop("barrel", spot.x, spot.y, _rng.randf() * TAU, 1.0)
-	_prop("crypt/corpse", 2.5, 102.0, 0.4, 0.5, false, false, 0.0)
-	_prop("crypt/corpse", -8.5, 96.0, 2.0, 0.5, false, false, 0.0)
+	# The ruined roadside waystation and breached toll barricade (z 142..118).
+	WaystationEncounter.build(self, arena)
+	# The burned pilgrim camp and overturned baggage wagons (z 108..92).
+	PilgrimCampEncounter.build(self, arena)
+	# The broken funeral procession and graveyard threshold (z 89..73).
+	GraveyardThresholdEncounter.build(self, arena)
+	# The ruined mortuary / ossuary forecourt before the crypt entrance (z -146..-164).
+	CryptForecourtEncounter.build(self, arena)
 	# The old shrine in the middle of the road, with its brazier-light of candles.
 	var shrine: Node3D = _prop("crypt/shrine", 0.0, -2.0, 0.0, 3.8, true, false, 3.6)
 	_light(shrine, Color(1.0, 0.6, 0.25), 1.6, 9.0, 1.4)
@@ -378,13 +381,12 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 func spawn_encounters(for_director: RunDirector) -> void:
 	director = for_director
 	_homes.clear()
-	# Walkers on the road, the first thing the hero sees (far enough down it that they do not notice him at the start).
-	_group(1, "wander", [["zombie", 2, 129], ["zombie", -2, 123]], Vector2(0, 121), 5.0, Vector2.ZERO,
-		[Vector2(3, 133), Vector2(-2, 113), Vector2(2, 123)])
-	# The wagon: a pack at the dead (they hunch over the corpses until the hero is close), one stray.
-	_group(2, "feed", [["zombie", 1.6, 103.4], ["zombie", 3.6, 101.2], ["zombie", 2.6, 100.4]], Vector2(2.5, 102), 2.0, Vector2(2.5, 102))
-	_group(2, "feed", [["zombie", -9.6, 96.8], ["zombie", -7.8, 95.2]], Vector2(-8.5, 96), 2.0, Vector2(-8.5, 96))
-	_group(3, "wander", [["zombie", 12, 110]], Vector2(12, 110), 4.0)
+	# The ruined roadside waystation: breached barricade defenders, tollhouse sentry, and flank roamer.
+	WaystationEncounter.spawn_encounters(self, director)
+	# The burned pilgrim camp: feeding pack, flank ambushers, and wagon scavengers.
+	PilgrimCampEncounter.spawn_encounters(self, director)
+	# The broken funeral procession: hearse pack, threshold lookout, and flank prowler.
+	GraveyardThresholdEncounter.spawn_encounters(self, director)
 	# The graveyard: strollers among the stones, a bloater lying in wait among the graves, and the nest's keepers.
 	_group(4, "wander", [["zombie", -14, 80], ["zombie", -18, 74], ["zombie", -12, 70]], Vector2(-15, 76), 8.0)
 	_group(5, "", [["bloater", -16.5, 64]], Vector2(-16.5, 64))
@@ -406,6 +408,8 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	_group(14, "wander", [["ghoul", 12, -95], ["ghoul", 16, -101], ["zombie", 11, -102], ["zombie", 17, -94]], Vector2(14, -98), 5.0)
 	_group(15, "", [["priest", -14, -112], ["spitter", -14, -121], ["spitter", -9, -124], ["zombie", -11, -108], ["zombie", -17, -108]], Vector2(-13, -114))
 	_group(16, "", [["brute", -9, -138], ["brute", 9, -138], ["zombie", 0, -142]], Vector2(0, -139))
+	# The ruined mortuary and ossuary forecourt before the crypt entrance: vanguard, ossuary sentry, mortuary feeder.
+	CryptForecourtEncounter.spawn_encounters(self, director)
 	_fill_gaps()
 
 ## Wherever the placed groups leave the road empty (no group's home within FILL_COVER), a small group of whatever lives in that stretch:
