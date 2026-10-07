@@ -27,25 +27,18 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_text = text
 	banner_time = seconds
 
-var level_toast_text: String = ""
-var level_toast_points: String = ""
-var level_toast_time: float = 0.0
-const LEVEL_TOAST_SECONDS := 2.2
-
-## The hero reached a new level (see ProgressionEvents): one quiet plate and a low thud, however many levels the award crossed.
-func _on_hero_leveled(_old_level: int, new_level: int, _new_xp: int, passive_gained: int, evolution_gained: int) -> void:
-	level_toast_text = "LEVEL %d" % new_level
-	level_toast_points = HeroProgression.points_text(passive_gained, evolution_gained)   # the totals of every level crossed, once
-	level_toast_time = LEVEL_TOAST_SECONDS
-	if is_inside_tree():
-		Sfx.sample(self, "leap_land", -12.0, 0.75)
-
-func _exit_tree() -> void:
-	if TownState.events.hero_leveled.is_connected(_on_hero_leveled):
-		TownState.events.hero_leveled.disconnect(_on_hero_leveled)
+var progression_hud: ProgressionHud
+## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
+var level_toast_text: String:
+	get: return progression_hud.toast_text if progression_hud != null else ""
+var level_toast_points: String:
+	get: return progression_hud.toast_points if progression_hud != null else ""
+var level_toast_time: float:
+	get: return progression_hud.toast_time if progression_hud != null else 0.0
 
 func _ready() -> void:
-	TownState.events.hero_leveled.connect(_on_hero_leveled)
+	progression_hud = ProgressionHud.new()   # the level and XP strip, the level-up plate and the points-available mark
+	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -92,7 +85,6 @@ func _process(delta: float) -> void:
 		health_orb.update_value(player.health, player.max_health, delta, player.velocity)
 		mana_orb.update_value(player.stats.mana, player.stats.max_mana, delta, player.velocity)
 	banner_time = maxf(banner_time - delta, 0.0)
-	level_toast_time = maxf(level_toast_time - delta, 0.0)
 	queue_redraw()
 
 func _draw() -> void:
@@ -193,15 +185,6 @@ func _draw() -> void:
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	_draw_item_card(size_px, font)
 
-	if level_toast_time > 0.0:   # a small worn plate with an ember edge, not a banner
-		var toast_fade: float = clampf(minf(level_toast_time, 0.6) / 0.6, 0.0, 1.0)
-		var has_points: bool = level_toast_points != ""
-		var toast := Rect2(Vector2(size_px.x * 0.5 - (150.0 if has_points else 110.0), 16.0), Vector2(300 if has_points else 220, 68 if has_points else 46))
-		UiTheme.draw_panel(self, toast, 0.82 * toast_fade, false)
-		draw_rect(Rect2(toast.position + Vector2(24, toast.size.y - 5.0), Vector2(toast.size.x - 48, 2)), Color(UiTheme.EMBER.r, UiTheme.EMBER.g, UiTheme.EMBER.b, 0.7 * toast_fade))
-		UiTheme.text(self, font, toast.position + Vector2(0, 32), level_toast_text, 26, Color(UiTheme.BRONZE_LIGHT.lightened(0.3), toast_fade), HORIZONTAL_ALIGNMENT_CENTER, toast.size.x)
-		if has_points:
-			UiTheme.text(self, font, toast.position + Vector2(0, 54), level_toast_points, 15, Color(UiTheme.TEXT_DIM, toast_fade), HORIZONTAL_ALIGNMENT_CENTER, toast.size.x)
 	if player.message_time > 0.0:
 		if camera != null and not camera.is_position_behind(player.global_position):
 			var anchor: Vector2 = camera.unproject_position(player.global_position + Vector3(0, player.body_height + 0.6, 0))
