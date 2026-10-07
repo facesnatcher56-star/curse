@@ -66,3 +66,15 @@ If the user's plan/provider genuinely has no five-hour window, only the weekly t
 This policy governs autonomous agent execution. It does not prevent the OWNER from manually choosing to use an agent after an autonomous limit has been reached.
 
 Do not automatically purchase credits, consume banked resets, change plans, switch billing modes, or apply paid resets.
+
+## Claude Code adapter status (verified 2026-10-06)
+
+Checked on this PC: the standalone CLI (2.1.144) and the desktop app's embedded client (2.1.289).
+
+- No `usage`, `status` or `limits` subcommand. `claude auth status` reports sign-in only.
+- `claude -p "/usage"` (also `/cost`, `/stats`) is answered locally with no model call, but reports only THIS process's own token cost (2.1.289) or
+  "you are using your subscription" (2.1.144). Neither gives five-hour or weekly used percent. `/status` is not available in print mode.
+- So there is no documented, automatable plan-window reading. The Claude lane dispatcher (`tools/agentbridge-claude-dispatch.ps1`) therefore
+  fails closed (`USAGE_UNKNOWN`) and starts nothing. Do not scrape the interactive `/usage` screen or call undocumented endpoints.
+- To enable the lane the OWNER must choose a verified source for `Get-UsageReading` in that script (it must supply both windows, or document that the
+  plan has no five-hour window), or explicitly accept a different proxy rule in this document.

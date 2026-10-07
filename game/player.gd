@@ -43,6 +43,8 @@ var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
 var weapon_throw: WeaponThrowSkill
+var knockdown: Knockdown
+var hit_reaction: HitReaction
 
 func _init() -> void:
 	skewer = SkewerSkill.new(self)
@@ -52,6 +54,8 @@ func _init() -> void:
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
 	weapon_throw = WeaponThrowSkill.new(self)
+	knockdown = Knockdown.new(self)
+	hit_reaction = HitReaction.new(self)
 
 var _grip_index: int = 3
 var _held_path: String = SWORD_PATH
@@ -147,12 +151,10 @@ var iron_shoves: int = 0
 var retaliations_fired: int = 0
 var last_stun_blocked: String = ""
 var _unbowed_ready_ms: int = 0
-var _recovery_shove_armed: bool = false
-var _stun_prev: bool = false
 
 ## A stagger that would stop him. A LIGHT one is shrugged off while he winds up a heavy skill (Unbowed, then a short cooldown so chip
 ## damage cannot make him unstoppable) or presses in on a target (Stubborn Advance: he only flinches, slowed a moment). A HEAVY one always
-## lands, and with Iron Recovery arms the shove he makes when he shakes it off. None of this is damage immunity.
+## lands and puts him on the ground (see Knockdown). None of this is damage immunity.
 func _gain_stun(duration: float, result: Dictionary = {}) -> void:
 	var heavy: bool = is_heavy_hit(result)
 	if not heavy:
@@ -166,12 +168,14 @@ func _gain_stun(duration: float, result: Dictionary = {}) -> void:
 			stubborn_suppressed += 1
 			last_stun_blocked = "stubborn_advance"
 			return
+	if knockdown.active():
+		return   # already down: the lock is the fall's own, and a second blow neither restarts nor stretches it
+	if heavy and knockdown.begin():
+		return
 	super._gain_stun(duration, result)
-	if heavy and has_passive("iron_recovery"):
-		_recovery_shove_armed = true
 
-## Iron Recovery: shaking off a heavy stagger, he drives the lesser enemies round him back with his whole body (no damage; bosses and
-## heavy bodies resist).
+## Iron Recovery: Knockdown calls it when a get-up runs to the end. On his feet again, he drives the lesser enemies round him back
+## with his whole body (no damage; bosses and heavy bodies resist).
 func _iron_recovery() -> void:
 	iron_shoves += 1
 	var centre: Vector3 = global_position
@@ -189,6 +193,18 @@ func _iron_recovery() -> void:
 	Fx.shake(self, 0.1)
 	Fx.punch(self, 1.4)
 
+## The flinch of an ordinary stagger. A blow that lands in the middle of a swing is only felt once the swing is over (the swing is
+## never cut short), so the reaction runs at the speed that ends it with the stun: it never plays on after control is back, and a
+## stagger with only a breath left is not acted out at all.
+func _play_flinch() -> void:
+	if stun_time < 0.08:
+		return
+	var speed: float = 1.4
+	if model.anim != null and model.anim.has_animation("game/hit"):
+		speed = clampf(model.anim.get_animation("game/hit").length / stun_time, 1.0, 2.2)
+	model.once("hit", 0.0, speed, 0.1)
+	hit_reaction.begin(_last_hit_from, stun_time)
+
 func _physics_process(delta: float) -> void:
 	weapon_throw.tick(delta)
 	_dormancy_timer -= delta
@@ -203,17 +219,14 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 	retaliation_time = maxf(retaliation_time - delta, 0.0)
-	var stunned_now: bool = stun_time > 0.0
-	if _stun_prev and not stunned_now and _recovery_shove_armed:
-		_recovery_shove_armed = false
-		_iron_recovery()
-	_stun_prev = stunned_now
+	knockdown.tick(delta)
+	hit_reaction.tick(delta)
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
 	skills.update_buff_visuals()
 	if model != null and model.weapon != null:
 		model.weapon.visible = not weapon_throw.is_away() and not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (not while it is out in the world)
-	if not skills.busy and visual != null and absf(visual.rotation.x) > 0.001:
+	if not skills.busy and not knockdown.active() and visual != null and absf(visual.rotation.x) > 0.001:
 		visual.rotation.x = lerpf(visual.rotation.x, 0.0, 1.0 - exp(-14.0 * delta))
 	message_time = maxf(message_time - delta, 0.0)
 	combat_timer = maxf(combat_timer - delta, 0.0)
@@ -252,7 +265,8 @@ func _physics_process(delta: float) -> void:
 	if stun_time > 0.0:
 		if not _was_stunned:
 			_was_stunned = true
-			model.once("hit", 0.0, 1.4)
+			if not knockdown.active():   # (the fall plays its own clip)
+				_play_flinch()
 		move_with(Vector3.ZERO)
 		return
 	_was_stunned = false
@@ -595,6 +609,8 @@ func _exit_tree() -> void:
 		weapon_throw.reset()
 
 func _on_death() -> void:
+	hit_reaction.clear()
+	knockdown.die()   # dying supersedes the fall (no get-up, no Iron Recovery) and the death clip carries on from his pose
 	weapon_throw.reset()   # a weapon out in the world comes back to his hand: it is never left lying where he fell
 	skills.reset()
 
@@ -615,6 +631,8 @@ func revive_at(pos: Vector3) -> void:
 	health = max_health
 	stats.mana = stats.max_mana
 	stats.stamina = stats.max_stamina
+	knockdown.cancel()
+	hit_reaction.clear()
 	stun_time = 0.0
 	hitpause = 0.0
 	invulnerable_time = 2.5

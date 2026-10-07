@@ -4286,7 +4286,7 @@ func _test_build_choices() -> void:
 		skills.busy = false
 		player._unbowed_ready_ms = 0
 		player.retaliation_time = 0.0
-		player._recovery_shove_armed = false
+		player.knockdown.reset()
 		player.combat_timer = 0.0
 	await clear_field.call()
 	player.global_position = Vector3.ZERO
@@ -4409,8 +4409,8 @@ func _test_build_choices() -> void:
 	for e in ring:
 		ring_before.append(e.flat_distance_to(player))
 	hit_hero.call(20.0, 2.7)
-	expect("a heavy hit staggers him", player.stun_time > 0.3)
-	await get_tree().create_timer(1.1).timeout
+	expect("a heavy hit knocks him down", player.stun_time > 0.3 and player.knockdown.active())
+	await get_tree().create_timer(1.7).timeout
 	var shoved: bool = true
 	for i in ring.size():
 		shoved = shoved and ring[i].flat_distance_to(player) > ring_before[i] + 1.0
@@ -6387,13 +6387,149 @@ func _test_dodge_cancels_attack() -> void:
 	expect("the held attack button does not start another swing after the roll", not swung)
 	foe.queue_free()
 
+## The hero's knockdown: a heavy blow (the old heavy-stagger trigger) puts him down -> downed -> getting up -> control; nothing works
+## while he is down; Iron Recovery rides on the completed get-up only; death cancels the fall and revival leaves him standing and free.
+func _test_hero_knockdown() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("iron_recovery")
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var kd: Knockdown = player.knockdown
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var hit_hero: Callable = func(damage: float, weight: float) -> void:
+		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
+		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
+		result["outcome"] = Combat.Outcome.CRUSHING
+		result["damage"] = damage
+		result["weight"] = weight
+		player.invulnerable_time = 0.0
+		player.receive(result, attacker.global_position)
+		player.knock = Vector3.ZERO
+		attacker.queue_free()
+	var calm: Callable = func() -> void:
+		kd.reset()
+		player.stun_time = 0.0
+		player.invulnerable_time = 0.0
+		player.health = player.max_health
+		player.attack_target = null
+		player.movement.has_goal = false
+		player.skills.busy = false
+		player.skills.aiming_id = ""
+		player.iron_shoves = 0
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+	await calm.call()
+	var ring: Array[Enemy] = []
+	for angle in [0.0, 2.1, 4.2]:
+		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
+	# An ordinary (light) stagger: no knockdown, no Iron Recovery.
+	hit_hero.call(4.0, 1.0)
+	expect("a light stagger does not knock him down", not kd.active() and kd.knockdowns == 0 and player.stun_time > 0.0)
+	await get_tree().create_timer(1.0).timeout
+	expect("and Iron Recovery does not fire on an ordinary stagger", player.iron_shoves == 0)
+	await calm.call()
+	for i in ring.size():
+		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
+		ring[i].knock = Vector3.ZERO
+		ring[i].stun_time = 0.0
+	var ring_start: Array[Vector3] = []
+	for e in ring:
+		ring_start.append(e.global_position)
+	# A heavy blow.
+	var cooldowns_before: Dictionary = player.stats.cooldowns.duplicate()
+	hit_hero.call(20.0, 2.7)
+	var health_after_blow: float = player.health
+	expect("a heavy blow puts him in the impact phase of a knockdown", kd.active() and kd.phase == Knockdown.Phase.IMPACT and kd.knockdowns == 1)
+	expect("the blow cost its damage once (20 of %d)" % int(player.max_health), absf((player.max_health - health_after_blow) - 20.0) < 8.0 and health_after_blow < player.max_health)
+	expect("he keeps his weapon through the fall", wt.has_weapon() and not wt.is_away())
+	# Walk the phases, trying to act all the way down.
+	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 3.0))
+	var seen: Array[String] = []
+	var lock_ok: bool = true
+	var tried_at_downed: bool = false
+	var held_position: Vector3 = player.global_position
+	var elapsed: float = 0.0
+	player.cursor_override = foe.global_position
+	while kd.active() and elapsed < 3.0:
+		if seen.is_empty() or seen[-1] != kd.phase_name():
+			seen.append(kd.phase_name())
+		var pressing: bool = not (kd.phase == Knockdown.Phase.GETTING_UP and kd.phase_time > Knockdown.GET_UP_TIME - 0.05)   # (the very frame he stands, he may act: not tested)
+		if pressing:
+			player.movement.goal = Vector3(8, 0, 0)
+			player.movement.has_goal = true
+			Input.action_press("dodge")
+			Input.action_press("alt_skill")
+			Input.action_press("skill_2")
+		await get_tree().physics_frame
+		Input.action_release("dodge")
+		Input.action_release("alt_skill")
+		Input.action_release("skill_2")
+		elapsed += get_physics_process_delta_time()
+		if kd.is_downed() and not tried_at_downed:
+			held_position = player.global_position   # (the blow's own shove has played out by now)
+		if kd.active():
+			lock_ok = lock_ok and not player.movement.rolling and not player.skills.busy and player.skills.aiming_id == "" and not wt.can_begin() \
+				and (not tried_at_downed or player.global_position.distance_to(held_position) < 0.05) and player.stun_time > 0.0
+			tried_at_downed = tried_at_downed or kd.is_downed()
+	player.movement.has_goal = false
+	player.cursor_override = Vector3.INF
+	expect("the phases run impact -> downed -> getting_up -> none (saw %s)" % ", ".join(seen), seen == ["impact", "downed", "getting_up"] and not kd.active())
+	expect("while he is down he cannot move, attack, dodge or cast (and was tested while downed)", lock_ok and tried_at_downed and kd.get_ups == 1)
+	expect("the whole fall is a deliberate %.2f s, not an endless lockout" % Knockdown.TOTAL_TIME, elapsed > Knockdown.TOTAL_TIME - 0.15 and elapsed < Knockdown.TOTAL_TIME + 0.5)
+	expect("control is back at the end: no stun, standing upright, the throw can start again", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01 and wt.can_begin())
+	expect("Iron Recovery fired exactly once, on the completed get-up", player.iron_shoves == 1)
+	await get_tree().create_timer(0.5).timeout
+	var shoved: bool = true
+	for i in ring.size():
+		shoved = shoved and ring[i].global_position.distance_to(ring_start[i]) > 1.0
+	expect("and shoved the lesser enemies round him back", shoved)
+	var cooldowns_ok: bool = true
+	for id in player.stats.cooldowns.keys():
+		cooldowns_ok = cooldowns_ok and float(player.stats.cooldowns[id]) <= float(cooldowns_before.get(id, 0.0)) + 0.001
+	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + 2.0 and player.health >= health_after_blow - 0.01 and cooldowns_ok)
+	await get_tree().create_timer(0.8).timeout
+	expect("no second Iron Recovery afterwards", player.iron_shoves == 1 and wt.has_weapon())
+	# A second heavy blow while already down neither restarts nor stretches the fall.
+	await calm.call()
+	hit_hero.call(20.0, 2.7)
+	await get_tree().create_timer(0.5).timeout
+	var left: float = player.stun_time
+	hit_hero.call(20.0, 2.7)
+	expect("a blow while he is down is taken (damage) but does not restart the fall", kd.knockdowns == 1 and player.stun_time <= left + 0.01)
+	# Death during a knockdown: the fall is cancelled and nothing fires.
+	await calm.call()
+	hit_hero.call(20.0, 2.7)
+	expect("a fresh knockdown", kd.active())
+	player.health = 1.0
+	player._apply_damage(500.0)
+	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
+	await get_tree().create_timer(1.6).timeout
+	expect("a dead hero never gets up, and no Iron Recovery fires from the fall", player.iron_shoves == 0 and kd.get_ups == 0 and not kd.active())
+	expect("his weapon is not lost to the fall", wt.has_weapon())
+	# Revive.
+	player.revive_at(Vector3.ZERO)
+	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and wt.can_begin() and absf(player.visual.rotation.x) < 0.01)
+	await get_tree().create_timer(0.3).timeout
+	expect("and no stray Iron Recovery arrives after the revive", player.iron_shoves == 0)
+	hit_hero.call(20.0, 2.7)
+	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
+	await get_tree().create_timer(Knockdown.TOTAL_TIME + 0.4).timeout
+	expect("and gets up again, once", not kd.active() and kd.get_ups == 1 and player.iron_shoves == 1)
+	for e in ring:
+		e.queue_free()
+	foe.queue_free()
+	player.stats.cooldowns.clear()
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
 "skillintegrity": "_test_skill_integrity",
 "actionqueue": "_test_action_queue",
-"throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices",
+"throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices", "herodown": "_test_hero_knockdown",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }

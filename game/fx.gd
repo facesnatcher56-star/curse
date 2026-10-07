@@ -13,6 +13,39 @@ const OUTCOME_STYLE := {
 
 static var _hitstop_id: int = 0
 
+## Impacts reported recently, so two presentation hooks describing the same logical hit draw it once: key -> [msec, position].
+static var _recent_impacts: Dictionary = {}
+const IMPACT_DEDUP_MSEC := 120
+const IMPACT_DEDUP_RADIUS := 1.2
+const MAX_FLASH_LIGHTS := 3
+const IMPACT_GROUP := "impact_fx"
+
+## True the first time a given kind of impact is claimed near `pos` inside the dedup window; false for a repeat (skip the visuals).
+static func claim_impact(kind: String, pos: Vector3) -> bool:
+	var now: int = Time.get_ticks_msec()
+	for key in _recent_impacts.keys():
+		if now - int(_recent_impacts[key][0]) > IMPACT_DEDUP_MSEC * 4:
+			_recent_impacts.erase(key)
+	var last: Array = _recent_impacts.get(kind, [])
+	if not last.is_empty() and now - int(last[0]) <= IMPACT_DEDUP_MSEC and (last[1] as Vector3).distance_to(pos) <= IMPACT_DEDUP_RADIUS:
+		return false
+	_recent_impacts[kind] = [now, pos]
+	return true
+
+## Compact, grounded melee impact: tier 0 light (a few sparks), 1 heavy (sparks, a puff of dust, a short flash).
+## A repeat on the same target inside the dedup window is dropped.
+static func melee_impact(from: Node, pos: Vector3, away: Vector3, tier: int, target_id: int = 0) -> bool:
+	if not claim_impact("melee_%d_%d" % [tier, target_id], pos):
+		return false
+	var dir: Vector3 = away + Vector3.UP * 0.4
+	if tier <= 0:
+		burst(from, pos, dir, Color(0.85, 0.72, 0.5), 6, 4.5, 0.02, true)
+		return true
+	burst(from, pos, dir, Color(0.95, 0.75, 0.4), 12, 6.5, 0.026, true)
+	burst(from, pos, dir, Color(0.3, 0.27, 0.23), 8, 3.5, 0.04)
+	light_flash(from, pos, Color(1.0, 0.8, 0.5), 1.6, 0.07)
+	return true
+
 static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color(0, 0, 0, 0)) -> void:
 	if not GameSettings.show_damage_numbers:
 		return
@@ -56,6 +89,7 @@ static func reset_time() -> void:
 	_slow_scale = 1.0
 	_slow_id += 1
 	_hitstop_id += 1
+	_recent_impacts.clear()
 	Engine.time_scale = 1.0
 
 static func hitstop(node: Node, duration: float) -> void:
@@ -117,7 +151,7 @@ static func burst(from: Node, pos: Vector3, dir: Vector3, color: Color, amount: 
 	var free: Array = _spark_pool.get(count, [])
 	var particles: CPUParticles3D = null
 	while not free.is_empty() and particles == null:
-		var candidate: CPUParticles3D = free.pop_back()
+		var candidate = free.pop_back()   # untyped: a scene change frees pooled emitters, and a freed object cannot be put in a typed variable
 		if is_instance_valid(candidate) and candidate.is_inside_tree():
 			particles = candidate
 	var scene: Node = from.get_tree().current_scene
@@ -150,12 +184,17 @@ static func burst(from: Node, pos: Vector3, dir: Vector3, color: Color, amount: 
 	particles.global_position = pos
 	particles.restart()
 	particles.emitting = true
-	from.get_tree().create_timer(0.8).timeout.connect(func() -> void:
-		if is_instance_valid(particles):
-			particles.emitting = false
-			if not _spark_pool.has(count):
-				_spark_pool[count] = []
-			(_spark_pool[count] as Array).append(particles))
+	from.get_tree().create_timer(0.8).timeout.connect(_recycle_sparks.bind(particles.get_instance_id(), count))
+
+## Back into the pool when the burst is spent. Goes by instance id: a scene change may have freed the emitter in the meantime.
+static func _recycle_sparks(id: int, count: int) -> void:
+	var particles := instance_from_id(id) as CPUParticles3D
+	if particles == null:
+		return
+	particles.emitting = false
+	if not _spark_pool.has(count):
+		_spark_pool[count] = []
+	(_spark_pool[count] as Array).append(particles)
 
 static var _blood_texture: GradientTexture2D
 
@@ -278,10 +317,14 @@ static func ring(from: Node, pos: Vector3, radius: float, color: Color) -> void:
 
 ## Brief point light for impact flashes.
 static func light_flash(from: Node, pos: Vector3, color: Color, energy: float, duration: float) -> void:
+	var tree: SceneTree = from.get_tree()
+	if tree.get_nodes_in_group("flash_light").size() >= MAX_FLASH_LIGHTS:
+		return   # a crowd's worth of flashes at once only washes the screen out
 	var light := OmniLight3D.new()
+	light.add_to_group("flash_light")
 	light.light_color = color
 	light.light_energy = energy
-	light.omni_range = 6.0
+	light.omni_range = 5.0
 	from.get_tree().current_scene.add_child(light)
 	light.global_position = pos
 	var tween := light.create_tween()
