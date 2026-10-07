@@ -7664,7 +7664,8 @@ func _test_crypt_road() -> void:
 		kinds[e.variant] = true
 	print("  monsters ", all.size(), " awake ", awake, " within 12 m of the start ", near_start)
 	expect("monsters already exist across the road, none awake and none on the hero", all.size() >= 40 and awake == 0 and near_start == 0)
-	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes", kinds.size() == 6)
+	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes and a warden", kinds.size() == 7 and kinds.has("zombie") and kinds.has("ghoul")
+		and kinds.has("spitter") and kinds.has("bloater") and kinds.has("priest") and kinds.has("brute") and kinds.has("warden"))
 	expect("the road is crowded: about four times the old hand-placed count", all.size() >= 170 and all.size() <= 280)
 	# No long stretch is left empty: from the first walkers to the crypt door, across the road and out under the trees.
 	var worst: float = 0.0
