@@ -24,11 +24,7 @@ function Read-State {
     if (Test-Path $statePath) {
         try { return Get-Content $statePath -Raw | ConvertFrom-Json } catch {}
     }
-    return [pscustomobject]@{
-        last_seen_comment_id = 0
-        active_task = $null
-        active_comment_id = 0
-    }
+    return $null
 }
 
 function Save-State($State) {
@@ -131,6 +127,24 @@ while ($true) {
     try {
         $state = Read-State
         $comments = Get-Comments
+
+        # First start establishes a high-water mark and NEVER replays historical TASKs.
+        # DESIGNER can repost/refresh the currently desired task after dispatcher startup.
+        if ($null -eq $state) {
+            $highest = 0
+            foreach ($c in $comments) {
+                if ([long]$c.id -gt $highest) { $highest = [long]$c.id }
+            }
+            $state = [pscustomobject]@{
+                last_seen_comment_id = $highest
+                active_task = $null
+                active_comment_id = 0
+            }
+            Save-State $state
+            Log "Initialized dispatcher high-water mark at comment=$highest; historical tasks will not be replayed."
+            Start-Sleep -Seconds $PollSeconds
+            continue
+        }
 
         if (-not [string]::IsNullOrWhiteSpace([string]$state.active_task)) {
             if (Active-Task-Completed $comments $state) {
