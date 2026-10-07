@@ -18,7 +18,7 @@ function Show-CommandStatus([string]$Name, [string[]]$VersionArgs) {
 
 Show-CommandStatus "gh" @("--version")
 Show-CommandStatus "codex" @("--version")
-Show-CommandStatus "gemini" @("--version")
+Show-CommandStatus "agy" @("--version")
 
 Write-Host ""
 Write-Host "This script only reports command availability. It does not install, authenticate, or launch an agent."
