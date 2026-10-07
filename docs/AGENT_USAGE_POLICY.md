@@ -4,25 +4,28 @@ Applies to Claude Code, Codex, and Antigravity autonomous lanes for Curse.
 
 ## OWNER quota reserve
 
-Percentages are **remaining allowance**, not used allowance.
+The OWNER's limits are expressed as **usage consumed**:
 
-An autonomous lane must PAUSE when either condition is true:
+- PAUSE when rolling / five-hour usage reaches >= 85% used
+- PAUSE when weekly usage reaches >= 95% used
 
-- rolling / five-hour allowance remaining <= 85%
-- weekly allowance remaining <= 95%
+Equivalent remaining allowance thresholds:
 
-This intentionally preserves substantial capacity for interactive OWNER/DESIGNER use.
+- PAUSE when five-hour remaining <= 15%
+- PAUSE when weekly remaining <= 5%
+
+The purpose is to preserve the final 15% of the five-hour allowance and the final 5% of the weekly allowance for OWNER/manual use and recovery.
 
 ## Hard gate behavior
 
 Before starting any new TASK or REVIEW, the dispatcher must obtain a trustworthy current usage reading for that provider/account.
 
-If either remaining threshold is at or below the OWNER limit:
+If either threshold has been reached:
 - do not start another autonomous model run;
 - record the lane as QUOTA_PAUSED;
 - leave the AgentBridge message unexecuted/queued;
 - notify through the lane's AgentBridge issue if that notification can be posted without consuming the constrained model allowance;
-- resume only after the usage reading is back above BOTH thresholds.
+- resume only after BOTH applicable usage windows are back below their limits.
 
 If a reliable usage reading cannot be obtained:
 - fail closed;
@@ -50,9 +53,9 @@ Known user-facing checks:
 - Antigravity: Google documents `/usage` in Antigravity CLI.
 - Claude Code: inspect and verify the installed Claude Code client's supported usage/status mechanism before enabling the autonomous gate. Do not invent or scrape an undocumented format without validation.
 
-The autonomous dispatcher should convert the provider's reading into:
-- five_hour_remaining_percent (nullable only when provider has no such window)
-- weekly_remaining_percent
+The autonomous dispatcher should normalize the provider's reading into:
+- five_hour_used_percent
+- weekly_used_percent
 - observed_at
 - source
 
@@ -60,6 +63,6 @@ If the user's plan/provider genuinely has no five-hour window, only the weekly t
 
 ## Scope
 
-This policy governs autonomous agent execution. It does not prevent the OWNER from manually choosing to use an agent below these reserves.
+This policy governs autonomous agent execution. It does not prevent the OWNER from manually choosing to use an agent after an autonomous limit has been reached.
 
 Do not automatically purchase credits, consume banked resets, change plans, switch billing modes, or apply paid resets.
