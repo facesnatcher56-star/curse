@@ -85,3 +85,10 @@ Each worktree has its own `.agentbridge/` runtime folder, so watcher state/inbox
 - No agent may force-push, deploy, delete production data, or modify secrets without OWNER authorization.
 - No full test suite unless OWNER requests it.
 - No auto-commit unless OWNER requests it or an explicit integration workflow says otherwise.
+
+
+## Shared local tools
+
+The OWNER's development PC has Blender installed and available to every implementation lane. See `docs/AGENT_ENVIRONMENT.md`.
+
+Claude Code, Codex, and Antigravity may use Blender when a task requires or materially benefits from 3D modeling, rigging, animation, collision/proxy geometry, asset conversion/export, or scripted Blender processing. Do not reinstall it by default; verify the local executable/version when first needed.
