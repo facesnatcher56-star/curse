@@ -163,3 +163,16 @@ After the OWNER-approved integration checkpoint exists:
 11. only then assign real implementation work.
 
 Do not replay the obsolete Gemini CLI bootstrap instructions.
+
+
+## Usage gate
+
+Before autonomous TASK/REVIEW dispatch, obey `docs/AGENT_USAGE_POLICY.md`.
+
+Antigravity's documented interactive usage command is `/usage`. The autonomous lane must use a locally verified reliable way to obtain the same quota state before dispatch. If that cannot be done reliably, fail closed rather than guessing.
+
+OWNER reserve:
+- five-hour remaining must be > 85% when that window applies;
+- weekly remaining must be > 95%.
+
+At or below either threshold, do not start another autonomous Antigravity run.
