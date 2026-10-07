@@ -34,6 +34,8 @@ $localDir = Join-Path $repoRoot ".agentbridge"
 $statePath = Join-Path $localDir "claude-dispatch-state.json"
 $logPath = Join-Path $localDir "claude-dispatch.log"
 $stopPath = Join-Path $localDir "STOP"
+$healthPath = Join-Path $localDir "claude-dispatcher-health.json"
+$healthCommentIdPath = Join-Path $localDir "claude-health-comment.id"
 
 $LANE_DIR_NAME = "curse-claude"
 $LANE_BRANCH = "agents/claude"
@@ -258,6 +260,76 @@ if (-not (Test-Path -LiteralPath $ClaudeExe)) { throw "Claude executable not fou
 
 function Read-State { if (Test-Path $statePath) { try { return Get-Content $statePath -Raw | ConvertFrom-Json } catch {} }; return $null }
 function Save-State($State) { $State | ConvertTo-Json -Depth 5 | Set-Content -Path $statePath -Encoding utf8 }
+
+function Get-StateValue($State, [string]$Name, $Default) {
+    if ($null -ne $State -and $State.PSObject.Properties.Name -contains $Name) { return $State.$Name }
+    return $Default
+}
+
+function Write-AtomicJson([string]$Path, $Object) {
+    $tmp = "$Path.tmp"
+    $Object | ConvertTo-Json -Depth 6 | Set-Content -Path $tmp -Encoding utf8
+    Move-Item -LiteralPath $tmp -Destination $Path -Force
+}
+
+function Update-DispatcherHealth($State, [string]$Status, [string]$LastError = "") {
+    try {
+        $workerPid = Get-StateValue $State "active_pid" 0
+        $activeTask = [string](Get-StateValue $State "active_task" "")
+        $sourceComment = Get-StateValue $State "active_comment_id" 0
+        $lastSeen = Get-StateValue $State "last_seen_comment_id" 0
+        $heartbeat = (Get-Date).ToUniversalTime().ToString("o")
+        $health = [ordered]@{
+            lane = "CLAUDE"
+            status = $Status
+            dispatcher_pid = $PID
+            worker_pid = $workerPid
+            active_task = $activeTask
+            source_comment_id = $sourceComment
+            last_seen_comment_id = $lastSeen
+            poll_seconds = $PollSeconds
+            heartbeat_utc = $heartbeat
+            last_error = $LastError
+        }
+        Write-AtomicJson $healthPath $health
+
+        $body = "[AGENTBRIDGE]`nproject=curse`nfrom=CLAUDE`nto=ALL`ntype=HEALTH`ntask=dispatcher-health-claude`n`nstatus=$Status`ndispatcher_pid=$PID`nworker_pid=$workerPid`nactive_task=$activeTask`nsource_comment_id=$sourceComment`nlast_seen_comment_id=$lastSeen`npoll_seconds=$PollSeconds`nheartbeat_utc=$heartbeat`nlast_error=$LastError"
+        $commentId = 0
+        if (Test-Path -LiteralPath $healthCommentIdPath) {
+            [void][long]::TryParse((Get-Content -LiteralPath $healthCommentIdPath -Raw).Trim(), [ref]$commentId)
+        }
+        if ($commentId -gt 0) {
+            $patchOut = & gh api --method PATCH "repos/$($config.repository)/issues/comments/$commentId" -f "body=$body" 2>&1
+            if ($LASTEXITCODE -eq 0) { return }
+            if ("$patchOut" -notmatch "404|Not Found") {
+                Log "Health comment update failed: $patchOut"
+                return
+            }
+            Remove-Item -LiteralPath $healthCommentIdPath -Force -ErrorAction SilentlyContinue
+        }
+        $newId = & gh api --method POST "repos/$($config.repository)/issues/4/comments" -f "body=$body" --jq ".id" 2>&1
+        if ($LASTEXITCODE -eq 0 -and "$newId" -match "^\d+$") {
+            Set-Content -LiteralPath $healthCommentIdPath -Value "$newId" -Encoding ascii
+        } else {
+            Log "Health comment create failed: $newId"
+        }
+    } catch {
+        Log "Health update failed (non-fatal): $($_.Exception.Message)"
+    }
+}
+
+function Post-Dispatched([string]$TaskId, [long]$CommentId, [int]$WorkerPid) {
+    try {
+        $utc = (Get-Date).ToUniversalTime().ToString("o")
+        $body = "[AGENTBRIDGE]`nproject=curse`nfrom=CLAUDE`nto=DESIGNER`ntype=DISPATCHED`ntask=$TaskId`n`ncomment_id=$CommentId`ndispatcher_pid=$PID`nworker_pid=$WorkerPid`ndispatched_utc=$utc"
+        $file = Join-Path $localDir "claude-dispatched-$CommentId.md"
+        Set-Content -LiteralPath $file -Value $body -Encoding utf8
+        & gh issue comment $config.issue_number --repo $config.repository --body-file $file 1>$null 2>$null
+        if ($LASTEXITCODE -ne 0) { Log "DISPATCHED post failed for task=$TaskId comment=$CommentId (non-fatal)" }
+    } catch {
+        Log "DISPATCHED post failed for task=$TaskId comment=$CommentId (non-fatal): $($_.Exception.Message)"
+    }
+}
 function Get-Comments {
     $endpoint = "repos/$($config.repository)/issues/$($config.issue_number)/comments?per_page=100"
     return @(& gh api $endpoint | ConvertFrom-Json)
@@ -296,6 +368,8 @@ function Start-Worker($Task, $State) {
     $State.active_started = (Get-Date).ToUniversalTime().ToString("o")
     $State.last_seen_comment_id = $commentId
     Save-State $State
+    Post-Dispatched $taskId $commentId $p.Id
+    Update-DispatcherHealth $State "RUNNING" ""
     return $true
 }
 
@@ -334,8 +408,10 @@ function Check-Worker($State) {
 
 Log "Claude lane dispatcher started in $repoRoot (branch $LANE_BRANCH, claude=$ClaudeExe). It runs allowlisted TASK/REVIEW messages one at a time via 'claude -p'; comment text is never executed."
 
+Update-DispatcherHealth $null "STARTING" ""
 $lastQuotaState = ""
 $lastStopLogged = $false
+$state = $null
 while ($true) {
     try {
         $state = Read-State
@@ -346,6 +422,7 @@ while ($true) {
             $state = [pscustomobject]@{ last_seen_comment_id = $highest; active_task = $null; active_comment_id = 0; active_pid = 0; active_started = "" }
             Save-State $state
             Log "Initialized high-water mark at comment=$highest; earlier messages are never replayed."
+            Update-DispatcherHealth $state "IDLE" ""
             Start-Sleep -Seconds $PollSeconds
             continue
         }
@@ -370,7 +447,13 @@ while ($true) {
                 elseif ([long]$next.passed_to -gt [long]$state.last_seen_comment_id) { $state.last_seen_comment_id = [long]$next.passed_to; Save-State $state }
             }
         }
+        $healthStatus = if (-not [string]::IsNullOrWhiteSpace([string](Get-StateValue $state "active_task" ""))) { "RUNNING" } elseif (Test-StopRequested $stopPath) { "PAUSED" } else { "IDLE" }
+        Update-DispatcherHealth $state $healthStatus ""
     }
-    catch { Log "Dispatcher iteration failed: $($_.Exception.Message)" }
+    catch {
+        $err = $_.Exception.Message
+        Log "Dispatcher iteration failed: $err"
+        Update-DispatcherHealth $state "FAILED" $err
+    }
     Start-Sleep -Seconds $PollSeconds
 }
