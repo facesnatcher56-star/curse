@@ -8,6 +8,12 @@ extends Node3D
 ##   3. Alternate western mortuary shelter angle with embalming slab and flank cover
 ##   4. Post-fight crypt destination view looking up the steps into the sealed crypt gate facade
 
+class ForecourtBannerSpy extends Hud:
+	var calls: int = 0
+	func show_banner(text: String, seconds: float = 2.5) -> void:
+		calls += 1
+		super.show_banner(text, seconds)
+
 var arena: Arena
 var location: CryptRoad
 var director: RunDirector
@@ -164,30 +170,61 @@ func _run_validation() -> void:
 	assert(ossuary_dist < 1.8, "Path must reach ossuary niches (distance: %.2f)" % ossuary_dist)
 	print("  [PASS] Ossuary bone niches accessible (ends %.2f m from target)" % ossuary_dist)
 
-	# 3. Spawn encounters and verify placement.
+	# 3. Spawn encounters and verify physical presence & elite contract.
 	location.spawn_encounters(director)
 	await get_tree().process_frame
 	await get_tree().physics_frame
 
-	var enemies: Array = get_tree().get_nodes_in_group("enemies")
+	var climax: CryptForecourtClimax = CryptForecourtEncounter.get_climax(location)
+	assert(climax != null, "CryptForecourtClimax controller must be attached to road")
+
+	var all_enemies: Array = get_tree().get_nodes_in_group("enemies")
+	var total_road_enemies: int = all_enemies.size()
+	print("  [PASS] Total enemies on Crypt Road: %d (budget range [170, 280])" % total_road_enemies)
+	assert(total_road_enemies >= 170 and total_road_enemies <= 280, "Total Crypt Road enemy count must be within [170, 280]")
+
 	var forecourt_enemies: Array[Enemy] = []
-	for node in enemies:
+	for node in all_enemies:
 		var e := node as Enemy
 		if e != null and e.global_position.z <= -146.0 and e.global_position.z >= -165.0:
 			forecourt_enemies.append(e)
 
 	print("  [PASS] Forecourt encounter spawned: %d enemies in the z = -146..-165 zone" % forecourt_enemies.size())
-	assert(forecourt_enemies.size() >= 12, "Expected at least 12 forecourt enemies across groups 27, 28, 29")
+	assert(forecourt_enemies.size() == 15, "Expected exactly 15 forecourt enemies across groups 27, 28, 29 (got %d)" % forecourt_enemies.size())
 
 	var groups: Dictionary = {}
 	for e in forecourt_enemies:
 		groups[e.group_id] = groups.get(e.group_id, 0) + 1
-		assert(not e._aggro, "Enemies must start unalerted")
+		assert(not e._aggro, "All enemies must start unalerted")
 		assert(e.global_position.distance_to(CryptRoad.START) >= 280.0, "Enemies must be >= 280m from start")
 
-	print("  [PASS] Group distribution: %s, all unalerted, safe initial distance" % str(groups))
+	assert(groups.get(CryptForecourtClimax.GROUP_CENTER, 0) == 7, "Group 27 (Center) must have 7 enemies")
+	assert(groups.get(CryptForecourtClimax.GROUP_EAST, 0) == 4, "Group 28 (East) must have 4 enemies")
+	assert(groups.get(CryptForecourtClimax.GROUP_WEST, 0) == 4, "Group 29 (West) must have 4 enemies")
+	print("  [PASS] Group distribution verified physically present: Group 27 (7), Group 28 (4), Group 29 (4) = 15 total")
 
-	# 4. Capture screenshots from 4 authored perspectives.
+	# Elite slot contract verification.
+	assert(CryptForecourtEncounter.CENTER_ELITE_ID != "", "CENTER_ELITE_ID constant must be exposed")
+	var center_enemies: Array[Enemy] = climax.get_group_enemies(CryptForecourtClimax.GROUP_CENTER)
+	var found_elite: Enemy = null
+	for e in center_enemies:
+		if e.variant == CryptForecourtEncounter.CENTER_ELITE_ID:
+			found_elite = e
+			break
+	assert(found_elite != null, "Center group must contain the elite enemy matching CENTER_ELITE_ID (%s)" % CryptForecourtEncounter.CENTER_ELITE_ID)
+	assert(found_elite.global_position.distance_to(Vector3(0.0, 0.0, -161.0)) < 2.5, "Elite must be positioned at crypt portal steps")
+	print("  [PASS] Elite slot contract verified: variant '%s' present at portal steps (z=%.2f)" % [found_elite.variant, found_elite.global_position.z])
+
+	# Verify all forecourt enemies are on/near navmesh and reachable.
+	for e in forecourt_enemies:
+		var closest: Vector3 = NavigationServer3D.map_get_closest_point(map, e.global_position)
+		var nav_dist: float = e.global_position.distance_to(closest)
+		assert(nav_dist < 1.0, "Enemy %s (group %d) must be placed on navmesh (offset: %.2f)" % [e.variant, e.group_id, nav_dist])
+		var p_path: PackedVector3Array = NavigationServer3D.map_get_path(map, Vector3(0.0, 0.0, -145.0), e.global_position, true)
+		assert(not p_path.is_empty(), "Enemy %s (group %d) must be reachable from entrance" % [e.variant, e.group_id])
+	print("  [PASS] All 15 forecourt enemies verified nav-valid and reachable from forecourt approach")
+
+	# 4. Capture initial screenshots (Views 1, 2, 3) with full encounter presence.
 	capture_dir = _resolve_capture_dir()
 	var dir_err: Error = DirAccess.make_dir_recursive_absolute(capture_dir)
 	if dir_err != OK:
@@ -212,7 +249,66 @@ func _run_validation() -> void:
 	var err3: Error = await _capture("crypt_forecourt_alternate_angle.png")
 	assert(err3 == OK, "Failed to capture crypt_forecourt_alternate_angle.png: %s" % error_string(err3))
 
-	# View 4: Post-fight Crypt Destination View (looking up the grand stone steps into the sealed facade of the crypt portal).
+	# Exercise the actual Actor damage/death path, without timer or manual stage shortcuts.
+	climax.set_physics_process(false)
+	for node in all_enemies:
+		node.set_physics_process(false)
+		if node.died.is_connected(director._on_enemy_died):
+			node.died.disconnect(director._on_enemy_died)
+	var banner_spy := ForecourtBannerSpy.new()
+	director.hud = banner_spy
+	var stages: Array[int] = []
+	var clear_counter: Array[int] = [0]
+	climax.stage_changed.connect(func(stage: int) -> void: stages.append(stage))
+	climax.encounter_cleared.connect(func() -> void: clear_counter[0] += 1)
+	assert(climax.current_stage == CryptForecourtClimax.Stage.DORMANT)
+	assert(climax.get_active_groups().is_empty())
+	assert(found_elite.variant == "warden" and found_elite.behavior is WardenBehavior)
+	found_elite._apply_damage(1.0)
+	climax._physics_process(0.01)
+	assert(climax.get_active_groups() == [27], "Damage opens center only")
+	climax.complete_encounter()
+	assert(clear_counter[0] == 0, "Living enemies block premature clear")
+	for i in range(3):
+		center_enemies[i]._apply_damage(center_enemies[i].health + 1.0)
+		assert(climax.get_alive_count(27) == 6 - i, "Actor death updates center count")
+		if i < 2:
+			assert(climax.current_stage == CryptForecourtClimax.Stage.OPENING, "East waits for third casualty")
+	assert(climax.current_stage == CryptForecourtClimax.Stage.FIRST_FLANK)
+	assert(climax.get_active_groups() == [27, 28], "Real deaths activate east only")
+	print("  [PASS] Actor damage/death signals activate east after three center casualties")
+	for i in range(3, 5):
+		center_enemies[i]._apply_damage(center_enemies[i].health + 1.0)
+		if i == 3:
+			assert(climax.current_stage == CryptForecourtClimax.Stage.FIRST_FLANK, "West waits for fifth casualty")
+	assert(climax.current_stage == CryptForecourtClimax.Stage.SECOND_FLANK)
+	assert(climax.get_active_groups() == [27, 28, 29], "Real deaths activate west")
+	print("  [PASS] Actor damage/death signals activate west after five center casualties")
+	for e in forecourt_enemies:
+		if not e.dead:
+			if climax.get_total_alive_count() > 1:
+				assert(clear_counter[0] == 0 and banner_spy.calls == 0, "Clear/banner wait for last death")
+			e._apply_damage(e.health + 1.0)
+	assert(climax.get_total_alive_count() == 0 and climax.is_cleared())
+	assert(clear_counter[0] == 1 and banner_spy.calls == 1)
+	assert(banner_spy.banner_text == CryptForecourtClimax.CLEAR_BANNER_TEXT)
+	assert(stages == [1, 2, 3, 4], "Each stage activates exactly once")
+	climax.complete_encounter()
+	climax.activate_opening()
+	climax.trigger_stage_1()
+	climax.trigger_stage_2()
+	climax._physics_process(30.0)
+	for e in forecourt_enemies:
+		e._apply_damage(1.0) # Already-dead actors must not emit another death.
+	assert(clear_counter[0] == 1 and banner_spy.calls == 1)
+	assert(climax.get_clear_event_fired_count() == 1 and stages == [1, 2, 3, 4])
+	assert(climax.current_stage == CryptForecourtClimax.Stage.CLEARED)
+	assert(climax.get_total_count() == 15 and get_tree().get_nodes_in_group("enemies").size() == total_road_enemies - 15)
+	print("  [PASS] Real deaths clear/banner exactly once; no duplicate activation, respawn or retrigger")
+	director.hud = null
+	banner_spy.free()
+
+	# 6. View 4: Post-fight Crypt Destination View (looking up the grand stone steps into the sealed facade).
 	cam.global_position = Vector3(0.0, 2.8, -157.0)
 	cam.look_at(Vector3(0.0, 3.2, -166.0), Vector3.UP)
 	var err4: Error = await _capture("crypt_forecourt_destination_view.png")
@@ -270,6 +366,9 @@ func _capture(filename: String) -> Error:
 	await get_tree().create_timer(0.3).timeout
 	var img: Image = get_viewport().get_texture().get_image()
 	if img == null or img.is_empty():
+		if DisplayServer.get_name() == "headless":
+			print("  [RENDER NOTICE] Headless display server has no viewport texture; skipping capture for %s" % filename)
+			return OK
 		printerr("  [RENDER ERROR] Viewport texture returned empty image for %s" % filename)
 		return ERR_CANT_CREATE
 

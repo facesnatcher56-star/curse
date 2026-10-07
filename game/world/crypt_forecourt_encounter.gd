@@ -20,10 +20,19 @@ extends RefCounted
 ##   - Ruined mortuary shelter on the western verge providing close-quarters cover and flank infiltration.
 ##   - Ossuary wall and pillars on the eastern verge offering high cover against ranged line of sight.
 ##   - Final exterior resistance encounter:
-##     * Group 27: Crypt Portal Vanguard & Mortuary Officiant (corrupted priest + 2 placed zombies = 7 enemies).
+##     * Group 27: Crypt Portal Vanguard (elite CENTER_ELITE_ID + 2 placed zombies = 7 enemies).
 ##     * Group 28: Ossuary Sentry & Scavengers (spitter lookout + 1 placed ghoul = 4 enemies).
 ##     * Group 29: Mortuary Shelter Feeder & Scavengers (bloater + 1 placed ghoul = 4 enemies).
 ##   - Total forecourt enemies: 15 (raising Crypt Road monster count from 231 to 246, safely within the [170, 280] limit).
+
+## Exposed single elite enemy slot constant for the center vanguard group (Group 27).
+## Set to an existing enemy id ("brute") for independent lane execution.
+## Integration step may later swap this single constant to "warden".
+const CENTER_ELITE_ID: String = "warden"
+
+const GROUP_CENTER: int = 27
+const GROUP_EAST: int = 28
+const GROUP_WEST: int = 29
 
 const CENTER_Z := -154.0
 const BOUNDS_Z_MIN := -164.0
@@ -39,15 +48,15 @@ static func build(road: CryptRoad, _arena: Arena) -> void:
 	_build_portal_terrace(road)
 	_build_flank_corridors(road)
 
-## Populates the crypt forecourt encounter groups.
+## Populates the crypt forecourt encounter groups and attaches the staged climax controller.
 ## All enemies are placed at z <= -151 so they are > 300 m from player start (z = 150).
-static func spawn_encounters(road: CryptRoad, _director: RunDirector) -> void:
-	# Group 27: Crypt Portal Vanguard & Mortuary Officiant (Center & Crypt Gate Threshold, z = -158..-162).
-	# 1 corrupted priest (single copy) presiding over the sealed crypt steps + 2 placed zombies (pallbearer wardens,
+static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
+	# Group 27: Crypt Portal Vanguard (Center & Crypt Gate Threshold, z = -158..-162).
+	# 1 elite (CENTER_ELITE_ID, single copy) presiding over the sealed crypt steps + 2 placed zombies (pallbearer wardens,
 	# 3 pack copies each = 6 zombies). Total = 7 enemies.
 	# Mode "": holding ground at the sacred sealed entrance.
-	road._group(27, "", [
-		["priest", 0.0, -161.0],
+	road._group(GROUP_CENTER, "", [
+		[CENTER_ELITE_ID, 0.0, -161.0],
 		["zombie", -2.4, -158.8],
 		["zombie", 2.4, -158.8]
 	], Vector2(0.0, -159.5), 3.5)
@@ -55,7 +64,7 @@ static func spawn_encounters(road: CryptRoad, _director: RunDirector) -> void:
 	# Group 28: Ossuary Sentry & Scavengers (Eastern Ossuary Wall & Niches, z = -151..-155).
 	# 1 spitter lookout (single copy) stationed behind low stone wall cover + 1 placed ghoul (3 pack copies = 3 ghouls).
 	# Total = 4 enemies.
-	road._group(28, "wander", [
+	road._group(GROUP_EAST, "wander", [
 		["spitter", 7.8, -154.5],
 		["ghoul", 9.5, -152.0]
 	], Vector2(8.5, -153.5), 3.5, Vector2.ZERO, [
@@ -67,7 +76,7 @@ static func spawn_encounters(road: CryptRoad, _director: RunDirector) -> void:
 	# Group 29: Mortuary Shelter Feeder & Scavengers (Western Mortuary Shelter & Bier, z = -151..-156).
 	# 1 bloater (single copy) corrupted by embalming fluid + 1 placed ghoul (3 pack copies = 3 ghouls).
 	# Total = 4 enemies.
-	road._group(29, "wander", [
+	road._group(GROUP_WEST, "wander", [
 		["bloater", -9.0, -154.5],
 		["ghoul", -7.5, -152.0]
 	], Vector2(-8.5, -153.5), 3.5, Vector2.ZERO, [
@@ -75,6 +84,19 @@ static func spawn_encounters(road: CryptRoad, _director: RunDirector) -> void:
 		Vector2(-10.0, -155.0),
 		Vector2(-8.0, -156.5)
 	])
+
+	# Attach and initialize the staged encounter climax controller
+	var climax := CryptForecourtClimax.new()
+	climax.name = "CryptForecourtClimax"
+	road.add_child(climax)
+	climax.setup(road, director)
+
+## Returns the staged climax controller attached to the CryptRoad instance.
+static func get_climax(road: CryptRoad) -> CryptForecourtClimax:
+	if road == null:
+		return null
+	return road.get_node_or_null("CryptForecourtClimax") as CryptForecourtClimax
+
 
 ## Forecourt entrance threshold markers and silhouettes visible when approaching North along the avenue (z = -146..-149).
 static func _build_approach_silhouettes(road: CryptRoad) -> void:
