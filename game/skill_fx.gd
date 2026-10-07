@@ -218,22 +218,22 @@ static func earth_wave(scene: Node, origin: Vector3, dir: Vector3, reach: float,
 
 ## The crushing blow: flash, expanding rings, dust, rocks, cracks, kick and hit-stop.
 static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered: bool) -> void:
+	if not Fx.claim_impact("power", point):
+		return
 	var scene: Node = player
-	var flash_color: Color = Color(1.0, 0.7, 0.35)
-	Fx.light_flash(scene, point + Vector3(0, 0.6, 0), flash_color, 5.5, 0.22)
-	ground_ring(scene, point, 0.4, 3.2, Color(1.0, 0.75, 0.4, 0.9), 0.38)
-	ground_ring(scene, point, 0.2, 2.0, Color(1.0, 1.0, 0.9, 0.8), 0.25, 0.04, 0.2)
-	dust(scene, point, 1.6, 22)
-	debris(scene, point, 22, 7.0)
-	Fx.burst(scene, point + Vector3(0, 0.3, 0), Vector3.UP, Color(1.0, 0.8, 0.4), 26, 9.0, 0.03, true)   # sparks
-	ground_cracks(scene, point, 7, 0.9, 2.4)
-	earth_wave(scene, point, dir, 3.6, 0.3, 0.4)   # a short run of broken ground in the direction of the blow
-	slash_arc(scene, player.global_position, atan2(dir.x, dir.z), 0.5, 2.9, 1.7, Color(1.0, 0.65, 0.3, 0.85), 0.22, 0.7, 1.15)
+	Fx.light_flash(scene, point + Vector3(0, 0.6, 0), Color(1.0, 0.7, 0.35), 3.5, 0.15)
+	ground_ring(scene, point, 0.4, 2.4, Color(1.0, 0.72, 0.4, 0.6), 0.3)   # one ring: the reach of the blow
+	dust(scene, point, 1.3, 14)
+	debris(scene, point, 16, 6.0)
+	Fx.burst(scene, point + Vector3(0, 0.3, 0), Vector3.UP, Color(1.0, 0.8, 0.4), 16, 8.0, 0.026, true)   # compact sparks
+	ground_cracks(scene, point, 5, 0.8, 2.0)
+	earth_wave(scene, point, dir, 3.2, 0.3, 0.4)   # a short run of broken ground in the direction of the blow
+	slash_arc(scene, player.global_position, atan2(dir.x, dir.z), 0.5, 2.7, 1.7, Color(1.0, 0.65, 0.3, 0.55), 0.2, 0.7, 1.15)
 	Fx.shake(scene, 0.32)
 	Fx.punch(scene, 3.4)
 	Fx.kick(scene, dir, 0.7)
 	if empowered:
-		Fx.ring(scene, point, 4.0, Color(0.9, 0.8, 0.5))
+		Fx.ring(scene, point, 3.4, Color(0.9, 0.8, 0.5))
 
 ## Gravewarden: a shockwave that tears forward along the line, ring after ring, with a glowing fissure underneath.
 static func gravewarden_wave(player: Player, dir: Vector3) -> void:
@@ -370,12 +370,14 @@ static func chain_spark(player: Player, at: Vector3) -> void:
 ## The ultimate's impact, kept readable: a short flash, one bright ring racing out to the edge of the blast (the visible reach of
 ## the move) with a paler one right behind it, a low ring of dust, a few rock chips and a few short scars at the centre. Nothing else.
 static func earthshatter_impact(player: Player, point: Vector3, radius: float) -> void:
+	if not Fx.claim_impact("earthshatter", point):
+		return
 	var scene: Node = player
-	Fx.light_flash(scene, point + Vector3(0, 1.0, 0), Color(1.0, 0.7, 0.35), 7.0, 0.25)
-	ground_ring(scene, point, 0.5, radius, Color(1.0, 0.72, 0.35, 0.9), 0.5, 0.0, 0.1)
-	ground_ring(scene, point, 0.3, radius * 0.8, Color(1.0, 0.95, 0.85, 0.5), 0.45, 0.06, 0.06)
-	dust(scene, point, radius * 0.3, 12, Color(0.45, 0.4, 0.34, 0.25), 1.0, 0.8)
-	debris(scene, point, 14, 8.0)
+	Fx.light_flash(scene, point + Vector3(0, 1.0, 0), Color(1.0, 0.7, 0.35), 4.5, 0.2)
+	ground_ring(scene, point, 0.5, radius, Color(1.0, 0.72, 0.35, 0.7), 0.5, 0.0, 0.1)
+	ground_ring(scene, point, 0.3, radius * 0.8, Color(1.0, 0.92, 0.8, 0.3), 0.45, 0.06, 0.06)
+	dust(scene, point, radius * 0.3, 10, Color(0.45, 0.4, 0.34, 0.22), 1.0, 0.7)
+	debris(scene, point, 12, 7.0)
 	ground_cracks(scene, point, 5, radius * 0.1, radius * 0.22, Color(0.05, 0.04, 0.03, 0.6), 0.06, 20.0)   # a few short scars at the centre
 	Fx.shake(scene, 0.4)
 	Fx.punch(scene, 3.0)

@@ -22,6 +22,13 @@ const IMPACT_STUN := 3.0        # longer than a normal fall (lie + rise is 2 s)
 const BOWL_DAMAGE := 8.0
 const LIE_TIME := 1.1
 const RISE_TIME := 0.9
+# Corpses only (presentation): a killing blow's launch is capped, a corpse that is still tumbling gives up after a while, and a
+# corpse that has lain still stops being simulated, so it neither jitters nor fights the sink-into-the-ground tween.
+const DEAD_MAX_SPEED := 7.0
+const DEAD_MAX_LIFT := 5.0
+const DEAD_MAX_SPIN := 9.0
+const DEAD_FLIGHT_MAX := 3.0
+const DEAD_SETTLE_AFTER := 0.9   # seconds of lying (blend included) before a corpse is frozen in its pose
 
 var state: int = State.OFF
 var permanent: bool = false  # dead actors stay down
@@ -45,6 +52,8 @@ var _lie_from: Basis = Basis()
 var _lie_to: Basis = Basis()
 var _lie_blend: float = 0.0
 var _pin_time: float = 0.0
+var _flight_t: float = 0.0
+var _settled: bool = false      # a corpse frozen where it lies: no more simulation, the pose is final
 var _impact_cooldown: float = 0.0
 var _bowled: Dictionary = {}   # instance ids already struck by this flight
 var transfer_used: int = 0     # Mass Transfers this body has made (tests)
@@ -83,6 +92,8 @@ func _begin() -> void:
 
 func _finish() -> void:
 	state = State.OFF
+	_settled = false
+	_flight_t = 0.0
 	if _connected:
 		_tree.physics_frame.disconnect(_on_physics_frame)
 		_connected = false
@@ -110,7 +121,17 @@ func hang(facing_yaw: float, lean_back: float = 0.45) -> void:
 
 ## Thrown: ballistic arc with a tumble. `velocity` is the horizontal launch velocity, `lift` the upward speed.
 func launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
+	if _settled or (permanent and state == State.LYING and actor.dead):
+		return   # a corpse that has come to rest stays put: a repeated callback must not restart the fall
+	if actor.dead:
+		var flat: Vector3 = Vector3(velocity.x, 0.0, velocity.z)
+		if flat.length() > DEAD_MAX_SPEED:
+			velocity = flat.normalized() * DEAD_MAX_SPEED
+		lift = minf(lift, DEAD_MAX_LIFT)
+		if spin.length() > DEAD_MAX_SPIN:
+			spin = spin.normalized() * DEAD_MAX_SPIN
 	calm = false
+	_flight_t = 0.0
 	if state == State.OFF:
 		_saved_layers = Vector2i(actor.collision_layer, actor.collision_mask)
 		_begin()
@@ -127,6 +148,8 @@ func launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
 
 ## Called when the actor dies mid-ragdoll: it should stay down instead of getting up.
 func stay_down() -> void:
+	if permanent and state != State.RISING:
+		return
 	permanent = true
 	if state == State.RISING:
 		# Killed while getting up (it was knocked down, started to rise, and the blow landed): it must collapse again where it
@@ -156,6 +179,8 @@ func release_pin() -> void:
 	_pin_time = 0.0
 
 func update(delta: float) -> void:
+	if _settled:
+		return
 	if _pin_time > 0.0:
 		_pin_time -= delta
 		if state == State.RISING:
@@ -199,6 +224,12 @@ func _pose_body_hang(delta: float) -> void:
 	_compose(Basis(side, -tilt), 0.0)
 
 func _step_flight(delta: float) -> void:
+	_flight_t += delta
+	if actor.dead and _flight_t > DEAD_FLIGHT_MAX:
+		# A corpse still tumbling after this long (wedged against scenery, say) just drops where it is.
+		_velocity = Vector3.ZERO
+		_omega = Vector3.ZERO
+		_vy = minf(_vy, 0.0)
 	_vy -= GRAVITY * delta
 	_height += _vy * delta
 	_velocity *= pow(0.9, delta * 10.0)
@@ -322,6 +353,14 @@ func _step_lying(delta: float) -> void:
 		state = State.RISING
 		_rise_t = 0.0
 		_lie_from = _lie_from.slerp(_lie_to, _lie_blend)
+	elif permanent and actor.dead and _lie_t >= DEAD_SETTLE_AFTER:
+		_settle_corpse()
+
+## Freezes a corpse in its final pose: limb chains stop moving, so nothing jitters and the body can be sunk away cleanly.
+func _settle_corpse() -> void:
+	_settled = true
+	for chain in _chains:
+		(chain["prev"] as Array).assign(chain["points"])
 
 func _step_rising(delta: float) -> void:
 	_rise_t += delta

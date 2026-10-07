@@ -292,8 +292,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
 		if big or randf() < 0.3:
 			Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
-		if big:
-			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 2.5, 0.08)
+		if sword_contact:   # light and heavy blows read differently: a few sparks, or sparks with dust and a flash
+			Fx.melee_impact(self, chest, away, 1 if big else 0, get_instance_id())
+		elif big:
+			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 1.8, 0.07)
 	if not dead:
 		_flash = 1.0
 		model.set_overlay(_flash_mat)

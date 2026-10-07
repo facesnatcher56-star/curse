@@ -888,7 +888,7 @@ func _build_demo(which: String) -> void:
 	var east: Vector3 = Vector3(1, 0, 0)
 	player.visual.rotation.y = atan2(east.x, east.z)
 	match which:
-		"iron":   # Iron Recovery: a heavy blow staggers him; when he shakes it off he shoves the lesser enemies round him back
+		"iron":   # Iron Recovery: a heavy blow knocks him down; when he is back on his feet he shoves the lesser enemies round him back
 			var ring: Array[Enemy] = []
 			for angle in [0.0, 2.1, 4.2]:
 				ring.append(dummy.call(origin + Vector3(cos(angle), 0, sin(angle)) * 2.0))
@@ -906,8 +906,14 @@ func _build_demo(which: String) -> void:
 			for e in ring:
 				near.append("%.1f m" % e.flat_distance_to(player))
 			print("[builddemo] heavy blow taken: stun ", snappedf(player.stun_time, 0.01), " s; ring distances ", ", ".join(near), "; brute ", snappedf(heavy_brute.flat_distance_to(player), 0.1), " m")
-			await get_tree().create_timer(1.0).timeout
-			await shot.call("1_shoved")
+			await get_tree().create_timer(0.2).timeout
+			await shot.call("1_knockdown_impact")
+			await get_tree().create_timer(0.4).timeout
+			await shot.call("2_downed")
+			await get_tree().create_timer(0.45).timeout
+			await shot.call("3_getting_up")
+			await get_tree().create_timer(0.5).timeout
+			await shot.call("4_shoved")
 			var far: PackedStringArray = []
 			for e in ring:
 				far.append("%.1f m" % e.flat_distance_to(player))

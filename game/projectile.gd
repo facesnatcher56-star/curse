@@ -62,7 +62,8 @@ func _explode() -> void:
 	Fx.shake(self, 0.22)
 	Fx.punch(self, 2.0)
 	Sfx.sample(self, "fireball_impact", 1.0, 1.0)
-	_explosion_flash(center)
+	if Fx.claim_impact("fireball", center):   # one logical blast draws once
+		_explosion_flash(center)
 	var tree: SceneTree = get_tree()
 	var caught: int = 0
 	var index: int = 0
@@ -113,10 +114,10 @@ func _hit(enemy: Enemy, center: Vector3) -> void:
 func _explosion_flash(center: Vector3) -> void:
 	var scene: Node = get_parent()
 	var ground := Vector3(center.x, 0.0, center.z)
-	# Blinding flash, shockwave and flying sparks.
-	Fx.light_flash(scene, center + Vector3(0, 0.8, 0), Color(1.0, 0.65, 0.3), 9.0, 0.3)
-	Fx.ring(scene, ground + Vector3(0, 0.1, 0), blast_radius * 1.3, Color(1.0, 0.7, 0.35))
-	Fx.burst(scene, center, Vector3.UP, Color(1.0, 0.7, 0.25), 60, 11.0, 0.035, true)
+	# A short flash, one shockwave ring and a handful of sparks: the flame and smoke below carry the rest.
+	Fx.light_flash(scene, center + Vector3(0, 0.8, 0), Color(1.0, 0.65, 0.3), 5.0, 0.22)
+	Fx.ring(scene, ground + Vector3(0, 0.1, 0), blast_radius * 1.15, Color(1.0, 0.7, 0.35))
+	Fx.burst(scene, center, Vector3.UP, Color(1.0, 0.7, 0.25), 36, 10.0, 0.03, true)
 	# Fireball: a hot white core that balloons and cools to dark orange, then fades.
 	var core := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
