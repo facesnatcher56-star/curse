@@ -94,7 +94,7 @@ function Update-DispatcherHealth(
         Write-AtomicJson $healthPath $health
 
         $body = "[AGENTBRIDGE]`nproject=curse`nfrom=ANTIGRAVITY`nto=ALL`ntype=HEALTH`ntask=dispatcher-health-antigravity`n`nstatus=$Status`ndispatcher_pid=$PID`nworker_pid=$WorkerPid`nactive_task=$ActiveTask`nsource_comment_id=$SourceCommentId`nlast_seen_comment_id=$LastCommentId`npoll_seconds=$PollSeconds`nheartbeat_utc=$heartbeat`nlast_error=$LastError"
-        $commentId = 0
+        [long]$commentId = 0
         if (Test-Path -LiteralPath $healthCommentIdPath) {
             [void][long]::TryParse((Get-Content -LiteralPath $healthCommentIdPath -Raw).Trim(), [ref]$commentId)
         }
