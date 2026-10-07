@@ -11,6 +11,8 @@ var objective: String = ""
 ## the hero rather than the whole arena (the world is a plaza and a long road).
 var top_offset: float = 0.0
 var force_window: bool = false
+## True in the town/road world, where a fallen hero is dragged home rather than restarting the run (the arena sets nothing: it restarts).
+var world_mode: bool = false
 var kills: int = 0
 var alive: int = 0
 # Gear panel.
@@ -191,10 +193,23 @@ func _draw() -> void:
 			var width: float = font.get_string_size(player.message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 			UiTheme.text(self, font, anchor - Vector2(width * 0.5, 0), player.message, 18, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)))
 	if player.dead:
-		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.4 if world_mode else 0.55))   # the world's drag-back banner sits over this: keep it readable
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45), "YOU DIED", 64, Color(0.72, 0.12, 0.1), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
-		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), "Press R to restart" if TownState.job.is_empty() else "Returning to town...", 22,
-			Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), death_subline(), 22, Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+
+## What the death plate says under "YOU DIED": the world drags the hero home (nothing to press), a job returns to town, the arena asks for the
+## restart control as it is bound right now (the pad's button while a controller is the active device).
+func death_subline() -> String:
+	if world_mode:
+		return "Dragged back to town..."
+	if not TownState.job.is_empty():
+		return "Returning to town..."
+	var key: String = Gamepad.label_for("restart") if Gamepad.active else GameSettings.binding_text("restart")
+	if key == "" or key == "Unbound" or key == "-":
+		key = GameSettings.binding_text("restart") if Gamepad.active else Gamepad.label_for("restart")
+	if key == "" or key == "Unbound" or key == "-":
+		return "Restart from the pause menu"
+	return "Press %s to restart" % key
 
 ## True when a screen point is over a HUD panel (minimap, hotbar, resource vessels): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:

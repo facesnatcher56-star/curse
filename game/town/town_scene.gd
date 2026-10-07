@@ -225,6 +225,7 @@ func _build_ui() -> void:
 	combat_hud.arena = arena
 	combat_hud.top_offset = 54.0   # the plaza's resource bar sits above its quest line
 	combat_hud.force_window = with_road
+	combat_hud.world_mode = true   # a fallen hero is dragged home: no restart prompt
 	combat_hud.process_mode = Node.PROCESS_MODE_ALWAYS
 	layer.add_child(combat_hud)
 	hud = TownHud.new()
