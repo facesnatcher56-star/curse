@@ -98,8 +98,9 @@ Claude Code, Codex, and Antigravity may use Blender when a task requires or mate
 
 All autonomous lanes must obey `docs/AGENT_USAGE_POLICY.md`.
 
-The OWNER's autonomous stop limits are defined by usage consumed:
-- pause when five-hour usage >= 85% (equivalently <= 15% remaining);
-- pause when weekly usage >= 95% (equivalently <= 5% remaining).
+OWNER's preferred stop limits:
+- five-hour usage >= 85% used;
+- weekly usage >= 95% used.
 
-Dispatchers must fail closed when they cannot obtain a trustworthy provider usage reading.
+Automatic enforcement is required only when the provider exposes a reliable supported machine-readable usage source. Otherwise these thresholds are manual/advisory and the lane may remain autonomous with an explicit local stop mechanism.
+
