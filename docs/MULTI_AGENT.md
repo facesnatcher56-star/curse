@@ -4,7 +4,7 @@ Curse supports three isolated implementation lanes:
 
 - Claude Code — primary gameplay implementation
 - Codex — parallel engineering/review/debug lane
-- Gemini — parallel content/tooling/independent subsystem lane
+- Antigravity — parallel content/tooling/independent subsystem lane
 
 Each agent must use its own Git worktree and branch.
 
@@ -12,7 +12,7 @@ Each agent must use its own Git worktree and branch.
 
 - Claude Code: GitHub issue #1
 - Codex: GitHub issue #2
-- Gemini: GitHub issue #3
+- Antigravity: GitHub issue #3
 - Shared work reservations: GitHub issue #4
 
 ## Core rule
@@ -26,7 +26,7 @@ Recommended layout:
   curse/          integration/current owner tree
   curse-claude/   Claude worktree
   curse-codex/    Codex worktree
-  curse-gemini/   Gemini worktree
+  curse-antigravity/   Antigravity worktree
 ```
 
 ## Reservation rule
@@ -60,7 +60,7 @@ First create an explicit integration checkpoint containing the state all agents 
 powershell -ExecutionPolicy Bypass -File tools/agentbridge-create-worktrees.ps1 -BaseRef <checkpoint-ref>
 ```
 
-This creates branches/worktrees for Codex and Gemini only. Claude may continue in the current owner tree or be moved into its own worktree later.
+This creates branches/worktrees for Codex and Antigravity only. Claude may continue in the current owner tree or be moved into its own worktree later.
 
 ## AgentBridge
 
@@ -70,10 +70,10 @@ powershell -ExecutionPolicy Bypass -File tools/agentbridge.ps1 -Project codex -O
 powershell -ExecutionPolicy Bypass -File tools/agentbridge-start.ps1 -Project codex
 ```
 
-Gemini:
+Antigravity:
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/agentbridge.ps1 -Project gemini -Once
-powershell -ExecutionPolicy Bypass -File tools/agentbridge-start.ps1 -Project gemini
+powershell -ExecutionPolicy Bypass -File tools/agentbridge.ps1 -Project antigravity -Once
+powershell -ExecutionPolicy Bypass -File tools/agentbridge-start.ps1 -Project antigravity
 ```
 
 Each worktree has its own `.agentbridge/` runtime folder, so watcher state/inboxes do not collide.
