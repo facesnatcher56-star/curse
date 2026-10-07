@@ -32,8 +32,20 @@ static func claim_impact(kind: String, pos: Vector3) -> bool:
 	_recent_impacts[kind] = [now, pos]
 	return true
 
-## Compact, grounded melee impact: tier 0 light (a few sparks), 1 heavy (sparks, a puff of dust, a short flash).
-## A repeat on the same target inside the dedup window is dropped.
+## What a landed blow should feel like, from its outcome and weight. Pure (no scene needed), so it is checked directly.
+## tier 0 light, 1 critical (heavy), 2 crushing; every value is bounded so a crowd of heavy blows cannot pile up.
+static func impact_profile(outcome: int, weight: float) -> Dictionary:
+	var w: float = clampf(weight, 0.5, 3.0)
+	match outcome:
+		Combat.Outcome.CRUSHING:
+			return {"tier": 2, "kick": minf(0.5 * w * 1.7, 1.4), "hitstop": 0.07}
+		Combat.Outcome.CRITICAL:
+			return {"tier": 1, "kick": minf(0.5 * w * 1.3, 1.1), "hitstop": 0.045}
+		_:
+			return {"tier": 0, "kick": minf(0.5 * w, 0.8), "hitstop": 0.0}
+
+## Compact, grounded melee impact: tier 0 light (a few sparks), 1 heavy (sparks, a puff of dust, a short flash), 2 crushing
+## (the same pieces, a bigger dust cloud and a brighter flash). A repeat on the same target inside the dedup window is dropped.
 static func melee_impact(from: Node, pos: Vector3, away: Vector3, tier: int, target_id: int = 0) -> bool:
 	if not claim_impact("melee_%d_%d" % [tier, target_id], pos):
 		return false
@@ -41,9 +53,27 @@ static func melee_impact(from: Node, pos: Vector3, away: Vector3, tier: int, tar
 	if tier <= 0:
 		burst(from, pos, dir, Color(0.85, 0.72, 0.5), 6, 4.5, 0.02, true)
 		return true
+	var crushing: bool = tier >= 2
 	burst(from, pos, dir, Color(0.95, 0.75, 0.4), 12, 6.5, 0.026, true)
-	burst(from, pos, dir, Color(0.3, 0.27, 0.23), 8, 3.5, 0.04)
-	light_flash(from, pos, Color(1.0, 0.8, 0.5), 1.6, 0.07)
+	burst(from, pos, dir, Color(0.3, 0.27, 0.23), 14 if crushing else 8, 4.2 if crushing else 3.5, 0.05 if crushing else 0.04)
+	light_flash(from, pos, Color(1.0, 0.8, 0.5), 2.2 if crushing else 1.6, 0.08 if crushing else 0.07)
+	return true
+
+## A flying body striking scenery ("wall") or another enemy ("enemy"): dust, one recorded thud and a short camera shove, once per
+## logical impact (two hooks describing the same strike draw it once). Presentation only: it never deals or resolves damage.
+## Returns false for a repeat.
+static func body_impact(from: Node, pos: Vector3, dir: Vector3, kind: String, speed: float) -> bool:
+	if not claim_impact("body_" + kind, pos):
+		return false
+	var s: float = clampf(speed, 0.0, 14.0)
+	var away: Vector3 = -dir.normalized() if dir.length() > 0.01 else Vector3.UP
+	if kind == "wall":
+		burst(from, pos, away + Vector3.UP * 0.3, Color(0.55, 0.5, 0.42), 10 + int(s), 3.0 + s * 0.15, 0.05)
+		shake(from, clampf(0.04 + s * 0.008, 0.04, 0.14))
+		kick(from, dir, clampf(s / 16.0, 0.15, 0.7))
+	else:
+		burst(from, pos, Vector3.UP, Color(0.5, 0.45, 0.38), 6, 2.5, 0.04)
+	Sfx.body_impact(from, kind, s)
 	return true
 
 static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color(0, 0, 0, 0)) -> void:

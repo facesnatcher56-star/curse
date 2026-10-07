@@ -285,6 +285,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
 	var killed: bool = dead
 	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
+	var profile: Dictionary = Fx.impact_profile(outcome, weight)
 	if sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
 	if not calm:
@@ -293,7 +294,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		if big or randf() < 0.3:
 			Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
 		if sword_contact:   # light and heavy blows read differently: a few sparks, or sparks with dust and a flash
-			Fx.melee_impact(self, chest, away, 1 if big else 0, get_instance_id())
+			Fx.melee_impact(self, chest, away, int(profile.tier), get_instance_id())
 		elif big:
 			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 1.8, 0.07)
 	if not dead:
@@ -305,7 +306,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		var shake_amount: float = clampf(0.03 + damage * 0.004, 0.03, 0.12) * weight
 		Fx.shake(self, shake_amount)
 		if source != null and source.is_in_group("player") or is_in_group("player"):
-			Fx.kick(self, -away if is_in_group("player") else away, 0.5 * weight)
+			Fx.kick(self, -away if is_in_group("player") else away, float(profile.kick))
 
 	# Hit-pause on both parties makes the blow land; crits add a brief global slow-down.
 	var pause: float = 0.06 * weight + (0.045 if big else 0.0)

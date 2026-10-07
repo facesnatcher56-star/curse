@@ -275,15 +275,13 @@ func _hit_obstacle(speed: float, point: Vector3) -> void:
 	# The flying body, not a projected line, is what reaches and breaks scenery.
 	Destructible.blast(_tree, point, 0.65, 8.0 + speed * 1.6, _velocity.normalized(),
 		clampf(speed / 8.0, 1.0, 2.4))
-	Sfx.sample(actor, "body_wall", -1.0, 0.85)
 	var result: Dictionary = Combat.resolve(actor, actor, IMPACT_DAMAGE + speed * 1.6, Combat.DamageType.FIRE, false, 1.8)
 	result["type"] = Combat.DamageType.PHYSICAL
 	result["skill_id"] = "collision"
 	actor.receive(result, actor.global_position - _velocity.normalized())
 	actor.stun_time = maxf(actor.stun_time, IMPACT_STUN)
 	Fx.text_at(actor, actor.global_position + Vector3(0, actor.body_height + 0.5, 0), "Slammed", Color(1.0, 0.85, 0.5), 40)
-	Fx.burst(actor, actor.global_position + Vector3(0, 1.0, 0), -_velocity.normalized() + Vector3.UP * 0.3, Color(0.55, 0.5, 0.42), 14, 4.0, 0.05)
-	Fx.shake(actor, 0.12)
+	Fx.body_impact(actor, actor.global_position + Vector3(0, 1.0, 0), _velocity, "wall", speed)
 
 ## A body flying through other enemies knocks them about, hurts them, and passes on its burn, bleed and slow.
 func _bowl_into_enemies(speed: float) -> void:
@@ -308,7 +306,7 @@ func _bowl_into_enemies(speed: float) -> void:
 		hit["type"] = Combat.DamageType.PHYSICAL
 		hit["skill_id"] = "collision"
 		other.receive(hit, here)
-		Sfx.sample(actor, "body_enemy", -2.0, 0.8)
+		Fx.body_impact(actor, other.global_position + Vector3(0, 1.0, 0), rel, "enemy", speed)
 		if is_instance_valid(other):
 			other.interrupt(0.9)
 			if other.can_be_impaled() and not other.dead:   # the one it hit falls down too (the very big ones only stagger)

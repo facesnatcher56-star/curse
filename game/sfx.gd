@@ -11,6 +11,7 @@ static var _files: Dictionary = {}
 static var _last_played: Dictionary = {}
 ## How many recorded sounds have been started (tests read this).
 static var samples_played: int = 0
+const MAX_VOICES := 5       # recorded voices alive at once before body impacts stop adding more
 const SAMPLE_GAP_MS := 45   # a sweep that hits six enemies is one crunch, not six stacked on top of each other
 
 ## Sound families: several recordings of the same event; one is picked at random (never the same twice running).
@@ -66,6 +67,7 @@ static func sample(from: Node, family: String, volume_db: float = 0.0, pitch: fl
 	samples_played += 1
 	var voice := AudioStreamPlayer.new()
 	voice.stream = stream
+	voice.add_to_group("sfx_voice")
 	voice.volume_db = volume_db
 	voice.pitch_scale = pitch * randf_range(0.95, 1.05)
 	from.get_tree().current_scene.add_child(voice)
@@ -85,3 +87,14 @@ static func sword_hit(from: Node, outcome: int, weight: float) -> void:
 			sample(from, "sword_hit", 1.5, 0.9)
 		_:
 			sample(from, "sword_hit", -1.0, 1.0 / maxf(weight, 0.8) ** 0.3)
+
+## A body hitting scenery ("wall") or another body ("enemy"), from the owner's recorded landing and hit sounds: faster is louder and
+## lower. Never called for misses or blocks.
+static func body_impact(from: Node, kind: String, speed: float) -> void:
+	if from.get_tree().get_nodes_in_group("sfx_voice").size() >= MAX_VOICES:
+		return   # a pile of bodies hitting at once is the loudest thing in a crowd already
+	var u: float = clampf(speed / 14.0, 0.0, 1.0)
+	if kind == "wall":
+		sample(from, "body_wall", lerpf(-4.0, 1.0, u), lerpf(0.95, 0.8, u))
+	else:
+		sample(from, "body_enemy", lerpf(-4.0, -1.0, u), lerpf(0.85, 0.75, u))
