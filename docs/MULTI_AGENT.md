@@ -98,8 +98,8 @@ Claude Code, Codex, and Antigravity may use Blender when a task requires or mate
 
 All autonomous lanes must obey `docs/AGENT_USAGE_POLICY.md`.
 
-The OWNER's reserve is defined in remaining allowance:
-- pause when five-hour remaining <= 85%;
-- pause when weekly remaining <= 95%.
+The OWNER's autonomous stop limits are defined by usage consumed:
+- pause when five-hour usage >= 85% (equivalently <= 15% remaining);
+- pause when weekly usage >= 95% (equivalently <= 5% remaining).
 
 Dispatchers must fail closed when they cannot obtain a trustworthy provider usage reading.
