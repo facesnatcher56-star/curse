@@ -22,7 +22,7 @@ try {
 
     $lanes = @(
         @{ Name = "codex"; Branch = "agents/codex"; Path = (Join-Path $ParentDir "curse-codex") },
-        @{ Name = "gemini"; Branch = "agents/gemini"; Path = (Join-Path $ParentDir "curse-gemini") }
+        @{ Name = "antigravity"; Branch = "agents/antigravity"; Path = (Join-Path $ParentDir "curse-antigravity") }
     )
 
     foreach ($lane in $lanes) {
