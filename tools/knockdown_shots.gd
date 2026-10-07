@@ -46,10 +46,22 @@ func _stand() -> void:
 	player.model.loop("idle_alert")
 	player.set_physics_process(false)
 
+## Begins the fall and lets its entry blend (Knockdown.ENTRY_BLEND) run out, as it does in play: a blend only advances while the clip runs,
+## so posing a later phase straight after begin() leaves the pose he stood in showing at full weight.
+func _begin_fall() -> bool:
+	var began: bool = kd.begin()
+	await create_timer(Knockdown.ENTRY_BLEND + 0.1).timeout
+	return began
+
 func _pose_at(phase: int, t: float) -> void:
+	player.model.anim.speed_scale = 0.0   # held by hand from here, whatever the phase time says
 	kd.phase = phase
 	kd.phase_time = t
 	kd._pose()
+
+func _hips_pitch() -> float:
+	var sk: Skeleton3D = player.model.find_children("*", "Skeleton3D", true, false)[0]
+	return sk.get_bone_pose_rotation(sk.find_bone("Hips")).x
 
 func _sheet(tiles: Array[Image], columns: int, name: String) -> void:
 	var rows: int = ceili(float(tiles.size()) / columns)
@@ -79,9 +91,9 @@ func _run() -> void:
 			await create_timer(0.3).timeout
 			player.visual.rotation.y = view
 			if frame[1] != Knockdown.Phase.NONE:
-				var began: bool = kd.begin()
+				var began: bool = await _begin_fall()
 				_pose_at(frame[1], frame[2])
-				print(frame[0], " began=", began, " authored=", kd._authored(), " clip=", player.model.current, " t=", player.model.anim.current_animation_position)
+				print(frame[0], " began=", began, " authored=", kd._authored(), " clip=", player.model.current, " t=", player.model.anim.current_animation_position, " hips_x=", snappedf(_hips_pitch(), 0.01))
 			tiles.append(await _grab())
 	_sheet(tiles, FRAMES.size(), "knockdown_sheet")
 	# death from each phase, shortly after, midway and settled
@@ -91,7 +103,7 @@ func _run() -> void:
 		_stand()
 		await create_timer(0.3).timeout
 		player.visual.rotation.y = VIEWS[0]
-		kd.begin()
+		await _begin_fall()
 		_pose_at(pair[1], pair[2])
 		await process_frame
 		player.set_physics_process(true)
@@ -102,7 +114,7 @@ func _run() -> void:
 	_sheet(tiles, 3, "knockdown_deaths")
 	# revive: a valid neutral stand
 	_stand()
-	kd.begin()
+	await _begin_fall()
 	_pose_at(Knockdown.Phase.DOWNED, 0.2)
 	player.set_physics_process(true)
 	player._apply_damage(99999.0)

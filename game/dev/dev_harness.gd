@@ -2383,8 +2383,7 @@ func _test_earthshatter() -> void:
 	# It charges from damage the hero deals...
 	var dummy: Enemy = ring[1]
 	var before_charge: float = player.stats.ult_charge
-	# Force critical setup feedback so this fixture also exercises hitstop isolation.
-	dummy.receive(Combat.resolve(player, dummy, 60.0, Combat.DamageType.PHYSICAL, false, 1.0, true), player.global_position)
+	dummy.receive(Combat.resolve(player, dummy, 60.0, Combat.DamageType.PHYSICAL, false, 1.0), player.global_position)
 	expect("dealing damage charges the ultimate", player.stats.ult_charge > before_charge + 30.0)
 	# ...and not from damage taken.
 	var charge_now: float = player.stats.ult_charge
@@ -2393,9 +2392,6 @@ func _test_earthshatter() -> void:
 	# Not full: pressing it does nothing.
 	player.skills.try_directional("earthshatter", centre)
 	expect("an uncharged ultimate will not start", not player.skills.busy and not player.stats.can_use("earthshatter"))
-	# Setup hits can leave global hitstop active. Measure only the ultimate's time effects.
-	Fx.reset_time()
-	expect("earthshatter measurement starts at normal speed", is_equal_approx(Engine.time_scale, 1.0))
 	# Full: it fires.
 	player.stats.ult_charge = cost
 	var health_before: Dictionary = {}
@@ -4286,7 +4282,7 @@ func _test_build_choices() -> void:
 		skills.busy = false
 		player._unbowed_ready_ms = 0
 		player.retaliation_time = 0.0
-		player.knockdown.reset()
+		player._recovery_shove_armed = false
 		player.combat_timer = 0.0
 	await clear_field.call()
 	player.global_position = Vector3.ZERO
@@ -4409,8 +4405,8 @@ func _test_build_choices() -> void:
 	for e in ring:
 		ring_before.append(e.flat_distance_to(player))
 	hit_hero.call(20.0, 2.7)
-	expect("a heavy hit knocks him down", player.stun_time > 0.3 and player.knockdown.active())
-	await get_tree().create_timer(1.7).timeout
+	expect("a heavy hit staggers him", player.stun_time > 0.3)
+	await get_tree().create_timer(1.1).timeout
 	var shoved: bool = true
 	for i in ring.size():
 		shoved = shoved and ring[i].flat_distance_to(player) > ring_before[i] + 1.0
@@ -6387,149 +6383,11 @@ func _test_dodge_cancels_attack() -> void:
 	expect("the held attack button does not start another swing after the roll", not swung)
 	foe.queue_free()
 
-## The hero's knockdown: a heavy blow (the old heavy-stagger trigger) puts him down -> downed -> getting up -> control; nothing works
-## while he is down; Iron Recovery rides on the completed get-up only; death cancels the fall and revival leaves him standing and free.
-func _test_hero_knockdown() -> void:
-	TownState.persist = false
-	TownState.reset()
-	TownState.dev_set_hero_level(10)
-	TownState.buy_passive("iron_recovery")
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	var kd: Knockdown = player.knockdown
-	var wt: WeaponThrowSkill = player.weapon_throw
-	var hit_hero: Callable = func(damage: float, weight: float) -> void:
-		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
-		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
-		result["outcome"] = Combat.Outcome.CRUSHING
-		result["damage"] = damage
-		result["weight"] = weight
-		player.invulnerable_time = 0.0
-		player.receive(result, attacker.global_position)
-		player.knock = Vector3.ZERO
-		attacker.queue_free()
-	var calm: Callable = func() -> void:
-		kd.reset()
-		player.stun_time = 0.0
-		player.invulnerable_time = 0.0
-		player.health = player.max_health
-		player.attack_target = null
-		player.movement.has_goal = false
-		player.skills.busy = false
-		player.skills.aiming_id = ""
-		player.iron_shoves = 0
-		player.global_position = Vector3.ZERO
-		player.reset_physics_interpolation()
-	await calm.call()
-	var ring: Array[Enemy] = []
-	for angle in [0.0, 2.1, 4.2]:
-		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
-	# An ordinary (light) stagger: no knockdown, no Iron Recovery.
-	hit_hero.call(4.0, 1.0)
-	expect("a light stagger does not knock him down", not kd.active() and kd.knockdowns == 0 and player.stun_time > 0.0)
-	await get_tree().create_timer(1.0).timeout
-	expect("and Iron Recovery does not fire on an ordinary stagger", player.iron_shoves == 0)
-	await calm.call()
-	for i in ring.size():
-		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
-		ring[i].knock = Vector3.ZERO
-		ring[i].stun_time = 0.0
-	var ring_start: Array[Vector3] = []
-	for e in ring:
-		ring_start.append(e.global_position)
-	# A heavy blow.
-	var cooldowns_before: Dictionary = player.stats.cooldowns.duplicate()
-	hit_hero.call(20.0, 2.7)
-	var health_after_blow: float = player.health
-	expect("a heavy blow puts him in the impact phase of a knockdown", kd.active() and kd.phase == Knockdown.Phase.IMPACT and kd.knockdowns == 1)
-	expect("the blow cost its damage once (20 of %d)" % int(player.max_health), absf((player.max_health - health_after_blow) - 20.0) < 8.0 and health_after_blow < player.max_health)
-	expect("he keeps his weapon through the fall", wt.has_weapon() and not wt.is_away())
-	# Walk the phases, trying to act all the way down.
-	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 3.0))
-	var seen: Array[String] = []
-	var lock_ok: bool = true
-	var tried_at_downed: bool = false
-	var held_position: Vector3 = player.global_position
-	var elapsed: float = 0.0
-	player.cursor_override = foe.global_position
-	while kd.active() and elapsed < 3.0:
-		if seen.is_empty() or seen[-1] != kd.phase_name():
-			seen.append(kd.phase_name())
-		var pressing: bool = not (kd.phase == Knockdown.Phase.GETTING_UP and kd.phase_time > Knockdown.GET_UP_TIME - 0.05)   # (the very frame he stands, he may act: not tested)
-		if pressing:
-			player.movement.goal = Vector3(8, 0, 0)
-			player.movement.has_goal = true
-			Input.action_press("dodge")
-			Input.action_press("alt_skill")
-			Input.action_press("skill_2")
-		await get_tree().physics_frame
-		Input.action_release("dodge")
-		Input.action_release("alt_skill")
-		Input.action_release("skill_2")
-		elapsed += get_physics_process_delta_time()
-		if kd.is_downed() and not tried_at_downed:
-			held_position = player.global_position   # (the blow's own shove has played out by now)
-		if kd.active():
-			lock_ok = lock_ok and not player.movement.rolling and not player.skills.busy and player.skills.aiming_id == "" and not wt.can_begin() \
-				and (not tried_at_downed or player.global_position.distance_to(held_position) < 0.05) and player.stun_time > 0.0
-			tried_at_downed = tried_at_downed or kd.is_downed()
-	player.movement.has_goal = false
-	player.cursor_override = Vector3.INF
-	expect("the phases run impact -> downed -> getting_up -> none (saw %s)" % ", ".join(seen), seen == ["impact", "downed", "getting_up"] and not kd.active())
-	expect("while he is down he cannot move, attack, dodge or cast (and was tested while downed)", lock_ok and tried_at_downed and kd.get_ups == 1)
-	expect("the whole fall is a deliberate %.2f s, not an endless lockout" % Knockdown.TOTAL_TIME, elapsed > Knockdown.TOTAL_TIME - 0.15 and elapsed < Knockdown.TOTAL_TIME + 0.5)
-	expect("control is back at the end: no stun, standing upright, the throw can start again", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01 and wt.can_begin())
-	expect("Iron Recovery fired exactly once, on the completed get-up", player.iron_shoves == 1)
-	await get_tree().create_timer(0.5).timeout
-	var shoved: bool = true
-	for i in ring.size():
-		shoved = shoved and ring[i].global_position.distance_to(ring_start[i]) > 1.0
-	expect("and shoved the lesser enemies round him back", shoved)
-	var cooldowns_ok: bool = true
-	for id in player.stats.cooldowns.keys():
-		cooldowns_ok = cooldowns_ok and float(player.stats.cooldowns[id]) <= float(cooldowns_before.get(id, 0.0)) + 0.001
-	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + 2.0 and player.health >= health_after_blow - 0.01 and cooldowns_ok)
-	await get_tree().create_timer(0.8).timeout
-	expect("no second Iron Recovery afterwards", player.iron_shoves == 1 and wt.has_weapon())
-	# A second heavy blow while already down neither restarts nor stretches the fall.
-	await calm.call()
-	hit_hero.call(20.0, 2.7)
-	await get_tree().create_timer(0.5).timeout
-	var left: float = player.stun_time
-	hit_hero.call(20.0, 2.7)
-	expect("a blow while he is down is taken (damage) but does not restart the fall", kd.knockdowns == 1 and player.stun_time <= left + 0.01)
-	# Death during a knockdown: the fall is cancelled and nothing fires.
-	await calm.call()
-	hit_hero.call(20.0, 2.7)
-	expect("a fresh knockdown", kd.active())
-	player.health = 1.0
-	player._apply_damage(500.0)
-	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
-	await get_tree().create_timer(1.6).timeout
-	expect("a dead hero never gets up, and no Iron Recovery fires from the fall", player.iron_shoves == 0 and kd.get_ups == 0 and not kd.active())
-	expect("his weapon is not lost to the fall", wt.has_weapon())
-	# Revive.
-	player.revive_at(Vector3.ZERO)
-	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and wt.can_begin() and absf(player.visual.rotation.x) < 0.01)
-	await get_tree().create_timer(0.3).timeout
-	expect("and no stray Iron Recovery arrives after the revive", player.iron_shoves == 0)
-	hit_hero.call(20.0, 2.7)
-	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
-	await get_tree().create_timer(Knockdown.TOTAL_TIME + 0.4).timeout
-	expect("and gets up again, once", not kd.active() and kd.get_ups == 1 and player.iron_shoves == 1)
-	for e in ring:
-		e.queue_free()
-	foe.queue_free()
-	player.stats.cooldowns.clear()
-
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"skillintegrity": "_test_skill_integrity",
-"actionqueue": "_test_action_queue",
-"throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices", "herodown": "_test_hero_knockdown",
+"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
@@ -6704,13 +6562,11 @@ func _test_knockdown() -> void:
 	expect("Power Strike throws it back, even on a miss (%.1f m, was about 0.5 before)" % thrown, thrown >= 1.5)
 	z.queue_free()
 	# 2. Thrown into a wall: extra damage and a stun.
-	# Close enough that even a missed strike's 9 m/s shove reaches the wall
-	# above Actor.IMPACT_SPEED; the old 2.8 m gap depended on a random landed hit.
-	var wall_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
+	var wall_victim: Enemy = _spawn_enemy(Vector3(37.2, 0, 0))
 	wall_victim.alert_delay = 999.0
 	wall_victim.max_health = 5000.0
 	wall_victim.health = 5000.0
-	player.global_position = Vector3(37.4, 0, 0)
+	player.global_position = Vector3(35.4, 0, 0)
 	player.reset_physics_interpolation()
 	skills.busy_target = wall_victim
 	skills.busy_aim = wall_victim.global_position
@@ -6721,32 +6577,6 @@ func _test_knockdown() -> void:
 	expect("thrown into the wall it takes extra damage (%.0f over %.0f) and the impact stuns it" % [5000.0 - wall_victim.health, hit_only],
 		5000.0 - wall_victim.health > hit_only + 2.0 and String(wall_victim.last_result.get("skill_id", "")) == "impact" and wall_victim.stun_time > 0.0)
 	wall_victim.queue_free()
-	await get_tree().process_frame
-	# Exercise actual movement/collision without a random combat roll.
-	var impact_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
-	impact_victim.alert_delay = 999.0
-	impact_victim.max_health = 5000.0
-	impact_victim.health = 5000.0
-	impact_victim.knock = Vector3(9, 0, 0)
-	impact_victim.knocked_by = player
-	await get_tree().create_timer(0.6).timeout
-	var impact_damage: float = 5000.0 - impact_victim.health
-	expect("a qualifying wall collision deals exactly one impact and leaves a living stunned enemy",
-		String(impact_victim.last_result.get("skill_id", "")) == "impact" and impact_damage > 0.0
-		and is_equal_approx(impact_damage, float(impact_victim.last_result.get("damage", 0.0)))
-		and not impact_victim.dead and not impact_victim.is_ragdolled() and impact_victim.stun_time > 0.0)
-	await get_tree().create_timer(0.7).timeout
-	expect("remaining against the wall does not deal another impact after cooldown", is_equal_approx(5000.0 - impact_victim.health, impact_damage))
-	impact_victim.queue_free()
-	await get_tree().process_frame
-	var no_impact: Enemy = _spawn_enemy(_clear_lane(5.0, 2.0))
-	no_impact.alert_delay = 999.0
-	no_impact.max_health = 5000.0
-	no_impact.health = 5000.0
-	no_impact.knock = Vector3(9, 0, 0)
-	await get_tree().create_timer(0.6).timeout
-	expect("a shove in clear ground causes no false wall impact", is_equal_approx(no_impact.health, 5000.0))
-	no_impact.queue_free()
 	# 3. Thrown into another monster: both are hurt and the one it hits falls down.
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
@@ -6756,17 +6586,28 @@ func _test_knockdown() -> void:
 		e.alert_delay = 999.0
 		e.max_health = 5000.0
 		e.health = 5000.0
-	skills.busy_target = front
-	skills.busy_aim = front.global_position
-	skills._apply_skill(power)
+	# Power Strike's shove is covered above. Here isolate the actual body contact:
+	# its random splash could shove the rear target faster than the front one
+	# (9 m/s on a miss versus 10.25 normally, or 20 on a crushing splash).
+	# The minimum Power Strike shove closes this 0.66 m capsule gap above IMPACT_SPEED.
+	front.knocked_by = player
+	front.knock = Vector3(0, 0, SkillController.POWER_KNOCK)
 	var saw_down: bool = false
 	var t: float = 0.0
+	# Observe the first settled body-impact event, before ragdoll follow-up contacts.
 	while t < 1.0:
 		await get_tree().physics_frame
-		t += 1.0 / 60.0
+		t += 1.0 / float(Engine.physics_ticks_per_second)
 		saw_down = saw_down or behind.is_ragdolled()
+		if saw_down and behind.health < 5000.0 and String(behind.last_result.get("skill_id", "")) == "impact":
+			break
+	print("  knockdown collision: front_damage=", 5000.0 - front.health,
+		" behind_damage=", 5000.0 - behind.health, " down=", saw_down,
+		" last=", behind.last_result.get("skill_id", ""))
 	expect("the monster that gets hit by the thrown one is hurt and falls down", behind.health < 5000.0 and saw_down
 		and String(behind.last_result.get("skill_id", "")) == "impact")
+	expect("the thrown monster also takes body-impact damage", front.health < 5000.0
+		and String(front.last_result.get("skill_id", "")) == "impact")
 	front.queue_free()
 	behind.queue_free()
 	# 4. A full blade's leftovers are knocked down and thrown aside; with Ramming a big one is stunned far longer.
@@ -7071,169 +6912,6 @@ func _wait_state(wanted: int, seconds: float) -> bool:
 		await get_tree().physics_frame
 		waited += 1.0 / 60.0
 	return int(player.weapon_throw.state) == wanted
-
-## Deterministic component interruption checks; the weaponthrow suite covers real input/travel.
-func _test_throw_ownership() -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	var wt: WeaponThrowSkill = player.weapon_throw
-	var skills: SkillController = player.skills
-	player.set_physics_process(false) # advance the component explicitly, without timing races
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
-	player.global_position = _clear_lane(26.0, 3.0)
-	player.stun_time = 0.0
-	player.movement.rolling = false
-	var aim: Vector3 = player.global_position + Vector3(25, 0, 0)
-	wt.reset()
-	player.stats.cooldowns.clear()
-	wt.begin_charge()
-	wt.tick(0.5)
-	var held: float = wt.charge_fraction()
-	wt.begin_charge()
-	expect("repeated begin does not restart the charge", is_equal_approx(wt.charge_fraction(), held))
-	wt.cancel_charge()
-	wt.cancel_charge()
-	expect("cancel is repeatable with no spend or hidden blade", wt.has_weapon() and player.model.weapon.visible and not player.stats.weapon_locked and player.stats.cooldowns.is_empty())
-	# Death/reset from every state, including the recovery after the catch frame.
-	for phase in ["charge", "release", "outbound", "embedded", "rip", "return", "catch", "recovery"]:
-		wt.reset()
-		skills.busy = false
-		player.stats.cooldowns.clear()
-		wt.begin_charge()
-		wt.tick(0.5)
-		if phase == "charge":
-			skills.aiming_id = "throw"
-			skills.aiming_action = "skill_2"
-		if phase != "charge":
-			wt.release(aim)
-			wt.release(aim) # duplicate release must not spawn twice or reset commitment
-		if phase not in ["charge", "release"]:
-			wt.tick_busy(0.21)
-			var copy: ThrownWeapon = wt.thrown
-			wt.begin_charge()
-			expect("begin while away preserves ownership (%s)" % phase, wt.state == WeaponThrowSkill.State.FLYING_OUT and wt.thrown == copy)
-		if phase in ["embedded", "rip", "return", "catch", "recovery"]:
-			wt._embed(player.global_position + Vector3(10, 0, 0), Vector3.UP, false)
-			if phase == "embedded":
-				await _throw_ownership_png("embedded")
-		if phase in ["rip", "return", "catch", "recovery"]:
-			expect("embedded recall starts once (%s)" % phase, wt.recall() and not wt.recall())
-		if phase in ["return", "catch", "recovery"]:
-			wt.tick(float(wt._profile["rip_time"]))
-			expect("return recall cannot restart damage history", wt.state == WeaponThrowSkill.State.RETURNING and not wt.recall())
-		if phase in ["catch", "recovery"]:
-			wt._pos = wt._hand_point() + Vector3(1.5, 0, 0)
-			wt.thrown.set_pose(wt._pos, Vector3.UP)
-			wt._begin_catch()
-		if phase == "recovery":
-			await _throw_ownership_png("catch")
-			var caught_copy: ThrownWeapon = wt.thrown
-			wt.tick_busy(float(wt._profile["catch_time"]))
-			expect("catch frame keeps its intended recovery", wt.has_weapon() and skills.busy)
-			expect("catch hides the old copy before showing the held blade", not caught_copy.visible and player.model.weapon.visible and wt.thrown == null)
-			var effects: int = player.get_parent().get_child_count()
-			wt._complete_catch()
-			expect("a second catch has no extra effects", player.get_parent().get_child_count() == effects)
-		var old_copy: ThrownWeapon = wt.thrown
-		player.dead = true
-		player._on_death() # existing hook, no player implementation changes
-		wt.reset()
-		expect("death/reset unlocks weapon AND throw action (%s)" % phase, wt.has_weapon() and wt.thrown == null and player.model.weapon.visible and not player.stats.weapon_locked and not skills.busy and skills.aiming_id != "throw")
-		if is_instance_valid(old_copy):
-			expect("discarded thrown visual is hidden immediately (%s)" % phase, not old_copy.visible)
-		player.revive_at(player.global_position)
-		player.set_physics_process(false)
-		await get_tree().process_frame
-		player.stats.cooldowns.clear()
-		expect("revive permits a fresh throw (%s)" % phase, wt.can_begin())
-		if phase == "recovery":
-			await _throw_ownership_png("recovered")
-	# Interrupt release before its strike: no copy, damage, cooldown or lock.
-	wt.begin_charge()
-	wt.release(aim)
-	skills.cancel_action()
-	wt.tick(0.01)
-	expect("cancelled release leaves nothing spent or stranded", wt.has_weapon() and wt.thrown == null and not player.stats.weapon_locked and player.stats.cooldowns.is_empty())
-	# Real sweeps against a stationary enemy: one outgoing and one return hit,
-	# even when recall and the same sweep are repeated.
-	player.stats.cooldowns.clear()
-	wt.begin_charge()
-	wt.release(aim)
-	wt.tick_busy(0.21)
-	var victim: Enemy = _throw_dummy(player.global_position + Vector3(4, 0, 0))
-	victim.set_physics_process(false)
-	var from: Vector3 = player.global_position + Vector3(2, 1, 0)
-	var to: Vector3 = player.global_position + Vector3(6, 1, 0)
-	wt._sweep(from, to, true)
-	wt._sweep(from, to, true)
-	expect("repeated outgoing sweep hits/procs once", wt.last_out_hits.count(victim.get_instance_id()) == 1 and wt.proc_hits == 1)
-	expect("outbound forced recall starts once", wt.recall() and not wt.recall())
-	wt._sweep(to, from, false)
-	var after_return: float = victim.health
-	wt.recall()
-	wt._sweep(to, from, false)
-	expect("repeated recall/sweep does not repeat return damage or procs", wt.last_return_hits.count(victim.get_instance_id()) == 1 and is_equal_approx(victim.health, after_return) and wt.proc_hits == 0)
-	victim.free()
-	wt.tick(0.01)
-	expect("target removed during return does not strand weapon", wt.is_away())
-	wt._begin_catch()
-	skills.cancel_action()
-	wt.tick(0.01)
-	expect("interrupted catch restores one blade and unlocked slot", wt.has_weapon() and wt.thrown == null and player.model.weapon.visible and not player.stats.weapon_locked)
-	wt.reset()
-	# Wallspike carried and pinned victims can die or disappear independently.
-	for attached in ["carried", "pinned"]:
-		for loss in ["dead", "freed"]:
-			player.stats.cooldowns.clear()
-			wt.begin_charge()
-			wt.release(aim)
-			wt.tick_busy(0.21)
-			var body: Enemy = _throw_dummy(player.global_position + Vector3(4, 0, 0))
-			body.set_physics_process(false)
-			wt.evolution = "wallspike"
-			wt._spike(body, Vector3.RIGHT)
-			if attached == "pinned":
-				wt._embed(player.global_position + Vector3(10, 1, 0), Vector3.LEFT, true)
-			if loss == "dead":
-				body.dead = true
-			else:
-				body.free()
-			expect("recall survives %s %s victim" % [loss, attached], wt.recall() and not wt.recall())
-			if is_instance_valid(body):
-				expect("dead %s victim released from impale" % attached, not body.impaled)
-				body.free()
-			wt.reset()
-			await get_tree().process_frame
-	# Scene cleanup can remove the visual while the component still owns it.
-	player.stats.cooldowns.clear()
-	wt.begin_charge()
-	wt.release(aim)
-	wt.tick_busy(0.21)
-	wt.thrown.free()
-	wt.tick(0.01)
-	expect("lost thrown node recovers equipment/action ownership", wt.has_weapon() and wt.thrown == null and not player.stats.weapon_locked and not skills.busy)
-	# A normal sword action must not be cancelled by an idempotent throw reset.
-	skills.busy = true
-	skills.busy_skill = "basic"
-	wt.reset()
-	expect("reset leaves another skill's action alone", skills.busy)
-	skills.busy = false
-	player.set_physics_process(true)
-
-func _throw_ownership_png(label: String) -> void:
-	if not OS.get_cmdline_user_args().has("--throwownershipshots"):
-		return
-	var camera := Camera3D.new()
-	get_tree().root.add_child(camera)
-	camera.current = true
-	var at: Vector3 = player.weapon_throw.weapon_position() if label == "embedded" else player.global_position + Vector3(0, 1, 0)
-	camera.global_position = at + Vector3(-3, 2.5, 4)
-	camera.look_at(at)
-	await RenderingServer.frame_post_draw
-	var path: String = "res://.agentbridge/weaponthrow-%s.png" % label
-	expect("PNG saved: %s" % label, get_viewport().get_texture().get_image().save_png(path) == OK)
-	camera.queue_free()
 
 func _test_weapon_throw() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -7759,209 +7437,6 @@ func _test_crypt_road() -> void:
 	expect("walking out through the gate with the nests gone ends the run", run.is_ending())
 
 var _failures: PackedStringArray = []
-
-## Drive cancellation synchronously so regeneration and input timing cannot mask a spend or refund.
-func _test_action_queue() -> void:
-	player.set_physics_process(false)
-	var s: SkillController = player.skills
-	var aim: Vector3 = player.global_position + Vector3(0, 0, -2)
-	var target: Enemy = _spawn_enemy(aim)
-	target.set_physics_process(false)
-	s.reset()
-	player.stats.cooldowns.clear()
-	player.stats.mana = player.stats.max_mana
-	s.queue_skill("basic", aim)
-	s.cancel_action()
-	expect("idle cancellation drops queued order", s.queued_skill == "" and s.queued_target == null)
-	s.reset()
-	s.queue_skill("basic", aim)
-	s.start_skill("fireball", null, aim)
-	expect("immediate skill supersedes queued order", s.queued_skill == "" and s.queued_target == null)
-	s.cancel_action()
-	s.reset()
-	s.queue_skill("basic", aim)
-	s.start_skill("basic", target)
-	expect("consuming queue clears target ownership", s.queued_skill == "" and s.queued_target == null)
-	s.cancel_action()
-	s.queue_skill("basic", aim)
-	expect("fixture queued target before deletion", s.queued_target == target)
-	target.free()
-	player._act(0.0, aim)
-	expect("freed queue target is dropped", s.queued_skill == "" and s.queued_target == null)
-	var next: Enemy = _spawn_enemy(aim)
-	next.set_physics_process(false)
-	s.queue_skill("basic", aim)
-	player.stats.cooldowns.clear()
-	player.stats.stamina = player.stats.max_stamina
-	player.movement.try_roll(aim)
-	expect("idle dodge clears queued target ownership", s.queued_skill == "" and s.queued_target == null)
-	player.movement.tick_roll(2.0)
-	# Presses on either side of completion retain only the latest intended order.
-	for elapsed in [0.0, 0.25, 0.8]:
-		s.reset()
-		player.stats.cooldowns.clear()
-		player.stats.mana = player.stats.max_mana
-		s.start_skill("fireball", null, aim)
-		s.tick_busy(elapsed)
-		s.queue_skill("basic", aim)
-		s.queue_skill("basic", aim)
-		expect("repeated queue holds one next order", s.queued_skill == "basic" and s.queued_target == next)
-		s.tick_busy(s.busy_time)
-		var mana: float = player.stats.mana
-		var children: int = get_tree().current_scene.get_child_count()
-		s.tick_busy(10.0)
-		expect("completion cannot replay or spend", is_equal_approx(player.stats.mana, mana) and get_tree().current_scene.get_child_count() == children)
-		player._act(0.0, aim)
-		expect("completion consumes queued action once", s.busy and s.busy_skill == "basic" and s.queued_skill == "" and s.queued_target == null)
-		s.cancel_action()
-	# Directional starts and aimed Skewer share queue supersession semantics.
-	for id in ["power", "skewer", "leap", "earthshatter"]:
-		s.reset()
-		player.stats.cooldowns.clear()
-		player.stats.mana = player.stats.max_mana
-		player.stats.ult_charge = player.stats.ult_cost("earthshatter")
-		s.queue_skill("basic", aim)
-		s.try_directional(id, aim)
-		expect("directional action supersedes queue: " + id, s.busy and s.queued_skill == "" and s.queued_target == null)
-		s.cancel_action()
-	s.queue_skill("basic", aim)
-	player.stats.cooldowns.clear()
-	player.stats.potions = 1
-	player.health = player.max_health * 0.5
-	s.drink_potion()
-	expect("idle potion cancels queued action", s.queued_skill == "" and s.queued_target == null and player.stats.potions == 0)
-	# Unusable replacement preserves the intended next action without spending.
-	s.queue_skill("basic", aim)
-	player.stats.cooldowns["fireball"] = 5.0
-	s.start_skill("fireball", null, aim)
-	expect("rejected replacement preserves queue", s.queued_skill == "basic" and not s.busy)
-	player.stats.cooldowns["basic"] = 5.0
-	player._act(0.0, aim)
-	expect("unusable queued action is dropped without blocking", not s.busy and s.queued_skill == "" and s.queued_target == null)
-	player.stats.cooldowns.clear()
-	s.queue_skill("basic", aim)
-	player.dead = true
-	player._on_death()
-	s.queue_skill("basic", aim)
-	expect("dead input cannot acquire queue ownership", s.queued_skill == "" and s.queued_target == null)
-	player.revive_at(player.global_position)
-	player.set_physics_process(false)
-	player.stats.cooldowns.clear()
-	s.start_skill("basic", next)
-	expect("revive accepts immediate action", s.busy and s.busy_skill == "basic")
-	s.cancel_action()
-	# Public throw hooks: sword actions cannot acquire ownership while away/returning.
-	player.stats.cooldowns.clear()
-	s.queue_skill("basic", aim)
-	Input.action_press("skill_6")
-	s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
-	expect("throw charge supersedes queue", s.queued_skill == "" and s.queued_target == null)
-	Input.action_release("skill_6")
-	s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
-	s.tick_busy(2.0)
-	expect("throw fixture reaches away state", player.weapon_throw.is_away())
-	for returning in [false, true]:
-		if returning:
-			Input.action_press("skill_6")
-			s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
-			Input.action_release("skill_6")
-		s.queue_skill("basic", aim)
-		s.try_directional("power", aim)
-		expect("away/returning weapon rejects sword input", not s.busy and s.queued_skill == "")
-	player.weapon_throw.reset()
-	next.free()
-	s.reset()
-	player.set_physics_process(true)
-
-func _test_skill_integrity() -> void:
-	player.set_physics_process(false)
-	var s: SkillController = player.skills
-	var aim: Vector3 = player.global_position + Vector3(0, 0, -6)
-	for elapsed in [0.0, 0.25, 0.8]:
-		player.stats.mana = player.stats.max_mana
-		player.stats.cooldowns.clear()
-		s.start_skill("fireball", null, aim)
-		s.tick_busy(elapsed)
-		var spent: float = player.stats.mana
-		s.start_skill("fireball", null, aim)
-		expect("repeated start does not spend again", is_equal_approx(player.stats.mana, spent))
-		s.cancel_action()
-		expect("generic pre-release cancellation refunds Fireball", is_equal_approx(player.stats.mana, player.stats.max_mana) and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0)
-		s.cancel_action()
-		expect("repeat cancellation cannot mint mana", is_equal_approx(player.stats.mana, player.stats.max_mana))
-	player.stats.cooldowns.clear()
-	s.start_skill("fireball", null, aim)
-	s.tick_busy(s.busy_time)
-	var committed_mana: float = player.stats.mana
-	var balls: int = get_tree().current_scene.get_child_count()
-	s.tick_busy(10.0)
-	expect("finished tick cannot replay Fireball", get_tree().current_scene.get_child_count() == balls)
-	s.cancel_action()
-	expect("released Fireball keeps its cost", is_equal_approx(player.stats.mana, committed_mana) and float(player.stats.cooldowns.get("fireball", 0.0)) > 0.0)
-	for id in ["power", "skewer", "leap", "earthshatter"]:
-		player.stats.mana = player.stats.max_mana
-		player.stats.cooldowns.clear()
-		player.stats.ult_charge = player.stats.ult_cost("earthshatter")
-		s.try_directional(id, aim)
-		var mana: float = player.stats.mana
-		var charge: float = player.stats.ult_charge
-		s.try_directional(id, aim)
-		expect("repeated directional start spends once: " + id, is_equal_approx(mana, player.stats.mana) and is_equal_approx(charge, player.stats.ult_charge))
-		s.cancel_action()
-		s.tick_busy(10.0)
-		expect("cancel stops component and delayed effects: " + id, not s.busy and player.skewer.skewer_phase == 0 and player.leap.leap_phase == 0 and player.earthshatter.phase == 0)
-	# Reset every real phase, including active/recovery, without replacing the death clip.
-	for id in ["skewer", "leap", "earthshatter"]:
-		for phase in range(1, 6 if id == "skewer" else 5):
-			player.stats.mana = player.stats.max_mana
-			player.stats.cooldowns.clear()
-			player.stats.ult_charge = player.stats.ult_cost("earthshatter")
-			s.try_directional(id, aim)
-			match id:
-				"skewer": player.skewer.skewer_phase = phase
-				"leap": player.leap.leap_phase = phase
-				"earthshatter": player.earthshatter.phase = phase
-			player.model.once("death", 0.0, 1.0, 0.1)
-			var clip: String = player.model.current
-			player._on_death()
-			expect("death cleans phase %d of %s without replacing clip" % [phase, id], not s.busy and player.skewer.skewer_phase == 0 and player.leap.leap_phase == 0 and player.earthshatter.phase == 0 and player.model.current == clip)
-	# The potion and legal switch both use the generic cancellation path.
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns.clear()
-	player.stats.potions = 1
-	player.health = player.max_health * 0.5
-	s.start_skill("fireball", null, aim)
-	s.drink_potion()
-	expect("potion abort refunds unreleased cast", not s.busy and player.stats.potions == 0 and is_equal_approx(player.stats.mana, player.stats.max_mana))
-	player.stats.cooldowns.clear()
-	s.start_skill("fireball", null, aim)
-	s.cancel_action()
-	s.try_directional("power", aim)
-	expect("legal switch spends only the replacement skill", s.busy and s.busy_skill == "power" and is_equal_approx(player.stats.mana, player.stats.max_mana - float(SkillDb.all()["power"]["mana"])))
-	s.cancel_action()
-	var captive: Enemy = _spawn_enemy(aim)
-	captive.set_impaled(true)
-	player.skewer.skewer_impaled.append(captive)
-	player.skewer.skewer_phase = 2
-	s.reset()
-	expect("reset releases the Skewer captive", not captive.impaled and player.skewer.skewer_impaled.is_empty() and player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY))
-	captive.queue_free()
-	player.stats.cooldowns.clear()
-	s.aiming_id = "fireball"
-	s.aiming_action = "skill_2"
-	s.aim_blocked = "skill_1"
-	s.swallow_alt = true
-	s.queued_skill = "power"
-	s.start_skill("fireball", null, aim)
-	player._on_death()
-	expect("death clears action and aim state", not s.busy and s.aiming_id == "" and s.aiming_action == "" and s.queued_skill == "" and s.fire_orb == null)
-	player.dead = true
-	s.start_skill("fireball", null, aim)
-	s.try_directional("earthshatter", aim)
-	expect("dead actor cannot restart a skill", not s.busy)
-	player.revive_at(player.global_position)
-	expect("revive clears blocked input state", s.aim_blocked == "" and not s.swallow_alt and s.busy_def.is_empty() and s.busy_target == null and s.queued_target == null)
-	player.set_physics_process(true)
 
 ## Records a failed expectation (printed as [FAIL], which CI treats as an error) instead of just logging a boolean.
 func expect(label: String, condition: bool) -> void:

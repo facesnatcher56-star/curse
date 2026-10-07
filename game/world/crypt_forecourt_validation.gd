@@ -13,6 +13,7 @@ var location: CryptRoad
 var director: RunDirector
 var cam: Camera3D
 var env: WorldEnvironment
+var capture_dir: String = ""
 
 func _ready() -> void:
 	print("--- CRYPT FORECOURT ENCOUNTER VALIDATION START ---")
@@ -187,37 +188,117 @@ func _run_validation() -> void:
 	print("  [PASS] Group distribution: %s, all unalerted, safe initial distance" % str(groups))
 
 	# 4. Capture screenshots from 4 authored perspectives.
-	var dir_path: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots")
-	DirAccess.make_dir_absolute(dir_path)
+	capture_dir = _resolve_capture_dir()
+	var dir_err: Error = DirAccess.make_dir_recursive_absolute(capture_dir)
+	if dir_err != OK:
+		printerr("  [RENDER ERROR] Failed to create capture directory '%s': %s (code %d)" % [capture_dir, error_string(dir_err), dir_err])
+	assert(dir_err == OK, "Failed to create capture directory %s: %s" % [capture_dir, error_string(dir_err)])
 
 	# View 1: Approach Silhouette (looking North from z = -143 toward monumental pillars, forecourt plaza, and crypt portal).
 	cam.global_position = Vector3(0.0, 4.2, -143.0)
 	cam.look_at(Vector3(0.0, 2.0, -162.0), Vector3.UP)
-	await _capture("crypt_forecourt_approach.png")
+	var err1: Error = await _capture("crypt_forecourt_approach.png")
+	assert(err1 == OK, "Failed to capture crypt_forecourt_approach.png: %s" % error_string(err1))
 
 	# View 2: Combat Space (elevated view of the forecourt plaza, broken bier, braziers, and vanguard before the steps).
 	cam.global_position = Vector3(2.5, 4.8, -151.0)
 	cam.look_at(Vector3(0.0, 1.2, -159.5), Vector3.UP)
-	await _capture("crypt_forecourt_combat_space.png")
+	var err2: Error = await _capture("crypt_forecourt_combat_space.png")
+	assert(err2 == OK, "Failed to capture crypt_forecourt_combat_space.png: %s" % error_string(err2))
 
 	# View 3: Alternate Angle (western mortuary shelter view, showing the stone embalming bier, shelter walls, and flank cover line).
 	cam.global_position = Vector3(-6.0, 3.8, -148.0)
 	cam.look_at(Vector3(-10.5, 1.2, -155.0), Vector3.UP)
-	await _capture("crypt_forecourt_alternate_angle.png")
+	var err3: Error = await _capture("crypt_forecourt_alternate_angle.png")
+	assert(err3 == OK, "Failed to capture crypt_forecourt_alternate_angle.png: %s" % error_string(err3))
 
 	# View 4: Post-fight Crypt Destination View (looking up the grand stone steps into the sealed facade of the crypt portal).
 	cam.global_position = Vector3(0.0, 2.8, -157.0)
 	cam.look_at(Vector3(0.0, 3.2, -166.0), Vector3.UP)
-	await _capture("crypt_forecourt_destination_view.png")
+	var err4: Error = await _capture("crypt_forecourt_destination_view.png")
+	assert(err4 == OK, "Failed to capture crypt_forecourt_destination_view.png: %s" % error_string(err4))
+
+	if err1 != OK or err2 != OK or err3 != OK or err4 != OK:
+		printerr("  [FAIL] Screenshot capture failed")
+		get_tree().quit(1)
+		return
 
 	print("--- CRYPT FORECOURT ENCOUNTER VALIDATION COMPLETED CLEANLY ---")
 	get_tree().quit(0)
 
-func _capture(filename: String) -> void:
+func _resolve_capture_dir() -> String:
+	var raw_dir: String = "res://.agentbridge/screenshots"
+	var all_args: Array[String] = []
+	all_args.append_array(OS.get_cmdline_user_args())
+	all_args.append_array(OS.get_cmdline_args())
+	for i in range(all_args.size()):
+		var arg: String = all_args[i]
+		if arg.begins_with("--screenshots="):
+			raw_dir = arg.substr("--screenshots=".length())
+		elif arg == "--screenshots" and i + 1 < all_args.size():
+			raw_dir = all_args[i + 1]
+		elif arg.begins_with("--shots="):
+			raw_dir = arg.substr("--shots=".length())
+		elif arg == "--shots" and i + 1 < all_args.size():
+			raw_dir = all_args[i + 1]
+		elif arg.begins_with("--forecourt-shots="):
+			raw_dir = arg.substr("--forecourt-shots=".length())
+		elif arg == "--forecourt-shots" and i + 1 < all_args.size():
+			raw_dir = all_args[i + 1]
+		elif arg.begins_with("--dir="):
+			raw_dir = arg.substr("--dir=".length())
+		elif arg == "--dir" and i + 1 < all_args.size():
+			raw_dir = all_args[i + 1]
+		elif arg.begins_with("--output-dir="):
+			raw_dir = arg.substr("--output-dir=".length())
+		elif arg == "--output-dir" and i + 1 < all_args.size():
+			raw_dir = all_args[i + 1]
+		elif arg.begins_with("--out="):
+			raw_dir = arg.substr("--out=".length())
+
+	raw_dir = raw_dir.strip_edges()
+	var global_dir: String
+	if raw_dir.begins_with("res://") or raw_dir.begins_with("user://"):
+		global_dir = ProjectSettings.globalize_path(raw_dir)
+	elif raw_dir.is_absolute_path():
+		global_dir = raw_dir
+	else:
+		global_dir = ProjectSettings.globalize_path("res://" + raw_dir)
+	return global_dir.replace("\\", "/")
+
+func _capture(filename: String) -> Error:
 	await get_tree().create_timer(0.3).timeout
 	var img: Image = get_viewport().get_texture().get_image()
-	var out_local: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots/" + filename)
-	var out_temp: String = OS.get_environment("TEMP") + "/" + filename
-	img.save_png(out_local)
-	img.save_png(out_temp)
-	print("  [RENDER] Saved: %s (and in %%TEMP%%)" % filename)
+	if img == null or img.is_empty():
+		printerr("  [RENDER ERROR] Viewport texture returned empty image for %s" % filename)
+		return ERR_CANT_CREATE
+
+	if capture_dir.is_empty():
+		capture_dir = _resolve_capture_dir()
+
+	var out_local: String = capture_dir.path_join(filename)
+	var dir_err: Error = DirAccess.make_dir_recursive_absolute(out_local.get_base_dir())
+	if dir_err != OK:
+		printerr("  [RENDER ERROR] Failed to create parent directory '%s': %s (code %d)" % [out_local.get_base_dir(), error_string(dir_err), dir_err])
+		return dir_err
+
+	var err_local: Error = img.save_png(out_local)
+	if err_local != OK:
+		printerr("  [RENDER ERROR] Failed to save %s: %s (code %d)" % [out_local, error_string(err_local), err_local])
+		return err_local
+
+	var temp_base: String = OS.get_environment("TEMP")
+	if temp_base.is_empty():
+		temp_base = OS.get_environment("TMP")
+	if not temp_base.is_empty():
+		var out_temp: String = temp_base.path_join(filename)
+		DirAccess.make_dir_recursive_absolute(out_temp.get_base_dir())
+		var err_temp: Error = img.save_png(out_temp)
+		if err_temp == OK:
+			print("  [RENDER] Saved: %s (and in %%TEMP%%)" % filename)
+			return OK
+		else:
+			printerr("  [RENDER WARNING] Saved to %s, but failed to save in TEMP at %s: %s" % [out_local, out_temp, error_string(err_temp)])
+
+	print("  [RENDER] Saved: %s" % filename)
+	return OK
