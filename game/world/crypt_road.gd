@@ -407,6 +407,11 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	# The shrine: a plague priest among its guard, a spitter at its back.
 	_group(11, "", [["priest", 0, -9.5], ["zombie", 4, -5], ["zombie", -4, -5.5], ["zombie", 5.5, -1.5], ["zombie", -5.5, -2],
 		["spitter", 1, -15]], Vector2(0, -8))
+	# Between the shrine and the courtyard wall, a crossfire stretch (one wave, three roles, three different tells): a brute holds the
+	# road, a spitter stands back in the west trees covering it, and a ghoul pack works the east verge to cut round behind you.
+	# Everything is 12+ m from the shrine group, and the road south to the shrine stays open to fall back on.
+	_group(30, "", [["brute", 0.5, -31], ["spitter", -10.5, -38]], Vector2(-2, -34))
+	_group(30, "wander", [["ghoul", 11, -27]], Vector2(11, -27), 3.5, Vector2.ZERO, [Vector2(11, -24), Vector2(10, -34)])
 	# The courtyard: patrols on the avenue, a bloater at the wall, the third nest's pack, a priest with spitters behind, brutes at the door.
 	_group(12, "wander", [["zombie", -7, -62], ["zombie", 7, -66], ["zombie", -6, -74], ["zombie", 8, -72]], Vector2(0, -68), 4.0, Vector2.ZERO,
 		[Vector2(-8, -68), Vector2(8, -68), Vector2(8, -118), Vector2(-8, -118)])
