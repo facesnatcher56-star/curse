@@ -34,6 +34,8 @@ const GROUP_WEST: int = 29
 const FORECOURT_ENTRY_Z: float = -146.0
 const CLEAR_BANNER_TEXT: String = "Forecourt secured — the sealed crypt waits."
 const CLEAR_BANNER_DURATION: float = 4.0
+const REWARD_BANNER_FORMAT: String = "A %s waits beside the waystone: %s"
+const REWARD_LUCK: float = 1.0  # Items.roll_drop luck 1.0: rare or better, a fair chance of a unique (like a Brute)
 
 const STAGE_1_FALLBACK_TIMER: float = 12.0
 const STAGE_2_FALLBACK_TIMER: float = 10.0
@@ -59,6 +61,8 @@ var _saved_aggro_ranges: Dictionary = {}
 var _stage_timer: float = 0.0
 var _cleared: bool = false
 var _clear_event_fired_count: int = 0
+var reward_item: Dictionary = {}
+var reward_drop: LootDrop = null
 
 func setup(p_road: CryptRoad, p_director: RunDirector) -> void:
 	road = p_road
@@ -178,9 +182,25 @@ func complete_encounter() -> void:
 	if road != null and road.return_waystone != null:
 		road.return_waystone.reveal()
 	TownState.report_forecourt_cleared(CryptRoad.SITE_ID)
+	var banner: String = CLEAR_BANNER_TEXT
+	var reward_line: String = _award_clear_reward()
+	if reward_line != "":
+		banner += "
+" + reward_line
 	if director != null and director.hud != null:
-		director.hud.show_banner(CLEAR_BANNER_TEXT, CLEAR_BANNER_DURATION)
+		director.hud.show_banner(banner, CLEAR_BANNER_DURATION)
 	set_physics_process(false)
+
+## The once-per-encounter climax payoff: one rare-or-better item tossed beside the revealed return waystone. The tier comes from the
+## road's threat at the waystone (never the hero); owned uniques are skipped by the roll. Guarded by `_cleared` in complete_encounter,
+## and a regenerated encounter gets a fresh controller, so it can pay out again. Returns the announcement line ("" if nothing dropped).
+func _award_clear_reward() -> String:
+	if director == null or road == null or road.return_waystone == null or not reward_item.is_empty():
+		return ""
+	var spot: Vector3 = road.return_waystone.global_position
+	reward_item = Items.roll_drop(director.drop_tier_at(spot), REWARD_LUCK, director.owned_uniques())
+	reward_drop = director.drop_item(spot, reward_item)
+	return REWARD_BANNER_FORMAT % [String(Items.RARITY_NAMES[int(reward_item["rarity"])]).to_lower(), String(reward_item["name"])]
 
 func _wake_group_list(enemies: Array[Enemy]) -> void:
 	# Restore stored aggro ranges first so mates alerting each other have proper perception.

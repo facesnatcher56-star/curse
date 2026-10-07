@@ -111,6 +111,19 @@ func _run_validation() -> void:
 	for i in 10:
 		await process_frame
 
+	# --- TEST 4a (task068): Warden death / partial clear grants no reward ---
+	var loot_before: int = get_nodes_in_group("loot").size()
+	for we in get_nodes_in_group("enemies"):
+		var we_enemy := we as Enemy
+		if we_enemy != null and we_enemy.def != null and we_enemy.def.id == "warden":
+			we_enemy.dead = true
+			we_enemy.health = 0.0
+	climax.complete_encounter()
+	assert(not climax.is_cleared(), "Warden death alone must not clear the forecourt")
+	assert(climax.reward_item.is_empty() and climax.reward_drop == null, "No forecourt reward before the full clear")
+	assert(get_nodes_in_group("loot").size() == loot_before, "No loot spawned by a partial clear")
+	print("  [PASS] 4a. Warden death before full clear grants no reward")
+
 	# Simulate defeating all forecourt enemies
 	for e in climax._all_forecourt_enemies:
 		if is_instance_valid(e):
@@ -131,6 +144,27 @@ func _run_validation() -> void:
 	climax.complete_encounter()
 	assert(climax.get_clear_event_fired_count() == 1, "Clear event must NOT fire multiple times")
 	print("  [PASS] 4. Appears/enables exactly once after Forecourt clear")
+
+	# --- TEST 4b (task068): guaranteed rare-or-better reward, once, beside the waystone ---
+	assert(not climax.reward_item.is_empty(), "Full clear must award a reward item")
+	assert(int(climax.reward_item["rarity"]) >= Items.Rarity.RARE, "Reward must be rare or better")
+	var spot_tier: int = Items.tier_for_source(crypt.threat_at(crypt.return_waystone.global_position))
+	assert(int(climax.reward_item["tier"]) == spot_tier, "Reward tier must come from the road threat at the waystone, not the hero")
+	assert(is_instance_valid(climax.reward_drop) and climax.reward_drop.is_inside_tree(), "Reward drop must exist in the world")
+	assert(get_nodes_in_group("loot").size() == loot_before + 1, "Exactly one drop spawned by the full clear")
+	await create_timer(LootDrop.LAND_TIME + 0.4).timeout
+	assert(climax.reward_drop.global_position.distance_to(crypt.return_waystone.global_position) < 2.5, "Reward must land beside the waystone")
+	climax.complete_encounter()
+	climax.complete_encounter()
+	assert(get_nodes_in_group("loot").size() == loot_before + 1, "Repeated completion must not duplicate the reward")
+	# Owned-unique handling: with every unique owned, a luck-1 roll is still rare (never a duplicate unique, never common).
+	var all_owned: Array[String] = []
+	for u in Items.UNIQUES:
+		all_owned.append(String(u["name"]))
+	for i in 40:
+		var r: Dictionary = Items.roll_drop(spot_tier, CryptForecourtClimax.REWARD_LUCK, all_owned)
+		assert(int(r["rarity"]) == Items.Rarity.RARE, "With all uniques owned the reward falls back to rare")
+	print("  [PASS] 4b. One guaranteed rare-or-better reward beside waystone, tier from source, no duplicate")
 
 	# --- TEST 5: Interaction label and spots registration ---
 	var waystone_spots: Array = town.spots.filter(func(s: Dictionary) -> bool: return String(s.get("key", "")) == "return_waystone")
@@ -171,6 +205,12 @@ func _run_validation() -> void:
 	await _capture("02_return_waystone_prompt")
 	Gamepad.active = false
 
+	# Bring the reward home through the real pickup path.
+	var reward_name: String = String(climax.reward_item["name"])
+	climax.reward_drop.pick_up(player)
+	var named := func(it: Dictionary) -> bool: return String(it["name"]) == reward_name
+	assert(player.stats.bag.any(named) or player.stats.equipment.values().any(named), "Reward must be picked up (bag, or worn if its slot was empty)")
+
 	# --- TEST 7: Activation returns hero to Last Hearth safely ---
 	town.interact(town.near)
 	for i in 10:
@@ -182,6 +222,7 @@ func _run_validation() -> void:
 	var hale: TownNpc = town.npcs["hale"]
 	assert(hale != null, "Warden Hale must exist")
 	assert(hale.has_reward_marker(), "Warden Hale must display reward marker coin")
+	assert(TownState.stash.any(named) or TownState.gear.values().any(named), "Reward must survive the return (stash, or recorded gear)")
 	print("  [PASS] 7. Activation returns hero to Last Hearth safely with reward marker")
 
 	# --- SCREENSHOT 3: Arrival and closure in Last Hearth plaza ---
@@ -207,6 +248,22 @@ func _run_validation() -> void:
 	var spots_after_regrow: Array = town.spots.filter(func(s: Dictionary) -> bool: return String(s.get("key", "")) == "return_waystone")
 	assert(spots_after_regrow.is_empty(), "return_waystone must be cleared from spots after regrow")
 	print("  [PASS] 9. Road regrow cleanly resets return waystone for next run")
+
+	# --- TEST 10 (task068): a regenerated encounter may award again ---
+	await crypt.regrow()
+	for i in 5:
+		await process_frame
+	var climax2: CryptForecourtClimax = crypt.forecourt_climax
+	assert(climax2 != null and climax2 != climax and not climax2.is_cleared(), "Regrow must attach a fresh, uncleared climax")
+	var loot_mid: int = get_nodes_in_group("loot").size()
+	for e2 in climax2._all_forecourt_enemies:
+		if is_instance_valid(e2):
+			e2.dead = true
+			e2.health = 0.0
+	climax2.complete_encounter()
+	assert(not climax2.reward_item.is_empty() and int(climax2.reward_item["rarity"]) >= Items.Rarity.RARE, "Regenerated encounter awards a fresh reward")
+	assert(get_nodes_in_group("loot").size() == loot_mid + 1, "Regenerated clear drops exactly one item")
+	print("  [PASS] 10. Regenerated encounter awards again")
 
 	print("=== VALIDATE CRYPT RETURN FLOW 056 COMPLETED SUCCESSFULLY ===")
 	quit(0)
