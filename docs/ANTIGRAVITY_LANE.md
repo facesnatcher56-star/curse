@@ -171,8 +171,8 @@ Before autonomous TASK/REVIEW dispatch, obey `docs/AGENT_USAGE_POLICY.md`.
 
 Antigravity's documented interactive usage command is `/usage`. The autonomous lane must use a locally verified reliable way to obtain the same quota state before dispatch. If that cannot be done reliably, fail closed rather than guessing.
 
-OWNER reserve:
-- five-hour remaining must be > 85% when that window applies;
-- weekly remaining must be > 95%.
+OWNER autonomous stop limits:
+- stop starting new runs once five-hour usage reaches >= 85% (<= 15% remaining);
+- stop starting new runs once weekly usage reaches >= 95% (<= 5% remaining).
 
-At or below either threshold, do not start another autonomous Antigravity run.
+Once either limit is reached, do not start another autonomous Antigravity run.
