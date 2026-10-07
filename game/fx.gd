@@ -57,6 +57,8 @@ static func melee_impact(from: Node, pos: Vector3, away: Vector3, tier: int, tar
 	burst(from, pos, dir, Color(0.95, 0.75, 0.4), 12, 6.5, 0.026, true)
 	burst(from, pos, dir, Color(0.3, 0.27, 0.23), 14 if crushing else 8, 4.2 if crushing else 3.5, 0.05 if crushing else 0.04)
 	light_flash(from, pos, Color(1.0, 0.8, 0.5), 2.2 if crushing else 1.6, 0.08 if crushing else 0.07)
+	if crushing and claim_impact("crush_ring", pos):   # the one extra cue critical lacks: a low shockwave of dust off the ground
+		ring(from, Vector3(pos.x, 0.1, pos.z), 2.6, Color(0.6, 0.5, 0.38))
 	return true
 
 ## A flying body striking scenery ("wall") or another enemy ("enemy"): dust, one recorded thud and a short camera shove, once per
