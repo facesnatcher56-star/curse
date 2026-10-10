@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "warden"
+display_name = "Crypt Warden"
+model_path = "res://assets/models/zombie_brute"
+model_scale = Vector3(1.12, 1.12, 1.12)
+height = 2.65
+radius = 0.7
+clips = Array[String](["idle", "walk", "run", "attack", "hit", "death"])
+gib_color = Color(0.38, 0.42, 0.34, 1)
+health = 300.0
+damage_min = 16.0
+damage_max = 24.0
+speed = 2.5
+attack_range = 2.2
+attack_time = 1.4
+armor = 28.0
+defense = 20.0
+attack_rating = 45.0
+flinch = 0.1
+knock_resist = 0.45
+stun_resist = 0.35
+impalable = false
+attack_clip = "attack"
+attack_start = 0.6
+attack_strike = 1.43
+attack_end = 2.0
+behavior = "warden"
+params = {
+"heavy_chance": 0.0, "windup": 0.95, "strike_time": 0.3, "recover": 0.9, "special_cooldown": 4.5, "special_range": 3.4, "strike_half_width": 1.0, "special_power": 1.45
+}
+token_weight = 2
+drop_chance = 0.5
+drop_luck = 1.0
+xp_reward = 20
+min_wave = 2
+spawn_mode = "solo"
+base_count = 0.0
+per_wave = 0.0
+max_per_wave = 0

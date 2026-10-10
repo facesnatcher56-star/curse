@@ -8,7 +8,7 @@ id = "road_in"
 display_name = "The Road In"
 from_m = 0.0
 to_m = 64.0
-level_offset = 0.0
+base_threat = 1.25
 density = 1.0
 groups = [{
 "weight": 70,

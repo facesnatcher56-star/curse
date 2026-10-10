@@ -11,6 +11,8 @@ var objective: String = ""
 ## the hero rather than the whole arena (the world is a plaza and a long road).
 var top_offset: float = 0.0
 var force_window: bool = false
+## True in the town/road world, where a fallen hero is dragged home rather than restarting the run (the arena sets nothing: it restarts).
+var world_mode: bool = false
 var kills: int = 0
 var alive: int = 0
 # Gear panel.
@@ -18,7 +20,11 @@ var show_gear: bool = false
 var character_panel: Control
 var banner_text: String = ""
 var banner_time: float = 0.0
+## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
+const METAL_WARMTH := Color(1.32, 1.04, 0.80, 1.0)
 var health_orb: Control
+var _busts: Array[TextureRect] = []
+var _plinths: Array[TextureRect] = []
 var mana_orb: Control
 var tray: Texture2D
 var bezel: Texture2D
@@ -27,10 +33,38 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_text = text
 	banner_time = seconds
 
+var progression_hud: ProgressionHud
+## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
+var level_toast_text: String:
+	get: return progression_hud.toast_text if progression_hud != null else ""
+var level_toast_points: String:
+	get: return progression_hud.toast_points if progression_hud != null else ""
+var level_toast_time: float:
+	get: return progression_hud.toast_time if progression_hud != null else 0.0
+
 func _ready() -> void:
+	progression_hud = ProgressionHud.new()   # the level and XP strip, the level-up plate and the points-available mark
+	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side in 2:   # the carved slab each bust sits on, running from the screen's edge in to its vessel
+		var slab := TextureRect.new()
+		slab.texture = preload("res://assets/ui/vessels/bust_plinth.png")
+		slab.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		slab.stretch_mode = TextureRect.STRETCH_SCALE
+		slab.flip_h = side == 1
+		slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(slab)
+		_plinths.append(slab)
+	for side in 2:   # the two busts sit behind the vessels, at the screen's edges: the hero's helmed head on the health side, a hooded shape on the mana side
+		var bust := TextureRect.new()
+		bust.texture = load("res://assets/ui/busts/%s.png" % ("knight" if side == 0 else "priest")) as Texture2D
+		bust.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bust.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bust.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(bust)
+		_busts.append(bust)
 	health_orb = preload("res://game/resource_orb.gd").new()
 	health_orb.title = "Health"
 	health_orb.color = UiTheme.BLOOD
@@ -45,28 +79,133 @@ func _ready() -> void:
 ## The minimap is its own canvas item, redrawn 20 times a second instead of every frame: it walks every obstacle and monster in the world
 ## (hundreds), and doing that at the full frame rate was about 8 ms of every frame, the biggest cost in the plaza.
 const MAP_REDRAW := 0.05
+## How far the hotbar sits above the bottom edge: the XP bar and the level badge run along the very bottom, under it.
+const HOTBAR_LIFT := 30.0
 var _map: Control
 var _map_clock: float = 0.0
+## The map under the dots, and its fog of war (see MinimapMap). Two children drawn BEHIND the map item (frame, then the clipped terrain+fog view), so
+## the dots, the nests and the hero's arrow, which the map item itself draws, sit on top of them.
+var map_data: MinimapMap = MinimapMap.new()
+var _map_frame: Control
+var _map_view: Control
+var _map_content: Control
 
 func _paint_map() -> void:
 	if player != null:
 		_draw_minimap(_map, get_viewport_rect().size, ThemeDB.fallback_font)
 
+## The round map's frame: a dark worn-iron ring with a bronze line, studs at the four quarters, the compass N (it turns with the camera, so it
+## always points to world north) and the name of the place under it.
+func _paint_map_frame() -> void:
+	var screen: Vector2 = get_viewport_rect().size
+	var rect: Rect2 = minimap_rect(screen)
+	var c: Vector2 = rect.get_center()
+	var radius: float = rect.size.x * 0.5
+	var f: Control = _map_frame
+	f.draw_circle(c + Vector2(0, 5), radius + 12.0, Color(0, 0, 0, 0.45))        # the shadow it casts
+	f.draw_circle(c, radius, Color(0.105, 0.09, 0.08, 0.96))                       # what the map sits on: worn earth, not a black hole beyond the world
+	f.draw_arc(c, radius + 5.0, 0.0, TAU, 96, Color(0.055, 0.05, 0.06), 11.0)      # the iron
+	f.draw_arc(c, radius + 9.5, 0.0, TAU, 96, Color(0, 0, 0, 0.9), 2.0)
+	f.draw_arc(c, radius + 6.0, -2.4, -0.7, 32, UiTheme.BRONZE_LIGHT.darkened(0.35), 1.5)   # a glint, upper right
+	f.draw_arc(c, radius + 0.5, 0.0, TAU, 96, UiTheme.BRONZE.darkened(0.1), 1.5)   # the bronze inner line
+	for quarter in 4:
+		var stud: Vector2 = c + Vector2.from_angle(quarter * PI * 0.5) * (radius + 5.0)
+		f.draw_circle(stud, 3.2, Color(0, 0, 0, 0.85))
+		f.draw_circle(stud, 2.0, UiTheme.BRONZE_LIGHT.darkened(0.3))
+	var north: Vector2 = c + Vector2(0, -1).rotated(Gamepad.view_yaw) * (radius + 17.0)
+	UiTheme.text(f, UiTheme.heading_font(), north + Vector2(-5.0, 5.5), "N", 15, UiTheme.BRONZE_LIGHT.lightened(0.15))
+	UiTheme.text(f, UiTheme.heading_font(), Vector2(rect.position.x, rect.end.y + 30.0), zone_name().to_upper(), 15, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x)
+
+## Where the hero is, for the map's caption and the title at the top left.
+func zone_name() -> String:
+	if player == null:
+		return ""
+	for node in get_tree().get_nodes_in_group("crypt_road"):
+		var road := node as CryptRoad
+		if road != null and road.arena != null:
+			var local: Vector3 = player.global_position - road.arena.origin_offset
+			if absf(local.x) <= road.arena.half_x and absf(local.z) <= road.arena.half_z:
+				return "The Crypt Road" if local.z > CryptRoad.FORECOURT_Z else "The Crypt Forecourt"
+	return "The Last Hearth"
+
+func zone_subtitle() -> String:
+	var zone: String = zone_name()
+	return "Safe Haven" if zone == "The Last Hearth" else ("Hostile Ground" if zone == "The Crypt Road" else "Deep Beyond")
+
+func _paint_map_view() -> void:
+	if player == null:
+		return
+	var radius: float = _map_view.size.x * 0.5
+	_map_view.draw_circle(_map_view.size * 0.5, radius, Color.WHITE)   # this item only clips the one under it to a circle (it is not shown)
+
+func _paint_map_content() -> void:
+	if player == null:
+		return
+	var params: Dictionary = map_view_params(get_viewport_rect().size)
+	map_data.draw(_map_content, MinimapMap.transform_for(params["origin"], Gamepad.view_yaw, float(params["scale"]), _map_content.size * 0.5))
+
+## How the map is framed: a window round the hero in the connected world (and on any long arena), the whole arena otherwise.
+func map_view_params(size_px: Vector2) -> Dictionary:
+	var bounds: Vector2 = Arena.bounds_of(get_tree())
+	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
+	var half: float = 45.0 if windowed else Arena.HALF
+	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
+	return {"windowed": windowed, "half": half, "origin": origin, "scale": minimap_rect(size_px).size.x / (half * 2.0)}
+
+func _make_map_layers() -> void:
+	_map = Control.new()
+	_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map.draw.connect(_paint_map)
+	add_child(_map)
+	_map_frame = Control.new()
+	_map_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_frame.show_behind_parent = true
+	_map_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_frame.draw.connect(_paint_map_frame)
+	_map.add_child(_map_frame)
+	_map_view = Control.new()   # a disc that clips what is drawn in it (the map content) to a circle; it is not shown itself
+	_map_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_view.show_behind_parent = true
+	_map_view.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	_map_view.draw.connect(_paint_map_view)
+	_map.add_child(_map_view)
+	_map_content = Control.new()
+	_map_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_content.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_map_content.draw.connect(_paint_map_content)
+	_map_view.add_child(_map_content)
+
 func _process(delta: float) -> void:
 	if _map == null:
-		_map = Control.new()
-		_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_map.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_map.draw.connect(_paint_map)
-		add_child(_map)
+		_make_map_layers()
 	_map_clock += delta
 	if _map_clock >= MAP_REDRAW:
 		_map_clock = 0.0
+		if player != null:
+			map_data.ensure_built(get_tree())
+			map_data.reveal(player.global_position)
+			var view: Rect2 = minimap_rect(get_viewport_rect().size)
+			_map_view.position = view.position
+			_map_view.size = view.size
 		_map.queue_redraw()
+		_map_frame.queue_redraw()
+		_map_view.queue_redraw()
+		_map_content.queue_redraw()
 	if player != null:
 		var screen: Vector2 = get_viewport_rect().size
 		var hp_rect: Rect2 = orb_rect(screen, false)
 		var mp_rect: Rect2 = orb_rect(screen, true)
+		for side in _plinths.size():
+			var reach: float = hp_rect.position.x + hp_rect.size.x * 0.55
+			var slab_h: float = maxf(reach / 8.0, 12.0)
+			_plinths[side].size = Vector2(reach, slab_h)
+			_plinths[side].position = Vector2(0.0 if side == 0 else screen.x - reach, screen.y - slab_h - 4.0)
+		for side in _busts.size():
+			var span: float = hp_rect.size.x * 0.92
+			_busts[side].size = Vector2(span, span)
+			_busts[side].position = Vector2(0.0 if side == 0 else screen.x - span, screen.y - span + 6.0)
 		health_orb.position = hp_rect.position
 		health_orb.size = hp_rect.size
 		mana_orb.position = mp_rect.position
@@ -91,10 +230,11 @@ func _draw() -> void:
 	var slot_count: int = player.skills.hotbar.size() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
-	var y0: float = size_px.y - slot - 24
-	draw_texture_rect(tray, Rect2(x0 - 24.0, y0 - 22.0, total + 48.0, slot + 44.0), false)
-	# Stamina stays readable as a narrow bar immediately above the skill tray.
-	_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
+	var y0: float = size_px.y - slot - 24 - HOTBAR_LIFT
+	draw_texture_rect(tray, Rect2(x0 - 24.0, y0 - 22.0, total + 48.0, slot + 44.0), false, METAL_WARMTH)
+	# (A narrow stamina bar used to sit here, just above the skill tray; stamina is off, see PlayerStats.STAMINA_ON.)
+	if PlayerStats.STAMINA_ON:
+		_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
 	for i in player.skills.hotbar.size():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font)
@@ -105,7 +245,7 @@ func _draw() -> void:
 		_draw_picker(font, size_px)
 	else:
 		_draw_tooltip(font, size_px)
-
+	_draw_ability_toast(size_px, font)
 
 	# Target bar, top centre: whatever the mouse is over, else what we are attacking.
 	var target: Actor = player.hover_target
@@ -137,7 +277,22 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 6)), Color(0.8, 0.15, 0.12, alpha))
 			draw_rect(Rect2(pos, Vector2(bar_w, 6)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
 
-	if banner_time > 0.0:
+		# Objectives that must be destroyed (the nests) always carry a bar, even before the first hit.
+		for node in get_tree().get_nodes_in_group("nests"):
+			var nest := node as Destructible
+			if nest == null or nest.broken:
+				continue
+			var nest_head: Vector3 = nest.global_position + Vector3(0, nest.height + 0.3, 0)
+			if camera.is_position_behind(nest_head):
+				continue
+			var nest_screen: Vector2 = camera.unproject_position(nest_head)
+			var nest_w: float = 90.0
+			var nest_pos := Vector2(nest_screen.x - nest_w * 0.5, nest_screen.y - 8.0)
+			draw_rect(Rect2(nest_pos, Vector2(nest_w, 8)), Color(0, 0, 0, 0.75))
+			draw_rect(Rect2(nest_pos, Vector2(nest_w * clampf(nest.hp / nest.max_hp, 0.0, 1.0), 8)), Color(0.55, 0.8, 0.2))
+			draw_rect(Rect2(nest_pos, Vector2(nest_w, 8)), Color(1, 1, 1, 0.45), false, 1.0)
+
+	if banner_time > 0.0 and not banner_text.begins_with(CryptForecourtClimax.CLEAR_BANNER_TEXT):
 		var fade: float = clampf(minf(banner_time, 0.8) / 0.8, 0.0, 1.0)
 		var lines: PackedStringArray = banner_text.split("\n")
 		var top: float = size_px.y * 0.28 - 56.0
@@ -158,6 +313,10 @@ func _draw() -> void:
 	var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
 	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	_draw_item_card(size_px, font)
+	if banner_time > 0.0 and banner_text.begins_with(CryptForecourtClimax.CLEAR_BANNER_TEXT):
+		_draw_forecourt_banner(size_px, font)
+
+	_draw_ranged_warnings(camera, size_px)
 
 	if player.message_time > 0.0:
 		if camera != null and not camera.is_position_behind(player.global_position):
@@ -165,10 +324,114 @@ func _draw() -> void:
 			var width: float = font.get_string_size(player.message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 			UiTheme.text(self, font, anchor - Vector2(width * 0.5, 0), player.message, 18, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)))
 	if player.dead:
-		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.4 if world_mode else 0.55))   # the world's drag-back banner sits over this: keep it readable
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45), "YOU DIED", 64, Color(0.72, 0.12, 0.1), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
-		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), "Press R to restart" if TownState.job.is_empty() else "Returning to town...", 22,
-			Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), death_subline(), 22, Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+		var detail: String = death_detail()
+		if detail != "":
+			UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 76), detail, 17, Color(0.72, 0.68, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+
+## Offscreen ranged warning: while a spitter is in its wind-up and out of the camera view, a sickly-green chevron on the screen edge points
+## toward it, pulsing like the on-model "spit" telegraph. Display only; it never touches timing or damage.
+const RANGED_WARN_MARGIN := 34.0
+
+## [{pos: Vector2 (edge point), dir: Vector2 (toward the enemy), enemy}] for every winding-up spitter that is off the screen.
+func ranged_warnings(camera: Camera3D, size_px: Vector2) -> Array[Dictionary]:
+	var found: Array[Dictionary] = []
+	if camera == null:
+		return found
+	var centre: Vector2 = size_px * 0.5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or not (enemy.behavior is SpitterBehavior) or not (enemy.behavior as SpitterBehavior).is_winding_up():
+			continue
+		var at: Vector3 = enemy.global_position + Vector3(0, enemy.body_height * 0.5, 0)
+		var behind: bool = camera.is_position_behind(at)
+		var screen: Vector2 = camera.unproject_position(at)
+		if not behind and Rect2(Vector2.ZERO, size_px).has_point(screen):
+			continue   # on screen: its own telegraph is visible
+		var dir: Vector2 = screen - centre
+		if behind:
+			dir = -dir
+		if dir.length() < 0.001:
+			dir = Vector2.DOWN
+		dir = dir.normalized()
+		var half: Vector2 = centre - Vector2.ONE * RANGED_WARN_MARGIN
+		var k: float = minf(half.x / maxf(absf(dir.x), 0.0001), half.y / maxf(absf(dir.y), 0.0001))
+		found.append({"pos": _clear_of_hud(centre + dir * k, size_px), "dir": dir, "enemy": enemy})
+	return found
+
+## Permanent HUD controls the offscreen chevron must not sit on: hotbar tray, both vessels, minimap.
+func ranged_warn_keepouts(size_px: Vector2) -> Array[Rect2]:
+	var pad: float = 22.0   # chevron half-size plus a breath
+	return [hotbar_rect(size_px).grow(pad), orb_rect(size_px, false).grow(pad), orb_rect(size_px, true).grow(pad), minimap_rect(size_px).grow(7.0 + pad)]
+
+## Slides an edge point the shortest way out of any keep-out rect (staying on screen and out of the others), so a spitter straight behind the
+## camera warns just above the hotbar instead of over slot 5. Only the marker's position moves; its direction still points at the enemy.
+func _clear_of_hud(point: Vector2, size_px: Vector2) -> Vector2:
+	var rects: Array[Rect2] = ranged_warn_keepouts(size_px)
+	var screen_rect: Rect2 = Rect2(Vector2.ZERO, size_px).grow(-RANGED_WARN_MARGIN)
+	for _pass in 4:
+		var hit: int = -1
+		for i in rects.size():
+			if rects[i].has_point(point):
+				hit = i
+				break
+		if hit < 0:
+			return point
+		var r: Rect2 = rects[hit]
+		var best: Vector2 = point
+		var best_d: float = INF
+		for cand in [Vector2(point.x, r.position.y - 1.0), Vector2(point.x, r.end.y + 1.0), Vector2(r.position.x - 1.0, point.y), Vector2(r.end.x + 1.0, point.y)]:
+			if not screen_rect.grow(1.0).has_point(cand):
+				continue
+			var blocked: bool = false
+			for other in rects:
+				if other != r and other.has_point(cand):
+					blocked = true
+					break
+			if not blocked and cand.distance_to(point) < best_d:
+				best = cand
+				best_d = cand.distance_to(point)
+		if best_d == INF:
+			return point
+		point = best
+	return point
+
+func _draw_ranged_warnings(camera: Camera3D, size_px: Vector2) -> void:
+	if player.dead:
+		return
+	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.001 * 14.0)
+	var tint: Color = Enemy.TELEGRAPH_LOOKS["spit"][0]
+	for w in ranged_warnings(camera, size_px):
+		var pos: Vector2 = w["pos"]
+		var dir: Vector2 = w["dir"]
+		var side := Vector2(-dir.y, dir.x)
+		var tip: Vector2 = pos + dir * 16.0
+		var tri := PackedVector2Array([tip, pos - dir * 8.0 + side * 15.0, pos - dir * 8.0 - side * 15.0])
+		draw_colored_polygon(tri, Color(0.04, 0.05, 0.02, 0.55))
+		draw_colored_polygon(tri, Color(tint.r, tint.g, tint.b, 0.45 + 0.4 * pulse))
+
+## What the death plate says under "YOU DIED": the world drags the hero home (nothing to press), a job returns to town, the arena asks for the
+## restart control as it is bound right now (the pad's button while a controller is the active device).
+func death_subline() -> String:
+	if world_mode:
+		return "Dragged back to town..."
+	if not TownState.job.is_empty():
+		return "Returning to town..."
+	var key: String = Gamepad.label_for("restart") if Gamepad.active else GameSettings.binding_text("restart")
+	if key == "" or key == "Unbound" or key == "-":
+		key = GameSettings.binding_text("restart") if Gamepad.active else Gamepad.label_for("restart")
+	if key == "" or key == "Unbound" or key == "-":
+		return "Restart from the pause menu"
+	return "Press %s to restart" % key
+
+## What the hero keeps, under the death plate (world only; nothing is lost on a death there): gear, items and XP stay with him, he is
+## revived whole at the Last Hearth, and the road and whatever killed him are still out there (a killer may be remembered as a nemesis).
+func death_detail() -> String:
+	if world_mode:
+		return "Gear, items and XP are kept. The road stays as you left it, and what killed you remembers."
+	return ""
 
 ## True when a screen point is over a HUD panel (minimap, hotbar, resource vessels): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:
@@ -179,66 +442,110 @@ func covers(point: Vector2) -> bool:
 		return true
 	if minimap_rect(size_px).grow(7).has_point(point):
 		return true
+	if progression_hud != null and progression_hud.chip_rect(size_px).grow(4.0).has_point(point):
+		return true   # the points chip is a button: a click on it must not also walk the hero
+	if progression_hud != null and progression_hud.strip_rect(size_px).grow(22.0).has_point(point):
+		return true   # the XP bar and its badge along the bottom
 	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
 		return true
+	return hotbar_rect(size_px).has_point(point)
+
+## The hotbar tray's screen rectangle.
+func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
 	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
-	return Rect2(Vector2((size_px.x - total) * 0.5 - 24, size_px.y - slot - 46), Vector2(total + 48, slot + 44)).has_point(point)
+	return Rect2(Vector2((size_px.x - total) * 0.5 - 24, size_px.y - slot - 46 - HOTBAR_LIFT), Vector2(total + 48, slot + 44))
 
 static func orb_rect(screen: Vector2, right: bool) -> Rect2:
 	var diameter: float = clampf(screen.x * 0.17, 160.0, 220.0)
-	return Rect2(Vector2(screen.x - diameter - 8 if right else 8, screen.y - diameter - 6), Vector2.ONE * diameter)
+	var inset: float = diameter * 0.50   # the bust stands outside the vessel, at the screen edge
+	return Rect2(Vector2(screen.x - diameter - inset if right else inset, screen.y - diameter - 6), Vector2.ONE * diameter)
 
 static func minimap_rect(screen: Vector2) -> Rect2:
-	return Rect2(Vector2(screen.x - 234, 84), Vector2(210, 210))
+	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
 	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
-	var available: float = screen.x - orb_rect(screen, false).size.x * 2.0 - 52.0
+	var available: float = screen.x - orb_rect(screen, false).end.x * 2.0 - 52.0
 	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
+
+## "New ability learned": a plate low on the left, above the health vessel, with the skill's icon, its name and what it does. Call this when the
+## hero gains a skill (nothing in the game unlocks skills yet; `--abilitytoast=ID` shows one for a look).
+const ABILITY_TOAST_SECONDS := 6.0
+var ability_toast_id: String = ""
+var ability_toast_time: float = 0.0
+
+func show_ability_toast(skill_id: String) -> void:
+	if not SkillDb.all().has(skill_id):
+		return
+	ability_toast_id = skill_id
+	ability_toast_time = ABILITY_TOAST_SECONDS
+
+func _draw_ability_toast(size_px: Vector2, font: Font) -> void:
+	if ability_toast_time <= 0.0 or ability_toast_id == "" or player.dead:
+		return
+	ability_toast_time = maxf(ability_toast_time - get_process_delta_time(), 0.0)
+	var age: float = ABILITY_TOAST_SECONDS - ability_toast_time
+	var fade: float = clampf(minf(age / 0.25, ability_toast_time / 0.8), 0.0, 1.0)
+	var skill: Dictionary = SkillDb.all()[ability_toast_id]
+	var orb: Rect2 = orb_rect(size_px, false)
+	var panel := Rect2(Vector2(24.0, orb.position.y - 138.0), Vector2(430.0, 122.0))
+	UiTheme.draw_panel(self, panel, 0.9 * fade, false)
+	var icon_rect := Rect2(panel.position + Vector2(16.0, 18.0), Vector2(86.0, 86.0))
+	draw_rect(icon_rect, Color(UiTheme.INK, fade))
+	var icon: Texture2D = _icon(ability_toast_id)
+	if icon != null:
+		draw_texture_rect(icon, icon_rect.grow(-3.0), false, Color(1, 1, 1, fade))
+	draw_texture_rect(bezel, icon_rect.grow(4.0), false, Color(METAL_WARMTH.r, METAL_WARMTH.g, METAL_WARMTH.b, fade))
+	var heading: Font = UiTheme.heading_font()
+	var tx: float = icon_rect.end.x + 20.0
+	UiTheme.text(self, heading, Vector2(tx, panel.position.y + 30.0), "NEW ABILITY LEARNED", 13, Color(UiTheme.BRONZE_LIGHT, fade))
+	UiTheme.text(self, heading, Vector2(tx, panel.position.y + 62.0), String(skill["name"]).to_upper(), 26, Color(UiTheme.TEXT, fade))
+	var description: String = SkillDb.description(ability_toast_id).split(". ")[0].split(" (")[0]   # the first clause: a plate, not the whole tooltip
+	if not description.ends_with("."):
+		description += "."
+	draw_multiline_string(font, Vector2(tx, panel.position.y + 84.0), description, HORIZONTAL_ALIGNMENT_LEFT, panel.end.x - tx - 14.0, 15, 2, Color(0.82, 0.8, 0.74, fade))
+
+## Fog of war: is this monster close enough to the hero to be seen (and so shown on the map)?
+func enemy_in_sight(enemy: Actor) -> bool:
+	if player == null:
+		return false
+	var gap := Vector2(enemy.global_position.x - player.global_position.x, enemy.global_position.z - player.global_position.z)
+	return gap.length() <= MinimapMap.SIGHT
 
 ## Whole-arena minimap, upper right. It turns with the camera, so whatever is up the screen is up on the map.
 func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
-	var side: float = 210.0
 	var rect: Rect2 = minimap_rect(size_px)
 	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
-	var bounds: Vector2 = Arena.bounds_of(get_tree())
-	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
-	var half: float = 45.0 if windowed else Arena.HALF
-	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
-	var scale_px: float = side / (half * 2.0)
+	var params: Dictionary = map_view_params(size_px)
+	var windowed: bool = bool(params["windowed"])
+	var half: float = float(params["half"])
+	var origin: Vector3 = params["origin"]
+	var scale_px: float = float(params["scale"])
 	var centre: Vector2 = rect.get_center()
-	UiTheme.draw_panel(t, rect.grow(7.0), 0.5)
-	t.draw_rect(rect, Color(0.035, 0.035, 0.045, 0.82))
-	if arena != null:
-		for obstacle in arena.obstacles:
-			var op: Vector3 = obstacle["position"] - origin
-			if windowed and (absf(op.x) > half or absf(op.z) > half):
-				continue
-			var r: float = maxf(float(obstacle["radius"]) * scale_px, 1.5)
-			t.draw_circle(centre + Vector2(op.x, op.z).rotated(Gamepad.view_yaw) * scale_px, r, Color(0.3, 0.3, 0.34, 0.5))
+	# (The panel, the backdrop, the ground, the road, the solid props and the fog are the two layers drawn behind this item: see MinimapMap.)
 	# Corrupted nests (the job's targets): a sickly green ring, always shown, pinned to the edge of the map when out of the window.
 	for node in get_tree().get_nodes_in_group("nests"):
 		var nest := node as Destructible
 		if nest == null or nest.broken:
 			continue
 		var nrel: Vector3 = nest.global_position - origin
-		var nat: Vector2 = centre + Vector2(clampf(nrel.x, -half, half), clampf(nrel.z, -half, half)).rotated(Gamepad.view_yaw) * scale_px
+		var nat: Vector2 = centre + Vector2(nrel.x, nrel.z).limit_length(half).rotated(Gamepad.view_yaw) * scale_px
 		t.draw_circle(nat, 6.0, Color(0, 0, 0, 0.8))
 		t.draw_arc(nat, 4.2, 0.0, TAU, 16, Color(0.55, 0.8, 0.2), 2.0)
-	# Enemies: red dots, larger orange for bosses; the nearest few are not special, the count is in the header.
-	var count: int = 0
+	# Enemies: red dots, larger orange for bosses. (No count: how many are left is not the player's business.)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Actor
 		if enemy == null or enemy.dead:
 			continue
-		count += 1
 		var p: Vector3 = enemy.global_position - origin
-		if windowed and (absf(p.x) > half or absf(p.z) > half) and not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")):
+		if windowed and (Vector2(p.x, p.z).length() > half) and not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")):
 			continue   # (a named monster is pinned to the edge of the map instead, so it can be found)
+		if not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")) and not enemy_in_sight(enemy):
+			continue   # fog of war: a monster is shown only while it is near enough to be seen
 		var rel: Vector2 = Vector2(p.x, p.z).rotated(Gamepad.view_yaw)
-		var at: Vector2 = centre + Vector2(clampf(rel.x, -half, half), clampf(rel.y, -half, half)) * scale_px
+		var at: Vector2 = centre + Vector2(rel.x, rel.y).limit_length(half) * scale_px
 		if enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid"):   # a named monster: a diamond (red for a nemesis), not a dot
 			var named: Color = Color(1.0, 0.75, 0.3) if enemy.has_meta("quest_uid") else Color(1.0, 0.5, 0.18)
 			if enemy.has_meta("monster_uid") and bool(Monsters.find(int(enemy.get_meta("monster_uid"))).get("nemesis", false)):
@@ -257,10 +564,12 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 		if drop == null:
 			continue
 		var lp: Vector3 = drop.global_position - origin
-		if windowed and (absf(lp.x) > half or absf(lp.z) > half):
+		if windowed and (Vector2(lp.x, lp.z).length() > half):
 			continue
+		if not map_data.is_explored(drop.global_position):
+			continue   # fog of war: only where the hero has been
 		var lrel: Vector2 = Vector2(lp.x, lp.z).rotated(Gamepad.view_yaw)
-		var lat: Vector2 = centre + Vector2(clampf(lrel.x, -half, half), clampf(lrel.y, -half, half)) * scale_px
+		var lat: Vector2 = centre + Vector2(lrel.x, lrel.y).limit_length(half) * scale_px
 		var rarity: int = int(drop.item["rarity"])
 		var r: float = 3.0 + 1.5 * rarity
 		var tint: Color = Items.RARITY_COLORS[rarity] if rarity > 0 else Color(0.78, 0.76, 0.7)
@@ -268,15 +577,19 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 		t.draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)
 	# What a monster's plot has put up (altar, war banner, bones), a violet triangle; a quest item lying on the road, a small gold ring.
 	for node in get_tree().get_nodes_in_group("plot_signs"):
+		if not map_data.is_explored((node as Node3D).global_position):
+			continue
 		var sp: Vector3 = (node as Node3D).global_position - origin
 		var srel: Vector2 = Vector2(sp.x, sp.z).rotated(Gamepad.view_yaw)
-		var sat: Vector2 = centre + Vector2(clampf(srel.x, -half, half), clampf(srel.y, -half, half)) * scale_px
+		var sat: Vector2 = centre + Vector2(srel.x, srel.y).limit_length(half) * scale_px
 		t.draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -9), sat + Vector2(8, 6), sat + Vector2(-8, 6)]), Color(0, 0, 0, 0.9))
 		t.draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -6.5), sat + Vector2(5.5, 4.5), sat + Vector2(-5.5, 4.5)]), Color(0.75, 0.4, 0.9))
 	for node in get_tree().get_nodes_in_group("quest_pickups"):
+		if not map_data.is_explored((node as Node3D).global_position):
+			continue
 		var qp: Vector3 = (node as Node3D).global_position - origin
 		var qrel: Vector2 = Vector2(qp.x, qp.z).rotated(Gamepad.view_yaw)
-		var qat: Vector2 = centre + Vector2(clampf(qrel.x, -half, half), clampf(qrel.y, -half, half)) * scale_px
+		var qat: Vector2 = centre + Vector2(qrel.x, qrel.y).limit_length(half) * scale_px
 		t.draw_circle(qat, 5.5, Color(0, 0, 0, 0.85))
 		t.draw_arc(qat, 4.0, 0.0, TAU, 14, Color(1.0, 0.8, 0.3), 2.0)
 	# The hero: a white arrow pointing the way they face.
@@ -287,11 +600,15 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 	var side_v := Vector2(-fwd.y, fwd.x)
 	t.draw_colored_polygon(PackedVector2Array([me + fwd * 7.0, me - fwd * 4.0 + side_v * 4.5, me - fwd * 2.0, me - fwd * 4.0 - side_v * 4.5]),
 		Color(1, 1, 1))
-	UiTheme.text(t, font, rect.position + Vector2(8, 18), "%d left" % count, 14, Color(1, 1, 1, 0.8))
 
 ## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
 ## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
 func _draw_item_card(size_px: Vector2, font: Font) -> void:
+	_ground_card_rect = Rect2()
+	if player != null and player.dead:   # the death plate owns the screen: no loot name plates or item card showing through it
+		_loot_names = []
+		LootDrop.focused = null
+		return
 	_loot_names = _layout_loot_names(font)
 	_draw_loot_names(font)
 	var drop: LootDrop = _drop_in_focus()
@@ -321,6 +638,19 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 	if for_drop:
 		height += 30.0
 	var pos := Vector2(clampf(anchor.x, 8.0, size_px.x - width - 8.0), clampf(anchor.y, 8.0, size_px.y - height - 110.0))
+	var return_prompt := _return_prompt_rect() if for_drop else Rect2()
+	if return_prompt.has_area():
+		var layout := _return_card_layout(item, lines, compare, anchor, size_px, return_prompt, font, with_compare)
+		if layout.is_empty():
+			push_warning("No clear return-card space in viewport")
+			return
+		_ground_card_rect = layout.rect
+		draw_set_transform(layout.rect.position, 0.0, Vector2.ONE * float(layout.scale))
+		_draw_return_card_body(item, worn, lines, compare, layout.metrics, color, font, with_compare)
+		draw_set_transform(Vector2.ZERO)
+		return
+	if for_drop:
+		_ground_card_rect = Rect2(pos, Vector2(width, height))
 	UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
 	draw_rect(Rect2(pos + Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
 	var y: float = pos.y + pad + 18.0
@@ -349,6 +679,146 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 		var upgrade: bool = player.stats.takes_empty_slot(item)
 		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
 			Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
+
+## Restrict clearance to the active return-waystone decision; other cards retain their layout.
+func _return_prompt_rect() -> Rect2:
+	var node := get_parent()
+	while node != null:
+		if node is TownScene:
+			var town := node as TownScene
+			if String(town.near.get("kind", "")) == "waystone" and town.hud != null:
+				return town.hud.interaction_prompt_rect()
+			break
+		node = node.get_parent()
+	return Rect2()
+
+## Measure all content before fitting: wrapping is part of the card, not a later addition. The return card keeps its text at full size and
+## spends the slack on rhythm instead: a tighter line gap and, when every row fits half the card, the comparison in two columns.
+## Positions are relative to the card's top-left; measuring and drawing both read them, so they cannot drift apart.
+var _return_card_measure_key: Array = []
+var _return_card_measures: Array[Dictionary] = []
+
+func _return_card_metrics(item: Dictionary, lines: Array[String], compare: Array[Dictionary], width: float, font: Font, with_compare: bool) -> Dictionary:
+	var pad := 12.0
+	var inner := width - pad * 2.0
+	var name_h := maxf(20.0, font.get_multiline_string_size(String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21).y)
+	var y := pad + 18.0 + name_h   # baseline of the kind line
+	var kind_y := y
+	y += 4.0
+	var line_ys: Array[float] = []
+	for line in lines:
+		line_ys.append(y + 14.0)
+		y += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14).y + 3.0
+	var m := {"width": width, "inner": inner, "name_h": name_h, "kind_y": kind_y, "line_ys": line_ys, "cols": 1}
+	if with_compare:
+		y += 4.0
+		m["rule_y"] = y
+		y += 15.0
+		m["header_y"] = y
+		var cols := 2 if compare.size() >= 3 else 1
+		for entry in compare:
+			if font.get_string_size("+ " + String(entry["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > inner * 0.5 - 12.0:
+				cols = 1
+		m["cols"] = cols
+		m["rows_y"] = y + 18.0
+		y += 18.0 * ceilf(float(compare.size()) / float(cols))
+	y += 21.0   # the walk-over line
+	m["drop_y"] = y
+	m["height"] = y + 12.0
+	return m
+
+func _draw_return_card_body(item: Dictionary, worn: Variant, lines: Array[String], compare: Array[Dictionary], m: Dictionary, color: Color, font: Font, with_compare: bool) -> void:
+	var width: float = m.width
+	var height: float = m.height
+	var pad := 12.0
+	var inner: float = m.inner
+	UiTheme.draw_panel(self, Rect2(Vector2.ZERO, Vector2(width, height)), 0.97)
+	draw_rect(Rect2(Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
+	draw_multiline_string(font, Vector2(pad + 6.0, pad + 18.0), String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21, -1, color)
+	UiTheme.text(self, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13, Color(1, 1, 1, 0.55))
+	for i in lines.size():
+		draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), lines[i], HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, Color(0.9, 0.88, 0.82))
+	if with_compare:
+		draw_line(Vector2(pad, m.rule_y), Vector2(width - pad, m.rule_y), Color(1, 1, 1, 0.12), 1.0)
+		UiTheme.text(self, font, Vector2(pad + 6.0, m.header_y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
+			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
+		var per_col: int = ceili(float(compare.size()) / float(m.cols))
+		for i in compare.size():
+			var entry: Dictionary = compare[i]
+			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
+			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
+			UiTheme.text(self, font, Vector2(pad + 6.0 + float(i / per_col) * inner * 0.5, float(m.rows_y) + 18.0 * float(i % per_col)), mark + String(entry["text"]), 14, sign_color)
+	var upgrade: bool = player.stats.takes_empty_slot(item)
+	UiTheme.text(self, font, Vector2(pad + 6.0, m.drop_y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
+		Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
+
+## Find empty rectangles from actual obstacle edges, then fit the complete card into them.
+## Prefer full-size typography, widening wrapped content before uniformly scaling it.
+## No unsafe original-anchor fallback: every result is bounded and unobstructed.
+func _return_card_layout(item: Dictionary, lines: Array[String], compare: Array[Dictionary], anchor: Vector2, screen: Vector2, prompt: Rect2, font: Font, with_compare: bool) -> Dictionary:
+	var obstacles: Array[Rect2] = [prompt.grow(6.0), minimap_rect(screen).grow(7.0), orb_rect(screen, false).grow(7.0), orb_rect(screen, true).grow(7.0)]
+	obstacles.append(Rect2(14, 14 + top_offset, 250, 62 if objective != "" or wave > 0 else 38).grow(6.0))
+	var node := get_parent()
+	while node != null:
+		if node is TownScene:
+			for overlay in (node as TownScene).hud.overlay_rects:
+				obstacles.append(overlay.grow(6.0))
+			break
+		node = node.get_parent()
+	for entry in _loot_names:
+		obstacles.append((entry["rect"] as Rect2).grow(6.0))
+	obstacles.append(hotbar_rect(screen).grow(6.0))
+	if progression_hud != null:
+		obstacles.append(progression_hud.strip_rect(screen).grow(6.0))
+	var bounds := Rect2(Vector2(8, 8), Vector2(screen.x - 16, screen.y - 118))
+	var xs: Array[float] = [bounds.position.x, bounds.end.x]
+	for obstacle in obstacles:
+		for edge in [obstacle.position.x, obstacle.end.x]:
+			var x := clampf(edge, bounds.position.x, bounds.end.x)
+			if not xs.has(x):
+				xs.append(x)
+	xs.sort()
+	var spaces: Array[Rect2] = []
+	for left in xs:
+		for right in xs:
+			if right <= left:
+				continue
+			var spans: Array[Vector2] = []
+			for obstacle in obstacles:
+				if obstacle.position.x < right and obstacle.end.x > left and obstacle.position.y < bounds.end.y and obstacle.end.y > bounds.position.y:
+					spans.append(Vector2(maxf(bounds.position.y, obstacle.position.y), minf(bounds.end.y, obstacle.end.y)))
+			spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+			var top := bounds.position.y
+			for span in spans:
+				if span.x > top:
+					spaces.append(Rect2(left, top, right - left, span.x - top))
+				top = maxf(top, span.y)
+			if top < bounds.end.y:
+				spaces.append(Rect2(left, top, right - left, bounds.end.y - top))
+	var measure_key: Array = [String(item["name"]), lines, compare, font, with_compare]
+	if measure_key != _return_card_measure_key:
+		_return_card_measure_key = measure_key.duplicate(true)
+		_return_card_measures.clear()
+		for width in range(340, 641, 20):
+			_return_card_measures.append(_return_card_metrics(item, lines, compare, float(width), font, with_compare))
+	var best: Dictionary = {}
+	var best_score := INF
+	for metrics in _return_card_measures:
+		var content := Vector2(metrics.width, metrics.height)
+		var width := content.x
+		for space in spaces:
+			# The drawn panel includes a four-pixel shadow; reserve it too.
+			var room := space.grow(-4.0)
+			var scale := minf(1.0, minf(room.size.x / content.x, room.size.y / content.y))
+			if scale <= 0.0:
+				continue
+			var extent := content * scale
+			var pos := Vector2(clampf(anchor.x, room.position.x, room.end.x - extent.x), clampf(anchor.y, room.position.y, room.end.y - extent.y))
+			var score := (1.0 - scale) * 10000000.0 + (width - 340) * 100.0 + pos.distance_squared_to(anchor)
+			if score < best_score:
+				best_score = score
+				best = {"rect": Rect2(pos, extent), "content": content, "scale": scale, "metrics": metrics}
+	return best
 
 ## The dropped item the player is pointing at: under the mouse (by where it is on screen), or with a controller the nearest within reach.
 func _drop_in_focus() -> LootDrop:
@@ -392,8 +862,16 @@ func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: 
 ## One hotbar slot: icon, radial cooldown sweep with seconds left, mana-cost tint, ready flash, bound key.
 func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font) -> void:
 	var rect := Rect2(pos, Vector2(size_px, size_px))
-	var skill: Dictionary = SkillDb.all()[id]
 	draw_rect(rect, UiTheme.INK)
+	_slot_hits.append({"rect": rect, "id": id, "action": action})
+	if id == "":
+		draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
+		draw_rect(rect, Color(0.3, 0.28, 0.28, 0.8), false, 2.0)
+		draw_texture_rect(bezel, rect.grow(3.0), false, Color(0.42, 0.38, 0.36))
+		UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, size_px + 17.0), GameSettings.short_binding_text(action), 13,
+			Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
+		return
+	var skill: Dictionary = SkillDb.all()[id]
 	var icon: Texture2D = _icon(id)
 	if icon != null:
 		draw_texture_rect(icon, rect.grow(-3.0), false)
@@ -412,7 +890,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	if recall:
 		remaining = 0.0
 		fraction = 0.0
-	_slot_hits.append({"rect": rect, "id": id, "action": action})
 	var affordable: bool = player.stats.mana >= float(skill["mana"])
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
@@ -451,7 +928,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 			border = Color(1.0, 0.8, 0.4, 1.0)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
-	draw_texture_rect(bezel, rect.grow(3.0), false, Color.WHITE if remaining <= 0.0 and affordable else Color(0.55, 0.55, 0.6))
+	draw_texture_rect(bezel, rect.grow(3.0), false, METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46))
 	if recall:   # a pulsing ember edge and a small curved arrow: it comes back
 		var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
 		draw_rect(rect.grow(2.0 + 1.5 * beat), Color(0.95, 0.6, 0.25, 0.3 + 0.3 * beat), false, 2.5)
@@ -462,8 +939,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_colored_polygon(PackedVector2Array([head + Vector2(-5, -3), head + Vector2(4, -3), head + Vector2(0, 5)]), Color(1.0, 0.86, 0.5))
 	# Key hint (follows rebinding), potion count and mana cost.
 	var key_text: String = GameSettings.short_binding_text(action)
-	draw_string(font, pos + Vector2(5, 15), key_text, HORIZONTAL_ALIGNMENT_LEFT, size_px - 8, 12, Color(0, 0, 0, 0.9))
-	draw_string(font, pos + Vector2(4, 14), key_text, HORIZONTAL_ALIGNMENT_LEFT, size_px - 8, 12, Color(1, 0.92, 0.55))
+	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
+	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, size_px + 17.0), key_text, 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
 	if id == "potion":
 		draw_string(font, pos + Vector2(0, size_px - 5), "x%d" % player.stats.potions, HORIZONTAL_ALIGNMENT_RIGHT, size_px - 5, 15, Color(1, 1, 1))
 	elif float(skill["mana"]) > 0.0:
@@ -477,6 +954,8 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if not rect.has_point(mouse):
 			continue
 		var id: String = hit["id"]
+		if id == "":
+			continue
 		var skill: Dictionary = SkillDb.all()[id]
 		var width: float = 340.0
 		var pad: float = 14.0
@@ -488,7 +967,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 			stats.append("Cooldown %.1f s" % float(skill["cd"]))
 		if float(skill["range"]) > 0.0:
 			stats.append("Range %d m" % int(round(float(skill["range"]))))
-		if id == "dodge":
+		if id == "dodge" and PlayerStats.STAMINA_ON:
 			stats.append("Stamina %d" % int(round(PlayerMovement.ROLL_STAMINA * player.stats.armor_stat("roll_cost", 1.0))))
 		var stat_line: String = "    ".join(stats)
 		var damage_line: String = player.stats.skill_damage_text(id)
@@ -541,6 +1020,7 @@ static var _icons: Dictionary = {}
 var mouse_override: Vector2 = Vector2(-1.0, -1.0)
 var _slot_hits: Array = []  # [{rect, id, action}] for the slots drawn this frame (tooltip hit-testing)
 var _loot_names: Array[Dictionary] = []   # [{drop, rect, anchor}] this frame's name plates over the items on the ground
+var _ground_card_rect := Rect2()   # actual drawn ground card, for focused layout regression checks
 
 # --- Names over loot ------------------------------------------------------------------------------------------------------------
 ## Every item on the ground shows its name over it, in its rarity's colour. The plates are laid out on the screen so that they never
@@ -752,8 +1232,41 @@ func _open_character() -> void:
 	add_child(character_panel)
 	get_tree().paused = true
 
+## The Progression screen (passives and evolutions), opened from the character screen: it sits over it and leaves it as it was.
+var progression_panel: ProgressionPanel
+
+func open_progression() -> void:
+	if progression_panel != null:
+		return
+	if character_panel != null:
+		character_panel.visible = false
+	progression_panel = ProgressionPanel.new()
+	progression_panel.closed.connect(close_progression)
+	add_child(progression_panel)
+
+## From play (the "points available" chip): the character screen opens behind the Progression screen, so closing it lands back there and
+## the game stays paused exactly as it does when you go in through the PROGRESSION button.
+func open_progression_from_play() -> void:
+	if progression_panel != null or player == null or player.dead or show_gear:
+		return
+	show_gear = true
+	_open_character()
+	open_progression()
+
+func close_progression() -> void:
+	if progression_panel != null:
+		progression_panel.queue_free()
+		progression_panel = null
+	if character_panel != null:
+		character_panel.visible = true
+		if character_panel.has_method("focus_progression_button"):
+			character_panel.call_deferred("focus_progression_button")
+
 func close_character() -> void:
 	show_gear = false
+	if progression_panel != null:
+		progression_panel.queue_free()
+		progression_panel = null
 	if character_panel != null:
 		character_panel.queue_free()
 		character_panel = null
@@ -771,10 +1284,81 @@ func _input(event: InputEvent) -> void:
 		if click != null and click.pressed and _picker_click(click):
 			get_viewport().set_input_as_handled()
 			return
-	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and progression_hud != null and progression_hud.click_chip(click.position):
+			get_viewport().set_input_as_handled()   # the "points available" chip: straight to where they are spent
+			return
+	if progression_panel != null and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
+		progression_panel.back()   # a question first, then the screen
+		get_viewport().set_input_as_handled()
+	elif show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
 		close_character()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("gear") and not get_tree().paused:
 		show_gear = true
 		_open_character()
 		get_viewport().set_input_as_handled()
+
+## Forecourt announcements own a measured free block, rather than the full-width combat band.
+## Keep the existing card/prompt placement and the other banner types unchanged.
+func _forecourt_keepouts(screen: Vector2, _font: Font) -> Array[Rect2]:
+	var blocks: Array[Rect2] = [minimap_rect(screen).grow(15), orb_rect(screen, false).grow(7), orb_rect(screen, true).grow(7)]
+	if progression_hud != null:
+		blocks.append(progression_hud.strip_rect(screen).grow(6.0))
+	if _ground_card_rect.has_area():
+		blocks.append(_ground_card_rect.grow(8))
+	for entry in _loot_names:
+		blocks.append((entry["rect"] as Rect2).grow(6))
+	for sibling in get_parent().get_children():
+		if sibling is TownHud:
+			var prompt: Rect2 = sibling.interaction_prompt_rect()
+			if prompt.has_area():
+				blocks.append(prompt.grow(8))
+			for overlay in sibling.overlay_rects:
+				blocks.append(overlay.grow(6))
+	return blocks
+
+func _forecourt_banner_layout(screen: Vector2, font: Font) -> Dictionary:
+	var regions: Array[Rect2] = [Rect2(280, 84, screen.x - 288, screen.y * 0.48 - 84)]
+	for block in _forecourt_keepouts(screen, font):
+		var next: Array[Rect2] = []
+		for region in regions:
+			if not region.intersects(block):
+				next.append(region)
+				continue
+			var cut := region.intersection(block)
+			for part in [Rect2(region.position, Vector2(region.size.x, cut.position.y - region.position.y)), Rect2(Vector2(region.position.x, cut.end.y), Vector2(region.size.x, region.end.y - cut.end.y)), Rect2(region.position, Vector2(cut.position.x - region.position.x, region.size.y)), Rect2(Vector2(cut.end.x, region.position.y), Vector2(region.end.x - cut.end.x, region.size.y))]:
+				if part.size.x > 32 and part.size.y > 32:
+					next.append(part)
+		regions = next
+	var lines := banner_text.split("\n", false, 1)
+	var reward: String = lines[1] if lines.size() > 1 else ""
+	var best: Dictionary = {}
+	var best_score := -INF
+	for region in regions:
+		for heading_size in range(36, 23, -1):
+			if font.get_string_size(lines[0], HORIZONTAL_ALIGNMENT_LEFT, -1, heading_size).x > region.size.x - 24:
+				continue
+			for reward_size in range(22, 17, -1):
+				var reward_height := font.get_multiline_string_size(reward, HORIZONTAL_ALIGNMENT_LEFT, region.size.x - 24, reward_size).y
+				var height := 24 + font.get_height(heading_size) + 4 + reward_height
+				if height > region.size.y:
+					continue
+				var score := heading_size * 10 + reward_size * 20 - region.position.y * 0.1
+				if score > best_score:
+					best_score = score
+					best = {"rect": Rect2(region.position, Vector2(region.size.x, height)), "heading_size": heading_size, "reward_size": reward_size, "heading": lines[0], "reward": reward}
+	return best
+
+func _draw_forecourt_banner(screen: Vector2, font: Font) -> void:
+	var layout := _forecourt_banner_layout(screen, font)
+	if layout.is_empty():
+		return
+	var fade := clampf(minf(banner_time, 0.8) / 0.8, 0, 1)
+	var rect: Rect2 = layout.rect
+	draw_rect(rect, Color(0, 0, 0, 0.42 * fade))
+	draw_rect(Rect2(rect.position + Vector2(rect.size.x * 0.3, rect.size.y - 2), Vector2(rect.size.x * 0.4, 2)), Color(UiTheme.EMBER, 0.7 * fade))
+	var baseline := rect.position.y + 12 + font.get_ascent(layout.heading_size)
+	UiTheme.text(self, font, Vector2(rect.position.x + 12, baseline), layout.heading, layout.heading_size, Color(1, 0.9, 0.7, fade), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 24)
+	baseline += font.get_height(layout.heading_size) + 4 - font.get_ascent(layout.heading_size) + font.get_ascent(layout.reward_size)
+	draw_multiline_string(font, Vector2(rect.position.x + 13.5, baseline + 1.5), layout.reward, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 24, layout.reward_size, -1, Color(0, 0, 0, 0.85 * fade))
+	draw_multiline_string(font, Vector2(rect.position.x + 12, baseline), layout.reward, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 24, layout.reward_size, -1, Color(0.85, 0.78, 0.65, fade))

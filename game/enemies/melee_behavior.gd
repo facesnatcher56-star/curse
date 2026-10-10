@@ -55,7 +55,7 @@ func _tick_attack(delta: float, dist: float) -> void:
 	_move = Vector3.ZERO
 	if _heavy:
 		if t < hit_frac:
-			e.telegraph()   # red glow while it winds up: the cue to dodge
+			e.telegraph()   # amber throb while it winds up: the cue to dodge
 		if t > hit_frac * 0.55 and t < hit_frac:
 			# The lunge: it throws itself at the target just before the blow lands.
 			var to_target: Vector3 = e.target.global_position - e.global_position

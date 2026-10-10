@@ -13,6 +13,12 @@ var current: String = ""
 ## animation has been evaluated each frame so it layers over whichever clip is playing.
 var leg_raise: float = 0.0
 var _leg_skeleton: Skeleton3D
+var reaction := BodyRecoil.new()   # how the torso takes a blow (see BodyRecoil); applied after the animation each frame
+var _spine: Array[int] = []
+var _neck_bone: int = -1
+var _head_bone: int = -1
+var _thighs: Array[int] = []     # left, right
+var _react_skeleton: Skeleton3D
 
 static func build(folder: String, clips: Array[String]) -> CharacterModel:
 	var model := CharacterModel.new()
@@ -238,6 +244,8 @@ func set_overlay(material: Material) -> void:
 		(node as MeshInstance3D).material_overlay = material
 
 func _after_mixer() -> void:
+	if reaction.active():
+		_apply_hit_reaction()
 	_follow_hands()
 	if leg_raise <= 0.001:
 		return
@@ -257,3 +265,76 @@ func _rotate_bone_about_x(bone_name: String, angle: float) -> void:
 	var global_basis: Basis = _leg_skeleton.get_bone_global_pose(idx).basis
 	var turned: Basis = Basis(Vector3.RIGHT, angle) * global_basis
 	_leg_skeleton.set_bone_pose_rotation(idx, (parent_basis.inverse() * turned).get_rotation_quaternion())
+
+
+## A blow lands: `away` is the horizontal world direction it pushes the body, `peak` how far (rad) the chest should tip (BodyRecoil.peak_for).
+func react(away: Vector3, peak: float) -> void:
+	var facing: Vector3 = global_transform.basis.z   # models face +Z (Actor.face)
+	reaction.hit(away, facing, peak)
+
+func _find_reaction_bones() -> void:
+	var skeletons: Array[Node] = find_children("*", "Skeleton3D", true, false)
+	if skeletons.is_empty():
+		return
+	_react_skeleton = skeletons[0] as Skeleton3D
+	var found: Array[int] = []
+	for i in _react_skeleton.get_bone_count():
+		var lowered: String = _react_skeleton.get_bone_name(i).to_lower()
+		if lowered.contains("spine"):
+			found.append(i)
+		elif lowered == "leftupleg" or lowered.ends_with(":leftupleg"):
+			_thighs.resize(2)
+			_thighs[0] = i
+		elif lowered == "rightupleg" or lowered.ends_with(":rightupleg"):
+			_thighs.resize(2)
+			_thighs[1] = i
+		elif lowered == "neck" or lowered.ends_with(":neck"):
+			_neck_bone = i
+		elif lowered == "head" or lowered.ends_with(":head"):
+			_head_bone = i
+	# lowest in the hierarchy first: a bone's depth is how many parents it has
+	var depths: Dictionary = {}
+	for bone in found:
+		var n: int = 0
+		var p: int = _react_skeleton.get_bone_parent(bone)
+		while p >= 0:
+			n += 1
+			p = _react_skeleton.get_bone_parent(p)
+		depths[bone] = n
+	found.sort_custom(func(a: int, b: int) -> bool: return depths[a] < depths[b])
+	_spine = found
+
+## Tips the spine, neck and head by the reaction's springs, on top of whatever the clip is playing.
+func _apply_hit_reaction() -> void:
+	if _react_skeleton == null:
+		_find_reaction_bones()
+	if _react_skeleton == null or _spine.is_empty():
+		reaction.step(10.0)   # no usable skeleton: let it finish at once
+		return
+	reaction.step(get_process_delta_time())
+	var inverse: Basis = _react_skeleton.global_transform.basis.orthonormalized().inverse()
+	var count: int = _spine.size()
+	for i in count:
+		var share: float = (0.7 + 0.6 * float(i) / maxf(count - 1, 1)) / float(count)   # the upper spine bends more than the lower
+		_turn_bone(_spine[i], reaction.lean * share, reaction.twist * share, inverse)
+	if reaction.step_t > 0.0 and _thighs.size() == 2 and _thighs[0] > 0 and _thighs[1] > 0:
+		# the recovery step: the thigh swings the foot out the way the body is being pushed, then plants it
+		_turn_bone(_thighs[reaction.step_leg], -reaction.step_dir * (0.85 * reaction.step_swing()), 0.0, inverse)
+	if _neck_bone >= 0:
+		_turn_bone(_neck_bone, reaction.head * 0.25, 0.0, inverse)
+	if _head_bone >= 0:
+		_turn_bone(_head_bone, reaction.head * 0.45 - reaction.lean * 0.15, reaction.twist * -0.4, inverse)
+
+## Rotates one bone: tips it toward the horizontal world vector `tilt` (magnitude = angle) and turns it about the vertical by `yaw`, in addition to its pose.
+func _turn_bone(bone: int, tilt: Vector2, yaw: float, inverse_skeleton: Basis) -> void:
+	var angle: float = tilt.length()
+	var turn := Basis()
+	if angle > 0.0005:
+		var axis_world: Vector3 = Vector3.UP.cross(Vector3(tilt.x, 0.0, tilt.y)).normalized()
+		turn = Basis((inverse_skeleton * axis_world).normalized(), angle)
+	if absf(yaw) > 0.0005:
+		turn = Basis((inverse_skeleton * Vector3.UP).normalized(), yaw) * turn
+	var parent: int = _react_skeleton.get_bone_parent(bone)
+	var parent_basis: Basis = _react_skeleton.get_bone_global_pose(parent).basis if parent >= 0 else Basis()
+	var global_basis: Basis = _react_skeleton.get_bone_global_pose(bone).basis
+	_react_skeleton.set_bone_pose_rotation(bone, (parent_basis.inverse() * (turn * global_basis)).get_rotation_quaternion())

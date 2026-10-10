@@ -252,7 +252,9 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	title.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	page.add_child(title)
 	_hotbar_options.clear()
-	var names: Array = []
+	var ids: Array[String] = [""]
+	ids.append_array(HotbarLayout.ASSIGNABLE)
+	var names: Array = ["Unassigned"]
 	for id in HotbarLayout.ASSIGNABLE:
 		names.append(String(SkillDb.all()[id]["name"]))
 	var slots: Array[int] = []
@@ -262,7 +264,12 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	for slot in slots:
 		var label: String = "Key %d" % (slot + 1) if slot != HotbarLayout.ALT else "Right mouse button"
 		var option: OptionButton = _options(names, 0, func(index: int) -> void:
-			GameSettings.assign_hotbar(slot, String(HotbarLayout.ASSIGNABLE[index]))
+			if index == 0:
+				if slot == HotbarLayout.ALT:
+					return
+				GameSettings.hotbar_slots[slot] = ""
+			else:
+				GameSettings.assign_hotbar(slot, ids[index])
 			_refresh_hotbar_options())
 		_hotbar_options[slot] = option
 		page.add_child(_row(label, option))
@@ -271,7 +278,7 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 func _refresh_hotbar_options() -> void:
 	for slot in _hotbar_options:
 		var id: String = HotbarLayout.skill_at(GameSettings.hotbar_slots, GameSettings.hotbar_alt, int(slot))
-		(_hotbar_options[slot] as OptionButton).select(HotbarLayout.ASSIGNABLE.find(id))
+		(_hotbar_options[slot] as OptionButton).select(0 if id == "" else HotbarLayout.ASSIGNABLE.find(id) + 1)
 
 # --- rebinding --------------------------------------------------------------------
 

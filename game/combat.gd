@@ -18,7 +18,8 @@ static func mitigate(damage: float, armor_or_resist: float) -> float:
 
 ## `weight` scales knockback, hit-pause and shake: 1.0 for a light swing, higher for heavy blows.
 static func resolve(attacker: Actor, defender: Actor, base_damage: float,
-		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false) -> Dictionary:
+		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false,
+		allow_crit: bool = true) -> Dictionary:
 	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "bleed_dps": 0.0, "bleed_time": 0.0,
 		"weight": weight, "source": attacker, "type": damage_type}
 	if damage_type == DamageType.PHYSICAL:
@@ -33,7 +34,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 	if force_crit:
 		outcome = Outcome.CRITICAL
 		dmg *= 1.75
-	elif damage_type == DamageType.PHYSICAL:
+	elif damage_type == DamageType.PHYSICAL and allow_crit:
 		if roll < attacker.crushing_chance:
 			outcome = Outcome.CRUSHING
 			dmg *= 1.25
@@ -44,7 +45,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 			outcome = Outcome.DEEP_WOUNDS
 			result["bleed_dps"] = dmg * 0.12
 			result["bleed_time"] = 4.0
-	elif roll < attacker.crit_chance:
+	elif allow_crit and roll < attacker.crit_chance:
 		outcome = Outcome.CRITICAL
 		dmg *= 1.5
 

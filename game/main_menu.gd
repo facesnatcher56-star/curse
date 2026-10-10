@@ -103,8 +103,8 @@ func _build_ui() -> void:
 	var radial := GradientTexture2D.new()
 	var gradient := Gradient.new()
 	gradient.set_color(0, Color(0, 0, 0, 0.0))
-	gradient.set_color(1, Color(0, 0, 0, 0.78))
-	gradient.set_offset(0, 0.45)
+	gradient.set_color(1, Color(0, 0, 0, 0.93))
+	gradient.set_offset(0, 0.28)
 	radial.gradient = gradient
 	radial.fill = GradientTexture2D.FILL_RADIAL
 	radial.fill_from = Vector2(0.5, 0.5)
@@ -139,8 +139,8 @@ func _build_ui() -> void:
 	_buttons.position = Vector2(110, 190)
 	root.add_child(_buttons)
 	var title := UiTheme.title_label("CURSE", 120)
-	title.add_theme_constant_override("outline_size", 10)
-	title.add_theme_color_override("font_color", Color(0.93, 0.76, 0.45))
+	title.add_theme_constant_override("outline_size", 6)
+	title.add_theme_color_override("font_color", Color(0.80, 0.66, 0.42))
 	_buttons.add_child(title)
 	# An ember-coloured rule under the title, and the tagline.
 	var rule := ColorRect.new()

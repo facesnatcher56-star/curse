@@ -4,6 +4,8 @@ extends RefCounted
 
 static func create(id: String) -> EnemyBehavior:
 	match id:
+		"warden":
+			return WardenBehavior.new()
 		"pouncer":
 			return PouncerBehavior.new()
 		"spitter":

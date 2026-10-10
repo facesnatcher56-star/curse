@@ -56,7 +56,11 @@ static func next_point(node: Node3D, goal: Vector3, state: Dictionary, delta: fl
 		state["stuck_t"] = 0.0
 		state["stuck_pos"] = here
 	if float(state["timer"]) <= 0.0 or path.size() < 2 or stale_goal or stuck:
-		if _may_query() or path.size() < 2:
+		# An actor refused a few times running is served anyway: with a crowd the same early-updated ones used to win the budget every
+		# tick and the rest kept following a stale route (stood pushing at a prop long after the hero had moved on).
+		var starved: int = int(state.get("denied", 0))
+		if _may_query() or path.size() < 2 or starved >= 6:
+			state["denied"] = 0
 			var map: RID = map_of(node)
 			var from: Vector3 = NavigationServer3D.map_get_closest_point(map, here)
 			var to: Vector3 = NavigationServer3D.map_get_closest_point(map, goal)
@@ -67,6 +71,8 @@ static func next_point(node: Node3D, goal: Vector3, state: Dictionary, delta: fl
 			state["timer"] = refresh + randf() * 0.25
 			if stuck and path.size() > 2:
 				state["index"] = 2   # skip the corner it was wedged on
+		else:
+			state["denied"] = starved + 1
 	if path.is_empty():
 		return goal
 	var index: int = int(state.get("index", 1))

@@ -33,7 +33,9 @@ func _next_wave() -> void:
 
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
-	if OS.get_cmdline_user_args().has("--skillshot=skewer"):
+	if OS.get_cmdline_user_args().has("--wardenshot"):
+		_warden_shots()
+	elif OS.get_cmdline_user_args().has("--skillshot=skewer"):
 		_skill_shots("skewer")
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
 		_skill_shots("fireball")
@@ -45,6 +47,10 @@ func run_from_args() -> bool:
 		_enemy_shot()
 	elif OS.get_cmdline_user_args().has("--enemyfight"):
 		_enemy_fight()
+	elif OS.get_cmdline_user_args().has("--archershot"):
+		_archer_shot()
+	elif OS.get_cmdline_user_args().has("--brutalshot"):
+		_brutal_shot()
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
 		_gib_shots()
 	elif OS.get_cmdline_user_args().has("--skillshot=power"):
@@ -599,15 +605,19 @@ func _test_enemies() -> void:
 	ghoul.aggro_range = 40.0
 	var states: Dictionary = {}
 	var landed_near: bool = false
+	var landing_marker_seen: bool = false
 	var elapsed: float = 0.0
 	while elapsed < 9.0 and not states.has(PouncerBehavior.State.RECOVER):
 		await get_tree().physics_frame
 		elapsed += 1.0 / 60.0
 		var state: int = (ghoul.behavior as PouncerBehavior)._state
 		states[state] = true
+		if state == PouncerBehavior.State.WINDUP and not get_tree().get_nodes_in_group(GroundTell.GROUP).is_empty():
+			landing_marker_seen = true
 		if state == PouncerBehavior.State.RECOVER:
 			landed_near = ghoul.flat_distance_to(player) < 2.2
 	expect("ghoul crouches, leaps and lands next to the hero", states.has(PouncerBehavior.State.WINDUP) and states.has(PouncerBehavior.State.LEAP) and landed_near)
+	expect("ghoul pounce uses its crouch delay without a ground marker", not landing_marker_seen)
 	print("  ghoul: states seen=", states.keys(), " landed near hero=", landed_near, " after ", snappedf(elapsed, 0.1), " s")
 	ghoul.queue_free()
 	await get_tree().process_frame
@@ -650,6 +660,15 @@ func _test_enemies() -> void:
 			break
 	expect("spitter backs away when the hero closes in", backed_away)
 	print("  spitter retreat: backed away = ", backed_away)
+	# Kiting tires: held at melee range, it must plant its feet for a spell instead of backing off for ever (the owner could not catch ranged monsters).
+	var rested: bool = false
+	for i in 360:
+		player.global_position = spitter.global_position + Vector3(0, 0, 2.0)
+		await get_tree().physics_frame
+		if spitter._kite_rest > 0.0:
+			rested = true
+			break
+	expect("a kiting monster plants its feet after running backwards for a while", rested)
 	spitter.queue_free()
 	for node in get_tree().get_nodes_in_group("hazards"):
 		node.queue_free()
@@ -746,6 +765,14 @@ func _test_enemies() -> void:
 	player.max_health = saved_health
 	player.health = saved_health
 	await get_tree().process_frame
+
+## The ground cast keeps 30% of its former movement speed; the Ghoul is the leaper and remains fast.
+func _test_enemy_speed() -> void:
+	var expected := {"zombie": 1.08, "brute": 0.87, "spitter": 0.96, "bloater": 0.99, "priest": 0.66, "ghoul": 4.8}
+	for id: String in expected:
+		var actual: float = EnemyDb.get_def(id).speed
+		expect("%s base movement speed is %.2f m/s" % [id, float(expected[id])], is_equal_approx(actual, float(expected[id])))
+	expect("the leaper remains faster than every ground enemy", EnemyDb.get_def("ghoul").speed > EnemyDb.get_def("zombie").speed * 4.0)
 
 ## The first wave must not put anyone on top of the hero. Runs right at start-up (before the navigation map has caught up),
 ## once with a navmesh that answers every snap with the origin (the real-game failure), once normally.
@@ -1500,6 +1527,56 @@ func _enemy_fight() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_fight_%d.png" % i)
 	get_tree().quit()
 
+## `-- --archershot`: Cutter follows, draws and shoots a small pack; frames in %TEMP%/curse_archer_N.png.
+func _archer_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0.0, 0.0, 3.0)
+	player.visible = false   # leave the frame to Cutter; enemies still hunt this idle target
+	player.max_health = 5000.0
+	player.health = player.max_health
+	game.companion.testing_disabled = false
+	game.companion.global_position = Vector3(0.0, 0.0, -1.0)
+	for pos in [Vector3(-4.0, 0, -10.0), Vector3(0.0, 0, -12.0), Vector3(4.0, 0, -10.5)]:
+		var enemy: Enemy = _spawn_enemy(pos)
+		enemy.target = player
+		enemy.aggro_range = 50.0
+		enemy.wake()
+	var draw_saved: bool = false
+	for i in 48:
+		await get_tree().create_timer(0.11).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_archer_%d.png" % i)
+		if not draw_saved and game.companion._draw > 0.72:
+			draw_saved = true
+			get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_archer_draw.png")
+	get_tree().quit()
+
+## `-- --brutalshot`: arms Brutal Attack, whiffs once without spending it, then lands it; frames in %TEMP%/curse_brutal_N.png.
+func _brutal_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	game.companion.testing_disabled = true
+	player.global_position = Vector3.ZERO
+	player.stats.brutal_reload_remaining = 0.0
+	player.skills.activate_brutal_attack()
+	for i in 10:
+		await get_tree().create_timer(0.1).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_brutal_%d.png" % i)
+	player.skills.start_skill("basic", null, player.global_position + Vector3(0.0, 0.0, -2.0))
+	for i in range(10, 23):
+		await get_tree().create_timer(0.1).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_brutal_%d.png" % i)
+	var victim: Enemy = _spawn_enemy(player.global_position + Vector3(0.0, 0.0, -1.7))
+	victim.max_health = 5000.0
+	victim.health = victim.max_health
+	player.skills.start_skill("basic", victim)
+	for i in range(23, 39):
+		await get_tree().create_timer(0.1).timeout
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_brutal_%d.png" % i)
+	get_tree().quit()
+
 ## `-- --enemyshot`: one of each enemy kind in a row facing the camera; frame in %TEMP%/curse_enemies.png.
 func _enemy_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -1825,6 +1902,9 @@ func _item_sheet() -> void:
 		for i in 8:
 			player.stats.add_to_bag(drops[i].item)
 		hud.show_gear = true
+		TownState.persist = false   # a picture of a mid-level hero (--maxlevel: the capped one) must not touch the real save
+		TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL if OS.get_cmdline_user_args().has("--maxlevel") else 6)
+		TownState.add_hero_xp(0 if OS.get_cmdline_user_args().has("--maxlevel") else 420)
 		hud._open_character()
 		await get_tree().create_timer(0.5).timeout
 		var size_px: Vector2 = get_viewport().get_visible_rect().size
@@ -2380,7 +2460,8 @@ func _test_earthshatter() -> void:
 	# It charges from damage the hero deals...
 	var dummy: Enemy = ring[1]
 	var before_charge: float = player.stats.ult_charge
-	dummy.receive(Combat.resolve(player, dummy, 60.0, Combat.DamageType.PHYSICAL, false, 1.0), player.global_position)
+	# Force critical setup feedback so this fixture also exercises hitstop isolation.
+	dummy.receive(Combat.resolve(player, dummy, 60.0, Combat.DamageType.PHYSICAL, false, 1.0, true), player.global_position)
 	expect("dealing damage charges the ultimate", player.stats.ult_charge > before_charge + 30.0)
 	# ...and not from damage taken.
 	var charge_now: float = player.stats.ult_charge
@@ -2389,6 +2470,9 @@ func _test_earthshatter() -> void:
 	# Not full: pressing it does nothing.
 	player.skills.try_directional("earthshatter", centre)
 	expect("an uncharged ultimate will not start", not player.skills.busy and not player.stats.can_use("earthshatter"))
+	# Setup hits can leave global hitstop active. Measure only the ultimate's time effects.
+	Fx.reset_time()
+	expect("earthshatter measurement starts at normal speed", is_equal_approx(Engine.time_scale, 1.0))
 	# Full: it fires.
 	player.stats.ult_charge = cost
 	var health_before: Dictionary = {}
@@ -2855,14 +2939,14 @@ func _test_death_ragdoll() -> void:
 	riser.queue_free()
 	await get_tree().process_frame
 
-## Enemies run (the run clip) when they chase, never walk.
+## Reduced-speed monsters shamble at a living cadence; the fast Ghoul leaper still runs.
 func _test_enemy_run() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
-	for variant in ["zombie", "brute", "ghoul"]:
+	for variant in ["zombie", "brute", "spitter", "bloater", "priest", "warden", "ghoul"]:
 		var e: Enemy = _spawn_enemy(Vector3(0, 0, -14), variant)
 		e.alert_delay = 0.0
 		e.aggro_range = 60.0
@@ -2874,7 +2958,11 @@ func _test_enemy_run() -> void:
 			t += 1.0 / 60.0
 			seen[e.model.current] = true
 		print("  ", variant, " clips seen while chasing: ", seen.keys())
-		expect("a %s runs toward the hero (never plays the walk clip)" % variant, seen.has("run") and not seen.has("walk"))
+		if e.def.speed <= Enemy.SHAMBLE_MAX_SPEED:
+			expect("a slowed %s shambles instead of running in slow motion" % variant,
+				seen.has("walk") and not seen.has("run") and e.locomotion_rate(e.pace()) >= 0.78)
+		else:
+			expect("a fast %s still runs toward the hero" % variant, seen.has("run") and not seen.has("walk"))
 		e.queue_free()
 	await get_tree().process_frame
 
@@ -3273,6 +3361,1247 @@ func _test_town_sim() -> void:
 	expect("moods stay in range over a long time", in_range)
 	TownState.reset()
 
+## The hero's permanent level: the curve, awarding XP (several levels at once, the cap), saving, loading, repairing and migrating, and
+## how the character screen and the HUD show it.
+func _test_progression() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var l2: int = HeroProgression.xp_for_level(2)
+	expect("a fresh hero is level 1 with 0 XP", TownState.hero_level == 1 and TownState.hero_xp == 0)
+	expect("the curve starts at 0 and rises every level", HeroProgression.xp_for_level(1) == 0 and HeroProgression.XP_FOR_LEVEL.size() == HeroProgression.MAX_LEVEL)
+	var rising: bool = true
+	for level in range(2, HeroProgression.MAX_LEVEL + 1):
+		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
+	expect("every level needs more total XP than the one before", rising)
+	var late_gap_ok: bool = true
+	for level in range(20, HeroProgression.MAX_LEVEL):
+		var gap: int = HeroProgression.xp_for_level(level + 1) - HeroProgression.xp_for_level(level)
+		late_gap_ok = late_gap_ok and gap >= 900 and gap <= 1400
+	expect("late levels take 900-1400 XP each", late_gap_ok)
+	TownState.add_hero_xp(l2 - 1)
+	expect("one XP short of level 2 is still level 1", TownState.hero_level == 1 and TownState.hero_xp == l2 - 1)
+	var up: Dictionary = TownState.add_hero_xp(1)
+	expect("exactly the level 2 threshold is level 2, and the result says so", TownState.hero_level == 2 and int(up["old_level"]) == 1
+		and int(up["new_level"]) == 2 and int(up["levels_gained"]) == 1 and int(up["xp_gained"]) == 1)
+	expect("a level is not paid for out of the XP: it is the total", TownState.hero_xp == l2)
+	var before: int = TownState.hero_xp
+	var none_zero: Dictionary = TownState.add_hero_xp(0)
+	var none_neg: Dictionary = TownState.add_hero_xp(-50)
+	expect("zero and negative awards change nothing", TownState.hero_xp == before and int(none_zero["xp_gained"]) == 0 and int(none_neg["levels_gained"]) == 0)
+	var seen: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: seen.append([old_level, new_level])
+	TownState.events.hero_leveled.connect(on_level)
+	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(5) - TownState.hero_xp)
+	expect("one award can gain several levels (2 to 5)", TownState.hero_level == 5 and int(jump["levels_gained"]) == 3 and int(jump["old_level"]) == 2 and int(jump["new_level"]) == 5)
+	expect("several levels is one event, old level to new level", seen == [[2, 5]])
+	TownState.add_hero_xp(5)
+	expect("an award inside a level fires no level event", seen.size() == 1)
+	# Fractions, spans and the cap.
+	var l3: int = HeroProgression.xp_for_level(3)
+	var l4: int = HeroProgression.xp_for_level(4)
+	expect("a level's progress is 0 at its start, half-way, and under 1 at its last point", is_equal_approx(HeroProgression.level_fraction(l3), 0.0)
+		and is_equal_approx(HeroProgression.level_fraction(l3 + (l4 - l3) / 2), 0.5) and HeroProgression.level_fraction(l4 - 1) < 1.0 and HeroProgression.level_fraction(l4 - 1) > 0.95)
+	expect("progress is read as 'into level / level span'", HeroProgression.xp_into_level(l3 + 20) == 20 and HeroProgression.xp_span_of_level(l3) == l4 - l3
+		and HeroProgression.xp_to_next_level(l3 + 20) == l4 - l3 - 20 and HeroProgression.progress_text(l3 + 20) == "20 / %d XP" % (l4 - l3))
+	TownState.add_hero_xp(10000000)
+	expect("a huge award stops at the cap", TownState.hero_level == HeroProgression.MAX_LEVEL and TownState.hero_xp == HeroProgression.max_xp())
+	var past: Dictionary = TownState.add_hero_xp(500)
+	expect("XP past the cap is not kept and levels nothing", TownState.hero_level == HeroProgression.MAX_LEVEL and TownState.hero_xp == HeroProgression.max_xp()
+		and int(past["xp_gained"]) == 0 and int(past["levels_gained"]) == 0 and seen.size() == 2)
+	TownState.add_hero_xp(9223372036854775807)
+	expect("an enormous award does not overflow", TownState.hero_xp == HeroProgression.max_xp())
+	expect("at the cap the bar is full, nothing is left to earn and nothing divides by zero", is_equal_approx(HeroProgression.level_fraction(HeroProgression.max_xp()), 1.0)
+		and HeroProgression.xp_to_next_level(HeroProgression.max_xp()) == 0 and HeroProgression.xp_span_of_level(HeroProgression.max_xp()) == 0
+		and HeroProgression.progress_text(HeroProgression.max_xp()) == "MAX LEVEL")
+	expect("XP is never negative and level never leaves 1..cap", HeroProgression.sanitize_xp(-5) == 0 and HeroProgression.level_for_xp(-5) == 1
+		and HeroProgression.level_for_xp(99999999) == HeroProgression.MAX_LEVEL)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Developer commands.
+	TownState.reset()
+	TownState.apply_dev_progression(PackedStringArray(["--level=10"]))
+	expect("--level=N sets the hero to the start of that level", TownState.hero_level == 10 and TownState.hero_xp == HeroProgression.xp_for_level(10))
+	TownState.apply_dev_progression(PackedStringArray(["--xp=50", "--level=abc"]))
+	expect("--xp=N grants XP; a bad value is ignored", TownState.hero_xp == HeroProgression.xp_for_level(10) + 50 and TownState.hero_level == 10)
+	# Saving: the save carries the progression, loads it back, and the XP decides the level.
+	TownState.reset()
+	TownState.add_hero_xp(HeroProgression.xp_for_level(7) + 123)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds the hero's level and XP", int(saved["hero_xp"]) == HeroProgression.xp_for_level(7) + 123 and int(saved["hero_level"]) == 7)
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved))
+	expect("save and load keep the XP and the level it makes", TownState.hero_xp == HeroProgression.xp_for_level(7) + 123 and TownState.hero_level == 7)
+	var drifted: Dictionary = saved.duplicate(true)
+	drifted["hero_level"] = 25
+	TownState.from_dict(TownState.migrate(drifted))
+	expect("a saved level that disagrees with the XP is repaired from the XP", TownState.hero_level == 7)
+	for bad in [-40, 1e18, "lots", null, [], {}, 12.9, NAN]:
+		var broken: Dictionary = saved.duplicate(true)
+		broken["hero_xp"] = bad
+		broken["hero_level"] = bad
+		TownState.from_dict(TownState.migrate(broken))
+		expect("a malformed hero_xp (%s) loads as a valid hero" % str(bad), TownState.hero_xp >= 0 and TownState.hero_xp <= HeroProgression.max_xp()
+			and TownState.hero_level == HeroProgression.level_for_xp(TownState.hero_xp))
+	var no_fields: Dictionary = saved.duplicate(true)
+	no_fields.erase("hero_xp")
+	no_fields.erase("hero_level")
+	TownState.from_dict(TownState.migrate(no_fields))
+	expect("a save missing the fields loads at level 1", TownState.hero_level == 1 and TownState.hero_xp == 0)
+	# Migration: a version 2 save keeps everything and begins at level 1.
+	var v2: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	v2["save_version"] = 2
+	v2.erase("hero_xp")
+	v2.erase("hero_level")
+	v2["gold"] = 311
+	v2["day"] = 9
+	v2["jobs_done"] = 14   # not a measure of the hero's level
+	var migrated: Dictionary = TownState.migrate(v2)
+	expect("a version 2 save is migrated to the current version at level 1 with 0 XP", int(migrated["save_version"]) == TownState.SAVE_VERSION
+		and int(migrated["hero_level"]) == 1 and int(migrated["hero_xp"]) == 0)
+	TownState.reset()
+	TownState.from_dict(migrated)
+	expect("migrating keeps the gold, day, job count and level 1", TownState.gold == 311 and TownState.day == 9 and TownState.jobs_done == 14
+		and TownState.hero_level == 1 and TownState.hero_xp == 0)
+	# What it shows: the character screen and the HUD.
+	TownState.reset()
+	var town := TownScene.new()
+	town.with_road = false
+	game.add_child(town)
+	await get_tree().process_frame
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	expect("a fresh character screen reads Level 1 and 0 / 100 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 100 XP")
+	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
+	expect("a level-up puts one small LEVEL plate on the HUD", town.combat_hud.level_toast_text == "LEVEL 2" and town.combat_hud.level_toast_time > 1.0)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 2" and view.xp_label.text == "30 / 150 XP")
+	var close_button: Button = view.find_children("*", "Button", true, false).back()
+	var overlap: bool = false
+	for tile in view.find_children("*", "SubViewportContainer", true, false):
+		overlap = overlap or (tile as Control).get_global_rect().intersects(view.level_label.get_global_rect()) \
+			or (tile as Control).get_global_rect().intersects(view.xp_bar.get_global_rect())
+	expect("the level and XP bar do not overlap the portrait", not overlap and view.xp_bar.get_global_rect().size.x > 100.0)
+	expect("the character screen keeps its Close button focusable", close_button.focus_mode != Control.FOCUS_NONE and close_button.has_focus())
+	expect("the level text sits inside the panel", view.get_global_rect().encloses(view.level_label.get_global_rect()) and view.get_global_rect().encloses(view.xp_bar.get_global_rect()))
+	TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	expect("at the cap the screen reads Level 30 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.MAX_LEVEL and view.xp_label.text == "MAX LEVEL")
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+
+## Hero Level, world threat, item tier and rarity are four different things, and only the last three are connected: a stronger hero (or one
+## who has done more jobs) never makes the world harder; a place or a monster is as dangerous as it is; a drop's tier comes from its source.
+func _test_world_progression() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	# Zone threat and the tier it makes.
+	var road_in: float = WorldThreat.for_distance(10.0)
+	var deep: float = WorldThreat.for_distance(300.0)
+	expect("each stretch has its own threat, rising with distance", is_equal_approx(road_in, TownDb.zone_at(10.0).base_threat) and road_in < WorldThreat.for_distance(100.0)
+		and WorldThreat.for_distance(100.0) < WorldThreat.for_distance(170.0) and WorldThreat.for_distance(170.0) < deep)
+	expect("an item tier is one per whole point of threat, on top of tier 1", Items.tier_for_source(0.5) == 1 and Items.tier_for_source(1.0) == 2
+		and Items.tier_for_source(1.99) == 2 and Items.tier_for_source(2.0) == 3 and Items.tier_for_source(5.0) == 6)
+	expect("a little more threat is not a new tier", Items.tier_for_source(road_in) == Items.tier_for_source(deep))
+	expect("the arena has its own tier by wave, separate from the world's", Items.tier_for_wave(1) == 1 and Items.tier_for_wave(3) == 2 and Items.tier_for_wave(6) == 3)
+	# The arena director still runs on its waves.
+	var arena_director := RunDirector.new()
+	add_child(arena_director)
+	arena_director.wave = 6
+	expect("the arena scales by its wave and drops by its wave", is_equal_approx(RunDirector.arena_level(1), 1.0) and is_equal_approx(RunDirector.arena_level(6), 1.6)
+		and not arena_director.connected() and arena_director.drop_tier(9.0) == Items.tier_for_wave(6) and arena_director.drop_tier_at(Vector3.ZERO) == Items.tier_for_wave(6))
+	arena_director.queue_free()
+	# The connected world.
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var crypt: CryptRoad = town.crypt
+	var director: RunDirector = town.director
+	expect("the world does not borrow an arena wave", director.connected() and director.wave == 0)
+	var placed_right: bool = true
+	var checked: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
+			checked += 1
+			placed_right = placed_right and absf(e.level_scale - crypt.threat_at(e.home)) < 0.001
+	expect("every ordinary monster on the road has its stretch's threat (%d checked)" % checked, checked > 20 and placed_right)
+	var spawn_at: Callable = func(group: int, z: float) -> Enemy:
+		crypt._group(group, "", [["zombie", 0.0, z]], Vector2(0.0, z))
+		for node in get_tree().get_nodes_in_group("enemies"):
+			if (node as Enemy).group_id == group:
+				return node as Enemy
+		return null
+	var near_before: Enemy = spawn_at.call(950, 160.0)
+	var far_before: Enemy = spawn_at.call(951, -40.0)
+	var first_tier: int = director.drop_tier_at(crypt.at(0.0, 160.0))
+	TownState.dev_set_hero_level(20)
+	TownState.jobs_done += 6
+	var near_after: Enemy = spawn_at.call(952, 160.0)
+	var far_after: Enemy = spawn_at.call(953, -40.0)
+	expect("a level 20 hero faces the same Road In zombie as a level 1 hero (%.2f, %.2f)" % [near_before.level_scale, near_after.level_scale],
+		is_equal_approx(near_before.level_scale, road_in) and is_equal_approx(near_after.level_scale, near_before.level_scale)
+		and is_equal_approx(near_after.max_health, near_before.max_health) and is_equal_approx(near_after.damage_max, near_before.damage_max))
+	expect("six more jobs done do not make the road harder either", is_equal_approx(far_after.level_scale, far_before.level_scale) and TownState.jobs_done == 6)
+	expect("deeper authored ground is still tougher", far_before.level_scale > near_before.level_scale and far_before.max_health > near_before.max_health)
+	expect("the same place drops the same tier whatever the hero is", director.drop_tier_at(crypt.at(0.0, 160.0)) == first_tier
+		and director.drop_tier(road_in) == Items.tier_for_source(road_in) and director.drop_tier(road_in + 1.0) > director.drop_tier(road_in))
+	for e in [near_before, far_before, near_after, far_after]:
+		e.queue_free()
+	# A named monster is its own measure, wherever it lives.
+	var mon: Dictionary = Monsters.rise()
+	mon["kind"] = "zombie"
+	mon["dist"] = 20.0
+	mon["level"] = 5.0
+	town.populate_monsters()
+	var body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid"):
+			body = node
+	var plain: Enemy = spawn_at.call(954, 160.0)
+	expect("a level 5 named monster in the Road In is far stronger than the ordinary zombies there", body != null and body.max_health > plain.max_health * 2.0
+		and body.damage_max > plain.damage_max * 1.3)
+	var named_strength: float = body.max_health
+	TownState.dev_set_hero_level(1)
+	town.populate_monsters()
+	expect("its strength follows its own level, not the hero's", is_equal_approx(body.max_health, named_strength))
+	# Its strength is its own threat, set where it is spawned: the marker is only a picture.
+	var bare: Enemy = director.spawn_enemy(body.global_position + Vector3(3, 0, 0), "zombie", 5.0)   # the same monster with no marker at all
+	var stats_before: Array = [body.level_scale, body.max_health, body.damage_min, body.damage_max, body.armor, body.move_speed]
+	MonsterMark.apply_look(body, mon)
+	MonsterMark.attach(body, mon)
+	var stats_after: Array = [body.level_scale, body.max_health, body.damage_min, body.damage_max, body.armor, body.move_speed]
+	expect("a named monster's level_scale is its own level", is_equal_approx(body.level_scale, 5.0) and is_equal_approx(bare.level_scale, 5.0))
+	expect("the marker changes no combat statistic", stats_before == stats_after)
+	expect("a named monster with no marker has exactly the same strength", is_equal_approx(bare.max_health, body.max_health)
+		and is_equal_approx(bare.damage_min, body.damage_min) and is_equal_approx(bare.damage_max, body.damage_max) and is_equal_approx(bare.armor, body.armor))
+	bare.set_threat(2.0)
+	expect("a body can be given a new threat in place: health and damage follow, the share of health stays", is_equal_approx(bare.max_health, EnemyDb.get_def("zombie").health * 2.0)
+		and is_equal_approx(bare.health, bare.max_health) and is_equal_approx(bare.level_scale, 2.0))
+	bare.queue_free()
+	var loot_before: int = get_tree().get_nodes_in_group("loot").size()
+	director._report_to_quests(body)
+	var tiers: Array[int] = []
+	for node in get_tree().get_nodes_in_group("loot"):
+		tiers.append(int((node as LootDrop).item["tier"]))
+	expect("its drops are of its own level's tier (%s), not the road's" % str(tiers), get_tree().get_nodes_in_group("loot").size() > loot_before
+		and tiers.all(func(t: int) -> bool: return t == Items.tier_for_source(5.0)) and Items.tier_for_source(5.0) > Items.tier_for_source(road_in))
+	# A quest's unique monster has an absolute threat on the same scale.
+	var uniques: Array = TownDb.quests().values().filter(func(q: QuestDef) -> bool: return q.kind == "slay_unique")
+	expect("a unique quest monster has its own absolute threat, on the zones' scale", not uniques.is_empty()
+		and uniques.all(func(q: QuestDef) -> bool: return q.unique_level >= 1.0 and q.unique_level <= 3.0))
+	plain.queue_free()
+	# Rarity is not tier.
+	var owned: Array[String] = []
+	var lucky_tiers: Array[int] = []
+	var lucky_rare: bool = true
+	var plain_commons: int = 0
+	var plain_tiers: Array[int] = []
+	for i in 120:
+		var lucky: Dictionary = Items.roll_drop(3, 1.0, owned)
+		lucky_tiers.append(int(lucky["tier"]))
+		lucky_rare = lucky_rare and int(lucky["rarity"]) >= Items.Rarity.RARE
+		var ordinary: Dictionary = Items.roll_drop(3, 0.0, owned)
+		plain_tiers.append(int(ordinary["tier"]))
+		plain_commons += 1 if int(ordinary["rarity"]) == Items.Rarity.COMMON else 0
+	expect("a Brute's luck makes rarer items but not a higher tier", lucky_rare and lucky_tiers.all(func(t: int) -> bool: return t == 3)
+		and plain_tiers.all(func(t: int) -> bool: return t == 3) and plain_commons > 10)
+	# The shops and quest rewards do not read jobs done.
+	TownState.jobs_done = 0
+	var shop_a: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	TownState.jobs_done = 40
+	var shop_b: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	var shop_tier: int = Items.tier_for_source(WorldThreat.MERCHANT_THREAT)
+	expect("merchant stock is a fixed explicit tier (%d), whatever has been done" % shop_tier,
+		shop_a.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier) and shop_b.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier))
+	TownState.stash = []
+	Quests.apply_bundle({"item": 1})
+	Quests.apply_bundle({"item": 1, "threat": 4.0})
+	expect("a quest reward item has a tier from its own named source threat, not jobs done",
+		int(TownState.stash[0]["tier"]) == Items.tier_for_source(WorldThreat.QUEST_REWARD_THREAT) and int(TownState.stash[1]["tier"]) == Items.tier_for_source(4.0))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+	Monsters.in_tests = false
+
+## The gameplay XP economy: what pays, what does not (no renewable summons, no kills the hero had no hand in), that rewards are paid once, and
+## that the hero's level never changes what a source is worth.
+func _test_xp() -> void:
+	TownState.persist = false
+	TownState.reset()
+	Monsters.in_tests = true
+	Monsters.rng.seed = 5
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	var director: RunDirector = town.director
+	var crypt: CryptRoad = town.crypt
+	var hero: Player = town.player
+	var spot: Vector3 = crypt.at(0.0, 150.0)
+	# Base values and the formula.
+	var xp_of: Callable = func(kind: String) -> int: return EnemyDb.get_def(kind).xp_reward
+	expect("trash is worth least, dangerous kinds more, a Brute most", xp_of.call("zombie") < xp_of.call("ghoul") and xp_of.call("ghoul") < xp_of.call("spitter")
+		and xp_of.call("spitter") < xp_of.call("bloater") and xp_of.call("bloater") < xp_of.call("priest") and xp_of.call("priest") * 2 < xp_of.call("brute"))
+	expect("kill XP is base x threat, at least 1, and 0 for something worth nothing", HeroProgression.kill_xp(1, 1.25) == 1 and HeroProgression.kill_xp(12, 1.25) == 15
+		and HeroProgression.kill_xp(12, 3.0) == 36 and HeroProgression.kill_xp(1, 0.1) == 1 and HeroProgression.kill_xp(0, 5.0) == 0)
+	# A kill the hero is credited with pays; the same kill in a stronger place pays more.
+	var kill: Callable = func(kind: String, threat: float, credited: bool) -> int:
+		var before: int = TownState.hero_xp
+		var e: Enemy = director.spawn_enemy(spot, kind, threat)
+		await get_tree().process_frame
+		if credited:
+			e.credit_hero()
+		e._apply_damage(e.max_health + 10.0)
+		await get_tree().process_frame
+		return TownState.hero_xp - before
+	var zombie_xp: int = await kill.call("zombie", 1.25, true)
+	expect("an ordinary kill pays a little (%d)" % zombie_xp, zombie_xp == 1)
+	var brute_near: int = await kill.call("brute", 1.25, true)
+	var brute_deep: int = await kill.call("brute", 3.0, true)
+	expect("a Brute pays far more than a zombie (%d), and a stronger Brute more again (%d)" % [brute_near, brute_deep], brute_near == 15 and brute_deep == 36 and brute_near > zombie_xp * 10)
+	TownState.dev_set_hero_level(20)
+	var brute_high: int = await kill.call("brute", 1.25, true)
+	expect("the hero's level does not change what the same Brute is worth", brute_high == brute_near)
+	TownState.dev_set_hero_level(1)
+	# Credit: burn, collision, and monsters hurting each other.
+	var uncredited: int = await kill.call("zombie", 1.25, false)
+	expect("a death the hero had no hand in pays nothing", uncredited == 0)
+	var burner: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	await get_tree().process_frame
+	var xp_before: int = TownState.hero_xp
+	burner.apply_burn(5000.0, 2.0, true)
+	burner._tick_burn(0.1)
+	await get_tree().process_frame
+	expect("a kill by fire the hero lit is theirs", burner.dead and TownState.hero_xp - xp_before == brute_near)
+	var other_fire: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	await get_tree().process_frame
+	xp_before = TownState.hero_xp
+	other_fire.apply_burn(5000.0, 2.0)   # a monster's fire, not the hero's
+	other_fire._tick_burn(0.1)
+	await get_tree().process_frame
+	expect("a kill by fire the hero did not light is not", other_fire.dead and TownState.hero_xp == xp_before)
+	var thrown: Enemy = director.spawn_enemy(spot, "zombie", 1.25)
+	var struck: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
+	await get_tree().process_frame
+	thrown.knocked_by = hero   # the hero's blow sent it into the other
+	xp_before = TownState.hero_xp
+	struck.receive(thrown._impact_hit(struck.max_health + 50.0), thrown.global_position)
+	await get_tree().process_frame
+	expect("a monster killed by one the hero knocked into it is the hero's kill", struck.dead and TownState.hero_xp - xp_before == brute_near)
+	var biter: Enemy = director.spawn_enemy(spot, "brute", 1.25)
+	var bitten: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
+	await get_tree().process_frame
+	xp_before = TownState.hero_xp
+	var tries: int = 0
+	while not bitten.dead and tries < 30:
+		tries += 1
+		bitten.receive(Combat.resolve(biter, bitten, 5000.0, Combat.DamageType.PHYSICAL, false, 1.0), biter.global_position)
+	await get_tree().process_frame
+	expect("monsters killing each other earns nothing", bitten.dead and TownState.hero_xp == xp_before)
+	# Renewable summons pay nothing; finite spawns do.
+	var priest: Enemy = director.spawn_enemy(spot, "priest", 1.25)
+	await get_tree().process_frame
+	var support: SupportBehavior = priest.behavior as SupportBehavior
+	var before_summons: int = get_tree().get_nodes_in_group("enemies").size()
+	support._summon()
+	var summoned: Array[Enemy] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var s := node as Enemy
+		if s != null and not s.xp_eligible:
+			summoned.append(s)
+	expect("a priest's summons are marked as paying nothing", summoned.size() >= 2 and get_tree().get_nodes_in_group("enemies").size() > before_summons)
+	xp_before = TownState.hero_xp
+	for s in summoned:
+		s.credit_hero()
+		s._apply_damage(s.max_health + 10.0)
+	await get_tree().process_frame
+	expect("killing summons, credited or not, earns no XP", TownState.hero_xp == xp_before)
+	var horde_mon: Dictionary = Monsters.rise()
+	horde_mon["dist"] = 20.0
+	horde_mon["level"] = 2.0
+	var group_before: Dictionary = {}
+	crypt.spawn_horde(horde_mon, 3)
+	var horde: Array[Enemy] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var h := node as Enemy
+		if h != null and h.group_id == 600 + int(horde_mon["uid"]):
+			horde.append(h)
+	expect("an uprising's horde and the road's own groups are worth XP", horde.size() == 3 and horde.all(func(h: Enemy) -> bool: return h.xp_eligible)
+		and get_tree().get_nodes_in_group("enemies").filter(func(n: Node) -> bool: return (n as Enemy).group_id in range(1, 6) and (n as Enemy).xp_eligible).size() > 0)
+	for h in horde:
+		h.queue_free()
+	Monsters.killed(int(horde_mon["uid"]))
+	# Named monsters: their own level, their history, their plot; once.
+	var mon: Dictionary = Monsters.rise()
+	mon["kind"] = "zombie"
+	mon["dist"] = 20.0
+	mon["level"] = 2.0
+	mon["kills"] = 0
+	mon["plot"] = {}
+	town.populate_monsters()
+	var body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid") and int(node.get_meta("monster_uid")) == int(mon["uid"]):
+			body = node
+	expect("a level 2 named monster's bounty is about 80 XP", HeroProgression.named_xp(2.0, 0, false) == 80 and HeroProgression.named_xp(5.0, 0, false) == 140)
+	expect("a monster that has killed the hero is worth more, and so is one with a plot", HeroProgression.named_xp(2.0, 2, false) == 80 + 2 * HeroProgression.NEMESIS_PER_KILL
+		and HeroProgression.named_xp(2.0, 0, true) == 80 + HeroProgression.PLOT_BONUS_XP)
+	xp_before = TownState.hero_xp
+	body.credit_hero()
+	body._apply_damage(body.max_health + 10.0)
+	await get_tree().process_frame
+	var paid: int = TownState.hero_xp - xp_before
+	expect("killing a level 2 named monster pays its kill value and its bounty (%d)" % paid, paid == HeroProgression.kill_xp(1, 2.0) + 80)
+	var again: int = director._report_to_quests(body)
+	expect("the bounty is paid once", again == 0 and TownState.hero_xp - xp_before == paid)
+	var strong: Dictionary = Monsters.rise()
+	strong["kind"] = "zombie"
+	strong["dist"] = 20.0
+	strong["level"] = 5.0
+	strong["kills"] = 2
+	strong["plot"] = {"type": "raid", "days_left": 2, "total": 3}
+	town.populate_monsters()
+	var strong_body: Enemy = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.has_meta("monster_uid") and int(node.get_meta("monster_uid")) == int(strong["uid"]):
+			strong_body = node
+	xp_before = TownState.hero_xp
+	strong_body.credit_hero()
+	strong_body._apply_damage(strong_body.max_health + 10.0)
+	await get_tree().process_frame
+	var strong_paid: int = TownState.hero_xp - xp_before
+	expect("a level 5 nemesis that beat the hero twice, with a plot, pays much more (%d)" % strong_paid,
+		strong_paid == HeroProgression.kill_xp(1, 5.0) + 140 + 2 * HeroProgression.NEMESIS_PER_KILL + HeroProgression.PLOT_BONUS_XP and strong_paid > paid * 2)
+	# Nests: once each, when they break.
+	xp_before = TownState.hero_xp
+	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	var after_nest: int = TownState.hero_xp
+	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
+	await get_tree().process_frame
+	expect("a nest pays its XP when it breaks, once", after_nest - xp_before == HeroProgression.NEST_XP and TownState.hero_xp == after_nest)
+	# The standing quest: on hand-in, once.
+	TownState.board[0]["ready"] = true
+	xp_before = TownState.hero_xp
+	var claimed: Dictionary = TownState.claim_ready()
+	var after_claim: int = TownState.hero_xp
+	var claimed_again: Dictionary = TownState.claim_ready()
+	expect("handing in the standing quest pays its XP once", after_claim - xp_before == HeroProgression.STANDING_QUEST_XP and int(claimed["xp"]) == HeroProgression.STANDING_QUEST_XP
+		and int(claimed_again["count"]) == 0 and TownState.hero_xp == after_claim)
+	expect("the new standing quest carries its XP", int(TownState.board[0].get("xp", 0)) == HeroProgression.STANDING_QUEST_XP)
+	# Dynamic quests: the quest's own XP, once; matters pay none.
+	var inst: Dictionary = Quests.post("ghoul_cull")
+	inst["state"] = "ready"
+	xp_before = TownState.hero_xp
+	var first: Dictionary = Quests.claim(int(inst["uid"]))
+	var after_first: int = TownState.hero_xp
+	var second: Dictionary = Quests.claim(int(inst["uid"]))
+	expect("a quest pays the XP written in it once (%d)" % (after_first - xp_before), bool(first["ok"]) and after_first - xp_before == int(TownDb.quest("ghoul_cull").reward["xp"])
+		and not bool(second["ok"]) and TownState.hero_xp == after_first)
+	var matter: QuestDef = TownDb.quest("fever")
+	expect("a matter in town pays no XP", not matter.reward.has("xp"))
+	# Saving: XP is in memory at once, written lazily for kills, kept across a reload, and never lost on death.
+	TownState.flush_progression(true)
+	expect("nothing waits for the disk after a flush", not TownState.has_unsaved_xp())
+	TownState.add_hero_xp(1, false)
+	expect("an ordinary kill's XP waits to be saved, and is in the save data already", TownState.has_unsaved_xp() and int(TownState.to_dict()["hero_xp"]) == TownState.hero_xp)
+	TownState.flush_progression(true)
+	var saved: Variant = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	var kept: int = TownState.hero_xp
+	var kept_level: int = TownState.hero_level
+	TownState.from_dict(TownState.migrate(saved))
+	expect("save and load keep XP earned in play", TownState.hero_xp == kept and TownState.hero_level == kept_level)
+	hero._apply_damage(hero.max_health + 100.0)
+	await get_tree().create_timer(3.6).timeout
+	expect("dying costs no XP", TownState.hero_xp == kept and not hero.dead)
+	# Levels from one reward: one event, one plate; the cap; the open character screen.
+	TownState.dev_set_hero_level(1)
+	var events: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: events.append([old_level, new_level])
+	TownState.events.hero_leveled.connect(on_level)
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	TownState.add_hero_xp(HeroProgression.xp_for_level(4) + 10)
+	expect("one large reward is one level-up, and one plate for the level reached", events == [[1, 4]] and town.combat_hud.level_toast_text == "LEVEL 4")
+	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 4" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
+		and town.combat_hud.character_panel == view)
+	TownState.add_hero_xp(HeroProgression.max_xp() * 2)
+	expect("and it follows to MAX LEVEL", view.level_label.text == "Level 30" and view.xp_label.text == "MAX LEVEL")
+	var capped_events: int = events.size()
+	var at_cap: int = await kill.call("brute", 3.0, true)
+	expect("at the cap XP stops and nothing levels", at_cap == 0 and TownState.hero_level == 30 and TownState.hero_xp == HeroProgression.max_xp() and events.size() == capped_events)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Diagnostics change nothing.
+	TownState.dev_set_hero_level(1)
+	var enemies_before: int = get_tree().get_nodes_in_group("enemies").size()
+	var xp_now: int = TownState.hero_xp
+	var report_a: Dictionary = director.xp_report()
+	var report_b: Dictionary = director.xp_report()
+	expect("the XP report reads the road and changes nothing", report_a == report_b and int(report_a["total"]) > 0 and TownState.hero_xp == xp_now
+		and get_tree().get_nodes_in_group("enemies").size() == enemies_before)
+	# The marker is only a picture: its size, never the body's collision.
+	var marked: Enemy = director.spawn_enemy(spot, "zombie", 2.0)
+	await get_tree().process_frame
+	var shape: CollisionShape3D = marked.find_children("*", "CollisionShape3D", false, false)[0]
+	var radius_before: float = (shape.shape as CapsuleShape3D).radius if shape.shape is CapsuleShape3D else 0.0
+	var gameplay_before: Array = [marked.body_radius, marked.level_scale, marked.max_health, marked.damage_max, marked.armor, shape.scale, shape.transform.origin]
+	MonsterMark.apply_look(marked, {"level": 9.0})
+	var gameplay_after: Array = [marked.body_radius, marked.level_scale, marked.max_health, marked.damage_max, marked.armor, shape.scale, shape.transform.origin]
+	var radius_after: float = (shape.shape as CapsuleShape3D).radius if shape.shape is CapsuleShape3D else 0.0
+	expect("the marker changes no collision or combat value", gameplay_before == gameplay_after and is_equal_approx(radius_before, radius_after))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+	Monsters.in_tests = false
+
+## What the hero's level earns: Passive Points at every even level, Evolution Points every third, derived from the level and never stored.
+func _test_level_rewards() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var table: Array = [[1, 0, 0], [2, 1, 0], [3, 1, 1], [4, 2, 1], [6, 3, 2], [9, 4, 3], [12, 6, 4], [20, 10, 6], [30, 15, 10]]
+	var table_ok: bool = true
+	for row in table:
+		table_ok = table_ok and HeroProgression.passive_points_for_level(int(row[0])) == int(row[1]) and HeroProgression.evolution_points_for_level(int(row[0])) == int(row[2])
+	expect("the point schedule: L1 0/0, L2 1/0, L3 1/1, L6 3/2, L12 6/4, L20 10/6, L30 15/10", table_ok)
+	expect("above the cap there is nothing more (and below 1 nothing)", HeroProgression.passive_points_for_level(31) == 15 and HeroProgression.evolution_points_for_level(99) == 10
+		and HeroProgression.passive_points_for_level(0) == 0 and HeroProgression.evolution_points_for_level(-3) == 0)
+	var passive_levels: Array[int] = []
+	var evolution_levels: Array[int] = []
+	for level in range(2, HeroProgression.MAX_LEVEL + 1):
+		if HeroProgression.passive_points_for_level(level) > HeroProgression.passive_points_for_level(level - 1):
+			passive_levels.append(level)
+		if HeroProgression.evolution_points_for_level(level) > HeroProgression.evolution_points_for_level(level - 1):
+			evolution_levels.append(level)
+	expect("Passive Points come at every even level and Evolution Points at every third", passive_levels == [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
+		and evolution_levels == [3, 6, 9, 12, 15, 18, 21, 24, 27, 30])
+	# Awards report what they crossed.
+	var one: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(2))
+	expect("a one-level award to level 2 reports one Passive Point", int(one["passive_points_gained"]) == 1 and int(one["evolution_points_gained"]) == 0)
+	var three: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(3) - TownState.hero_xp)
+	expect("level 3 reports an Evolution Point", int(three["passive_points_gained"]) == 0 and int(three["evolution_points_gained"]) == 1)
+	var none: Dictionary = TownState.add_hero_xp(5)
+	expect("an award that does not level gives no points", int(none["passive_points_gained"]) == 0 and int(none["evolution_points_gained"]) == 0)
+	TownState.dev_set_hero_level(4)
+	var events: Array = []
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, passive: int, evolution: int) -> void: events.append([old_level, new_level, passive, evolution])
+	TownState.events.hero_leveled.connect(on_level)
+	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(7) - TownState.hero_xp)
+	expect("4 to 7 crosses level 6 (and 5, 7): 1 Passive and 1 Evolution Point, counted from every level crossed", int(jump["passive_points_gained"]) == 1
+		and int(jump["evolution_points_gained"]) == 1 and int(jump["old_level"]) == 4 and int(jump["new_level"]) == 7)
+	expect("the level-up event carries the same totals, once", events == [[4, 7, 1, 1]])
+	var big: Dictionary = TownState.add_hero_xp(HeroProgression.max_xp())
+	expect("a jump from 7 to the cap reports all that was left (12 Passive, 8 Evolution)", int(big["passive_points_gained"]) == 12 and int(big["evolution_points_gained"]) == 8)
+	var past: Dictionary = TownState.add_hero_xp(1000)
+	expect("at the cap nothing more is earned", int(past["passive_points_gained"]) == 0 and TownState.passive_points_available() == 15 and TownState.evolution_points_available() == 10)
+	TownState.events.hero_leveled.disconnect(on_level)
+	# Derived, not saved: a level N hero has its entitlement the moment it loads.
+	TownState.reset()
+	TownState.dev_set_hero_level(20)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds no point counters (they are worked out from the level) and the version is unchanged", not saved.has("passive_points") and not saved.has("evolution_points")
+		and not saved.has("points") and int(saved["save_version"]) == TownState.SAVE_VERSION and saved.keys().filter(func(k: String) -> bool: return "point" in k).is_empty())
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved))
+	expect("a loaded level 20 hero has 10 Passive and 6 Evolution Points with no level-ups replayed", TownState.hero_level == 20 and TownState.passive_points_available() == 10
+		and TownState.evolution_points_available() == 6)
+	TownState.reset()
+	TownState.apply_dev_progression(PackedStringArray(["--level=12"]))
+	expect("--level=12 gives 6 Passive and 4 Evolution Points", TownState.passive_points_available() == 6 and TownState.evolution_points_available() == 4)
+	expect("the text for a reward names both, with plurals", HeroProgression.points_text(1, 1) == "+1 Passive Point   +1 Evolution Point" and HeroProgression.points_text(2, 0) == "+2 Passive Points"
+		and HeroProgression.points_text(0, 0) == "")
+	# The screen and the plate.
+	TownState.reset()
+	var town := TownScene.new()
+	town.with_road = false
+	game.add_child(town)
+	await get_tree().process_frame
+	town.combat_hud._open_character()
+	var view: Control = town.combat_hud.character_panel
+	expect("a fresh character screen shows 0 and 0", view.points_label.text == "Passive Points 0     Evolution Points 0")
+	TownState.add_hero_xp(HeroProgression.xp_for_level(6))
+	expect("reaching level 6 puts both rewards on the one plate", town.combat_hud.level_toast_text == "LEVEL 6" and town.combat_hud.level_toast_points == "+3 Passive Points   +2 Evolution Points")
+	expect("the open character screen updates its totals", view.points_label.text == "Passive Points 3     Evolution Points 2" and view.level_label.text == "Level 6")
+	TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL)
+	town.combat_hud._open_character()
+	view = town.combat_hud.character_panel
+	await get_tree().process_frame
+	expect("at level 30 it shows 15 and 10, and MAX LEVEL", view.points_label.text == "Passive Points 15     Evolution Points 10" and view.xp_label.text == "MAX LEVEL"
+		and view.level_label.text == "Level 30")
+	var close_button: Button = view.find_children("*", "Button", true, false).back()
+	expect("the points line sits inside the panel and the Close button keeps focus", view.get_global_rect().encloses(view.points_label.get_global_rect())
+		and close_button.has_focus() and not view.points_label.get_global_rect().intersects(view.xp_bar.get_global_rect()))
+	town.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+
+## Where a session may save: a developer session (any user argument) never uses the production save unless it says so, loudly.
+func _test_save_policy() -> void:
+	var production: String = SavePolicy.PRODUCTION_PATH
+	var normal: PackedStringArray = PackedStringArray([])
+	expect("a normal launch uses the production save and saves", SavePolicy.path_for(normal) == production and SavePolicy.persists_by_default(normal)
+		and not SavePolicy.is_dev_session(normal))
+	var sessions: Dictionary = {"self-test": ["--selftest", "--only=xp"], "screenshot": ["--townshot", "--zoom=4"], "xp demo": ["--townshot", "--xpdemo", "--xplog"],
+		"xp report": ["--townshot", "--xpreport"], "threats": ["--townshot", "--threats", "--road=40"], "item sheet": ["--itemsheet", "--gear"],
+		"developer level": ["--level=10"], "an unknown future flag": ["--some-new-debug-mode"], "pose": ["--poses"]}
+	var all_isolated: bool = true
+	for label in sessions:
+		var args := PackedStringArray(sessions[label])
+		var isolated: bool = SavePolicy.is_dev_session(args) and SavePolicy.path_for(args) != production and not SavePolicy.persists_by_default(args) \
+			and not SavePolicy.may_modify(production, args) and SavePolicy.may_modify(SavePolicy.DEV_PATH, args)
+		if not isolated:
+			print("  not isolated: ", label)
+		all_isolated = all_isolated and isolated
+	expect("every developer mode (self-test, screenshots, XP diagnostics, item sheets, dev commands, flags not yet written) is kept off the production save", all_isolated)
+	var opted_in := PackedStringArray(["--townshot", SavePolicy.REAL_SAVE_FLAG])
+	expect("only the explicit flag lets a developer session use the production save", SavePolicy.path_for(opted_in) == production and SavePolicy.persists_by_default(opted_in)
+		and SavePolicy.may_modify(production, opted_in) and not SavePolicy.allows_production(PackedStringArray(["--xp=5", "--allow-real-save"])))
+	expect("the override flag is not something an ordinary argument could be", SavePolicy.REAL_SAVE_FLAG == "--write-production-save")
+	var selftest := PackedStringArray(["--selftest"])
+	expect("cleanup in a developer session cannot delete the production save, and backups and copies of it are refused too",
+		not SavePolicy.may_modify(production, selftest) and not SavePolicy.may_modify(production + ".tmp", selftest) and not SavePolicy.may_modify(production + ".newer.bak", selftest)
+		and SavePolicy.may_modify(production, normal))
+	# This very session.
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	expect("this self-test session is a developer session with its own save file", SavePolicy.is_dev_session(args) and TownState.save_path() == SavePolicy.DEV_PATH
+		and TownState.save_path() != production)
+	# What saving does here: writes the developer file, leaves the production file exactly as it was.
+	var production_before: int = FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1
+	var production_size: int = FileAccess.open(production, FileAccess.READ).get_length() if FileAccess.file_exists(production) else -1
+	var was_persisting: bool = TownState.persist
+	TownState.reset()
+	TownState.persist = true
+	TownState.gold = 12345
+	TownState.save()
+	var dev_written: bool = FileAccess.file_exists(SavePolicy.DEV_PATH)
+	var production_after: int = FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1
+	var production_size_after: int = FileAccess.open(production, FileAccess.READ).get_length() if FileAccess.file_exists(production) else -1
+	expect("even with saving switched on a self-test writes only its own file and leaves the production save untouched", dev_written and production_after == production_before
+		and production_size_after == production_size)
+	var reloaded_ok: bool = false
+	TownState.gold = 1
+	TownState.load_or_start()
+	reloaded_ok = TownState.gold == 12345
+	expect("and reads it back from there", reloaded_ok)
+	expect("the session's own cleanup removes the developer file and nothing else", SavePolicy.delete_session_save(args) and not FileAccess.file_exists(SavePolicy.DEV_PATH)
+		and (FileAccess.get_modified_time(production) if FileAccess.file_exists(production) else -1) == production_before)
+	TownState.persist = was_persisting
+	TownState.persist = false
+	TownState.reset()
+
+## The first build choices: what points buy (passives, one Weapon Throw evolution), that the choices save, load, repair and survive death, what
+## each evolution and passive does in the world, and that the Progression screen asks before it spends.
+func _test_build_choices() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var skills: SkillController = player.skills
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.cooldowns.clear()
+	# --- Points and spending --------------------------------------------------------------------------------------------------------------
+	TownState.dev_set_hero_level(6)   # 3 Passive, 2 Evolution
+	expect("a level 6 hero with nothing bought has all of its points (3 and 2)", TownState.passive_points_available() == 3 and TownState.evolution_points_available() == 2
+		and TownState.purchased_passives.is_empty() and TownState.skill_evolutions.is_empty())
+	expect("a passive costs exactly 1 Passive Point", TownState.buy_passive("unbowed") and TownState.passive_points_available() == 2 and TownState.has_passive("unbowed"))
+	expect("it cannot be bought twice", not TownState.can_buy_passive("unbowed") and not TownState.buy_passive("unbowed") and TownState.passive_points_available() == 2)
+	expect("an unknown passive is refused", not TownState.buy_passive("not_a_passive") and TownState.passive_points_available() == 2)
+	expect("a Weapon Throw evolution costs exactly 1 Evolution Point", TownState.select_evolution("throw", "wallspike") and TownState.evolution_points_available() == 1
+		and TownState.selected_evolution("throw") == "wallspike")
+	expect("a second evolution of the same skill is refused (one only, no respec)", not TownState.can_select_evolution("throw", "ricochet") and not TownState.select_evolution("throw", "ricochet")
+		and not TownState.select_evolution("throw", "wallspike") and TownState.selected_evolution("throw") == "wallspike" and TownState.evolution_points_available() == 1)
+	expect("an evolution that does not exist is refused", not TownState.select_evolution("throw", "nonsense") and not TownState.select_evolution("nonsense", "wallspike"))
+	TownState.reset()
+	expect("without points nothing can be bought (level 1)", not TownState.can_buy_passive("unbowed") and not TownState.buy_passive("unbowed") and not TownState.select_evolution("throw", "ricochet")
+		and TownState.passive_points_available() == 0 and TownState.evolution_points_available() == 0)
+	# --- Saving: round trip, migration, and bad data never make points ---------------------------------------------------------------------
+	TownState.dev_set_hero_level(12)   # 6 Passive, 4 Evolution
+	TownState.buy_passive("unbowed")
+	TownState.buy_passive("retaliation")
+	TownState.select_evolution("throw", "reaping_recall")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	expect("the save holds only the choices, not points", saved["purchased_passives"] == ["unbowed", "retaliation"] and saved["skill_evolutions"] == {"throw": "reaping_recall"}
+		and not saved.has("passive_points") and not saved.has("evolution_points") and int(saved["save_version"]) == TownState.SAVE_VERSION)
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved.duplicate(true)))
+	expect("a save and load keep the choices and the points left (4, 3)", TownState.has_passive("unbowed") and TownState.has_passive("retaliation") and TownState.selected_evolution("throw") == "reaping_recall"
+		and TownState.passive_points_available() == 4 and TownState.evolution_points_available() == 3)
+	var old: Dictionary = saved.duplicate(true)
+	old["save_version"] = 3
+	old.erase("purchased_passives")
+	old.erase("skill_evolutions")
+	var migrated: Dictionary = TownState.migrate(old)
+	TownState.reset()
+	TownState.from_dict(migrated)
+	expect("a version 3 save migrates with nothing bought and every point it earned free (6, 4)", int(migrated["save_version"]) == TownState.SAVE_VERSION and TownState.purchased_passives.is_empty()
+		and TownState.skill_evolutions.is_empty() and TownState.passive_points_available() == 6 and TownState.evolution_points_available() == 4)
+	var bad: Dictionary = saved.duplicate(true)
+	bad["purchased_passives"] = ["unbowed", "unbowed", "bogus", 7, null, "retaliation", "retaliation", ["x"]]
+	bad["skill_evolutions"] = {"throw": "ricochet", "other_skill": "wallspike"}
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(bad))
+	expect("unknown and repeated saved choices are dropped, not paid for twice", TownState.purchased_passives == ["unbowed", "retaliation"] and TownState.skill_evolutions == {"throw": "ricochet"}
+		and TownState.passive_points_available() == 4 and TownState.evolution_points_available() == 3)
+	var greedy: Dictionary = saved.duplicate(true)
+	greedy["hero_xp"] = 0   # level 1: nothing earned
+	greedy["purchased_passives"] = ["unbowed", "mass_transfer", "stubborn_advance"]
+	greedy["skill_evolutions"] = {"throw": "wallspike"}
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(greedy))
+	expect("choices a level never paid for are dropped (no free points, never negative)", TownState.purchased_passives.is_empty() and TownState.skill_evolutions.is_empty()
+		and TownState.passive_points_available() == 0 and TownState.evolution_points_available() == 0)
+	for junk in [null, 5, "text", [], {}, [1, 2], {"throw": 3}, {"throw": null}]:
+		var weird: Dictionary = saved.duplicate(true)
+		weird["purchased_passives"] = junk
+		weird["skill_evolutions"] = junk
+		TownState.reset()
+		TownState.from_dict(TownState.migrate(weird))
+		expect("a malformed build (%s) loads without a crash or a negative count" % str(junk), TownState.passive_points_available() >= 0 and TownState.evolution_points_available() >= 0
+			and TownState.passive_points_available() <= HeroProgression.passive_points_for_level(TownState.hero_level))
+	TownState.reset()
+	TownState.dev_set_hero_level(30)
+	for id in BuildDefs.PASSIVE_ORDER:
+		TownState.buy_passive(id)
+	TownState.select_evolution("throw", "ricochet")
+	TownState.dev_set_hero_level(4)
+	expect("lowering the level drops what it no longer pays for (developer only)", TownState.purchased_passives.size() <= 2 and TownState.skill_evolutions.size() <= 1
+		and TownState.passive_points_available() >= 0 and TownState.evolution_points_available() >= 0)
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.buy_passive("mass_transfer")
+	TownState.select_evolution("throw", "wallspike")
+	player._on_death()
+	player.dead = false
+	player.health = player.max_health
+	expect("dying clears nothing: the build is the hero's, not the run's", TownState.has_passive("mass_transfer") and TownState.selected_evolution("throw") == "wallspike"
+		and TownState.passive_points_available() == 2 and TownState.evolution_points_available() == 1)
+	var build_events: Array = [0]
+	var on_build: Callable = func() -> void: build_events[0] = int(build_events[0]) + 1
+	TownState.events.hero_build_changed.connect(on_build)
+	TownState.buy_passive("retaliation")
+	TownState.buy_passive("retaliation")
+	TownState.events.hero_build_changed.disconnect(on_build)
+	expect("a purchase announces itself once (and a refused one says nothing)", int(build_events[0]) == 1)
+
+	# --- Weapon Throw: the baseline, then each evolution ---------------------------------------------------------------------------------------
+	var throw: Callable = func(aim: Vector3, hold: float) -> void:
+		wt._profile = wt.profile()
+		wt.evolution = player.evolution_of("throw")
+		wt.state = WeaponThrowSkill.State.CHARGING
+		wt._hold = hold
+		wt.charge = wt.charge_fraction()
+		wt.release(aim)
+	var make_wall: Callable = func(centre: Vector3, wall_size: Vector3) -> StaticBody3D:
+		var wall := StaticBody3D.new()
+		wall.collision_layer = Actor.LAYER_WORLD
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = wall_size
+		shape.shape = box
+		wall.add_child(shape)
+		game.add_child(wall)
+		wall.global_position = centre
+		return wall
+	var clear_field: Callable = func() -> void:
+		for node in get_tree().get_nodes_in_group("enemies"):
+			node.queue_free()
+		wt.reset()
+		player.stats.cooldowns.clear()
+		await get_tree().process_frame
+	var full: float = 10.0   # a hold far past full charge
+	# Baseline: no evolution, nothing special happens.
+	TownState.reset()
+	await clear_field.call()
+	var lane: Vector3 = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var base_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 5.0))
+	var base_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("baseline throw: nothing is carried or pinned, no bounce, and it sticks in the wall", wt.evolution == "" and wt.carried == null and wt.pinned == null and wt.bounces == 0
+		and not base_victim.impaled and wt.thrown.center().x > lane.x + 10.0 and wt.thrown.center().x < lane.x + 13.5)
+	base_wall.queue_free()
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+
+	# Wallspike.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "wallspike")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var open_line: Array[Enemy] = []
+	for d in [5.5, 8.0, 10.5]:
+		open_line.append(_throw_dummy(lane + Vector3(d, 0, 0)))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	var ever_carried: Dictionary = {}
+	var frames: int = 0
+	while wt.state != WeaponThrowSkill.State.EMBEDDED and frames < 400:
+		await get_tree().physics_frame
+		frames += 1
+		for e in open_line:
+			if is_instance_valid(e) and e.impaled:
+				ever_carried[e.get_instance_id()] = true
+	expect("Wallspike spears exactly one of three enemies in the line (the first)", ever_carried.size() == 1 and ever_carried.has(open_line[0].get_instance_id()))
+	expect("in open ground the carried body is thrown on and nobody stays held", wt.carried == null and wt.pinned == null and open_line.all(func(e: Enemy) -> bool: return not is_instance_valid(e) or not e.impaled))
+	expect("the weapon still embeds as normal after throwing the body on", wt.state == WeaponThrowSkill.State.EMBEDDED)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var pin_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 6.0))
+	var pin_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	var pin_start_hp: float = pin_victim.health
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	await get_tree().physics_frame
+	expect("Wallspike pins the enemy on the wall: a held state, not a picture", wt.pinned == pin_victim and pin_victim.impaled and pin_victim.health < pin_start_hp
+		and pin_victim.global_position.x > lane.x + 11.0 and pin_victim.global_position.x < lane.x + 13.5)
+	var pin_spot: Vector3 = pin_victim.global_position
+	await get_tree().create_timer(1.0).timeout
+	expect("it stays pinned for as long as the weapon is in the wall", wt.pinned == pin_victim and pin_victim.impaled and pin_victim.global_position.distance_to(pin_spot) < 0.2)
+	wt.recall()
+	await get_tree().physics_frame
+	expect("the recall rips the weapon free and drops the victim, knocked down", wt.pinned == null and not pin_victim.impaled and (pin_victim.is_ragdolled() or pin_victim.stun_time > 0.5))
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	expect("and the weapon comes home and is caught", wt.state == WeaponThrowSkill.State.IN_HAND and wt.thrown == null)
+	pin_wall.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var big_wall: StaticBody3D = make_wall.call(lane + Vector3(13.5, 2.0, 0.0), Vector3(1.0, 4.0, 6.0))
+	var brute: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0), "brute")
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a Brute is not spiked or pinned: it takes the baseline blow", wt.pinned == null and wt.carried == null and not brute.impaled and brute.health < brute.max_health)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var boss: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	boss.is_boss = true
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a boss-flagged enemy is never spiked", wt.pinned == null and wt.carried == null and not boss.impaled)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	big_wall.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var weak_victim: Enemy = _throw_dummy(lane + Vector3(5.0, 0, 0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), 0.3 * wt.profile()["charge_time"])   # about 30% charge: under the 80% a spear needs
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a weak throw does not spear anyone", wt.carried == null and wt.pinned == null and not weak_victim.impaled)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+
+	# Reaping Recall.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "reaping_recall")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	var rest: Vector3 = wt.thrown.center()
+	var hero_spot: Vector3 = Vector3(rest.x - 14.0, 0.0, rest.z + 7.0)
+	player.global_position = hero_spot
+	player.reset_physics_interpolation()
+	var reaped: Array[Enemy] = []
+	var before: Array[float] = []
+	for fraction in [0.35, 0.6]:
+		var spot: Vector3 = Vector3(rest.x, 0.0, rest.z).lerp(hero_spot, fraction)
+		var z: Enemy = _throw_dummy(spot)
+		reaped.append(z)
+		before.append(z.flat_distance_to(player))
+	var heavy_on_path: Enemy = _throw_dummy(Vector3(rest.x, 0.0, rest.z).lerp(hero_spot, 0.8), "brute")
+	var heavy_before: float = heavy_on_path.flat_distance_to(player)
+	await get_tree().create_timer(0.2).timeout
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.RETURNING, 2.0)
+	await _wait_state(WeaponThrowSkill.State.CATCHING, 6.0)
+	await get_tree().create_timer(1.3).timeout
+	var pulled_ok: bool = true
+	for i in reaped.size():
+		pulled_ok = pulled_ok and is_instance_valid(reaped[i]) and wt.pulled_ids.has(reaped[i].get_instance_id()) and reaped[i].flat_distance_to(player) < before[i] - 1.5
+	expect("Reaping Recall drags each lesser enemy the weapon strikes on the way back in toward him", pulled_ok)
+	var unique: Dictionary = {}
+	for id in wt.pulled_ids:
+		unique[id] = true
+	expect("each enemy is pulled once per return (no juggling)", unique.size() == wt.pulled_ids.size() and wt.pulled_ids.size() == reaped.size())
+	expect("a Brute on the line is hit but not dragged", not wt.pulled_ids.has(heavy_on_path.get_instance_id()) and heavy_on_path.flat_distance_to(player) > heavy_before - 1.0)
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 4.0)
+	expect("the weapon is caught as usual", wt.state == WeaponThrowSkill.State.IN_HAND and wt.thrown == null)
+
+	# Ricochet.
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	TownState.select_evolution("throw", "ricochet")
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var bank_wall: StaticBody3D = make_wall.call(lane + Vector3(11.5, 2.0, 0.0), Vector3(1.0, 4.0, 30.0))
+	var aim_dir: Vector3 = Vector3(1.0, 0.0, 0.5).normalized()
+	var hit_t: float = 11.0 / aim_dir.x   # to the wall's face at x + 11
+	var hit_point: Vector3 = lane + aim_dir * hit_t
+	var expected_out: Vector3 = aim_dir.bounce(Vector3(-1, 0, 0)).normalized()
+	var on_return: Enemy = _throw_dummy(hit_point + expected_out * 3.5)
+	await get_tree().process_frame
+	# The preview shows the bank.
+	wt._profile = wt.profile()
+	wt.evolution = "ricochet"
+	wt.state = WeaponThrowSkill.State.CHARGING
+	wt._hold = 10.0
+	wt.charge = 1.0
+	wt.update_preview(lane + aim_dir * 20.0)
+	await get_tree().process_frame
+	expect("the throw lane shows the bounce segment, reflected away from the wall", wt.preview != null and wt.preview.bounce_length > 1.0 and wt.preview.bounce_dir.x < -0.5 and wt.preview.bounce_dir.z > 0.0)
+	wt.cancel_charge()
+	wt.evolution = ""
+	wt.update_preview(lane + aim_dir * 20.0)
+	wt.state = WeaponThrowSkill.State.IN_HAND
+	throw.call(lane + aim_dir * 40.0, full)
+	var bounce_frame: int = 0
+	while wt.bounces == 0 and bounce_frame < 400:
+		await get_tree().physics_frame
+		bounce_frame += 1
+	var after_dir: Vector3 = wt._throw_dir
+	expect("Ricochet bounces off the first wall using its real normal (out %.2f, %.2f)" % [after_dir.x, after_dir.z], wt.bounces == 1 and after_dir.x < -0.5 and absf(after_dir.dot(expected_out) - 1.0) < 0.05)
+	expect("it keeps flying: it did not embed in the wall", wt.state == WeaponThrowSkill.State.FLYING_OUT)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("after the bounce it still strikes what is on its new line", wt.last_out_hits.has(on_return.get_instance_id()))
+	expect("it bounced exactly once", wt.bounces == 1)
+	wt.recall()
+	var homed: bool = await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	expect("the recall brings it home and he catches it, as ever", homed and wt.thrown == null and not player.stats.weapon_locked)
+	# A second wall: it cannot bounce twice.
+	await clear_field.call()
+	bank_wall.queue_free()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var wall_a: StaticBody3D = make_wall.call(lane + Vector3(7.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	var wall_b: StaticBody3D = make_wall.call(lane + Vector3(-2.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), full)
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a second wall embeds it: no second bounce", wt.bounces == 1 and wt.thrown.center().x < lane.x + 7.0 and wt.thrown.center().x > lane.x - 2.5 and not wt._can_bounce(Vector3(1, 0, 0)))
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	wall_a.queue_free()
+	wall_b.queue_free()
+	await clear_field.call()
+	lane = _clear_lane(26.0, 3.0)
+	player.global_position = lane
+	player.reset_physics_interpolation()
+	var weak_wall: StaticBody3D = make_wall.call(lane + Vector3(9.0, 2.0, 0.0), Vector3(1.0, 4.0, 8.0))
+	await get_tree().process_frame
+	throw.call(lane + Vector3(40, 0, 0), 0.2 * wt.profile()["charge_time"])
+	await _wait_state(WeaponThrowSkill.State.EMBEDDED, 4.0)
+	expect("a weak throw does not ricochet", wt.bounces == 0)
+	wt.recall()
+	await _wait_state(WeaponThrowSkill.State.IN_HAND, 8.0)
+	weak_wall.queue_free()
+
+	# --- Passives -------------------------------------------------------------------------------------------------------------------------------
+	var hit_hero: Callable = func(damage: float, weight: float) -> void:
+		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
+		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
+		result["outcome"] = Combat.Outcome.CRUSHING
+		result["damage"] = damage
+		result["weight"] = weight
+		player.invulnerable_time = 0.0
+		player.receive(result, attacker.global_position)
+		player.knock = Vector3.ZERO   # (the blow's shove would walk him out of the test's geometry)
+		attacker.queue_free()
+	var calm_hero: Callable = func() -> void:
+		player.stun_time = 0.0
+		player.slow_time = 0.0
+		player.invulnerable_time = 0.0
+		player.health = player.max_health
+		player.attack_target = null
+		player.movement.has_goal = false
+		player.click_mode = 0
+		skills.aiming_id = ""
+		skills.busy = false
+		player._unbowed_ready_ms = 0
+		player.retaliation_time = 0.0
+		player.knockdown.reset()
+		player.combat_timer = 0.0
+	await clear_field.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	# Unbowed.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	await calm_hero.call()
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 1.0)
+	var baseline_stun: float = player.stun_time
+	await calm_hero.call()
+	TownState.buy_passive("unbowed")
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 1.0)
+	expect("without Unbowed a light crushing hit stuns him mid-wind-up (%.2f)" % baseline_stun, baseline_stun > 0.3)
+	expect("with Unbowed the first light stagger during a committed wind-up is shrugged off, and it was not free damage", player.stun_time == 0.0 and player.unbowed_suppressed == 1 and player.health < player.max_health)
+	hit_hero.call(4.0, 1.0)
+	expect("a second light hit right after still lands (a short cooldown, not permanent)", player.stun_time > 0.3)
+	await calm_hero.call()
+	skills.aiming_id = "skewer"
+	hit_hero.call(4.0, 2.7)
+	expect("a heavy blow still staggers him through Unbowed", player.stun_time > 0.3)
+	await calm_hero.call()
+	hit_hero.call(4.0, 1.0)
+	expect("Unbowed does nothing when he is not committed to a wind-up", player.stun_time > 0.3)
+	# Stubborn Advance.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	var target: Enemy = _throw_dummy(Vector3(9, 0, 0))
+	await calm_hero.call()
+	player.attack_target = target
+	hit_hero.call(4.0, 1.0)
+	var advance_baseline: float = player.stun_time
+	await calm_hero.call()
+	TownState.buy_passive("stubborn_advance")
+	player.attack_target = target
+	hit_hero.call(4.0, 1.0)
+	expect("without Stubborn Advance a light crushing hit stops the approach (%.2f)" % advance_baseline, advance_baseline > 0.3)
+	expect("with it a light hit only slows him while he presses in", player.stun_time == 0.0 and player.slow_time > 0.0 and player.stubborn_suppressed == 1)
+	await calm_hero.call()
+	player.attack_target = target
+	hit_hero.call(20.0, 1.0)
+	expect("a heavy hit (a tenth of his health) still stops him", player.stun_time > 0.3)
+	await calm_hero.call()
+	hit_hero.call(4.0, 1.0)
+	expect("walking about with no target he is stopped as ever", player.stun_time > 0.3)
+	target.queue_free()
+	# Retaliation.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("retaliation")
+	await calm_hero.call()
+	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 0))
+	hit_hero.call(2.0, 1.0)
+	expect("a chip hit does not arm Retaliation", player.retaliation_time == 0.0)
+	await calm_hero.call()
+	hit_hero.call(20.0, 1.0)
+	expect("a heavy hit arms it for about 3 seconds", player.retaliation_time > 2.5 and player.retaliation_time <= BuildDefs.RETALIATION_SECONDS)
+	var power_hit: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	power_hit["skill_id"] = "power"
+	foe.receive(power_hit, player.global_position)
+	expect("only a basic strike uses it up: Power Strike does not", player.retaliations_fired == 0 and player.retaliation_time > 0.0)
+	foe.stun_time = 0.0
+	foe.knock = Vector3.ZERO
+	var basic_hit: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	basic_hit["skill_id"] = "basic"
+	basic_hit["damage"] = 5.0
+	basic_hit["outcome"] = Combat.Outcome.HIT
+	basic_hit["outcome"] = Combat.Outcome.HIT
+	var foe_health: float = foe.health
+	foe.receive(basic_hit, player.global_position)
+	expect("the next basic strike sends its target reeling (fired %d, stagger %.2f, knock %.1f, hp lost %.1f), with no extra damage" % [player.retaliations_fired, foe.stun_time, foe.knock.length(), foe_health - foe.health], player.retaliations_fired == 1 and foe.stun_time >= 1.0 and foe.knock.length() > 4.0
+		and foe_health - foe.health < 8.0)
+	foe.stun_time = 0.0
+	foe.knock = Vector3.ZERO
+	var again: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	again["skill_id"] = "basic"
+	again["damage"] = 5.0
+	again["outcome"] = Combat.Outcome.HIT
+	foe.receive(again, player.global_position)
+	expect("it is used up: the strike after that is an ordinary one", player.retaliations_fired == 1 and player.retaliation_time == 0.0 and foe.stun_time < 0.9)
+	await calm_hero.call()
+	hit_hero.call(20.0, 1.0)
+	player.retaliation_time = 0.05
+	await get_tree().create_timer(0.25).timeout
+	foe.stun_time = 0.0
+	var late: Dictionary = Combat.resolve(player, foe, 5.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	late["skill_id"] = "basic"
+	late["damage"] = 5.0
+	late["outcome"] = Combat.Outcome.HIT
+	foe.receive(late, player.global_position)
+	expect("it expires: a late basic strike does nothing special", player.retaliations_fired == 1)
+	foe.queue_free()
+	# Iron Recovery.
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("iron_recovery")
+	await clear_field.call()
+	await calm_hero.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var ring: Array[Enemy] = []
+	for angle in [0.0, 2.1, 4.2]:
+		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
+	var iron_brute: Enemy = _throw_dummy(Vector3(cos(1.05), 0, sin(1.05)) * 2.2, "brute")
+	hit_hero.call(4.0, 1.0)   # a light stagger: no shove to come
+	await get_tree().create_timer(0.9).timeout
+	expect("a light stagger does not arm Iron Recovery", player.iron_shoves == 0)
+	await calm_hero.call()
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	iron_brute.global_position = Vector3(cos(1.05), 0, sin(1.05)) * 2.2
+	iron_brute.knock = Vector3.ZERO
+	for i in ring.size():
+		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
+		ring[i].knock = Vector3.ZERO
+		ring[i].stun_time = 0.0
+	var ring_before: Array[float] = []
+	for e in ring:
+		ring_before.append(e.flat_distance_to(player))
+	hit_hero.call(20.0, 2.7)
+	expect("a heavy hit knocks him down", player.stun_time > 0.3 and player.knockdown.active())
+	await get_tree().create_timer(1.7).timeout
+	var shoved: bool = true
+	for i in ring.size():
+		shoved = shoved and ring[i].flat_distance_to(player) > ring_before[i] + 1.0
+	expect("when he shakes it off he shoves the lesser enemies round him back, once", player.iron_shoves == 1 and shoved)
+	expect("the Brute shrugs the shove off", iron_brute.flat_distance_to(player) < 3.0)
+	await get_tree().create_timer(0.6).timeout
+	expect("no second shove without a second heavy stagger", player.iron_shoves == 1)
+	for e in ring:
+		e.queue_free()
+	iron_brute.queue_free()
+	# Mass Transfer.
+	await clear_field.call()
+	var transfer_runs: Array[Dictionary] = []
+	for with_passive in [false, true]:
+		TownState.reset()
+		TownState.dev_set_hero_level(10)
+		if with_passive:
+			TownState.buy_passive("mass_transfer")
+		await clear_field.call()
+		player.global_position = Vector3(-6, 0, 0)
+		player.reset_physics_interpolation()
+		var first: Enemy = _throw_dummy(Vector3(0, 0, 0))
+		var second: Enemy = _throw_dummy(Vector3(2.0, 0, 0))
+		var third: Enemy = _throw_dummy(Vector3(4.2, 0, 0))
+		await get_tree().process_frame
+		first.knocked_by = player
+		first.credit_hero()
+		first.ragdoll_launch(Vector3(9.0, 0, 0), 2.0, Vector3(0, 0, 4))
+		var second_peak: float = 0.0
+		for i in 80:
+			await get_tree().physics_frame
+			second_peak = maxf(second_peak, second.global_position.x - 2.0)
+		transfer_runs.append({"charges": first.ragdoll.transfer_used, "second_charges": second.mass_transfer_charges, "third_used": third.ragdoll.transfer_used if third.ragdoll != null else 0,
+			"second_moved": second_peak, "third_moved": third.global_position.x - 4.2, "credited": second.hero_credited(), "second_knocked_down": second.is_ragdolled() or second.stun_time > 0.0})
+	expect("without Mass Transfer nothing is passed on", int(transfer_runs[0]["charges"]) == 0)
+	expect("with it the launched body passes its force to the one it hits, once (second moved %.1f against %.1f)" % [float(transfer_runs[1]["second_moved"]), float(transfer_runs[0]["second_moved"])],
+		int(transfer_runs[1]["charges"]) == 1 and float(transfer_runs[1]["second_moved"]) > float(transfer_runs[0]["second_moved"]) + 1.0 and bool(transfer_runs[1]["second_knocked_down"]))
+	expect("the chain is capped: what was bowled carries no transfer on", int(transfer_runs[1]["second_charges"]) == 0 and int(transfer_runs[1]["third_used"]) == 0)
+	expect("the hero is credited for what a body he threw bowls over", bool(transfer_runs[1]["credited"]))
+
+	# --- The Progression screen ----------------------------------------------------------------------------------------------------------
+	TownState.reset()
+	TownState.dev_set_hero_level(6)
+	Gamepad.active = true
+	hud.show_gear = true
+	hud._open_character()
+	await get_tree().process_frame
+	var character: Control = hud.character_panel
+	expect("the character screen has a PROGRESSION button", character.progression_button != null and character.progression_button.text == "PROGRESSION")
+	hud.open_progression()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var panel: ProgressionPanel = hud.progression_panel
+	expect("it opens two sections, passives first, with the points shown", panel != null and panel.section == "passives" and panel.passive_cards.size() == BuildDefs.PASSIVE_ORDER.size()
+		and panel.points_label.text == "Passive Points 3     Evolution Points 2")
+	var focus: Control = panel.get_viewport().gui_get_focus_owner()
+	expect("controller focus lands inside it (a card)", focus != null and panel.is_ancestor_of(focus) and panel.passive_cards.values().has(focus))
+	expect("every control can take focus and the tabs link left and right", panel.passive_tab.focus_mode == Control.FOCUS_ALL and panel.back_button.focus_mode == Control.FOCUS_ALL
+		and panel.passive_tab.get_node(panel.passive_tab.focus_neighbor_right) == panel.evolution_tab
+		and panel.passive_cards.values().all(func(c: Button) -> bool: return c.focus_mode == Control.FOCUS_ALL))
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("choosing a passive asks first and spends nothing", panel.confirm_box != null and TownState.passive_points_available() == 3 and not TownState.has_passive("unbowed"))
+	panel.back()
+	await get_tree().process_frame
+	expect("Escape / back dismisses the question, not the screen", panel.confirm_box == null and hud.progression_panel == panel and TownState.passive_points_available() == 3)
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	panel.confirm_button.pressed.emit()
+	await get_tree().process_frame
+	expect("confirming buys it and the screen updates at once (2 left, PURCHASED)", TownState.has_passive("unbowed") and TownState.passive_points_available() == 2
+		and panel.points_label.text == "Passive Points 2     Evolution Points 2" and (panel.passive_cards["unbowed"] as Button).text.contains("PURCHASED"))
+	expect("the character screen's own count follows", character.points_label.text == "Passive Points 2     Evolution Points 2")
+	(panel.passive_cards["unbowed"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("a purchased passive asks nothing and cannot be bought again", panel.confirm_box == null and TownState.passive_points_available() == 2)
+	panel.evolution_tab.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the EVOLUTIONS section shows Weapon Throw and its three choices", panel.section == "evolutions" and panel.evolution_cards.size() == 3 and panel.evolution_cards.has("throw/wallspike")
+		and panel.evolution_cards.has("throw/reaping_recall") and panel.evolution_cards.has("throw/ricochet"))
+	focus = panel.get_viewport().gui_get_focus_owner()
+	expect("focus moves into the new section", focus != null and panel.is_ancestor_of(focus) and panel.evolution_cards.values().has(focus))
+	(panel.evolution_cards["throw/ricochet"] as Button).pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("an evolution asks first, warns it is permanent, spends nothing, and defaults to NO", panel.confirm_box != null and panel.confirm_text.text.contains("permanent") and TownState.selected_evolution("throw") == ""
+		and TownState.evolution_points_available() == 2 and panel.cancel_button.has_focus())
+	panel.cancel_button.pressed.emit()
+	await get_tree().process_frame
+	expect("cancelling leaves it unspent", TownState.selected_evolution("throw") == "" and TownState.evolution_points_available() == 2 and panel.confirm_box == null)
+	(panel.evolution_cards["throw/ricochet"] as Button).pressed.emit()
+	await get_tree().process_frame
+	panel.confirm_button.pressed.emit()
+	await get_tree().process_frame
+	expect("confirming selects it for good: 1 Evolution Point left, Ricochet SELECTED, the others closed", TownState.selected_evolution("throw") == "ricochet" and TownState.evolution_points_available() == 1
+		and (panel.evolution_cards["throw/ricochet"] as Button).text.contains("SELECTED") and (panel.evolution_cards["throw/wallspike"] as Button).text.contains("closed")
+		and (panel.evolution_cards["throw/reaping_recall"] as Button).text.contains("closed"))
+	(panel.evolution_cards["throw/wallspike"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("a closed evolution cannot be chosen", panel.confirm_box == null and TownState.selected_evolution("throw") == "ricochet")
+	expect("and the throw uses it at once, with no restart", player.evolution_of("throw") == "ricochet")
+	panel.back_button.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("Back returns to the character screen with focus on PROGRESSION", hud.progression_panel == null and hud.character_panel.visible and hud.character_panel.progression_button.has_focus())
+	hud.close_character()
+	Gamepad.active = false
+	TownState.reset()
+
 ## What the town keeps: pay-out for a run, gear handed over, the job board, the food bill, and saving without losing a thing.
 func _test_town_state() -> void:
 	TownState.persist = false
@@ -3561,7 +4890,8 @@ func _test_town_scene() -> void:
 	for id in ["marlow", "hale", "maren", "cutter", "dorn"]:
 		town.panel.open_npc(id)
 		await get_tree().process_frame
-		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= (1 if id == "hale" else 2))
+		var passive_page: bool = id in ["hale", "cutter"]
+		expect("%s's panel opens with something to do" % id, town.panel.visible and town.panel.get_tree().paused and _count_buttons(town.panel) >= (1 if passive_page else 2))
 		town.panel.close()
 	town.panel.open_npc("dorn")
 	await get_tree().process_frame
@@ -3609,21 +4939,20 @@ func _test_town_scene() -> void:
 	town.panel._wear(TownState.stash.size() - 1)
 	expect("wearing from the stash puts it on the hero too", town.player.stats.equipment[Items.Slot.WEAPON]["base"] == "Greatsword"
 		and town.player._held_path == Items.model_path(town.player.stats.equipment[Items.Slot.WEAPON]))
-	# Hiring.
+	# Cutter is no longer hired: he is the permanent, free clan archer.
 	town.panel.close()
 	town.panel.open_npc("cutter")
 	await get_tree().process_frame
-	expect("a recruit starts outside the clan", not bool(TownState.npcs["cutter"]["member"]))
+	expect("Cutter starts as a permanent clan member", bool(TownState.npcs["cutter"]["member"]))
 	gold = TownState.gold
 	town.panel.close()
 	TownState.npcs["cutter"]["member"] = false
+	TownState.ensure_npcs()
 	town.panel.open_npc("cutter")
 	town.panel._rebuild()
 	var hire: Button = _find_button(town.panel, "Hire")
-	expect("the hire button is there and affordable", hire != null and not hire.disabled)
-	if hire != null:
-		hire.pressed.emit()
-	expect("hiring costs gold and joins the clan", bool(TownState.npcs["cutter"]["member"]) and TownState.gold == gold - TownDb.npc("cutter").recruit_cost)
+	expect("Cutter has no hire button or cost", hire == null and TownDb.npc("cutter").recruit_cost == 0)
+	expect("old saves that lacked him are repaired without spending gold", bool(TownState.npcs["cutter"]["member"]) and TownState.gold == gold)
 	town.panel.close()
 	# The healing stone, and the hero carries what the town gave into the run.
 	town.player.health = 10.0
@@ -4562,7 +5891,7 @@ func _test_road_rules() -> void:
 	expect("four stretches, each stocked with real monsters", tidy)
 	expect("together they cover the whole road with no gap", TownDb.zone_at(0.0).id == "road_in" and TownDb.zone_at(63.9).id == "road_in"
 		and TownDb.zone_at(64.0).id == "graveyard" and TownDb.zone_at(150.0).id == "wood" and TownDb.zone_at(300.0).id == "crypt_approach")
-	expect("the further out, the tougher", TownDb.zone_at(10.0).level_offset < TownDb.zone_at(300.0).level_offset)
+	expect("the further out, the tougher", TownDb.zone_at(10.0).base_threat < TownDb.zone_at(300.0).base_threat)
 	# Conditions: about half the time none, never more than two, never ones that clash, always the same for the same seed.
 	var none: int = 0
 	var most: int = 0
@@ -5093,12 +6422,284 @@ func _test_dodge_cancels_attack() -> void:
 	expect("the held attack button does not start another swing after the roll", not swung)
 	foe.queue_free()
 
+## The hero's knockdown: a heavy blow (the old heavy-stagger trigger) puts him down -> downed -> getting up -> control; nothing works
+## while he is down; Iron Recovery rides on the completed get-up only; death cancels the fall and revival leaves him standing and free.
+func _test_hero_knockdown() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.dev_set_hero_level(10)
+	TownState.buy_passive("iron_recovery")
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var kd: Knockdown = player.knockdown
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var hit_hero: Callable = func(damage: float, weight: float) -> void:
+		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
+		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
+		result["outcome"] = Combat.Outcome.CRUSHING
+		result["damage"] = damage
+		result["weight"] = weight
+		player.invulnerable_time = 0.0
+		player.receive(result, attacker.global_position)
+		player.knock = Vector3.ZERO
+		attacker.queue_free()
+	var calm: Callable = func() -> void:
+		kd.reset()
+		player.stun_time = 0.0
+		player.invulnerable_time = 0.0
+		player.health = player.max_health
+		player.attack_target = null
+		player.movement.has_goal = false
+		player.skills.busy = false
+		player.skills.aiming_id = ""
+		player.iron_shoves = 0
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+	await calm.call()
+	var ring: Array[Enemy] = []
+	for angle in [0.0, 2.1, 4.2]:
+		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
+	# An ordinary (light) stagger: no knockdown, no Iron Recovery.
+	hit_hero.call(4.0, 1.0)
+	expect("a light stagger does not knock him down", not kd.active() and kd.knockdowns == 0 and player.stun_time > 0.0)
+	await get_tree().create_timer(1.0).timeout
+	expect("and Iron Recovery does not fire on an ordinary stagger", player.iron_shoves == 0)
+	await calm.call()
+	for i in ring.size():
+		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
+		ring[i].knock = Vector3.ZERO
+		ring[i].stun_time = 0.0
+	var ring_start: Array[Vector3] = []
+	for e in ring:
+		ring_start.append(e.global_position)
+	# A heavy blow.
+	var cooldowns_before: Dictionary = player.stats.cooldowns.duplicate()
+	hit_hero.call(20.0, 2.7)
+	var health_after_blow: float = player.health
+	expect("a heavy blow puts him in the impact phase of a knockdown", kd.active() and kd.phase == Knockdown.Phase.IMPACT and kd.knockdowns == 1)
+	expect("the blow cost its damage once (20 of %d)" % int(player.max_health), absf((player.max_health - health_after_blow) - 20.0) < 8.0 and health_after_blow < player.max_health)
+	expect("he keeps his weapon through the fall", wt.has_weapon() and not wt.is_away())
+	# Walk the phases, trying to act all the way down.
+	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 3.0))
+	var seen: Array[String] = []
+	var lock_ok: bool = true
+	var tried_at_downed: bool = false
+	var held_position: Vector3 = player.global_position
+	var elapsed: float = 0.0
+	player.cursor_override = foe.global_position
+	while kd.active() and elapsed < 3.0:
+		if seen.is_empty() or seen[-1] != kd.phase_name():
+			seen.append(kd.phase_name())
+		var pressing: bool = not (kd.phase == Knockdown.Phase.GETTING_UP and kd.phase_time > Knockdown.GET_UP_TIME - 0.05)   # (the very frame he stands, he may act: not tested)
+		if pressing:
+			player.movement.goal = Vector3(8, 0, 0)
+			player.movement.has_goal = true
+			Input.action_press("dodge")
+			Input.action_press("alt_skill")
+			Input.action_press("skill_2")
+		await get_tree().physics_frame
+		Input.action_release("dodge")
+		Input.action_release("alt_skill")
+		Input.action_release("skill_2")
+		elapsed += get_physics_process_delta_time()
+		if kd.is_downed() and not tried_at_downed:
+			held_position = player.global_position   # (the blow's own shove has played out by now)
+		if kd.active():
+			lock_ok = lock_ok and not player.movement.rolling and not player.skills.busy and player.skills.aiming_id == "" and not wt.can_begin() \
+				and (not tried_at_downed or player.global_position.distance_to(held_position) < 0.05) and player.stun_time > 0.0
+			tried_at_downed = tried_at_downed or kd.is_downed()
+	player.movement.has_goal = false
+	player.cursor_override = Vector3.INF
+	expect("the phases run impact -> downed -> getting_up -> none (saw %s)" % ", ".join(seen), seen == ["impact", "downed", "getting_up"] and not kd.active())
+	expect("while he is down he cannot move, attack, dodge or cast (and was tested while downed)", lock_ok and tried_at_downed and kd.get_ups == 1)
+	expect("the whole fall is a deliberate %.2f s, not an endless lockout" % Knockdown.TOTAL_TIME, elapsed > Knockdown.TOTAL_TIME - 0.15 and elapsed < Knockdown.TOTAL_TIME + 0.5)
+	expect("control is back at the end: no stun, standing upright, the throw can start again", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01 and wt.can_begin())
+	expect("Iron Recovery fired exactly once, on the completed get-up", player.iron_shoves == 1)
+	await get_tree().create_timer(0.5).timeout
+	var shoved: bool = true
+	for i in ring.size():
+		shoved = shoved and ring[i].global_position.distance_to(ring_start[i]) > 1.0
+	expect("and shoved the lesser enemies round him back", shoved)
+	var cooldowns_ok: bool = true
+	for id in player.stats.cooldowns.keys():
+		cooldowns_ok = cooldowns_ok and float(player.stats.cooldowns[id]) <= float(cooldowns_before.get(id, 0.0)) + 0.001
+	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + 2.0 and player.health >= health_after_blow - 0.01 and cooldowns_ok)
+	await get_tree().create_timer(0.8).timeout
+	expect("no second Iron Recovery afterwards", player.iron_shoves == 1 and wt.has_weapon())
+	# A second heavy blow while already down neither restarts nor stretches the fall.
+	await calm.call()
+	hit_hero.call(20.0, 2.7)
+	await get_tree().create_timer(0.5).timeout
+	var left: float = player.stun_time
+	hit_hero.call(20.0, 2.7)
+	expect("a blow while he is down is taken (damage) but does not restart the fall", kd.knockdowns == 1 and player.stun_time <= left + 0.01)
+	# Death during a knockdown: the fall is cancelled and nothing fires.
+	await calm.call()
+	hit_hero.call(20.0, 2.7)
+	expect("a fresh knockdown", kd.active())
+	player.health = 1.0
+	player._apply_damage(500.0)
+	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
+	await get_tree().create_timer(1.6).timeout
+	expect("a dead hero never gets up, and no Iron Recovery fires from the fall", player.iron_shoves == 0 and kd.get_ups == 0 and not kd.active())
+	expect("his weapon is not lost to the fall", wt.has_weapon())
+	# Revive.
+	player.revive_at(Vector3.ZERO)
+	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and wt.can_begin() and absf(player.visual.rotation.x) < 0.01)
+	await get_tree().create_timer(0.3).timeout
+	expect("and no stray Iron Recovery arrives after the revive", player.iron_shoves == 0)
+	hit_hero.call(20.0, 2.7)
+	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
+	await get_tree().create_timer(Knockdown.TOTAL_TIME + 0.4).timeout
+	expect("and gets up again, once", not kd.active() and kd.get_ups == 1 and player.iron_shoves == 1)
+	for e in ring:
+		e.queue_free()
+	foe.queue_free()
+	player.stats.cooldowns.clear()
+
+func _test_archer_companion() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var archer: ArcherCompanion = game.companion
+	archer.testing_disabled = false
+	archer.target = null
+	archer.shots_fired = 0
+	archer.last_hit_target = null
+	archer.take_aim_armed = false
+	archer.take_aim_reload_required = 0.0
+	archer.take_aim_reload_remaining = 0.0
+	archer.global_position = Vector3(2.0, 0.0, 2.0)
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var quiet: Enemy = _spawn_enemy(Vector3(-4.0, 0.0, -8.0))
+	quiet.aggro_range = 0.0
+	quiet.max_health = 500.0
+	quiet.health = quiet.max_health
+	var threats: Array[Enemy] = []
+	for pos in [Vector3(0.0, 0.0, -8.0), Vector3(4.0, 0.0, -9.0)]:
+		var enemy: Enemy = _spawn_enemy(pos)
+		enemy.max_health = 500.0
+		enemy.health = enemy.max_health
+		enemy.target = player
+		enemy.wake()
+		threats.append(enemy)
+	var saw_draw: bool = false
+	var elapsed: float = 0.0
+	while elapsed < 3.5 and archer.last_hit_target == null:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+		saw_draw = saw_draw or archer._draw > 0.25
+	var hit_threat: bool = archer.last_hit_target in threats
+	expect("Cutter carries Blender-authored bow, quiver and draw arrow", archer._draw_arrow != null and ResourceLoader.exists(ArcherCompanion.BOW_MODEL)
+		and ResourceLoader.exists(ArcherCompanion.QUIVER_MODEL) and ResourceLoader.exists(ArcherCompanion.ARROW_MODEL))
+	expect("Cutter draws before loosing a visible physical arrow", saw_draw and archer.shots_fired >= 1)
+	expect("Cutter attacks only an enemy aggroed onto the hero", hit_threat and quiet.health == quiet.max_health)
+	expect("the arrow uses the normal hit/reaction path", hit_threat and archer.last_hit_target.health < archer.last_hit_target.max_health
+		and archer.last_hit_target.flinch_serial > 0 and archer.last_hit_target.hero_credited())
+	var expected_take_aim_reload: float = player.stats.power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
+	expect("Cutter's first Ranged power is a 1500% non-crit Take Aim shot with DS2's fast recharge",
+		hit_threat and archer.last_hit_target.max_health - archer.last_hit_target.health > ArcherCompanion.DAMAGE * 5.0
+		and not archer.take_aim_armed and is_equal_approx(archer.take_aim_reload_required, expected_take_aim_reload)
+		and is_equal_approx(archer.take_aim_reload_remaining, expected_take_aim_reload))
+	var take_aim_before_party_hit: float = archer.take_aim_reload_remaining
+	player.on_dealt_hit(archer.last_hit_target,
+		{"outcome": Combat.Outcome.HIT, "damage": 25.0, "skill_id": "basic", "secondary": false})
+	expect("active-party damage recharges Cutter's Take Aim",
+		is_equal_approx(archer.take_aim_reload_remaining, take_aim_before_party_hit - 25.0))
+	var spacing_target: Enemy = threats[0]
+	spacing_target.move_speed = 0.0
+	archer.target = spacing_target
+	# Start inside bow distance but outside the two bodies' collision overlap, so this measures AI retreat rather than depenetration.
+	archer.global_position = spacing_target.global_position + Vector3(0.0, 0.0, 6.0)
+	player.global_position = spacing_target.global_position + Vector3(11.0, 0.0, 0.0)
+	player.reset_physics_interpolation()
+	var spacing_elapsed: float = 0.0
+	while spacing_elapsed < 3.0 and archer.flat_distance_to(spacing_target) < ArcherCompanion.MIN_COMBAT_RANGE - 0.6:
+		await get_tree().physics_frame
+		spacing_elapsed += 1.0 / 60.0
+	expect("Cutter backs out to archer range instead of following the hero into melee",
+		archer.flat_distance_to(spacing_target) >= ArcherCompanion.MIN_COMBAT_RANGE - 0.6
+		and archer.flat_distance_to(player) > ArcherCompanion.FOLLOW_DISTANCE + 1.0)
+	var tether_before: float = ArcherCompanion.HARD_TETHER_DISTANCE + 4.0
+	player.global_position = archer.global_position + Vector3(tether_before, 0.0, 0.0)
+	player.reset_physics_interpolation()
+	await get_tree().create_timer(0.8).timeout
+	expect("the hard player tether overrides combat spacing", archer.flat_distance_to(player) < tether_before - 1.0)
+	for enemy in threats:
+		enemy.queue_free()
+	quiet.queue_free()
+	await get_tree().process_frame
+	archer.target = null
+	player.global_position += Vector3(8.0, 0.0, 0.0)
+	player.reset_physics_interpolation()
+	var displaced_gap: float = archer.flat_distance_to(player)
+	await get_tree().create_timer(1.0).timeout
+	expect("Cutter automatically follows the moving hero", archer.flat_distance_to(player) < displaced_gap - 1.0)
+	archer.testing_disabled = true
+	archer.target = null
+
+func _test_brutal_attack() -> void:
+	GameSettings.reset_hotbar()
+	expect("the default loadout contains only Brutal Attack and the basic attack",
+		GameSettings.hotbar_slots == ["brutal_attack", "", "", "", "", ""] and GameSettings.hotbar_alt == "basic")
+	var skills: SkillController = player.skills
+	skills.cancel_action()
+	player.stats.brutal_reload_remaining = 0.0
+	skills.activate_brutal_attack()
+	expect("Brutal Attack arms and keeps an orange aura around the hero", skills.brutal_armed and skills._brutal_aura != null)
+	skills.combo_step = 2
+	var brutal_animation: Dictionary = skills._next_basic()
+	expect("an armed Brutal Attack replaces the basic combo with its own short heavy windup",
+		bool(brutal_animation.get("brutal_animation", false)) and brutal_animation["clip"] == "power"
+		and float(brutal_animation["time"]) > 1.0 and float(brutal_animation["weight"]) > 2.0 and skills.combo_step == 0)
+	# A complete basic swing into empty space must leave the stored power untouched.
+	skills.busy_skill = "basic"
+	skills.busy_target = null
+	skills.busy_aim = player.global_position + Vector3(0.0, 0.0, -2.0)
+	skills._apply_skill(SkillDb.all()["basic"])
+	expect("a missed Brutal Attack is not consumed", skills.brutal_armed and player.stats.brutal_reload_remaining == 0.0)
+	var victim: Enemy = _spawn_enemy(player.global_position + Vector3(0.0, 0.0, -1.7))
+	victim.max_health = 10000.0
+	victim.health = victim.max_health
+	victim.armor = 0.0
+	var before: float = victim.health
+	skills.busy_target = victim
+	skills._apply_skill(SkillDb.all()["basic"])
+	# Use the production helper so the test observes the same minimum level guard as a fresh new-game save.
+	var expected_reload: float = player.stats.brutal_recharge_damage()
+	expect("the next successful basic hit spends Brutal Attack and deals its amplified weapon damage",
+		not skills.brutal_armed and is_equal_approx(player.stats.brutal_reload_remaining, expected_reload)
+		and is_equal_approx(player.stats.brutal_reload_required, expected_reload) and before - victim.health > player.stats.weapon_max * 5.0)
+	player.on_dealt_hit(victim, {"outcome": Combat.Outcome.HIT, "damage": 90.0, "skill_id": "basic"})
+	expect("ordinary combat damage subtracts from DS2's reload-damage budget",
+		is_equal_approx(player.stats.brutal_reload_remaining, expected_reload - 90.0))
+	player.on_dealt_hit(victim, {"outcome": Combat.Outcome.HIT, "damage": 999.0, "skill_id": "brutal_attack"})
+	expect("Brutal Attack does not recharge itself", is_equal_approx(player.stats.brutal_reload_remaining, expected_reload - 90.0))
+	var gibs_before: int = get_tree().get_nodes_in_group("gibs").size()
+	victim.health = 1.0
+	var brutal_kill: Dictionary = Combat.resolve(player, victim, 10.0, Combat.DamageType.PHYSICAL, false, 1.0, false)
+	brutal_kill["outcome"] = Combat.Outcome.HIT   # prove the skill, not a crit/crushing roll, causes the gib
+	brutal_kill["damage"] = 10.0
+	brutal_kill["skill_id"] = "brutal_attack"
+	victim.receive(brutal_kill, player.global_position)
+	expect("a lethal Brutal Attack gibs the enemy",
+		victim.dead and not victim.visual.visible and get_tree().get_nodes_in_group("gibs").size() > gibs_before)
+	victim.queue_free()
+	for node in get_tree().get_nodes_in_group("gibs"):
+		node.queue_free()
+	skills.cancel_action()
+
 # --- Headless self test ---------------------------------------------------------
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
+"skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack",
+"actionqueue": "_test_action_queue",
+"throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "levelrewards": "_test_level_rewards", "savepolicy": "_test_save_policy", "buildchoices": "_test_build_choices", "herodown": "_test_hero_knockdown",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "powerwave": "_test_power_wave", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"balance": "_test_balance", "enemies": "_test_enemies", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
+	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "twinflame": "_test_twin_flame_target", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","newaffixes": "_test_new_affixes", "destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
 }
 
 ## Loot on the ground: nothing is picked up by walking over it; clicking an item (or its name) sends the hero to take it, the use key takes the
@@ -5180,15 +6781,16 @@ func _test_loot_names() -> void:
 ## settings and the save, and clicking a hotbar slot opens a picker whose icons put a skill on that key.
 func _test_hotbar() -> void:
 	GameSettings.reset_hotbar()
-	var slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
+	var full_layout: Array[String] = ["power", "fireball", "potion", "skewer", "leap", "earthshatter"]
+	var slots: Array[String] = full_layout.duplicate()
 	var alt: String = HotbarLayout.assign(slots, HotbarLayout.DEFAULT_ALT, 0, "fireball")
 	expect("putting a skill that is elsewhere on a key swaps the two", slots[0] == "fireball" and slots[1] == "power" and alt == "basic")
 	alt = HotbarLayout.assign(slots, alt, HotbarLayout.ALT, "potion")
 	expect("the mouse button swaps like any other slot", alt == "potion" and slots[2] == "basic" and HotbarLayout.is_valid(slots, alt))
-	var benched: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
+	var benched: Array[String] = full_layout.duplicate()
 	var bench_alt: String = HotbarLayout.assign(benched, HotbarLayout.DEFAULT_ALT, 3, "throw")
 	expect("a skill from the bench takes a key and the one it replaces goes to the bench", benched[3] == "throw" and not benched.has("skewer") and bench_alt == "basic" and HotbarLayout.is_valid(benched, bench_alt))
-	expect("a layout is always the same seven skills", not HotbarLayout.is_valid(["power", "power", "potion", "skewer", "leap", "earthshatter"], "basic")
+	expect("a layout has six slots, permits empty keys, and never duplicates assigned skills", not HotbarLayout.is_valid(["power", "power", "potion", "skewer", "leap", "earthshatter"], "basic")
 		and not HotbarLayout.is_valid(["power", "fireball", "potion", "skewer", "leap"], "basic") and HotbarLayout.is_valid(HotbarLayout.DEFAULT_SLOTS, "basic"))
 	expect("the dodge cannot be put on a key", HotbarLayout.assign(slots, alt, 3, "dodge") == alt and slots[3] == "skewer")
 	# The hero's bar IS the settings' layout, so one change shows everywhere.
@@ -5220,7 +6822,7 @@ func _test_hotbar() -> void:
 		if cell["id"] == "leap":
 			leap_at = (cell["rect"] as Rect2).get_center()
 	press.call(leap_at)
-	expect("choosing Leap puts it on key 2 and Fireball takes Leap's old place", skills.hotbar[1] == "leap" and skills.hotbar[4] == "fireball" and not hud.picker_open()
+	expect("choosing Leap puts it on the empty key 2", skills.hotbar[1] == "leap" and not hud.picker_open()
 		and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
 	# The mouse button, and closing without choosing.
 	await get_tree().process_frame
@@ -5234,7 +6836,7 @@ func _test_hotbar() -> void:
 		if cell["id"] == "potion":
 			potion_at = (cell["rect"] as Rect2).get_center()
 	press.call(potion_at)
-	expect("a potion on the mouse button swaps with what it replaced", skills.right_click_skill == "potion" and skills.hotbar[2] == "basic")
+	expect("a potion from the bench can replace the mouse-button attack", skills.right_click_skill == "potion" and not skills.hotbar.has("basic"))
 	var dodge_rect: Rect2 = Rect2()
 	for hit in hud._slot_hits:
 		if hit["action"] == "dodge":
@@ -5271,11 +6873,13 @@ func _test_knockdown() -> void:
 	expect("Power Strike throws it back, even on a miss (%.1f m, was about 0.5 before)" % thrown, thrown >= 1.5)
 	z.queue_free()
 	# 2. Thrown into a wall: extra damage and a stun.
-	var wall_victim: Enemy = _spawn_enemy(Vector3(37.2, 0, 0))
+	# Close enough that even a missed strike's 9 m/s shove reaches the wall
+	# above Actor.IMPACT_SPEED; the old 2.8 m gap depended on a random landed hit.
+	var wall_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
 	wall_victim.alert_delay = 999.0
 	wall_victim.max_health = 5000.0
 	wall_victim.health = 5000.0
-	player.global_position = Vector3(35.4, 0, 0)
+	player.global_position = Vector3(37.4, 0, 0)
 	player.reset_physics_interpolation()
 	skills.busy_target = wall_victim
 	skills.busy_aim = wall_victim.global_position
@@ -5286,6 +6890,32 @@ func _test_knockdown() -> void:
 	expect("thrown into the wall it takes extra damage (%.0f over %.0f) and the impact stuns it" % [5000.0 - wall_victim.health, hit_only],
 		5000.0 - wall_victim.health > hit_only + 2.0 and String(wall_victim.last_result.get("skill_id", "")) == "impact" and wall_victim.stun_time > 0.0)
 	wall_victim.queue_free()
+	await get_tree().process_frame
+	# Exercise actual movement/collision without a random combat roll.
+	var impact_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
+	impact_victim.alert_delay = 999.0
+	impact_victim.max_health = 5000.0
+	impact_victim.health = 5000.0
+	impact_victim.knock = Vector3(9, 0, 0)
+	impact_victim.knocked_by = player
+	await get_tree().create_timer(0.6).timeout
+	var impact_damage: float = 5000.0 - impact_victim.health
+	expect("a qualifying wall collision deals exactly one impact and leaves a living stunned enemy",
+		String(impact_victim.last_result.get("skill_id", "")) == "impact" and impact_damage > 0.0
+		and is_equal_approx(impact_damage, float(impact_victim.last_result.get("damage", 0.0)))
+		and not impact_victim.dead and not impact_victim.is_ragdolled() and impact_victim.stun_time > 0.0)
+	await get_tree().create_timer(0.7).timeout
+	expect("remaining against the wall does not deal another impact after cooldown", is_equal_approx(5000.0 - impact_victim.health, impact_damage))
+	impact_victim.queue_free()
+	await get_tree().process_frame
+	var no_impact: Enemy = _spawn_enemy(_clear_lane(5.0, 2.0))
+	no_impact.alert_delay = 999.0
+	no_impact.max_health = 5000.0
+	no_impact.health = 5000.0
+	no_impact.knock = Vector3(9, 0, 0)
+	await get_tree().create_timer(0.6).timeout
+	expect("a shove in clear ground causes no false wall impact", is_equal_approx(no_impact.health, 5000.0))
+	no_impact.queue_free()
 	# 3. Thrown into another monster: both are hurt and the one it hits falls down.
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
@@ -5295,17 +6925,28 @@ func _test_knockdown() -> void:
 		e.alert_delay = 999.0
 		e.max_health = 5000.0
 		e.health = 5000.0
-	skills.busy_target = front
-	skills.busy_aim = front.global_position
-	skills._apply_skill(power)
+	# Power Strike's shove is covered above. Here isolate the actual body contact:
+	# its random splash could shove the rear target faster than the front one
+	# (9 m/s on a miss versus 10.25 normally, or 20 on a crushing splash).
+	# The minimum Power Strike shove closes this 0.66 m capsule gap above IMPACT_SPEED.
+	front.knocked_by = player
+	front.knock = Vector3(0, 0, SkillController.POWER_KNOCK)
 	var saw_down: bool = false
 	var t: float = 0.0
+	# Observe the first settled body-impact event, before ragdoll follow-up contacts.
 	while t < 1.0:
 		await get_tree().physics_frame
-		t += 1.0 / 60.0
+		t += 1.0 / float(Engine.physics_ticks_per_second)
 		saw_down = saw_down or behind.is_ragdolled()
+		if saw_down and behind.health < 5000.0 and String(behind.last_result.get("skill_id", "")) == "impact":
+			break
+	print("  knockdown collision: front_damage=", 5000.0 - front.health,
+		" behind_damage=", 5000.0 - behind.health, " down=", saw_down,
+		" last=", behind.last_result.get("skill_id", ""))
 	expect("the monster that gets hit by the thrown one is hurt and falls down", behind.health < 5000.0 and saw_down
 		and String(behind.last_result.get("skill_id", "")) == "impact")
+	expect("the thrown monster also takes body-impact damage", front.health < 5000.0
+		and String(front.last_result.get("skill_id", "")) == "impact")
 	front.queue_free()
 	behind.queue_free()
 	# 4. A full blade's leftovers are knocked down and thrown aside; with Ramming a big one is stunned far longer.
@@ -5610,6 +7251,169 @@ func _wait_state(wanted: int, seconds: float) -> bool:
 		await get_tree().physics_frame
 		waited += 1.0 / 60.0
 	return int(player.weapon_throw.state) == wanted
+
+## Deterministic component interruption checks; the weaponthrow suite covers real input/travel.
+func _test_throw_ownership() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var wt: WeaponThrowSkill = player.weapon_throw
+	var skills: SkillController = player.skills
+	player.set_physics_process(false) # advance the component explicitly, without timing races
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.global_position = _clear_lane(26.0, 3.0)
+	player.stun_time = 0.0
+	player.movement.rolling = false
+	var aim: Vector3 = player.global_position + Vector3(25, 0, 0)
+	wt.reset()
+	player.stats.cooldowns.clear()
+	wt.begin_charge()
+	wt.tick(0.5)
+	var held: float = wt.charge_fraction()
+	wt.begin_charge()
+	expect("repeated begin does not restart the charge", is_equal_approx(wt.charge_fraction(), held))
+	wt.cancel_charge()
+	wt.cancel_charge()
+	expect("cancel is repeatable with no spend or hidden blade", wt.has_weapon() and player.model.weapon.visible and not player.stats.weapon_locked and player.stats.cooldowns.is_empty())
+	# Death/reset from every state, including the recovery after the catch frame.
+	for phase in ["charge", "release", "outbound", "embedded", "rip", "return", "catch", "recovery"]:
+		wt.reset()
+		skills.busy = false
+		player.stats.cooldowns.clear()
+		wt.begin_charge()
+		wt.tick(0.5)
+		if phase == "charge":
+			skills.aiming_id = "throw"
+			skills.aiming_action = "skill_2"
+		if phase != "charge":
+			wt.release(aim)
+			wt.release(aim) # duplicate release must not spawn twice or reset commitment
+		if phase not in ["charge", "release"]:
+			wt.tick_busy(0.21)
+			var copy: ThrownWeapon = wt.thrown
+			wt.begin_charge()
+			expect("begin while away preserves ownership (%s)" % phase, wt.state == WeaponThrowSkill.State.FLYING_OUT and wt.thrown == copy)
+		if phase in ["embedded", "rip", "return", "catch", "recovery"]:
+			wt._embed(player.global_position + Vector3(10, 0, 0), Vector3.UP, false)
+			if phase == "embedded":
+				await _throw_ownership_png("embedded")
+		if phase in ["rip", "return", "catch", "recovery"]:
+			expect("embedded recall starts once (%s)" % phase, wt.recall() and not wt.recall())
+		if phase in ["return", "catch", "recovery"]:
+			wt.tick(float(wt._profile["rip_time"]))
+			expect("return recall cannot restart damage history", wt.state == WeaponThrowSkill.State.RETURNING and not wt.recall())
+		if phase in ["catch", "recovery"]:
+			wt._pos = wt._hand_point() + Vector3(1.5, 0, 0)
+			wt.thrown.set_pose(wt._pos, Vector3.UP)
+			wt._begin_catch()
+		if phase == "recovery":
+			await _throw_ownership_png("catch")
+			var caught_copy: ThrownWeapon = wt.thrown
+			wt.tick_busy(float(wt._profile["catch_time"]))
+			expect("catch frame keeps its intended recovery", wt.has_weapon() and skills.busy)
+			expect("catch hides the old copy before showing the held blade", not caught_copy.visible and player.model.weapon.visible and wt.thrown == null)
+			var effects: int = player.get_parent().get_child_count()
+			wt._complete_catch()
+			expect("a second catch has no extra effects", player.get_parent().get_child_count() == effects)
+		var old_copy: ThrownWeapon = wt.thrown
+		player.dead = true
+		player._on_death() # existing hook, no player implementation changes
+		wt.reset()
+		expect("death/reset unlocks weapon AND throw action (%s)" % phase, wt.has_weapon() and wt.thrown == null and player.model.weapon.visible and not player.stats.weapon_locked and not skills.busy and skills.aiming_id != "throw")
+		if is_instance_valid(old_copy):
+			expect("discarded thrown visual is hidden immediately (%s)" % phase, not old_copy.visible)
+		player.revive_at(player.global_position)
+		player.set_physics_process(false)
+		await get_tree().process_frame
+		player.stats.cooldowns.clear()
+		expect("revive permits a fresh throw (%s)" % phase, wt.can_begin())
+		if phase == "recovery":
+			await _throw_ownership_png("recovered")
+	# Interrupt release before its strike: no copy, damage, cooldown or lock.
+	wt.begin_charge()
+	wt.release(aim)
+	skills.cancel_action()
+	wt.tick(0.01)
+	expect("cancelled release leaves nothing spent or stranded", wt.has_weapon() and wt.thrown == null and not player.stats.weapon_locked and player.stats.cooldowns.is_empty())
+	# Real sweeps against a stationary enemy: one outgoing and one return hit,
+	# even when recall and the same sweep are repeated.
+	player.stats.cooldowns.clear()
+	wt.begin_charge()
+	wt.release(aim)
+	wt.tick_busy(0.21)
+	var victim: Enemy = _throw_dummy(player.global_position + Vector3(4, 0, 0))
+	victim.set_physics_process(false)
+	var from: Vector3 = player.global_position + Vector3(2, 1, 0)
+	var to: Vector3 = player.global_position + Vector3(6, 1, 0)
+	wt._sweep(from, to, true)
+	wt._sweep(from, to, true)
+	expect("repeated outgoing sweep hits/procs once", wt.last_out_hits.count(victim.get_instance_id()) == 1 and wt.proc_hits == 1)
+	expect("outbound forced recall starts once", wt.recall() and not wt.recall())
+	wt._sweep(to, from, false)
+	var after_return: float = victim.health
+	wt.recall()
+	wt._sweep(to, from, false)
+	expect("repeated recall/sweep does not repeat return damage or procs", wt.last_return_hits.count(victim.get_instance_id()) == 1 and is_equal_approx(victim.health, after_return) and wt.proc_hits == 0)
+	victim.free()
+	wt.tick(0.01)
+	expect("target removed during return does not strand weapon", wt.is_away())
+	wt._begin_catch()
+	skills.cancel_action()
+	wt.tick(0.01)
+	expect("interrupted catch restores one blade and unlocked slot", wt.has_weapon() and wt.thrown == null and player.model.weapon.visible and not player.stats.weapon_locked)
+	wt.reset()
+	# Wallspike carried and pinned victims can die or disappear independently.
+	for attached in ["carried", "pinned"]:
+		for loss in ["dead", "freed"]:
+			player.stats.cooldowns.clear()
+			wt.begin_charge()
+			wt.release(aim)
+			wt.tick_busy(0.21)
+			var body: Enemy = _throw_dummy(player.global_position + Vector3(4, 0, 0))
+			body.set_physics_process(false)
+			wt.evolution = "wallspike"
+			wt._spike(body, Vector3.RIGHT)
+			if attached == "pinned":
+				wt._embed(player.global_position + Vector3(10, 1, 0), Vector3.LEFT, true)
+			if loss == "dead":
+				body.dead = true
+			else:
+				body.free()
+			expect("recall survives %s %s victim" % [loss, attached], wt.recall() and not wt.recall())
+			if is_instance_valid(body):
+				expect("dead %s victim released from impale" % attached, not body.impaled)
+				body.free()
+			wt.reset()
+			await get_tree().process_frame
+	# Scene cleanup can remove the visual while the component still owns it.
+	player.stats.cooldowns.clear()
+	wt.begin_charge()
+	wt.release(aim)
+	wt.tick_busy(0.21)
+	wt.thrown.free()
+	wt.tick(0.01)
+	expect("lost thrown node recovers equipment/action ownership", wt.has_weapon() and wt.thrown == null and not player.stats.weapon_locked and not skills.busy)
+	# A normal sword action must not be cancelled by an idempotent throw reset.
+	skills.busy = true
+	skills.busy_skill = "basic"
+	wt.reset()
+	expect("reset leaves another skill's action alone", skills.busy)
+	skills.busy = false
+	player.set_physics_process(true)
+
+func _throw_ownership_png(label: String) -> void:
+	if not OS.get_cmdline_user_args().has("--throwownershipshots"):
+		return
+	var camera := Camera3D.new()
+	get_tree().root.add_child(camera)
+	camera.current = true
+	var at: Vector3 = player.weapon_throw.weapon_position() if label == "embedded" else player.global_position + Vector3(0, 1, 0)
+	camera.global_position = at + Vector3(-3, 2.5, 4)
+	camera.look_at(at)
+	await RenderingServer.frame_post_draw
+	var path: String = "res://.agentbridge/weaponthrow-%s.png" % label
+	expect("PNG saved: %s" % label, get_viewport().get_texture().get_image().save_png(path) == OK)
+	camera.queue_free()
 
 func _test_weapon_throw() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -6027,7 +7831,8 @@ func _test_crypt_road() -> void:
 		kinds[e.variant] = true
 	print("  monsters ", all.size(), " awake ", awake, " within 12 m of the start ", near_start)
 	expect("monsters already exist across the road, none awake and none on the hero", all.size() >= 40 and awake == 0 and near_start == 0)
-	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes", kinds.size() == 6)
+	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes and a warden", kinds.size() == 7 and kinds.has("zombie") and kinds.has("ghoul")
+		and kinds.has("spitter") and kinds.has("bloater") and kinds.has("priest") and kinds.has("brute") and kinds.has("warden"))
 	expect("the road is crowded: about four times the old hand-placed count", all.size() >= 170 and all.size() <= 280)
 	# No long stretch is left empty: from the first walkers to the crypt door, across the road and out under the trees.
 	var worst: float = 0.0
@@ -6121,7 +7926,7 @@ func _test_crypt_road() -> void:
 		and run.objective_line() == "Destroy nests: 1 / 3")
 	expect("it stirs up what lived nearby", nearby == null or nearby._aggro)
 	expect("something climbs out of the broken nest", get_tree().get_nodes_in_group("enemies").size() >= count_before + 3)
-	expect("there is no wave, and the run does not end when the field is cleared", run.location == null or run.wave >= 3)
+	expect("there is no wave (the world does not borrow one), and the run does not end when the field is cleared", run.location == null or run.wave == 0)
 	place.nests[1].hit(999.0, Vector3.FORWARD)
 	place.nests[2].hit(999.0, Vector3.FORWARD)
 	await get_tree().process_frame
@@ -6135,6 +7940,209 @@ func _test_crypt_road() -> void:
 	expect("walking out through the gate with the nests gone ends the run", run.is_ending())
 
 var _failures: PackedStringArray = []
+
+## Drive cancellation synchronously so regeneration and input timing cannot mask a spend or refund.
+func _test_action_queue() -> void:
+	player.set_physics_process(false)
+	var s: SkillController = player.skills
+	var aim: Vector3 = player.global_position + Vector3(0, 0, -2)
+	var target: Enemy = _spawn_enemy(aim)
+	target.set_physics_process(false)
+	s.reset()
+	player.stats.cooldowns.clear()
+	player.stats.mana = player.stats.max_mana
+	s.queue_skill("basic", aim)
+	s.cancel_action()
+	expect("idle cancellation drops queued order", s.queued_skill == "" and s.queued_target == null)
+	s.reset()
+	s.queue_skill("basic", aim)
+	s.start_skill("fireball", null, aim)
+	expect("immediate skill supersedes queued order", s.queued_skill == "" and s.queued_target == null)
+	s.cancel_action()
+	s.reset()
+	s.queue_skill("basic", aim)
+	s.start_skill("basic", target)
+	expect("consuming queue clears target ownership", s.queued_skill == "" and s.queued_target == null)
+	s.cancel_action()
+	s.queue_skill("basic", aim)
+	expect("fixture queued target before deletion", s.queued_target == target)
+	target.free()
+	player._act(0.0, aim)
+	expect("freed queue target is dropped", s.queued_skill == "" and s.queued_target == null)
+	var next: Enemy = _spawn_enemy(aim)
+	next.set_physics_process(false)
+	s.queue_skill("basic", aim)
+	player.stats.cooldowns.clear()
+	player.stats.stamina = player.stats.max_stamina
+	player.movement.try_roll(aim)
+	expect("idle dodge clears queued target ownership", s.queued_skill == "" and s.queued_target == null)
+	player.movement.tick_roll(2.0)
+	# Presses on either side of completion retain only the latest intended order.
+	for elapsed in [0.0, 0.25, 0.8]:
+		s.reset()
+		player.stats.cooldowns.clear()
+		player.stats.mana = player.stats.max_mana
+		s.start_skill("fireball", null, aim)
+		s.tick_busy(elapsed)
+		s.queue_skill("basic", aim)
+		s.queue_skill("basic", aim)
+		expect("repeated queue holds one next order", s.queued_skill == "basic" and s.queued_target == next)
+		s.tick_busy(s.busy_time)
+		var mana: float = player.stats.mana
+		var children: int = get_tree().current_scene.get_child_count()
+		s.tick_busy(10.0)
+		expect("completion cannot replay or spend", is_equal_approx(player.stats.mana, mana) and get_tree().current_scene.get_child_count() == children)
+		player._act(0.0, aim)
+		expect("completion consumes queued action once", s.busy and s.busy_skill == "basic" and s.queued_skill == "" and s.queued_target == null)
+		s.cancel_action()
+	# Directional starts and aimed Skewer share queue supersession semantics.
+	for id in ["power", "skewer", "leap", "earthshatter"]:
+		s.reset()
+		player.stats.cooldowns.clear()
+		player.stats.mana = player.stats.max_mana
+		player.stats.ult_charge = player.stats.ult_cost("earthshatter")
+		s.queue_skill("basic", aim)
+		s.try_directional(id, aim)
+		expect("directional action supersedes queue: " + id, s.busy and s.queued_skill == "" and s.queued_target == null)
+		s.cancel_action()
+	s.queue_skill("basic", aim)
+	player.stats.cooldowns.clear()
+	player.stats.potions = 1
+	player.health = player.max_health * 0.5
+	s.drink_potion()
+	expect("idle potion cancels queued action", s.queued_skill == "" and s.queued_target == null and player.stats.potions == 0)
+	# Unusable replacement preserves the intended next action without spending.
+	s.queue_skill("basic", aim)
+	player.stats.cooldowns["fireball"] = 5.0
+	s.start_skill("fireball", null, aim)
+	expect("rejected replacement preserves queue", s.queued_skill == "basic" and not s.busy)
+	player.stats.cooldowns["basic"] = 5.0
+	player._act(0.0, aim)
+	expect("unusable queued action is dropped without blocking", not s.busy and s.queued_skill == "" and s.queued_target == null)
+	player.stats.cooldowns.clear()
+	s.queue_skill("basic", aim)
+	player.dead = true
+	player._on_death()
+	s.queue_skill("basic", aim)
+	expect("dead input cannot acquire queue ownership", s.queued_skill == "" and s.queued_target == null)
+	player.revive_at(player.global_position)
+	player.set_physics_process(false)
+	player.stats.cooldowns.clear()
+	s.start_skill("basic", next)
+	expect("revive accepts immediate action", s.busy and s.busy_skill == "basic")
+	s.cancel_action()
+	# Public throw hooks: sword actions cannot acquire ownership while away/returning.
+	player.stats.cooldowns.clear()
+	s.queue_skill("basic", aim)
+	Input.action_press("skill_6")
+	s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
+	expect("throw charge supersedes queue", s.queued_skill == "" and s.queued_target == null)
+	Input.action_release("skill_6")
+	s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
+	s.tick_busy(2.0)
+	expect("throw fixture reaches away state", player.weapon_throw.is_away())
+	for returning in [false, true]:
+		if returning:
+			Input.action_press("skill_6")
+			s.handle_aimed_key("skill_6", WeaponThrowSkill.SKILL_ID, aim)
+			Input.action_release("skill_6")
+		s.queue_skill("basic", aim)
+		s.try_directional("power", aim)
+		expect("away/returning weapon rejects sword input", not s.busy and s.queued_skill == "")
+	player.weapon_throw.reset()
+	next.free()
+	s.reset()
+	player.set_physics_process(true)
+
+func _test_skill_integrity() -> void:
+	player.set_physics_process(false)
+	var s: SkillController = player.skills
+	var aim: Vector3 = player.global_position + Vector3(0, 0, -6)
+	for elapsed in [0.0, 0.25, 0.8]:
+		player.stats.mana = player.stats.max_mana
+		player.stats.cooldowns.clear()
+		s.start_skill("fireball", null, aim)
+		s.tick_busy(elapsed)
+		var spent: float = player.stats.mana
+		s.start_skill("fireball", null, aim)
+		expect("repeated start does not spend again", is_equal_approx(player.stats.mana, spent))
+		s.cancel_action()
+		expect("generic pre-release cancellation refunds Fireball", is_equal_approx(player.stats.mana, player.stats.max_mana) and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0)
+		s.cancel_action()
+		expect("repeat cancellation cannot mint mana", is_equal_approx(player.stats.mana, player.stats.max_mana))
+	player.stats.cooldowns.clear()
+	s.start_skill("fireball", null, aim)
+	s.tick_busy(s.busy_time)
+	var committed_mana: float = player.stats.mana
+	var balls: int = get_tree().current_scene.get_child_count()
+	s.tick_busy(10.0)
+	expect("finished tick cannot replay Fireball", get_tree().current_scene.get_child_count() == balls)
+	s.cancel_action()
+	expect("released Fireball keeps its cost", is_equal_approx(player.stats.mana, committed_mana) and float(player.stats.cooldowns.get("fireball", 0.0)) > 0.0)
+	for id in ["power", "skewer", "leap", "earthshatter"]:
+		player.stats.mana = player.stats.max_mana
+		player.stats.cooldowns.clear()
+		player.stats.ult_charge = player.stats.ult_cost("earthshatter")
+		s.try_directional(id, aim)
+		var mana: float = player.stats.mana
+		var charge: float = player.stats.ult_charge
+		s.try_directional(id, aim)
+		expect("repeated directional start spends once: " + id, is_equal_approx(mana, player.stats.mana) and is_equal_approx(charge, player.stats.ult_charge))
+		s.cancel_action()
+		s.tick_busy(10.0)
+		expect("cancel stops component and delayed effects: " + id, not s.busy and player.skewer.skewer_phase == 0 and player.leap.leap_phase == 0 and player.earthshatter.phase == 0)
+	# Reset every real phase, including active/recovery, without replacing the death clip.
+	for id in ["skewer", "leap", "earthshatter"]:
+		for phase in range(1, 6 if id == "skewer" else 5):
+			player.stats.mana = player.stats.max_mana
+			player.stats.cooldowns.clear()
+			player.stats.ult_charge = player.stats.ult_cost("earthshatter")
+			s.try_directional(id, aim)
+			match id:
+				"skewer": player.skewer.skewer_phase = phase
+				"leap": player.leap.leap_phase = phase
+				"earthshatter": player.earthshatter.phase = phase
+			player.model.once("death", 0.0, 1.0, 0.1)
+			var clip: String = player.model.current
+			player._on_death()
+			expect("death cleans phase %d of %s without replacing clip" % [phase, id], not s.busy and player.skewer.skewer_phase == 0 and player.leap.leap_phase == 0 and player.earthshatter.phase == 0 and player.model.current == clip)
+	# The potion and legal switch both use the generic cancellation path.
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns.clear()
+	player.stats.potions = 1
+	player.health = player.max_health * 0.5
+	s.start_skill("fireball", null, aim)
+	s.drink_potion()
+	expect("potion abort refunds unreleased cast", not s.busy and player.stats.potions == 0 and is_equal_approx(player.stats.mana, player.stats.max_mana))
+	player.stats.cooldowns.clear()
+	s.start_skill("fireball", null, aim)
+	s.cancel_action()
+	s.try_directional("power", aim)
+	expect("legal switch spends only the replacement skill", s.busy and s.busy_skill == "power" and is_equal_approx(player.stats.mana, player.stats.max_mana - float(SkillDb.all()["power"]["mana"])))
+	s.cancel_action()
+	var captive: Enemy = _spawn_enemy(aim)
+	captive.set_impaled(true)
+	player.skewer.skewer_impaled.append(captive)
+	player.skewer.skewer_phase = 2
+	s.reset()
+	expect("reset releases the Skewer captive", not captive.impaled and player.skewer.skewer_impaled.is_empty() and player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY))
+	captive.queue_free()
+	player.stats.cooldowns.clear()
+	s.aiming_id = "fireball"
+	s.aiming_action = "skill_2"
+	s.aim_blocked = "skill_1"
+	s.swallow_alt = true
+	s.queued_skill = "power"
+	s.start_skill("fireball", null, aim)
+	player._on_death()
+	expect("death clears action and aim state", not s.busy and s.aiming_id == "" and s.aiming_action == "" and s.queued_skill == "" and s.fire_orb == null)
+	player.dead = true
+	s.start_skill("fireball", null, aim)
+	s.try_directional("earthshatter", aim)
+	expect("dead actor cannot restart a skill", not s.busy)
+	player.revive_at(player.global_position)
+	expect("revive clears blocked input state", s.aim_blocked == "" and not s.swallow_alt and s.busy_def.is_empty() and s.busy_target == null and s.queued_target == null)
+	player.set_physics_process(true)
 
 ## Records a failed expectation (printed as [FAIL], which CI treats as an error) instead of just logging a boolean.
 func expect(label: String, condition: bool) -> void:
@@ -6303,21 +8311,246 @@ func _test_character_ui() -> void:
 		expect("controller focus shows the item stats card", tile.get_child(0).visible)
 	Gamepad.active = previous_pad
 	var old: Dictionary = town.player.stats.equipment[Items.Slot.WEAPON]
-	var town_equip: Button = null
+	var has_equip_button: bool = false
 	for button in view_hud.character_panel.find_children("*", "Button", true, false):
 		if button.text == "Equip":
-			town_equip = button
-			break
-	if town_equip != null:
-		await _inventory_mouse_click(town_equip, MOUSE_BUTTON_LEFT)
-	else:
-		expect("town inventory exposes the equip action", false)
+			has_equip_button = true
+	expect("bag items carry no Equip button (the card says how: R-click)", not has_equip_button)
+	var falchion_tile: Control = null
+	for bag_item in town.player.stats.bag:
+		if String(bag_item["name"]).contains("Falchion"):
+			falchion_tile = _inventory_item_control(view_hud, bag_item, false)
+	expect("the bag item's tile exists", falchion_tile != null)
+	if falchion_tile != null:
+		await _inventory_mouse_click(falchion_tile, MOUSE_BUTTON_RIGHT)
 	await get_tree().process_frame
 	expect("equipping from bag swaps old gear into bag", town.player.stats.equipment[Items.Slot.WEAPON]["name"].contains("Falchion") and town.player.stats.bag.has(old))
 	view_hud._input(toggle)
 	expect("Tab toggles closed and resumes gameplay", not view_hud.show_gear and not get_tree().paused)
 	town.queue_free()
 	await get_tree().process_frame
+
+## Owner playtest feedback 1: a checkbox keeps one padding in every state, the minimap shows no enemy count, the points chip is a button to
+## the Progression screen, a plain Power Strike throws no shockwave strip, ground drops carry no beam or ring, and picking gear up is silent.
+func _test_owner_feedback_1() -> void:
+	TownState.persist = false
+	await get_tree().process_frame
+	# 6: an actor refused the path budget over and over is served anyway (it used to keep a stale route while a crowd drained the budget)
+	var nav_state: Dictionary = {"path": PackedVector3Array([Vector3.ZERO, Vector3(0, 0, 5), Vector3(0, 0, 255)]), "index": 1,
+			"goal": Vector3(0, 0, 255), "timer": 99.0, "denied": 6}
+	var fresh_goal: Vector3 = Nav.snap(player, player.global_position + Vector3(8.0, 0.0, 0.0))
+	for i in Nav.QUERIES_PER_TICK + 1:
+		Nav._may_query()   # the whole budget for this tick is spent
+	Nav.next_point(player, fresh_goal, nav_state, 0.016)
+	expect("a starved actor is re-pathed to its new goal even when the tick's budget is spent", (nav_state["goal"] as Vector3).is_equal_approx(fresh_goal))
+	# 1: checkbox states share their padding (otherwise the label jumps onto the tick under the mouse)
+	var theme: Theme = UiTheme.get_theme()
+	var reference: Vector4 = Vector4.ZERO
+	var same: bool = true
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		var box: StyleBox = theme.get_stylebox(state, "CheckBox")
+		var margins := Vector4(box.get_content_margin(SIDE_LEFT), box.get_content_margin(SIDE_TOP), box.get_content_margin(SIDE_RIGHT), box.get_content_margin(SIDE_BOTTOM))
+		if state == "normal":
+			reference = margins
+		elif margins != reference:
+			same = false
+	expect("a checkbox has the same padding in every state", same and reference.x > 0.0)
+	# 2: the minimap source no longer prints a count
+	var source: String = FileAccess.get_file_as_string("res://game/hud.gd")
+	expect("the minimap does not print how many enemies are left", not source.contains("\"%d left\""))
+	# 5: a rare drop has no light, column or floor ring
+	var rare: LootDrop = LootDrop.create(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	add_child(rare)
+	await get_tree().process_frame
+	expect("a rare drop has no beam, ring or light", rare._column == null and rare._pool == null and rare._light == null)
+	rare.queue_free()
+	# 4: picking gear up says nothing on the HUD line
+	var stats: PlayerStats = player.stats
+	player.message_time = 0.0
+	player.message = ""
+	var drop_item: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "", "Charm")
+	var text: String = stats.pickup(drop_item)
+	expect("picking an item up still reports what happened to callers", text.contains("Charm"))
+	expect("but the HUD message line says nothing", player.message_time <= 0.0 and player.message == "")
+	# 8: a plain Power Strike's impact throws no shockwave strip (that is the Gravewarden item's)
+	var wave_mesh: Mesh = SkillFx._fx_mesh("power_wave")
+	var strips_before: int = 0
+	for node in get_tree().current_scene.find_children("*", "MeshInstance3D", true, false):
+		strips_before += 1 if (node as MeshInstance3D).mesh == wave_mesh else 0
+	SkillFx.power_impact(player, player.global_position + Vector3(0, 0, 2.5), Vector3(0, 0, 1), false)
+	var strips_after: int = 0
+	for node in get_tree().current_scene.find_children("*", "MeshInstance3D", true, false):
+		strips_after += 1 if (node as MeshInstance3D).mesh == wave_mesh else 0
+	expect("a plain Power Strike impact spawns no shockwave strip", wave_mesh == null or strips_after == strips_before)
+	# 7: the points chip is a button to the Progression screen
+	TownState.reset()
+	TownState.add_hero_xp(300, false)   # a few levels: points to spend
+	var size_px: Vector2 = hud.get_viewport_rect().size
+	hud.progression_hud._process(0.0)
+	var chip: Rect2 = hud.progression_hud.chip_rect(size_px)
+	expect("with points waiting the chip exists", chip.has_area())
+	expect("the chip blocks world clicks (a click must not also walk the hero)", hud.covers(chip.get_center()))
+	var opened: bool = hud.progression_hud.click_chip(chip.get_center())
+	await get_tree().process_frame
+	expect("clicking the chip opens the Progression screen", opened and hud.progression_panel != null and hud.show_gear and get_tree().paused)
+	hud.close_progression()
+	hud.close_character()
+	get_tree().paused = false
+	expect("a click away from the chip does nothing", not hud.progression_hud.click_chip(Vector2(5, 5)))
+	TownState.reset()
+	# 12: stamina is off as a resource (no drain, no slowdown, no dodge cost or gate), and the passive that only served it is gone
+	expect("stamina is switched off", not PlayerStats.STAMINA_ON)
+	player.stats.stamina = 0.0
+	player.combat_timer = 5.0
+	var free_speed: float = player.stats.run_speed * player.weapon_throw.move_factor()
+	expect("an 'exhausted' hero in a fight is not slowed", is_equal_approx(player.movement._travel_speed(1.0), free_speed))
+	player.stats.stamina = 60.0
+	player.movement._travel_speed(1.0)
+	expect("moving in a fight spends nothing", is_equal_approx(player.stats.stamina, 60.0))
+	player.stats.stamina = 0.0
+	player.stats.cooldowns["dodge"] = 0.0
+	player.skills.cancel_action()
+	player.movement.rolling = false
+	player.movement.try_roll(player.global_position + Vector3(0, 0, 4))
+	expect("the dodge works at zero stamina and charges none", player.movement.rolling and is_equal_approx(player.stats.stamina, 0.0))
+	player.movement.rolling = false
+	expect("Bloody Recovery (a stamina perk) is no longer offered", not BuildDefs.is_passive("bloody_recovery") and not BuildDefs.PASSIVE_ORDER.has("bloody_recovery"))
+	# the "New ability learned" plate and the zone name
+	hud.ability_toast_time = 0.0
+	hud.show_ability_toast("nonsense")
+	expect("an unknown skill id shows no ability plate", hud.ability_toast_time <= 0.0)
+	hud.show_ability_toast("power")
+	expect("a known skill shows the ability plate for a few seconds", hud.ability_toast_id == "power" and hud.ability_toast_time > 3.0)
+	hud.ability_toast_time = 0.0
+	expect("the HUD names the place the hero stands in", hud.zone_name() != "" and hud.zone_subtitle() != "")
+
+## Owner playtest feedback 9: the minimap draws the map (ground, solid props) with a fog of war that the hero's walking uncovers; live things
+## obey the same fog.
+func _test_minimap_fog() -> void:
+	await get_tree().process_frame
+	expect("the minimap has no fog of war by default (the owner asked for none)", not MinimapMap.fog_on)
+	var plain := MinimapMap.new()
+	plain.ensure_built(get_tree())
+	expect("without fog everything counts as seen", plain.is_explored(player.global_position + Vector3(500, 0, 500)))
+	MinimapMap.fog_on = true   # the rest exercises the fog machinery, which stays behind the switch
+	var test_prop: Dictionary = {"position": player.global_position + Vector3(6, 0, 6), "radius": 2.0}
+	arena.obstacles.append(test_prop)   # (a known solid, whatever the test arena happens to hold)
+	var map := MinimapMap.new()
+	map.ensure_built(get_tree())
+	expect("the map is built from the arena in the scene", map.terrain != null and map.cols > 0 and map.rows > 0 and map.ground_cells > 1000)
+	var here: Vector3 = player.global_position
+	expect("before the hero has looked anywhere nothing is explored", map.revealed_cells == 0 and not map.is_explored(here))
+	map.reveal(here, true)
+	expect("the ground where the hero stands is uncovered", map.is_explored(here) and map.revealed_cells > 100)
+	var far: Vector3 = here + Vector3(MinimapMap.REVEAL + 8.0, 0, 0)
+	expect("the ground beyond his sight stays dark", not map.is_explored(far))
+	var near_count: int = map.revealed_cells
+	map.reveal(here + Vector3(0.3, 0, 0))
+	expect("standing about the same place uncovers nothing more (and costs nothing)", map.revealed_cells == near_count)
+	map.reveal(here + Vector3(20.0, 0, 0))
+	expect("walking on uncovers more, and it stays uncovered behind him", map.revealed_cells > near_count and map.is_explored(here) and map.is_explored(far))
+	var spread: float = float(map.revealed_cells) / float(map.ground_cells)
+	expect("the fog only ever covers part of the world after a short walk (%.0f%% seen)" % [spread * 100.0], spread > 0.0 and spread < 1.0)
+	var rebuilt: int = map.revealed_cells
+	map.ensure_built(get_tree())
+	expect("asking for the same map again keeps what was seen", map.revealed_cells == rebuilt)
+	map.forget()
+	expect("forgetting puts the fog back", map.revealed_cells == 0 and not map.is_explored(here))
+	# The terrain: ground inside, nothing outside the world, solids marked
+	expect("a point outside every arena is not ground", map.terrain.get_pixel(0, 0).a == 0.0 or not Rect2(map.origin, Vector2(map.cols, map.rows) * MinimapMap.CELL).has_point(Vector2(-9999, -9999)))
+	var solids: int = 0
+	for y in map.rows:
+		for x in map.cols:
+			solids += 1 if map.kinds[y * map.cols + x] == MinimapMap.K_SOLID else 0
+	expect("a prop is on the map as a solid disc (%d cells)" % solids, solids >= 8)
+	arena.obstacles.erase(test_prop)
+	# Live things obey the fog: a monster beyond sight is not shown, a near one is
+	var close: Enemy = _spawn_enemy(here + Vector3(8, 0, 0))
+	var distant: Enemy = _spawn_enemy(here + Vector3(0, 0, 36))
+	expect("a monster inside sight is on the map", hud.enemy_in_sight(close))
+	expect("a monster beyond sight is not", not hud.enemy_in_sight(distant))
+	close.queue_free()
+	distant.queue_free()
+	MinimapMap.fog_on = false
+
+## Standing monsters take a blow in the body: the chest tips away from it, overshoots and settles (BodyRecoil + CharacterModel._apply_hit_reaction).
+func _test_body_recoil() -> void:
+	await get_tree().process_frame
+	# The spring on its own: heavier blows lean further, big monsters lean less, it overshoots once, and comes to rest.
+	var light: float = BodyRecoil.peak_for(0.7, 1.0, 0.0)
+	var crushing: float = BodyRecoil.peak_for(1.5, 2.2, 0.0)
+	var heavy_big: float = BodyRecoil.peak_for(1.5, 2.2, 0.8)
+	expect("a crushing blow tips the body further than a light one", crushing > light * 3.0 and crushing <= BodyRecoil.MAX_LEAN)
+	expect("a monster that resists knock-back leans less", heavy_big < crushing * 0.7)
+	var spring := BodyRecoil.new()
+	spring.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.3, 0.0)
+	var peak: float = 0.0
+	var crossed: bool = false
+	for i in 120:
+		spring.step(1.0 / 60.0)
+		peak = maxf(peak, spring.lean.length())
+		if spring.lean.y > 0.01:
+			crossed = true   # it rocked back past upright (the blow pushed toward -z)
+	expect("the lean reaches about the asked-for peak, in the direction of the blow", peak > 0.2 and peak < 0.45)
+	expect("it overshoots upright once (momentum recovery)", crossed)
+	for i in 120:
+		spring.step(1.0 / 60.0)
+	expect("and it comes to rest", not spring.active())
+	var stepper := BodyRecoil.new()
+	stepper.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.32, 0.0)
+	var first_leg: int = stepper.step_leg
+	var mild := BodyRecoil.new()
+	mild.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.1, 0.0)
+	expect("a heavy blow costs a recovery step, a light one does not", stepper.step_t > 0.0 and mild.step_t <= 0.0 and stepper.step_swing() >= 0.0)
+	for i in 90:
+		stepper.step(1.0 / 60.0)
+	stepper.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.32, 0.0)
+	expect("the next step uses the other leg", stepper.step_leg != first_leg)
+	var sideways := BodyRecoil.new()
+	sideways.hit(Vector3(1, 0, 0), Vector3(0, 0, 1), 0.3, 0.0)
+	var straight := BodyRecoil.new()
+	straight.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.3, 0.0)
+	expect("a blow from the side turns the shoulders, one from the front does not", absf(sideways.twist_vel) > 0.5 and absf(straight.twist_vel) < 0.01)
+	# On real monsters: every body has a spine to bend, and a landed blow moves it and then settles.
+	for variant in ["zombie", "ghoul", "spitter", "bloater", "brute", "priest"]:
+		var body: Enemy = _spawn_enemy(Vector3(-30, 0, -30), variant)
+		body.aggro_range = 0.0
+		body.max_health = 5000.0
+		body.health = 5000.0
+		await get_tree().process_frame
+		body.model._find_reaction_bones()
+		expect("%s has a spine to bend" % variant, body.model._spine.size() >= 1)
+		body.queue_free()
+	var target: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -6.0), "zombie")
+	target.aggro_range = 0.0
+	target.max_health = 5000.0
+	target.health = 5000.0
+	await get_tree().create_timer(0.4).timeout
+	var blow: Dictionary = {"outcome": Combat.Outcome.CRUSHING, "damage": 5.0, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 1.5, "source": player,
+		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
+	target.receive(blow, target.global_position + Vector3(0, 0, 3.0))
+	var seen: float = 0.0
+	for i in 40:
+		await get_tree().physics_frame
+		seen = maxf(seen, target.model.reaction.lean.length())
+	expect("a crushing blow on a standing zombie tips its spine (peak %.2f rad)" % seen, seen > 0.15)
+	expect("and the zombie has thighs to step with", target.model._thighs.size() == 2 and target.model._thighs[0] > 0 and target.model._thighs[1] > 0)
+	await get_tree().create_timer(1.8).timeout
+	expect("and it recovers", not target.model.reaction.active())
+	# Every blow interrupts a small monster, even a light one, and a blow while it is still reeling restarts the reaction.
+	target.stun_time = 0.0
+	var light_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 0.5, "source": player,
+		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
+	var every_time: bool = true
+	for i in 4:
+		target.stun_time = 0.0
+		target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
+		every_time = every_time and target.stun_time >= 0.1
+	expect("a light blow interrupts a small monster every time", every_time)
+	var serial: int = target.flinch_serial
+	target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
+	expect("each blow counts, so the hit pose can restart", target.flinch_serial == serial + 1)
+	target.queue_free()
 
 func _test_orb_hud() -> void:
 	await get_tree().process_frame
@@ -6361,24 +8594,21 @@ func _test_inventory_equip() -> void:
 		if button.text == "Equip":
 			equip = button
 			break
-	expect("inventory offers a usable equip button", equip != null and equip.can_process() and not equip.disabled)
-	if equip != null:
-		var pointer: Vector2 = equip.get_global_rect().get_center()
-		var motion := InputEventMouseMotion.new()
-		motion.position = pointer
-		get_viewport().push_input(motion, true)
-		var click := InputEventMouseButton.new()
-		click.button_index = MOUSE_BUTTON_LEFT
-		click.position = pointer
-		click.pressed = true
-		get_viewport().push_input(click, true)
-		await get_tree().process_frame
-		click = click.duplicate()
-		click.pressed = false
-		get_viewport().push_input(click, true)
-		await get_tree().process_frame
-		expect("a real mouse click equips the bag item", player.stats.equipment[Items.Slot.WEAPON] == item)
-		expect("mouse equipping puts old gear in bag", player.stats.bag.has(old) and not player.stats.bag.has(item))
+	expect("bag items carry no Equip button (the card says how: R-click)", equip == null)
+	var item_tile: Control = _inventory_item_control(hud, item, false)
+	expect("the bag item has a tile", item_tile != null)
+	if item_tile != null:
+		# The hover card for a bag item ends with the hint.
+		var hint_card: Control = ItemTile.card(item, old, true, true)
+		var hint_texts: Array[String] = []
+		for label in hint_card.find_children("*", "Label", true, false):
+			hint_texts.append((label as Label).text)
+		hint_card.free()
+		expect("a bag item's card ends with (R-click to equip)", hint_texts.has("(R-click to equip)") or hint_texts.has("(Confirm to equip)"))
+		expect("a ground or trader card has no such hint", not ItemTile.card(item, old, true).find_children("*", "Label", true, false).any(func(l: Node) -> bool: return (l as Label).text.contains("to equip")))
+		await _inventory_mouse_click(item_tile, MOUSE_BUTTON_RIGHT)
+		expect("a right-click equips the bag item", player.stats.equipment[Items.Slot.WEAPON] == item)
+		expect("equipping puts old gear in bag", player.stats.bag.has(old) and not player.stats.bag.has(item))
 	# Right-click the icon to swap back; names also support a double-click.
 	var tile: Control = _inventory_item_control(hud, old, false)
 	expect("old weapon is available in bag", tile != null)
@@ -6443,3 +8673,147 @@ func _inventory_mouse_click(control: Control, button: int, double: bool = false)
 	click.pressed = false
 	get_viewport().push_input(click, true)
 	await get_tree().process_frame
+
+## Deterministic Warden state/geometry coverage; no random combat outcomes inferred.
+func _warden_fixture() -> Enemy:
+	var enemy: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2.8), "warden")
+	enemy.set_physics_process(false)
+	enemy.target = player
+	enemy.xp_eligible = false
+	enemy.aggro_range = 0.0
+	return enemy
+
+func _warden_begin(enemy: Enemy) -> WardenBehavior:
+	var behavior := enemy.behavior as WardenBehavior
+	behavior._special_cool = 0.0
+	behavior._cool = 0.0
+	behavior.tick(0.01, enemy.flat_distance_to(player))
+	return behavior
+
+func _warden_events() -> int:
+	var count: int = 0
+	for value in Combat.tally.values():
+		count += int(value)
+	return count
+
+func _test_warden() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.set_physics_process(false)
+	player.global_position = Vector3(20, 0, 20)
+	player.reset_physics_interpolation()
+	player.health = player.max_health
+	player.invulnerable_time = 0.0
+	var definition: EnemyDef = EnemyDb.get_def("warden")
+	expect("Warden definition and mapping load", definition.display_name == "Crypt Warden" and EnemyBehaviors.create(definition.behavior) is WardenBehavior)
+	expect("Warden is authored-only at every wave", EnemyDb.count_for(definition, 9999) == 0 and not EnemyDb.spawnable(9999).has(definition))
+	expect("elite health exceeds Brute without immunity", definition.health == 300.0 and definition.health > EnemyDb.get_def("brute").health and definition.knock_resist < 1.0 and definition.stun_resist < 1.0)
+	var enemy: Enemy = _warden_fixture()
+	enemy.global_position = player.global_position + Vector3(0, 0, -8)
+	var start: float = enemy.flat_distance_to(player)
+	for i in 30:
+		enemy.behavior.tick(1.0 / 60.0, enemy.flat_distance_to(player))
+		await get_tree().physics_frame
+	expect("Warden approaches from outside melee range", enemy.flat_distance_to(player) < start - 0.3 and not enemy.behavior.is_attacking())
+	enemy.global_position = player.global_position + Vector3(0, 0, -2.8)
+	var behavior: WardenBehavior = _warden_begin(enemy)
+	Combat.tally.clear()
+	behavior.tick(0.94, 2.8)
+	expect("wind-up owns token without damage", behavior._state == WardenBehavior.State.WINDUP and enemy._attacking and Enemy._token_holders.has(enemy.get_instance_id()) and _warden_events() == 0)
+	behavior.tick(0.02, 2.8)
+	var facing: float = enemy.visual.rotation.y
+	expect("wind-up reaches committed strike", behavior._state == WardenBehavior.State.STRIKE)
+	player.global_position += Vector3(3, 0, 0)
+	behavior.tick(0.30, enemy.flat_distance_to(player))
+	expect("sidestep after commitment evades fixed strike", _warden_events() == 0 and is_equal_approx(facing, enemy.visual.rotation.y))
+	expect("strike releases token and enters recovery", behavior._state == WardenBehavior.State.RECOVER and not Enemy._token_holders.has(enemy.get_instance_id()))
+	behavior.tick(0.9, enemy.flat_distance_to(player))
+	player.global_position = enemy.global_position + Vector3(0, 0, 2.8)
+	behavior.tick(0.01, 2.8)
+	expect("cooldown prevents immediate special repeat", behavior._state == WardenBehavior.State.PRESSURE and behavior._special_cool > 4.0)
+	enemy.queue_free()
+	await get_tree().physics_frame
+
+	# In-area strike: count actual Combat.resolve events, including any miss.
+	enemy = _warden_fixture()
+	behavior = _warden_begin(enemy)
+	Combat.tally.clear()
+	seed(1)
+	var health_before: float = player.health
+	behavior.tick(1.26, 2.8)
+	var health_after: float = player.health
+	for i in 10:
+		behavior.tick(0.02, 2.8)
+	expect("strike resolves exactly once and damages hero", _warden_events() == 1 and health_after < health_before and player.health == health_after)
+	expect("recovery prevents another attack", behavior._state == WardenBehavior.State.RECOVER)
+	enemy.queue_free()
+	await get_tree().physics_frame
+
+	for kind in ["stun", "knockdown", "death"]:
+		for committed in [false, true]:
+			enemy = _warden_fixture()
+			behavior = _warden_begin(enemy)
+			if committed:
+				behavior.tick(0.97, 2.8)
+			Combat.tally.clear()
+			if kind == "stun":
+				enemy.interrupt(0.8)
+				enemy._physics_process(0.01)
+			elif kind == "knockdown":
+				enemy.ragdoll_launch(Vector3(2, 0, 0), 1.0, Vector3.ZERO)
+			else:
+				enemy.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "weight": 0.0, "source": null}, player.global_position)
+			expect("%s cancels %s attack/token" % [kind, "committed" if committed else "windup"], not enemy._attacking and not behavior.is_attacking() and not Enemy._token_holders.has(enemy.get_instance_id()))
+			behavior.tick(2.0, 2.8)
+			expect("%s interruption leaves no pending damage" % kind, _warden_events() == 0)
+			enemy.queue_free()
+			await get_tree().physics_frame
+	enemy = _warden_fixture()
+	enemy.global_position = player.global_position + Vector3(0, 0, -2)
+	behavior = enemy.behavior as WardenBehavior
+	behavior._special_cool = 10.0
+	behavior.tick(0.01, 2.0)
+	expect("Warden applies ordinary close-range melee pressure between specials", behavior._active and behavior._state == WardenBehavior.State.PRESSURE)
+	behavior.on_interrupted()
+	expect("ordinary Warden pressure also releases its token", not enemy._attacking and not behavior.is_attacking() and not Enemy._token_holders.has(enemy.get_instance_id()))
+	enemy.queue_free()
+	await get_tree().physics_frame
+	var brute: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2), "brute")
+	brute.set_physics_process(false)
+	brute.target = player
+	expect("existing Brute still maps to MeleeBehavior", brute.behavior is MeleeBehavior and not brute.behavior is WardenBehavior)
+	brute.behavior.tick(0.01, 2.0)
+	expect("existing Brute starts close-range pressure", brute.behavior.is_attacking() and Enemy._token_holders.has(brute.get_instance_id()))
+	brute.ragdoll_launch(Vector3.ZERO, 1.0, Vector3.ZERO)
+	expect("shared launch hook cancels Brute attack/token", not brute.behavior.is_attacking() and not brute._attacking and not Enemy._token_holders.has(brute.get_instance_id()))
+	brute.queue_free()
+	player.set_physics_process(true)
+
+## Focused pose evidence, using the exact runtime attack clip/timings.
+func _warden_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	player.set_physics_process(false)
+	var enemy: Enemy = _warden_fixture()
+	var brute: Enemy = _spawn_enemy(Vector3(-3.2, 0, -2.8), "brute")
+	brute.set_physics_process(false)
+	brute.visual.rotation.y = PI
+	var behavior: WardenBehavior = _warden_begin(enemy)
+	var folder: String = "res://.agentbridge/warden033-png"
+	DirAccess.make_dir_recursive_absolute(folder)
+	for sample in [["windup", 0.70], ["commit", 0.27], ["strike-evaded", 0.30], ["recovery", 0.50]]:
+		if sample[0] == "strike-evaded":
+			player.global_position.x = 3.0
+			player.reset_physics_interpolation()
+		behavior.tick(float(sample[1]), enemy.flat_distance_to(player))
+		enemy.reset_physics_interpolation()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var path: String = folder + "/" + str(sample[0]) + ".png"
+		var error: Error = get_viewport().get_texture().get_image().save_png(path)
+		print("WARDEN PNG ", path, " error=", error)
+	get_tree().quit()

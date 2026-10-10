@@ -55,6 +55,8 @@ func _downed_near(point: Vector3, radius: float) -> Actor:
 	return best
 
 func start_leap(cursor: Vector3) -> void:
+	if p.dead or p.skills.busy or not p.stats.can_use("leap") or not p.skills.weapon_ready("leap"):
+		return
 	var skill: Dictionary = SkillDb.all()["leap"]
 	var running: bool = Vector2(p.velocity.x, p.velocity.z).length() > SkewerSkill.RUNNING_START   # already running: spring straight off, no crouch
 	var reach: Vector3 = p.skills.aim_point_for("leap", cursor)
@@ -225,12 +227,15 @@ func _leap_land(slam: bool) -> void:
 		else:
 			Sfx.sword_miss(p)   # the chop landed on bare ground
 
-func end_leap() -> void:
+func end_leap(restore_pose: bool = true) -> void:
 	if leap_victim != null and is_instance_valid(leap_victim) and leap_victim.ragdoll != null:
 		leap_victim.ragdoll.release_pin()
 	leap_victim = null
 	leap_phase = 0
 	p.skills.busy = false
+	p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
+	if not restore_pose:
+		return
 	p.model.leg_raise = 0.0
 	p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
 	p.visual.rotation.x = 0.0

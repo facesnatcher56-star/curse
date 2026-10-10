@@ -15,6 +15,8 @@ STYLE = ("Dark fantasy RPG ability icon, gritty hand-painted game icon, single c
 
 ICONS = {
     "basic": "a steel longsword caught mid-slash with a bright white curved slash arc",
+	"brutal_attack": "one battered two-handed longsword descending diagonally in a committed executioner's cleave, compact dark orange impact streaks and chipped iron fragments",
+	"take_aim": "a scarred hunting bow at full draw with a heavy arrow aligned through a small battered iron sight ring, deliberate precision shot",
     "power": "a heavy overhead sword strike smashing downward with a burst of glowing orange impact shards",
     "cleave": "a spinning sword sweep, a wide crescent arc of steel-blue light circling around a blade",
     "fireball": "a blazing fireball with trailing orange flames and flying sparks",

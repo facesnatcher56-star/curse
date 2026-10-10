@@ -336,6 +336,10 @@ static func apply_bundle(bundle: Dictionary, inst: Dictionary = {}) -> Array[Str
 		var moved: int = food if food > 0 else -mini(-food, TownState.food)
 		TownState.food += moved
 		lines.append("%+d food" % moved)
+	var xp: int = int(bundle.get("xp", 0))   # the quest's own XP, named by whoever wrote it (never worked out from the gold)
+	if xp > 0:
+		TownState.add_hero_xp(xp)
+		lines.append("%d XP" % xp)
 	var potions: int = int(bundle.get("potions", 0))
 	if potions != 0:
 		var delta: int = potions if potions > 0 else -mini(-potions, TownState.potions)
@@ -343,7 +347,7 @@ static func apply_bundle(bundle: Dictionary, inst: Dictionary = {}) -> Array[Str
 		lines.append("%+d potion%s" % [delta, "" if absi(delta) == 1 else "s"])
 	if bundle.has("item"):
 		var none: Array[String] = []
-		var item: Dictionary = Items.roll_drop(1 + TownState.jobs_done, 1.0 if int(bundle["item"]) >= 1 else 0.0, none)
+		var item: Dictionary = Items.roll_drop(Items.tier_for_source(float(bundle.get("threat", WorldThreat.QUEST_REWARD_THREAT))), 1.0 if int(bundle["item"]) >= 1 else 0.0, none)   # a reward names its own source threat
 		TownState.stash_item(item)
 		lines.append("an item in the stash (%s)" % String(item.get("name", "?")))
 	var happy: Dictionary = bundle.get("happy", {})

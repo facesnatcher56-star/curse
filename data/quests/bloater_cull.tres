@@ -22,6 +22,7 @@ unique_level = 1.3
 item_name = ""
 reward = {
 "gold": 90,
+"xp": 90,
 "food": 3
 }
 penalty = {

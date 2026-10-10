@@ -4,6 +4,7 @@ extends Node3D
 
 var arena: Arena
 var player: Player
+var companion: ArcherCompanion
 var hud: Hud
 var pause_menu: PauseMenu
 var rig: CameraRig
@@ -47,6 +48,11 @@ func _ready() -> void:
 			if arg.begins_with("--at="):
 				var xz: PackedStringArray = arg.substr(5).split(",")
 				player.global_position = Vector3(float(xz[0]), 0.0, float(xz[1]))
+	companion = ArcherCompanion.new()
+	add_child(companion)
+	companion.setup(player)
+	# Focused self-tests opt in explicitly so Cutter cannot alter unrelated combat fixtures.
+	companion.testing_disabled = OS.get_cmdline_user_args().has("--selftest")
 	_mark("hero model")
 	var torch := OmniLight3D.new()
 	torch.light_color = Color(1.0, 0.72, 0.45)

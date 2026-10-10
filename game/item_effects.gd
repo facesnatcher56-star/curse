@@ -66,7 +66,7 @@ static func on_dealt_hit(player: Player, target: Actor, result: Dictionary) -> v
 		return
 	if not target.dead:
 		if player.stats.has_affix("searing") and outcome == Combat.Outcome.CRITICAL:
-			target.apply_burn(maxf(float(result["damage"]) * 0.3, 2.0), 3.0)
+			target.apply_burn(maxf(float(result["damage"]) * 0.3, 2.0), 3.0, true)
 			SkillFx.ignite_mark(player, target)
 		if player.stats.has_affix("kindling") and target.is_burning():
 			_spread_burn(player, target)
@@ -84,7 +84,7 @@ static func _spread_burn(player: Player, target: Actor) -> void:
 		var e := node as Actor
 		if e == null or e == target or e.dead or e.is_burning() or e.flat_distance_to(target) > 2.5:
 			continue
-		e.apply_burn(target.burn_dps, 3.0)
+		e.apply_burn(target.burn_dps, 3.0, true)
 		SkillFx.ignite_mark(player, e)
 		caught += 1
 	if caught > 0:
@@ -174,7 +174,7 @@ static func _pyre_blast(player: Player, enemy: Actor) -> void:
 		blast["secondary"] = true
 		e.receive(blast, centre)
 		if is_instance_valid(e) and not e.dead:
-			e.apply_burn(dps, 3.5)
+			e.apply_burn(dps, 3.5, true)
 
 ## Healing is scarce but fair: orbs drop more often the more hurt you are, potions drop rarely, and a Brute always
 ## pays out.
@@ -249,7 +249,7 @@ static func on_player_hurt(player: Player) -> void:
 		var e := node as Actor
 		if e == null or e.dead or e.flat_distance_to(player) > 3.6:
 			continue
-		e.apply_burn(5.0, 3.0)
+		e.apply_burn(5.0, 3.0, true)
 		SkillFx.ignite_mark(player, e)
 		lit += 1
 	if lit > 0:

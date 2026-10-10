@@ -29,6 +29,7 @@ extends Resource
 @export var count: int = 1
 @export var unique_name: String = ""
 @export var unique_hp: float = 3.0
+## The quest monster's own threat: absolute, on the same scale as `ZoneDef.base_threat` (an enemy's `level_scale`), not a multiplier of the zone's.
 @export var unique_level: float = 1.3
 ## Roughly where on the road it is (distance from the town gate, in metres: the road is about 320 m long).
 @export var zone: Vector2 = Vector2(60.0, 200.0)

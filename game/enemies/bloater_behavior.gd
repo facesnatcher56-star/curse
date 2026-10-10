@@ -26,7 +26,7 @@ func tick(delta: float, dist: float) -> void:
 		var fuse: float = float(e.def.param("fuse_time", 1.0))
 		var u: float = clampf(_fuse_t / fuse, 0.0, 1.0)
 		e.visual.scale = _base_scale * (1.0 + 0.3 * u + 0.05 * sin(_fuse_t * 28.0))
-		e.telegraph(0.25 + 0.4 * u)
+		e.telegraph(0.25 + 0.4 * u, "fuse")
 		e.move_with(Vector3.ZERO)
 		if _fuse_t >= fuse:
 			_burst(false)

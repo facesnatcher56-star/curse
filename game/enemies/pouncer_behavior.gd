@@ -1,7 +1,8 @@
 class_name PouncerBehavior
 extends MeleeBehavior
 ## The ghoul: fast and fragile. It does not walk straight at the hero; it works around to the side in a curve, then crouches
-## (a red glow) and springs. The landing spot is locked at the moment it jumps, so a well-timed roll makes it miss and leaves it
+## and springs. The crouch delay is the warning; the landing spot is locked when it starts, but no ground marker is broadcast.
+## A well-timed roll makes it miss and leaves it
 ## stuck for a moment. Up close it bites like any shambler.
 
 enum State { STALK, WINDUP, LEAP, RECOVER }
@@ -12,6 +13,10 @@ var _from: Vector3 = Vector3.ZERO
 var _to: Vector3 = Vector3.ZERO
 var _pounce_cool: float = 1.0
 var _saved_mask: int = 0
+func on_death(killing_blow: Dictionary) -> void:
+	super.on_death(killing_blow)
+	if _state == State.LEAP:
+		e.collision_mask = _saved_mask if _saved_mask != 0 else (Actor.LAYER_WORLD | Actor.LAYER_PLAYER | Actor.LAYER_ENEMY)
 
 func is_attacking() -> bool:
 	return _state != State.STALK or super.is_attacking()
@@ -50,6 +55,7 @@ func tick(delta: float, dist: float) -> void:
 		_state = State.WINDUP
 		_timer = float(e.def.param("windup", 0.55))
 		e._attacking = true
+		_lock_landing()
 		if e.has_clip("charge_run"):
 			e.model.loop("charge_run", 0.3)
 		return
@@ -80,15 +86,22 @@ func _tick_windup(delta: float) -> void:
 	if _timer <= 0.0:
 		_begin_leap()
 
-func _begin_leap() -> void:
-	_state = State.LEAP
-	_timer = 0.0
-	_from = e.global_position
-	# Lead the hero a little; the spot is locked now, so a roll or a sidestep dodges it.
+## Picks the landing spot when the crouch starts (the hero's position plus a little lead). The spot never changes after this,
+## so a roll or sidestep during the windup dodges it without needing a ground marker.
+func _lock_landing() -> void:
 	var lead: Vector3 = e.target.velocity * 0.18
 	lead.y = 0.0
 	_to = e.target.global_position + lead
 	_to.y = 0.0
+
+## How far from the landing spot the pounce still connects.
+func hit_radius() -> float:
+	return e.attack_range + 0.7
+
+func _begin_leap() -> void:
+	_state = State.LEAP
+	_timer = 0.0
+	_from = e.global_position
 	_saved_mask = e.collision_mask
 	e.collision_mask = Actor.LAYER_WORLD
 	e.visual.position.y = 0.0
@@ -114,7 +127,7 @@ func _land(hit: bool) -> void:
 		return
 	Fx.burst(e, e.global_position + Vector3(0, 0.1, 0), Vector3.UP, Color(0.5, 0.45, 0.38), 10, 3.0, 0.04)
 	var gap: float = e.flat_distance_to(e.target)
-	if gap <= e.attack_range + 0.7:
+	if gap <= hit_radius():
 		e.strike_target(float(e.def.param("pounce_mult", 1.5)), 1.4)
 	# Whether or not it connected, it is stuck on the ground for a moment: the opening to punish it.
 	_state = State.RECOVER

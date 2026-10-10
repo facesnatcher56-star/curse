@@ -6,6 +6,7 @@ extends Control
 var item: Dictionary = {}
 var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
+var equip_hint: bool = false      # a bag item: its card ends with how to equip it ("(R-click to equip)")
 var tile_size: float = 52.0
 
 static func create(for_item: Dictionary, worn: Variant, size: float = 52.0) -> ItemTile:
@@ -19,13 +20,13 @@ static func create(for_item: Dictionary, worn: Variant, size: float = 52.0) -> I
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
-	focus_card(self, item, compare_to, show_compare, true)
+	focus_card(self, item, compare_to, show_compare, true, equip_hint)
 
 func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
 
 ## The details card for an item: name in its rarity colour, kind, stats and effect, then the comparison.
-static func card(it: Dictionary, worn: Variant, with_compare: bool = true) -> Control:
+static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false) -> Control:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", UiTheme.panel_box())
 	var box := VBoxContainer.new()
@@ -47,6 +48,8 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true) -> Co
 			var sign_value: int = int(entry["sign"])
 			var color: Color = Color(0.5, 0.85, 0.5) if sign_value > 0 else (Color(0.9, 0.45, 0.4) if sign_value < 0 else Color(0.75, 0.75, 0.75))
 			box.add_child(_label(("+ " if sign_value > 0 else ("- " if sign_value < 0 else "= ")) + String(entry["text"]), 14, color))
+	if with_equip_hint:
+		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 13, Color(0.7, 0.68, 0.62)))
 	return panel
 
 static func _label(text: String, size: int, color: Color) -> Label:
@@ -56,11 +59,12 @@ static func _label(text: String, size: int, color: Color) -> Label:
 	label.add_theme_color_override("font_color", color)
 	return label
 
-static func name_label(it: Dictionary, worn: Variant, compare: bool = true) -> Label:
+static func name_label(it: Dictionary, worn: Variant, compare: bool = true, with_equip_hint: bool = false) -> Label:
 	var label: Label = preload("res://game/item_name.gd").new()
 	label.item = it
 	label.worn = worn
 	label.show_compare = compare
+	label.equip_hint = with_equip_hint
 	label.text = String(it["name"])
 	label.tooltip_text = label.text
 	label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -72,7 +76,7 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true) -> L
 
 ## The details card shown beside `control`: with a controller while it has focus, and with `on_hover` the moment the mouse is over it (an
 ## item's picture shows its card at once, like the item on the ground does; its buttons do not).
-static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false) -> void:
+static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false) -> void:
 	var holder := Control.new()
 	holder.top_level = true
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -82,7 +86,7 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
-		var detail := card(it, worn, compare)
+		var detail := card(it, worn, compare, with_equip_hint)
 		holder.add_child(detail)
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		holder.visible = true

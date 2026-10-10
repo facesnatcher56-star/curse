@@ -44,6 +44,9 @@ func skill_damage_text(id: String) -> String:
 
 var max_mana: float = 80.0
 var mana: float = 80.0
+## Stamina is OFF as a resource (owner's first playtest: it served no purpose yet and only felt bad). With this false nothing spends it, nothing is
+## gated on it, and the HUD shows no bar. The numbers below stay so turning it back on is this one line.
+const STAMINA_ON := false
 var max_stamina: float = 100.0
 var stamina: float = 100.0
 const MAX_POTIONS := 6
@@ -68,13 +71,43 @@ var vault_time: float = 0.0     # Vaultborn: seconds left in which Power Strike 
 var aegis_hits: int = 0
 ## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
 var ult_charge: float = 0.0   # starts full (set in _init)
+const BRUTAL_COMBAT_SECONDS := 21.0
+var brutal_reload_required: float = 0.0
+var brutal_reload_remaining: float = 0.0
+
+func brutal_active_members() -> int:
+	var members: int = 1
+	if p != null and p.is_inside_tree():
+		for node in p.get_tree().get_nodes_in_group("companions"):
+			if node is Actor and is_instance_valid(node) and not (node as Actor).dead:
+				members += 1
+	return members
+
+## Dungeon Siege II's fast-power baseline, copied directly: secondsOfCombat × (6 + 1.5L) × (1 + .022L) × active group members.
+func power_recharge_damage(seconds_of_combat: float) -> float:
+	var level: float = maxf(float(TownState.hero_level), 1.0)
+	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members()
+
+func brutal_recharge_damage() -> float:
+	return power_recharge_damage(BRUTAL_COMBAT_SECONDS)
+
+func spend_brutal_attack() -> void:
+	brutal_reload_required = brutal_recharge_damage()
+	brutal_reload_remaining = brutal_reload_required
 
 func ult_cost(id: String) -> float:
+	if id == "brutal_attack":
+		return brutal_reload_required if brutal_reload_required > 0.0 else brutal_recharge_damage()
 	return float(SkillDb.all()[id].get("charge", 0.0))
 
 func ult_fraction(id: String) -> float:
 	var cost: float = ult_cost(id)
+	if id == "brutal_attack":
+		return 1.0 if brutal_reload_remaining <= 0.0 else clampf(1.0 - brutal_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
 	return clampf(ult_charge / cost, 0.0, 1.0) if cost > 0.0 else 1.0
+
+func gain_brutal_charge(damage: float) -> void:
+	brutal_reload_remaining = maxf(brutal_reload_remaining - maxf(damage, 0.0), 0.0)
 
 func gain_ult_charge(damage: float) -> void:
 	ult_charge = minf(ult_charge + damage, MAX_ULT_CHARGE)
@@ -83,6 +116,8 @@ const MAX_ULT_CHARGE := 650.0
 
 func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
+	if id == "brutal_attack":
+		return brutal_reload_remaining <= 0.0
 	if ult_charge < ult_cost(id):
 		return false
 	if id == "power" and vault_time > 0.0:
@@ -148,8 +183,9 @@ func equip(item: Dictionary, announce: bool = true) -> void:
 	p.armor = base_armor + armor_stat("armor", 0.0)
 	if int(item["slot"]) == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
+	# (no "Equipped X" line any more: the gear panel and the hero's weapon show it)
 	if announce:
-		p._say("Equipped %s" % item["name"])
+		pass
 
 ## Whether `item` would be put on at once when picked up: only into an empty slot. Rarity never decides it, because a rarer piece may
 ## not fit the build; everything else goes to the bag and the player chooses.
@@ -166,7 +202,7 @@ func pickup(item: Dictionary) -> String:
 	else:
 		add_to_bag(item)
 		text = "Found %s (bag)" % item["name"]
-	p._say(text)
+	# (no "Equipped X" / "Found X (bag)" line: the item name floating over the hero is enough; `text` is still returned for callers and tests)
 	Fx.text_at(p, p.global_position + Vector3(0, 2.6, 0), String(item["name"]), color, 40)
 	return text
 
@@ -194,11 +230,15 @@ func collect_orbs() -> void:
 				heal(HealthOrb.HEAL)
 			orb.queue_free()
 
+## Seconds left in which stamina recovers at its normal rate whatever the fight is doing (Bloody Recovery, after a physical kill).
+var stamina_free_time: float = 0.0
+
 func regen(delta: float) -> void:
 	var in_combat: bool = p.combat_timer > 0.0
 	p.health = minf(p.health + 1.5 * (0.3 if in_combat else 1.0) * delta, p.max_health)
 	mana = minf(mana + 3.0 * delta, max_mana)
-	if not in_combat or p.velocity.length() < 0.5:
+	stamina_free_time = maxf(stamina_free_time - delta, 0.0)
+	if not in_combat or p.velocity.length() < 0.5 or stamina_free_time > 0.0:
 		stamina = minf(stamina + 14.0 * delta, max_stamina)
 
 func cooldown_fraction(id: String) -> float:
