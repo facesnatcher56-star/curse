@@ -50,6 +50,8 @@ extends Resource
 ## Chance of dropping an item when killed, and how lucky the drop is (0 ordinary, 1 a Brute: rare or better, often unique).
 @export var drop_chance: float = 0.0
 @export var drop_luck: float = 0.0
+## What a kill is worth to the hero before the world's threat is counted (see HeroProgression.kill_xp). 0: nothing.
+@export var xp_reward: int = 0
 
 @export_group("Spawning")
 @export var min_wave: int = 1

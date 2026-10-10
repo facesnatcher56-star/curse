@@ -27,7 +27,23 @@ var knock: Vector3 = Vector3.ZERO
 var knocked_by: Actor
 ## Whoever last landed a blow on this actor (for the hero: who to hold responsible for a death, see Monsters.hero_fell).
 var last_hit_by: Actor
+## KILL CREDIT. The hero gets credit for a death when they were, in the last CREDIT_MS, the cause of any harm to this actor: they hit it
+## (any skill, Fireball, Weapon Throw, the recalled weapon), it was knocked into something by a blow of theirs (`knocked_by`: a wall, a
+## prop or another monster, both ways), or it is burning from fire they lit. Monsters hurting each other, or an enemy dying of nothing
+## the hero did, earns nothing. Only XP reads this (quests count kills regardless).
+const CREDIT_MS := 15000
+var _hero_credit_ms: int = -1000000
+var _burn_by_hero: bool = false
+
+func credit_hero() -> void:
+	_hero_credit_ms = Time.get_ticks_msec()
+
+func hero_credited() -> bool:
+	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
 var _impact_cooldown: float = 0.0
+## Mass Transfer (a passive of the hero): a body launched by a heavy hit of his may pass its force on to ONE more enemy it flies into
+## (see Ragdoll._bowl_into_enemies). Set when it is launched, spent at once when it is used; the one it bowls never gets one.
+var mass_transfer_charges: int = 0
 ## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
 var snare_time: float = 0.0
 var snare_amount: float = 0.0
@@ -43,6 +59,9 @@ var knock_resist: float = 0.0  # 0..1, fraction of knockback ignored
 var stun_resist: float = 0.0   # 0..1, fraction of stun time ignored
 var bar_timer: float = 0.0     # >0 while a floating health bar should be shown (set when hurt)
 var flinch_chance: float = 0.0
+const SMALL_STUN_RESIST := 0.2   # monsters with no more stun resistance than this flinch from every blow
+const MIN_FLINCH := 0.2          # s: the shortest interruption a blow causes
+var flinch_serial: int = 0       # counts the blows that landed on a living body, so the hit pose can restart for each one
 var hitpause: float = 0.0
 var invulnerable_time: float = 0.0
 var impalable: bool = true  # false for big enemies and bosses: Skewer staggers them instead
@@ -200,7 +219,8 @@ func flat_distance_to(other: Node3D) -> float:
 	return d.length()
 
 ## Skills whose blow is the hero's sword itself.
-const SWORD_SKILLS: Array[String] = ["basic", "power", "skewer", "leap"]
+const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "power", "skewer", "leap"]
+const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "power", "skewer", "skewer_kick", "leap", "earthshatter", "throw", "fireball"]
 
 ## Apply a resolved attack (see Combat.resolve) to this actor.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
@@ -210,6 +230,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	_last_hit_ms = Time.get_ticks_msec()
 	if result.get("source") is Player:
 		knocked_by = result["source"]
+		credit_hero()
 	if result.get("source") is Actor:
 		last_hit_by = result["source"]
 	if invulnerable_time > 0.0:
@@ -255,12 +276,13 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		and String(result.get("skill_id", "")) in SWORD_SKILLS
 	bar_timer = 4.0
 	last_result = result
-	# A killing blow that is a crit (or a crushing blow) bursts the body; a direct fire kill (a fireball, not a
-	# secondary proc) bursts it into burning pieces.
+	# Brutal Attack always bursts a victim it kills. Otherwise a crit/crushing killing blow bursts the body, while
+	# a direct fire kill (a fireball, not a secondary proc) bursts it into burning pieces.
 	if health - damage <= 0.0 and not is_in_group("player"):
 		if fire and not result.get("secondary", false):
 			_pending_gib = "fire"
-		elif not calm and (outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING):
+		elif String(result.get("skill_id", "")) in GIBBING_POWERS \
+				or (not calm and (outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING)):
 			_pending_gib = "gore"
 		_gib_from = source_pos
 	_apply_damage(damage)
@@ -268,6 +290,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
 	var killed: bool = dead
 	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
+	var profile: Dictionary = Fx.impact_profile(outcome, weight)
 	if sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
 	if not calm:
@@ -275,18 +298,24 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
 		if big or randf() < 0.3:
 			Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
-		if big:
-			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 2.5, 0.08)
+		if sword_contact:   # light and heavy blows read differently: a few sparks, or sparks with dust and a flash
+			Fx.melee_impact(self, chest, away, int(profile.tier), get_instance_id())
+		elif big:
+			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 1.8, 0.07)
 	if not dead:
 		_flash = 1.0
 		model.set_overlay(_flash_mat)
 		_squash(away, 0.08 * weight + (0.1 if big else 0.0))
+		flinch_serial += 1
+		if not is_in_group("player") and not is_ragdolled() and model != null:   # the body takes the blow: chest tips away, shoulders turn, head follows
+			var scale_up: float = 2.2 if outcome == Combat.Outcome.CRUSHING else (1.5 if outcome == Combat.Outcome.CRITICAL else 1.0)
+			model.react(away, BodyRecoil.peak_for(weight, scale_up, knock_resist))
 
 	if not calm:
 		var shake_amount: float = clampf(0.03 + damage * 0.004, 0.03, 0.12) * weight
 		Fx.shake(self, shake_amount)
 		if source != null and source.is_in_group("player") or is_in_group("player"):
-			Fx.kick(self, -away if is_in_group("player") else away, 0.5 * weight)
+			Fx.kick(self, -away if is_in_group("player") else away, float(profile.kick))
 
 	# Hit-pause on both parties makes the blow land; crits add a brief global slow-down.
 	var pause: float = 0.06 * weight + (0.045 if big else 0.0)
@@ -312,15 +341,16 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	match outcome:
 		Combat.Outcome.CRUSHING:
 			push = 9.0
-			stun_time = maxf(stun_time, (0.5 if hero else 0.8) * (1.0 - stun_resist))
+			_gain_stun((0.5 if hero else 0.8) * (1.0 - stun_resist), result)
 		Combat.Outcome.CRITICAL:
 			push = 5.5
 			if not hero:
 				stun_time = maxf(stun_time, 0.3 * (1.0 - stun_resist))
 		_:
 			# Ordinary blows only flinch enemies. The hero keeps swinging, casting and moving through them.
-			if not hero and (weight >= 1.5 or randf() < flinch_chance):
-				stun_time = maxf(stun_time, 0.25 * weight * (1.0 - stun_resist))
+			# Every blow interrupts a small monster (the owner: they surround you anyway, so it costs nothing); big ones only sometimes.
+			if not hero and (weight >= 1.5 or randf() < flinch_chance or stun_resist <= SMALL_STUN_RESIST):
+				stun_time = maxf(stun_time, maxf(0.25 * weight, MIN_FLINCH) * (1.0 - stun_resist))
 	var shove: float = push * weight * (1.0 - knock_resist)
 	if hero:
 		shove *= 0.2 if is_acting() else 0.5   # mid-skill the hero is planted
@@ -329,6 +359,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		bleed_dps = result["bleed_dps"]
 		bleed_time = result["bleed_time"]
 	_on_hurt(result, source_pos)
+
+## Staggered by a blow. The hero overrides this (his passives can shrug a light one off, see Player._gain_stun).
+func _gain_stun(duration: float, _result: Dictionary = {}) -> void:
+	stun_time = maxf(stun_time, duration)
 
 func _blood_color() -> Color:
 	return Color(0.55, 0.05, 0.04)
@@ -364,6 +398,9 @@ func ragdoll_hang(yaw: float) -> void:
 	ragdoll.hang(yaw)
 
 func ragdoll_launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
+	if knocked_by is Player and (knocked_by as Player).has_passive("mass_transfer") and not dead \
+			and Vector2(velocity.x, velocity.z).length() >= BuildDefs.MASS_TRANSFER_MIN_SPEED:
+		mass_transfer_charges = 1   # a heavy launch of his: it can carry its force into one more body
 	if ragdoll == null:
 		ragdoll = Ragdoll.new(self)
 	if not ragdoll.is_active():
@@ -587,7 +624,7 @@ func _make_daze() -> Node3D:
 ## Passes burn, bleed and slow on to another actor (e.g. a burning body thrown into a crowd).
 func spread_debuffs_to(other: Actor) -> void:
 	if burn_time > 0.0:
-		other.apply_burn(burn_dps, burn_time)
+		other.apply_burn(burn_dps, burn_time, _burn_by_hero)
 	if bleed_time > 0.0:
 		other.bleed_dps = maxf(other.bleed_dps, bleed_dps)
 		other.bleed_time = maxf(other.bleed_time, bleed_time)
@@ -595,9 +632,12 @@ func spread_debuffs_to(other: Actor) -> void:
 		other.apply_slow(slow_amount, slow_time)
 
 ## Sets the actor alight: fire damage over time with visible flames until it burns out or dies.
-func apply_burn(dps: float, seconds: float) -> void:
+func apply_burn(dps: float, seconds: float, by_hero: bool = false) -> void:
 	if dead:
 		return
+	if by_hero:
+		_burn_by_hero = true
+		credit_hero()
 	burn_dps = maxf(burn_dps, dps)
 	burn_time = maxf(burn_time, seconds)
 	if _flames == null and model != null:
@@ -612,6 +652,8 @@ func _tick_burn(delta: float) -> void:
 	if burn_time <= 0.0:
 		return
 	burn_time -= delta
+	if _burn_by_hero:
+		credit_hero()   # fire the hero lit keeps the credit while it burns
 	_apply_damage(burn_dps * delta)
 	# The burning shows in ticks: every half second a fiery number for what it took, a puff of embers and a flare of the flames.
 	_burn_owed += burn_dps * delta
@@ -632,6 +674,7 @@ func _tick_burn(delta: float) -> void:
 		stop_burning()
 
 func stop_burning() -> void:
+	_burn_by_hero = false
 	burn_time = 0.0
 	burn_dps = 0.0
 	if _flames != null:

@@ -1,0 +1,10 @@
+{
+  "project": "curse",
+  "repository": "facesnatcher56-star/curse",
+  "issue_number": 2,
+  "poll_seconds": 30,
+  "allowed_authors": ["facesnatcher56-star"],
+  "accepted_recipients": ["CODEX", "ALL"],
+  "local_inbox": ".agentbridge/inbox.md",
+  "local_state": ".agentbridge/state.json"
+}

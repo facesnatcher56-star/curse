@@ -142,8 +142,8 @@ func _page_npc(id: String) -> void:
 			_page_report()
 		"healer":
 			_page_healer(id)
-		"recruit":
-			_page_recruit(id, def)
+		"companion":
+			_page_companion(def)
 	_page_quests(id)
 	_add_gap(4)
 	_page_opinions(id)
@@ -211,11 +211,11 @@ func _restock_smith() -> void:
 	TownState.smith_stock = []
 	var none: Array[String] = []
 	var names: Array[String] = []
-	var rare_chance: float = minf(0.25 + 0.1 * TownState.jobs_done, 0.6)
+	var rare_chance: float = WorldThreat.MERCHANT_RARE_CHANCE   # a placeholder, not a count of jobs done
 	for attempt in 80:
 		if TownState.smith_stock.size() >= 4:
 			break
-		var item: Dictionary = Items.roll_one(1 + TownState.jobs_done, 0.0, rare_chance, none)
+		var item: Dictionary = Items.roll_one(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), 0.0, rare_chance, none)
 		if int(item["slot"]) == Items.Slot.TRINKET or String(item["name"]) in names:
 			continue
 		names.append(String(item["name"]))
@@ -253,7 +253,7 @@ func _restock() -> void:
 	for item in TownState.gear.values():
 		if int((item as Dictionary)["rarity"]) == Items.Rarity.UNIQUE:
 			owned.append(String((item as Dictionary)["name"]))
-	for item in Items.roll_choices(1 + TownState.jobs_done, false, owned):
+	for item in Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned):
 		TownState.stock.append({"item": item, "price": TownState.item_price(item)})
 
 func _buy(index: int, price: int) -> void:
@@ -304,13 +304,15 @@ func _page_jobs() -> void:
 		var status: String = "Done. Waiting for you to collect." if ready else JobObjective.progress_text(offer, {"stage": stage})
 		var title: String = "%s  -  %s  -  %dg\n%s" % [offer["name"], JobObjective.describe(offer), int(offer["reward"]), status]
 		_row(title, "Collect reward" if ready else "In progress", not ready, _claim)
+		if String(offer.get("site", "")) == CryptRoad.SITE_ID:
+			_text("      Departure: North gate. Deep Crypt Forecourt is an optional harder climax beyond the nests.", UiTheme.TEXT_DIM)
 		for m in offer.get("modifiers", []):
 			_text("      " + TownDb.modifier(m).display_name + ": " + TownDb.modifier(m).description, UiTheme.TEXT_DIM)
 
 ## Hale pays what is done (the world posts the next quest and puts the road back as it was).
 func _claim() -> void:
 	var paid: Dictionary = town.claim_rewards()
-	notice = "Paid: %dg. A new quest is posted." % int(paid["gold"]) if int(paid["count"]) > 0 else "Nothing to collect yet."
+	notice = "Paid: %dg%s. A new quest is posted." % [int(paid["gold"]), (", %d XP" % int(paid["xp"])) if int(paid["xp"]) > 0 else ""] if int(paid["count"]) > 0 else "Nothing to collect yet."
 	TownState.save()
 	_rebuild()
 
@@ -418,6 +420,11 @@ func _page_recruit(id: String, def: NpcDef) -> void:
 		TownState.save()
 		_rebuild())
 	_text("Another mouth to feed: every job costs the clan more food.", UiTheme.TEXT_DIM)
+
+func _page_companion(def: NpcDef) -> void:
+	_text("Clan archer — follows you beyond the gate and fires on enemies hunting you.", UiTheme.ACCENT)
+	_text("Cutter is a permanent companion. He costs no gold and needs no order to join a job.", UiTheme.TEXT_DIM)
+	_text("Clan skill: %s (+2 food whenever the clan returns from a job)" % def.clan_skill.capitalize(), UiTheme.TEXT)
 
 func _page_opinions(id: String) -> void:
 	var parts: Array[String] = []

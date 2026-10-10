@@ -22,6 +22,7 @@ unique_level = 1.3
 item_name = "Hale's ledger"
 reward = {
 "gold": 70,
+"xp": 80,
 "happy": {
 "hale": 8
 }

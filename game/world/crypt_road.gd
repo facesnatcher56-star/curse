@@ -3,13 +3,15 @@ extends Node3D
 ## The first authored location: a long, narrow stretch of ruined road from the town's side gate to a sealed crypt, about 60 m across
 ## and 360 m long (three and a half times the old arena, and elongated rather than square).
 ##
-##   road gate (town side)  z = +170   the way home; the hero starts a little way in
-##   ruined road            z = +150..115   two walkers on the road
-##   abandoned wagon        z = +105..95    a pack feeding on the dead
+##   road gate (town side)        z = +170        the way home; the hero starts a little way in
+##   Hearthward Waystation        z = +142..118   ruined tollpost, breached barricade, tollhouse sentry
+##   Burned Pilgrim Camp          z = +108..92    refugee disaster, burned wagons, firepit, flank ambush
+##   Graveyard Threshold          z = +89..73     broken funeral hearse, disturbed graves, mourning shrine
 ##   graveyard (west)  /  collapsed cottage (east)    z = +95..45   both open onto the road; a nest in each
 ##   wooded choke           z = +40..8      trees close in to a gap a few metres wide, with a brute
 ##   old shrine             z = 0           a plague priest among its guard
-##   crypt courtyard        z = -45..-155   walled; the third nest, the strongest groups
+##   crypt courtyard        z = -45..-145   walled; the third nest, avenue columns, courtyard packs
+##   crypt forecourt        z = -146..-164  ruined mortuary shed, ossuary niches, portal vanguard
 ##   crypt entrance         z = -165        a sealed facade (the way on, for a later job)
 ##
 ## Everything is placed by hand (no random scatter of encounters): the monsters exist in the world from the start, doing something
@@ -25,6 +27,7 @@ const START := Vector3(1.0, 0.0, 150.0)
 const ROAD: Array[Vector2] = [Vector2(0, 176), Vector2(0, 160), Vector2(4, 138), Vector2(-3, 114), Vector2(2, 92), Vector2(-2, 66),
 	Vector2(1, 42), Vector2(0, 16), Vector2(0, -4), Vector2(0, -40), Vector2(0, -90), Vector2(0, -140), Vector2(0, -156)]
 const ROAD_HALF_WIDTH := 2.6
+const FORECOURT_Z := -146.0   # the road's own z where the crypt forecourt begins (the hud names the zone from it)
 const EXIT_Z := 174.0
 ## The mood of the place: darker and foggier than the arena (see Main._apply_job_mood).
 const AMBIENT_MULT := 0.8
@@ -48,6 +51,8 @@ var nests: Array[Destructible] = []
 var placed: Array[Dictionary] = []   # {name, pos (Vector3), radius}: every prop put down, for the tests and the minimap
 var nests_destroyed: int = 0
 var total_nests: int = 3
+var return_waystone: CryptReturnWaystone = null
+var forecourt_climax: CryptForecourtClimax = null
 
 var _rng := RandomNumberGenerator.new()
 var _fill_rng := RandomNumberGenerator.new()
@@ -86,6 +91,7 @@ func at(x: float, z: float) -> Vector3:
 ## Puts down the road, the landmarks, the filler and the lights, then bakes the navigation mesh once everything is in.
 func build(for_arena: Arena) -> void:
 	arena = for_arena
+	add_to_group("crypt_road")   # (the minimap draws the road's line from it)
 	in_world = arena.origin_offset != Vector3.ZERO
 	_rng.seed = 1313
 	_build_road()
@@ -243,13 +249,14 @@ func _landmarks() -> void:
 	# Stakes and stones either side of it close the road's mouth to the wilds.
 	_row("dead_tree", Vector2(-27, 174), Vector2(-8, 174), 4.5, 5.0, 0.6)
 	_row("dead_tree", Vector2(8, 174), Vector2(27, 174), 4.5, 5.0, 0.6)
-	# The abandoned wagon: two carts, one on its side, barrels split open, and the dead beside them.
-	_prop("wrecked_cart", -5.0, 106.0, 0.5, 1.9)
-	_prop("wrecked_cart", 8.0, 97.0, 2.2, 1.7)
-	for spot in [Vector2(-2.5, 101), Vector2(-7.5, 100), Vector2(10.5, 101)]:
-		_prop("barrel", spot.x, spot.y, _rng.randf() * TAU, 1.0)
-	_prop("crypt/corpse", 2.5, 102.0, 0.4, 0.5, false, false, 0.0)
-	_prop("crypt/corpse", -8.5, 96.0, 2.0, 0.5, false, false, 0.0)
+	# The ruined roadside waystation and breached toll barricade (z 142..118).
+	WaystationEncounter.build(self, arena)
+	# The burned pilgrim camp and overturned baggage wagons (z 108..92).
+	PilgrimCampEncounter.build(self, arena)
+	# The broken funeral procession and graveyard threshold (z 89..73).
+	GraveyardThresholdEncounter.build(self, arena)
+	# The ruined mortuary / ossuary forecourt before the crypt entrance (z -146..-164).
+	CryptForecourtEncounter.build(self, arena)
 	# The old shrine in the middle of the road, with its brazier-light of candles.
 	var shrine: Node3D = _prop("crypt/shrine", 0.0, -2.0, 0.0, 3.8, true, false, 3.6)
 	_light(shrine, Color(1.0, 0.6, 0.25), 1.6, 9.0, 1.4)
@@ -260,6 +267,10 @@ func _landmarks() -> void:
 		fire.position = Vector3(sx, 0, 3.95)
 		gate.add_child(fire)
 		_light(fire, Color(1.0, 0.55, 0.2), 2.0, 10.0, 1.9)
+	return_waystone = CryptReturnWaystone.new()
+	return_waystone.name = "ReturnWaystone"
+	return_waystone.position = at(0.0, -163.5)
+	add_child(return_waystone)
 
 func _graveyard() -> void:
 	# West of the road, z 95..45: rows of stones in a fenced yard open to the road at two gaps, one nest at the back.
@@ -354,15 +365,16 @@ func _exit_gate() -> void:
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
 ## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
-		patrol: Array[Vector2] = [], level_offset: float = 0.0) -> void:
+		patrol: Array[Vector2] = []) -> void:
 	_homes.append(home)
+	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
 	for m in members:
 		var copies: int = PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1
 		for c in copies:
 			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
-			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), director.level_for_location() + level_offset)
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), threat)
 			e.group_id = id
 			e.idle_mode = mode
 			e.home = at(home.x, home.y)
@@ -377,13 +389,12 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 func spawn_encounters(for_director: RunDirector) -> void:
 	director = for_director
 	_homes.clear()
-	# Walkers on the road, the first thing the hero sees (far enough down it that they do not notice him at the start).
-	_group(1, "wander", [["zombie", 2, 129], ["zombie", -2, 123]], Vector2(0, 121), 5.0, Vector2.ZERO,
-		[Vector2(3, 133), Vector2(-2, 113), Vector2(2, 123)])
-	# The wagon: a pack at the dead (they hunch over the corpses until the hero is close), one stray.
-	_group(2, "feed", [["zombie", 1.6, 103.4], ["zombie", 3.6, 101.2], ["zombie", 2.6, 100.4]], Vector2(2.5, 102), 2.0, Vector2(2.5, 102))
-	_group(2, "feed", [["zombie", -9.6, 96.8], ["zombie", -7.8, 95.2]], Vector2(-8.5, 96), 2.0, Vector2(-8.5, 96))
-	_group(3, "wander", [["zombie", 12, 110]], Vector2(12, 110), 4.0)
+	# The ruined roadside waystation: breached barricade defenders, tollhouse sentry, and flank roamer.
+	WaystationEncounter.spawn_encounters(self, director)
+	# The burned pilgrim camp: feeding pack, flank ambushers, and wagon scavengers.
+	PilgrimCampEncounter.spawn_encounters(self, director)
+	# The broken funeral procession: hearse pack, threshold lookout, and flank prowler.
+	GraveyardThresholdEncounter.spawn_encounters(self, director)
 	# The graveyard: strollers among the stones, a bloater lying in wait among the graves, and the nest's keepers.
 	_group(4, "wander", [["zombie", -14, 80], ["zombie", -18, 74], ["zombie", -12, 70]], Vector2(-15, 76), 8.0)
 	_group(5, "", [["bloater", -16.5, 64]], Vector2(-16.5, 64))
@@ -392,12 +403,21 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	_group(7, "", [["zombie", 13, 84], ["zombie", 17.5, 85], ["zombie", 22, 83.5]], Vector2(17, 84))
 	_group(7, "", [["spitter", 16, 75], ["spitter", 22, 74]], Vector2(19, 74))
 	_group(8, "wander", [["zombie", 23, 57], ["zombie", 17, 49]], Vector2(20, 53), 4.0)
+	# Between the graveyard and the cottage, a support-protected knot (melee only, no ranged, no area denial): a plague priest stands
+	# on the road's west shoulder behind a screen of zombies, so the problem is breaking through the screen to the caster, not dodging
+	# a crossfire. 13+ m from every neighbouring group, and the road north stays open to fall back on.
+	_group(31, "", [["priest", 6, 57], ["zombie", 9.5, 60]], Vector2(7.5, 58.5))
 	# The choke: a brute that has been standing in the road a long while, and a pair of ghouls working the trees.
 	_group(9, "wander", [["brute", 3, 22]], Vector2(2, 22), 3.0)
 	_group(10, "wander", [["ghoul", -7, 31], ["ghoul", -9, 27]], Vector2(-8, 29), 4.0)
 	# The shrine: a plague priest among its guard, a spitter at its back.
 	_group(11, "", [["priest", 0, -9.5], ["zombie", 4, -5], ["zombie", -4, -5.5], ["zombie", 5.5, -1.5], ["zombie", -5.5, -2],
 		["spitter", 1, -15]], Vector2(0, -8))
+	# Between the shrine and the courtyard wall, a crossfire stretch (one wave, three roles, three different tells): a brute holds the
+	# road, a spitter stands back in the west trees covering it, and a ghoul pack works the east verge to cut round behind you.
+	# Everything is 12+ m from the shrine group, and the road south to the shrine stays open to fall back on.
+	_group(30, "", [["brute", 0.5, -31], ["spitter", -10.5, -38]], Vector2(-2, -34))
+	_group(30, "wander", [["ghoul", 11, -27]], Vector2(11, -27), 3.5, Vector2.ZERO, [Vector2(11, -24), Vector2(10, -34)])
 	# The courtyard: patrols on the avenue, a bloater at the wall, the third nest's pack, a priest with spitters behind, brutes at the door.
 	_group(12, "wander", [["zombie", -7, -62], ["zombie", 7, -66], ["zombie", -6, -74], ["zombie", 8, -72]], Vector2(0, -68), 4.0, Vector2.ZERO,
 		[Vector2(-8, -68), Vector2(8, -68), Vector2(8, -118), Vector2(-8, -118)])
@@ -405,6 +425,8 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	_group(14, "wander", [["ghoul", 12, -95], ["ghoul", 16, -101], ["zombie", 11, -102], ["zombie", 17, -94]], Vector2(14, -98), 5.0)
 	_group(15, "", [["priest", -14, -112], ["spitter", -14, -121], ["spitter", -9, -124], ["zombie", -11, -108], ["zombie", -17, -108]], Vector2(-13, -114))
 	_group(16, "", [["brute", -9, -138], ["brute", 9, -138], ["zombie", 0, -142]], Vector2(0, -139))
+	# The ruined mortuary and ossuary forecourt before the crypt entrance: vanguard, ossuary sentry, mortuary feeder.
+	CryptForecourtEncounter.spawn_encounters(self, director)
 	_fill_gaps()
 
 ## Wherever the placed groups leave the road empty (no group's home within FILL_COVER), a small group of whatever lives in that stretch:
@@ -438,7 +460,7 @@ func _fill_gaps() -> void:
 			for kind in _fill_kinds(zone):
 				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
 				members.append([kind, spot.x + offset.x, spot.y + offset.y])
-			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [], zone.level_offset)
+			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [])
 		z -= FILL_CELL
 
 ## What a gap-filling group is made of in this stretch: one of the zone's group templates, picked by weight (the run's modifiers make some
@@ -472,6 +494,8 @@ func _fill_kinds(zone: ZoneDef) -> Array[String]:
 
 func _on_nest_destroyed(prop: Destructible) -> void:
 	nests_destroyed += 1
+	TownState.add_hero_xp(HeroProgression.NEST_XP)   # when it breaks (a prop breaks once), not when the quest is handed in
+	HeroProgression.log_xp("nest %d of %d: %d" % [nests_destroyed, total_nests, HeroProgression.NEST_XP])
 	nest_destroyed.emit(nests_destroyed, total_nests)
 	if director == null:
 		return
@@ -487,7 +511,7 @@ func _on_nest_destroyed(prop: Destructible) -> void:
 	for i in kinds.size():
 		var angle: float = TAU * float(i) / kinds.size()
 		var spot: Vector3 = Nav.snap(self, at + Vector3(cos(angle), 0.0, sin(angle)) * 2.4)
-		var e: Enemy = director.spawn_enemy(spot, kinds[i], director.level_for_location())
+		var e: Enemy = director.spawn_enemy(spot, kinds[i], threat_at(at))
 		e.group_id = 100 + nests_destroyed
 		e.alert_delay = 0.0
 		e.wake()
@@ -512,7 +536,7 @@ func spawn_unique(inst: Dictionary) -> Enemy:
 		return null
 	var z: float = clampf(EXIT_Z - randf_range(def.zone.x, def.zone.y), -140.0, 130.0)
 	var spot: Vector3 = Nav.snap(self, at(road_centre_x(z) + randf_range(-4.0, 4.0), z))
-	var e: Enemy = director.spawn_enemy(spot, def.target, def.unique_level)
+	var e: Enemy = director.spawn_enemy(spot, def.target, def.unique_level)   # unique_level is an absolute threat, on the zones' scale
 	e.display_name = def.unique_name
 	e.max_health *= def.unique_hp
 	e.health = e.max_health
@@ -528,6 +552,10 @@ func spawn_unique(inst: Dictionary) -> Enemy:
 	inst["data"]["spawned"] = true
 	return e
 
+## The threat of ordinary monsters where a point on the road is (see WorldThreat): the stretch's own, whatever the hero has become.
+func threat_at(point: Vector3) -> float:
+	return WorldThreat.for_distance(distance_of(point))
+
 ## How far out from the town gate a point on the road is (metres), the measure a named monster's place is kept in.
 func distance_of(point: Vector3) -> float:
 	return EXIT_Z - (point.z - arena.origin_offset.z)
@@ -542,14 +570,14 @@ func spawn_named(mon: Dictionary) -> Enemy:
 	if director == null:
 		return null
 	var spot: Vector3 = monster_spot(mon)
-	var e: Enemy = director.spawn_enemy(spot, String(mon["kind"]), director.level_for_location())
+	var e: Enemy = director.spawn_enemy(spot, String(mon["kind"]), float(mon["level"]))   # its threat is its own level, not the stretch's
 	e.display_name = String(mon["name"])
 	e.idle_mode = "wander"
 	e.home = spot
 	e.idle_radius = 8.0
 	e.group_id = 500 + int(mon["uid"])
 	e.alert_delay = 0.0
-	MonsterMark.apply(e, mon)
+	MonsterMark.apply_look(e, mon)
 	MonsterMark.attach(e, mon)
 	mon["spawned"] = true
 	return e
@@ -562,7 +590,7 @@ func spawn_horde(mon: Dictionary, count: int = 8) -> void:
 	for i in count:
 		var angle: float = TAU * float(i) / count
 		var spot: Vector3 = Nav.snap(self, centre + Vector3(cos(angle), 0.0, sin(angle)) * randf_range(3.0, 6.0))
-		var e: Enemy = director.spawn_enemy(spot, "ghoul" if i % 3 == 0 else "zombie", director.level_for_location())
+		var e: Enemy = director.spawn_enemy(spot, "ghoul" if i % 3 == 0 else "zombie", threat_at(centre))
 		e.group_id = 600 + int(mon["uid"])
 		e.alert_delay = 0.0
 		e.idle_mode = "wander"
@@ -570,6 +598,7 @@ func spawn_horde(mon: Dictionary, count: int = 8) -> void:
 		e.idle_radius = 9.0
 
 func regrow() -> void:
+	WaystationRespite.reset_road(self)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	var alive: Array[Destructible] = []
@@ -588,9 +617,14 @@ func regrow() -> void:
 		if not present:
 			_nest(spot.x, spot.y, spot.z)
 	nests_destroyed = 0
+	if return_waystone != null:
+		return_waystone.hide_waystone()
 	arena.request_nav_refresh()
 	await get_tree().process_frame
 	spawn_encounters(director)
+
+func is_forecourt_cleared() -> bool:
+	return forecourt_climax != null and forecourt_climax.is_cleared()
 
 # --- Leaving ----------------------------------------------------------------------------------------------------------------------
 

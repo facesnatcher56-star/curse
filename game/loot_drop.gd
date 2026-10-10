@@ -14,6 +14,8 @@ const LIFETIME := 150.0
 ## name and the light beam are what find them from far away.
 const FIT_LENGTH := {Items.Slot.WEAPON: 0.7, Items.Slot.ARMOR: 0.5, Items.Slot.TRINKET: 0.3}
 
+## Rare and unique drops used to get a light, a faint column and a glowing floor ring. Off since the first owner playtest; flip to bring them back.
+const GROUND_HIGHLIGHTS := false
 var item: Dictionary = {}
 var _fit: float = 1.0   # the model's scale that makes its longest side FIT_LENGTH
 var landed: bool = false
@@ -24,6 +26,8 @@ var _light: OmniLight3D
 var _column: MeshInstance3D
 var _model: Node3D
 var _column_base: float = 1.0
+var _pool: MeshInstance3D   # rare/unique: a glow pooled on the floor under the item, readable at the normal zoom where the column is faint
+var _pool_alpha: float = 0.0
 var _start: Vector3
 var _end: Vector3
 
@@ -37,7 +41,7 @@ func _ready() -> void:
 	var rarity: int = int(item["rarity"])
 	var color: Color = Items.RARITY_COLORS[rarity]
 	_add_model(int(item["slot"]))
-	if rarity > Items.Rarity.COMMON:
+	if GROUND_HIGHLIGHTS and rarity > Items.Rarity.COMMON:   # (the owner does not want beams or circles on the ground: the name plate and the minimap find it)
 		_light = OmniLight3D.new()
 		_light.light_color = color
 		_light.light_energy = 0.35 if rarity == Items.Rarity.RARE else 0.7
@@ -46,6 +50,7 @@ func _ready() -> void:
 		_light.shadow_enabled = false
 		add_child(_light)
 		_add_column(color, rarity)
+		_add_pool(color, rarity)
 
 func _add_model(slot: int) -> void:
 	var path: String = Items.model_path(item)
@@ -104,6 +109,36 @@ func _add_column(color: Color, rarity: int) -> void:
 	_column.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_column)
 
+## A soft, warm-edged pool of rarity light on the ground under the item (additive, unlit, no depth write), slowly breathing. Ordinary
+## drops never get one.
+func _add_pool(color: Color, rarity: int) -> void:
+	_pool = MeshInstance3D.new()
+	var disc := PlaneMesh.new()
+	var radius: float = 0.75 if rarity == Items.Rarity.RARE else 1.0
+	disc.size = Vector2.ONE * radius * 2.0
+	_pool.mesh = disc
+	var shader := Shader.new()
+	shader.code = "shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
+uniform vec4 tint : source_color;
+uniform float strength;
+void fragment() {
+	float d = length(UV - vec2(0.5)) * 2.0;
+	float a = smoothstep(1.0, 0.35, d) * 0.45 + smoothstep(0.12, 0.0, abs(d - 0.8)) * 0.55;
+	ALBEDO = tint.rgb * a * strength;
+	ALPHA = clamp(a * strength, 0.0, 1.0);
+}
+"
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	_pool_alpha = 0.55 if rarity == Items.Rarity.RARE else 0.85
+	mat.set_shader_parameter("tint", color)
+	mat.set_shader_parameter("strength", _pool_alpha)
+	_pool.material_override = mat
+	_pool.position.y = 0.03
+	_pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_pool)
+
 ## Bigger the farther the camera is: at the far zoom a plain sword would be a few pixels.
 func in_reach(hero: Node3D) -> bool:
 	var offset: Vector3 = hero.global_position - global_position
@@ -144,6 +179,10 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	var zoom: float = _camera_scale()
+	if _pool != null:
+		var breathe: float = 0.85 + 0.15 * sin(_age * 2.2)
+		(_pool.material_override as ShaderMaterial).set_shader_parameter("strength", _pool_alpha * breathe * (1.0 if self == focused else 0.85))
+		_pool.scale = Vector3(zoom, 1.0, zoom)
 	if _model != null:
 		_model.scale = Vector3.ONE * _fit * lerpf(1.0, zoom, 0.4)   # only partly compensates for the camera: at the far zoom the name and the beam find it
 	if _column != null:

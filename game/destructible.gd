@@ -225,4 +225,4 @@ func _drop_loot(stats: Dictionary) -> void:
 	if roll < float(stats["item"]):
 		var director: Node = get_tree().get_first_node_in_group("director")
 		if director != null and director.has_method("drop_item"):
-			director.drop_item(at, Items.roll_drop(int(director.get("wave")), 0.0, director.owned_uniques()))
+			director.drop_item(at, Items.roll_drop(director.drop_tier_at(at), 0.0, director.owned_uniques()))

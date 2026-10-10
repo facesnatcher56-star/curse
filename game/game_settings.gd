@@ -16,8 +16,8 @@ const RENDER_SCALE_LABELS: Array[String] = ["100% (sharpest)", "85%", "75% (stea
 const ACTIONS: Array = [
 	["click", "Move / Attack"],
 	["alt_skill", "Right-click skill"],
-	["skill_1", "Hotbar 1 (Power Strike)"],
-	["skill_2", "Hotbar 2 (Fireball)"],
+	["skill_1", "Hotbar 1 (Brutal Attack)"],
+	["skill_2", "Hotbar 2 (Take Aim)"],
 	["skill_3", "Hotbar 3 (Potion)"],
 	["skill_4", "Hotbar 4 (Skewer)"],
 	["skill_5", "Hotbar 5 (Leap)"],
@@ -42,7 +42,7 @@ static var vibration: bool = true
 static var custom_pad_bindings: Dictionary = {}
 
 static var master_volume: float = 0.8
-static var sfx_enabled: bool = false
+static var sfx_enabled: bool = true
 static var window_mode: int = 0
 static var resolution_index: int = 0
 static var vsync: bool = true
@@ -60,9 +60,13 @@ static var custom_bindings: Dictionary = {}
 ## Which skill is on which key (see HotbarLayout). SkillController shares `hotbar_slots` itself, so a change here is a change there.
 static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
 static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
+const HOTBAR_LAYOUT_REV := 3
 
 static func reset_hotbar() -> void:
-	for i in hotbar_slots.size():
+	# SkillController deliberately keeps this exact Array reference. Reset its
+	# contents in place so an already-spawned hero immediately sees the defaults.
+	hotbar_slots.resize(HotbarLayout.DEFAULT_SLOTS.size())
+	for i in HotbarLayout.DEFAULT_SLOTS.size():
 		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
 	hotbar_alt = HotbarLayout.DEFAULT_ALT
 
@@ -345,6 +349,7 @@ static func save_to_disk() -> void:
 	config.set_value("controller", "vibration", vibration)
 	config.set_value("hotbar", "slots", hotbar_slots.duplicate())
 	config.set_value("hotbar", "alt", hotbar_alt)
+	config.set_value("hotbar", "layout_rev", HOTBAR_LAYOUT_REV)
 	for action in custom_bindings:
 		config.set_value("input", action, custom_bindings[action])
 	for action in custom_pad_bindings:
@@ -372,10 +377,13 @@ static func load_from_disk() -> void:
 	vibration = bool(config.get_value("controller", "vibration", vibration))
 	var saved_slots: Array = config.get_value("hotbar", "slots", [])
 	var saved_alt: String = String(config.get_value("hotbar", "alt", HotbarLayout.DEFAULT_ALT))
-	if HotbarLayout.is_valid(saved_slots, saved_alt):   # a damaged or outdated entry falls back to the default layout
+	var hotbar_rev: int = int(config.get_value("hotbar", "layout_rev", 0))
+	if hotbar_rev >= HOTBAR_LAYOUT_REV and HotbarLayout.is_valid(saved_slots, saved_alt):
 		for i in hotbar_slots.size():
 			hotbar_slots[i] = String(saved_slots[i])
 		hotbar_alt = saved_alt
+	else:
+		reset_hotbar()
 	custom_pad_bindings.clear()
 	if config.has_section("input_pad"):
 		for action in config.get_section_keys("input_pad"):

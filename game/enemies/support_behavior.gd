@@ -1,7 +1,7 @@
 class_name SupportBehavior
 extends MeleeBehavior
 ## The plague priest: stays behind its pack and makes the pack harder to kill. Every few seconds it casts a ward on nearby
-## allies (damage taken down, move speed up) and every so often it raises fresh zombies from the ground. It backs away from
+## allies (damage taken down, move speed up) and every so often it raises fresh zombies from the ground (a limited number per priest: once its budget is spent it only wards). It backs away from
 ## the hero, so it has to be hunted down; killing it strips every ward it gave out. A staff swat is its only fight.
 
 enum State { POSITION, CAST }
@@ -12,6 +12,7 @@ var _cast_kind: String = "ward"
 var _ward_cd: float = 3.0
 var _summon_cd: float = 8.0
 var _summoned: Array[Enemy] = []
+var _raised_total: int = 0   # zombies this priest has raised so far; capped by summon_budget so a fight can end
 
 func is_attacking() -> bool:
 	return _state == State.CAST or super.is_attacking()
@@ -47,8 +48,8 @@ func tick(delta: float, dist: float) -> void:
 	if _ward_cd <= 0.0 and not allies.is_empty() and dist > flee * 0.7:
 		_begin_cast("ward")
 		return
-	_summoned = _summoned.filter(func(z: Enemy) -> bool: return is_instance_valid(z) and not z.dead)
-	if _summon_cd <= 0.0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
+	_summoned = _summoned.filter(func(z) -> bool: return is_instance_valid(z) and not z.dead)   # untyped: a freed zombie must not break the call
+	if _summon_cd <= 0.0 and summons_left() > 0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
 		_begin_cast("summon")
 		return
 	var keep_min: float = float(e.def.param("keep_min", 6.5))
@@ -61,6 +62,10 @@ func tick(delta: float, dist: float) -> void:
 		e.walk_to(e.target.global_position, delta, 0.9, true)
 	else:
 		e.circle_target(dist, (keep_min + keep_max) * 0.5, 0.6)
+
+## Zombies this priest may still raise. A fight against a priest has to be able to end, so the total is finite.
+func summons_left() -> int:
+	return maxi(int(e.def.param("summon_budget", 6)) - _raised_total, 0)
 
 func _allies_near(radius: float) -> Array[Enemy]:
 	var out: Array[Enemy] = []
@@ -86,7 +91,7 @@ func _tick_cast(delta: float) -> void:
 	var total: float = 1.1
 	e.move_with(Vector3.ZERO)
 	e.face(e.target.global_position, 0.2)
-	e.telegraph(0.3)
+	e.telegraph(0.3, "cast")
 	if e.has_clip("cast"):
 		e.model.scrub(lerpf(0.4, 1.6, clampf(_cast_t / total, 0.0, 1.0)))
 	if _cast_t >= total:
@@ -115,11 +120,13 @@ func _summon() -> void:
 	var director: Node = e.get_tree().get_first_node_in_group("director")
 	if director == null:
 		return
-	for i in int(e.def.param("summon_count", 2)):
+	for i in mini(int(e.def.param("summon_count", 2)), summons_left()):
+		_raised_total += 1
 		var angle: float = randf() * TAU
 		var offset: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * randf_range(1.8, 3.0)
 		var spot: Vector3 = e.global_position + offset
 		var zombie: Enemy = director.spawn_enemy(spot, "zombie", e.level_scale)
+		zombie.xp_eligible = false   # renewable: a priest can make these forever, so they pay nothing
 		zombie.stun_time = 0.9   # clawing its way out of the ground
 		zombie._aggro = true
 		var tween: Tween = zombie.create_tween()

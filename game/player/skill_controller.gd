@@ -36,6 +36,9 @@ var combo_timer: float = 0.0
 var busy_time: float = 0.8
 var blade_blood: float = 0.0    # 0..1 how bloody the sword is; fades slowly
 var _blood_mat: ShaderMaterial
+var _brutal_aura: Node3D
+var brutal_armed: bool = false
+const BRUTAL_MULT := 15.0
 var fire_orb: FireOrb
 var _release_started: bool = false
 var aiming_id: String = ""
@@ -66,23 +69,34 @@ func handle_hotkeys(cursor: Vector3) -> void:
 		return
 	for i in hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
+		var id: String = hotbar[i]
+		if id == "":
+			continue
 		if not Input.is_action_just_pressed(action):
 			continue
-		var id: String = hotbar[i]
-		if id == "potion":
+		if id == "brutal_attack":
+			activate_brutal_attack()
+		elif id == "take_aim":
+			activate_take_aim()
+		elif id == "potion":
 			drink_potion()
-		elif busy and not p.movement.rolling and p.stun_time <= 0.0 and not bool(busy_def.get("weapon_throw", false)):
-			if not p.stats.can_use(id):
-				if p.stats.mana < float(SkillDb.all()[id]["mana"]):
-					p._say("Not enough mana")
-				else:
-					p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
-			elif _hotkey_would_start(id, cursor):
-				cancel_action()
+		else:
+			interrupt_for(id, cursor)
+
+## A skill pressed mid-action cancels it (a skill never waits behind a basic swing); the same for a numbered key and for the skill on the right mouse button.
+func interrupt_for(id: String, cursor: Vector3) -> void:
+	if busy and not p.movement.rolling and p.stun_time <= 0.0 and not bool(busy_def.get("weapon_throw", false)):
+		if not p.stats.can_use(id):
+			if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+				p._say("Not enough mana")
+			else:
+				p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
+		elif _hotkey_would_start(id, cursor):
+			cancel_action()
 
 ## Drinks a potion at once, even mid-swing or stunned (it cancels a swing that was in progress).
 func drink_potion() -> void:
-	if p.stats.use_potion() and busy and not p.movement.rolling:
+	if not p.dead and p.stats.use_potion() and not p.movement.rolling:
 		cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).
@@ -94,8 +108,10 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 
 ## Aborts the current swing, cast or charge immediately.
 func cancel_action() -> void:
+	clear_queue()
 	if not busy:
 		return
+	_refund_unreleased_cast()
 	if bool(busy_def.get("skewer", false)):
 		p.skewer.end_skewer()  # releases anyone on the blade and restores collision
 	if bool(busy_def.get("leap", false)):
@@ -107,14 +123,141 @@ func cancel_action() -> void:
 	busy = false
 	busy_hit_done = true
 	queued_skill = ""
+	queued_target = null
 	if p._trail != null:
 		p._trail.active = false
 	if p.visual != null:
 		p.visual.rotation.x = 0.0
 	p.model.loop("idle_alert")
+	busy_skill = ""
+	busy_def = {}
+	busy_target = null
+	busy_t = 0.0
+	_release_started = false
+
+## The charged cast reserves its cost at start; every abort path settles the same reservation.
+func _refund_unreleased_cast() -> void:
+	if busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
+		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
+		p.stats.cooldowns[busy_skill] = 0.0
+
+## Death/revive cleanup without changing the actor's animation or transition.
+func reset() -> void:
+	_refund_unreleased_cast()
+	clear_aim()
+	if p.skewer.skewer_phase != 0:
+		p.skewer.end_skewer(false)
+	if p.leap.leap_phase != 0:
+		p.leap.end_leap(false)
+	if p.earthshatter.phase != 0:
+		p.earthshatter.end(false)
+	if p.model != null:
+		p.model.weapon_aim = null
+		p.model.leg_raise = 0.0
+	if p._trail != null:
+		p._trail.active = false
+	if _glow_light != null:
+		_glow_light.light_energy = 0.0
+	busy = false
+	busy_skill = ""
+	busy_def = {}
+	busy_target = null
+	busy_t = 0.0
+	busy_hit_done = false
+	_release_started = false
+	queued_skill = ""
+	queued_target = null
+	aim_blocked = ""
+	swallow_alt = false
+	combo_step = 0
+	combo_timer = 0.0
+	brutal_armed = false
+	_clear_brutal_visual()
+
+func activate_brutal_attack() -> void:
+	if brutal_armed:
+		p._say("Brutal Attack is armed")
+		return
+	if not p.stats.can_use("brutal_attack"):
+		p._say("Brutal Attack is %d%% charged" % int(p.stats.ult_fraction("brutal_attack") * 100.0))
+		return
+	if not weapon_ready("brutal_attack"):
+		return
+	brutal_armed = true
+	_ensure_brutal_visual()
+
+func activate_take_aim() -> void:
+	var cutter: ArcherCompanion = p.stats._cutter()
+	if cutter == null or cutter.dead:
+		p._say("Cutter is not here")
+		return
+	if cutter.take_aim_armed:
+		p._say("Take Aim is armed")
+		return
+	if not p.stats.can_use("take_aim"):
+		p._say("Take Aim is %d%% charged" % int(p.stats.ult_fraction("take_aim") * 100.0))
+		return
+	cutter.arm_take_aim()
+
+func _ensure_brutal_visual() -> void:
+	if p == null:
+		return
+	if _brutal_aura != null and is_instance_valid(_brutal_aura):
+		return
+	_brutal_aura = Node3D.new()
+	_brutal_aura.name = "BrutalAttackAura"
+	p.add_child(_brutal_aura)
+	# DS2's read is a restrained, body-hugging heat haze rather than a fire cloud.
+	# Small emitters sit just outside the silhouette so the weapon remains visually untouched.
+	for point in [
+		Vector3(-0.50, 1.48, 0.0), Vector3(0.50, 1.48, 0.0),
+		Vector3(-0.39, 1.05, 0.0), Vector3(0.39, 1.05, 0.0),
+		Vector3(-0.25, 0.48, 0.0), Vector3(0.25, 0.48, 0.0),
+		Vector3(0.0, 1.76, 0.0),
+	]:
+		_add_brutal_wisp_emitter(point)
+
+func _add_brutal_wisp_emitter(at: Vector3) -> void:
+	var embers := CPUParticles3D.new()
+	embers.amount = 3
+	embers.lifetime = 1.35
+	embers.randomness = 0.85
+	embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	embers.emission_box_extents = Vector3(0.08, 0.10, 0.07)
+	embers.position = at
+	embers.direction = Vector3.UP
+	embers.spread = 18.0
+	embers.initial_velocity_min = 0.12
+	embers.initial_velocity_max = 0.30
+	embers.gravity = Vector3(0.0, 0.05, 0.0)
+	embers.scale_amount_min = 0.40
+	embers.scale_amount_max = 0.72
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.12, 0.42)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	material.vertex_color_use_as_albedo = true
+	material.albedo_texture = Fx.soft_texture()
+	quad.material = material
+	embers.mesh = quad
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.72, 0.24, 0.045, 0.0))
+	ramp.add_point(0.24, Color(0.82, 0.30, 0.06, 0.34))
+	ramp.add_point(0.68, Color(0.34, 0.16, 0.08, 0.15))
+	ramp.set_color(1, Color(0.18, 0.08, 0.04, 0.0))
+	embers.color_ramp = ramp
+	_brutal_aura.add_child(embers)
+
+func _clear_brutal_visual() -> void:
+	if _brutal_aura != null and is_instance_valid(_brutal_aura):
+		_brutal_aura.queue_free()
+	_brutal_aura = null
 
 ## Skills that need the sword in his hand: with it thrown (or being thrown) none of them can start, and he is told why.
-const SWORD_SKILLS: Array[String] = ["basic", "power", "skewer", "leap", "earthshatter"]
+const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "power", "skewer", "leap", "earthshatter"]
 
 func weapon_ready(id: String) -> bool:
 	if not (id in SWORD_SKILLS) or p.weapon_throw.has_weapon():
@@ -137,6 +280,7 @@ func _handle_throw_key(action: String, cursor: Vector3) -> void:
 		if not Input.is_action_just_pressed(action):
 			return   # (a key still held from before is not a new wind-up)
 		if throw.can_begin():
+			clear_queue()
 			aiming_id = WeaponThrowSkill.SKILL_ID
 			aiming_action = action
 			throw.begin_charge()
@@ -151,6 +295,8 @@ func _handle_throw_key(action: String, cursor: Vector3) -> void:
 
 ## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
 func try_directional(id: String, cursor: Vector3) -> void:
+	if busy or p.dead:
+		return
 	if not weapon_ready(id):
 		return
 	if not p.stats.can_use(id):
@@ -160,12 +306,15 @@ func try_directional(id: String, cursor: Vector3) -> void:
 			p._say("Not enough mana")
 		return
 	if bool(SkillDb.all()[id].get("earthshatter", false)):
+		clear_queue()
 		p.earthshatter.start(cursor)
 	elif bool(SkillDb.all()[id].get("leap", false)):
+		clear_queue()
 		p.leap.start_leap(cursor)
 	elif id == "power":
 		start_skill("power", null, cursor)   # no target is picked for the hero: the blow goes where the cursor points (see _power_target)
 	else:
+		clear_queue()
 		p.skewer.start_skewer(cursor)
 
 ## Right-click or dodge backs out of a Fireball. While aiming nothing has been spent; during the wind-up the mana and cooldown come
@@ -182,8 +331,6 @@ func check_cancel() -> void:
 			swallow_alt = true
 		p._say("Cancelled")
 	elif busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
-		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
-		p.stats.cooldowns[busy_skill] = 0.0
 		cancel_action()
 		if alt:
 			swallow_alt = true
@@ -218,6 +365,7 @@ func _release_aim(cursor: Vector3) -> void:
 		return
 	clear_aim(true)
 	if bool(SkillDb.all()[id].get("skewer", false)):
+		clear_queue()
 		p.skewer.start_skewer(point)   # (its own charge, not a timed skill)
 		return
 	start_skill(id, null, point)
@@ -405,7 +553,13 @@ func _ensure_aim_nodes() -> void:
 	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.add_child(_aim_line)
 
+func clear_queue() -> void:
+	queued_skill = ""
+	queued_target = null
+
 func queue_skill(id: String, cursor: Vector3) -> void:
+	if p.dead:
+		return
 	if not weapon_ready(id):
 		return
 	var target: Actor = p.enemy_near(cursor, 12.0)
@@ -416,9 +570,14 @@ func queue_skill(id: String, cursor: Vector3) -> void:
 	p.movement.has_goal = false
 
 func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
+	if busy or p.dead or not p.stats.can_use(id):
+		return
+	if aim == null and not is_instance_valid(target):
+		return
 	if not weapon_ready(id):
 		return
 	var skill: Dictionary = SkillDb.all()[id]
+	clear_queue()   # an accepted immediate action replaces any pending order
 	if id == "basic":
 		skill = _next_basic()
 	busy_def = skill
@@ -428,7 +587,8 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	else:
 		p.stats.mana -= float(skill["mana"])
 		p.stats.cooldowns[id] = float(skill["cd"])
-	ItemEffects.on_skill_start(p, id)
+	if not bool(skill.get("charged", false)):
+		ItemEffects.on_skill_start(p, id)
 	busy = true
 	busy_skill = id
 	busy_target = target
@@ -438,8 +598,6 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	p.combat_timer = 5.0
 	p.movement.has_goal = false
 	p.face(busy_aim)
-	if id == queued_skill:
-		queued_skill = ""
 	# A click attacks once; the hero only keeps swinging while the attack button is held. Any other skill
 	# replaces the attack order, so the hero never starts auto-attacking again once the skill ends.
 	if id != "basic" or not (Input.is_action_pressed("click") or Input.is_action_pressed("alt_skill")):
@@ -524,6 +682,14 @@ func _make_haste_fx() -> CPUParticles3D:
 
 ## Picks the next swing of the combo and returns it merged over the basic attack stats.
 func _next_basic() -> Dictionary:
+	# An armed Brutal Attack is its own compact overhead blow, not a tinted frame of the basic combo.
+	# It still travels through the basic-hit path so a miss/block preserves the stored power.
+	if brutal_armed:
+		var brutal_skill: Dictionary = SkillDb.all()["basic"].duplicate(true)
+		brutal_skill.merge(SkillDb.all()["brutal_attack"]["attack_animation"], true)
+		combo_step = 0
+		combo_timer = 0.0
+		return brutal_skill
 	var variants: Array = SkillDb.basic_combo()[combo_step]
 	var skill: Dictionary = SkillDb.all()["basic"].duplicate()
 	skill.merge(variants[randi() % variants.size()], true)
@@ -537,6 +703,8 @@ func _next_basic() -> Dictionary:
 	return skill
 
 func tick_busy(delta: float) -> void:
+	if not busy or p.dead:
+		return
 	var skill: Dictionary = busy_def
 	if bool(skill.get("weapon_throw", false)):
 		p.weapon_throw.tick_busy(delta)   # the throw's release and the catch are timed by the throw itself
@@ -554,7 +722,7 @@ func tick_busy(delta: float) -> void:
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
 		return
-	if busy_target != null and not busy_target.dead:
+	if is_instance_valid(busy_target) and not busy_target.dead:
 		busy_aim = busy_target.global_position
 	var duration: float = busy_time
 	var hit_at: float = duration * hit_fraction(skill)
@@ -570,7 +738,8 @@ func tick_busy(delta: float) -> void:
 	if busy_skill == "power":
 		_blade_glow(u, hf)
 	if p._trail != null:
-		p._trail.active = String(skill["kind"]) == "melee" and busy_skill != "basic" and u > hf - 0.35 and u < hf + 0.22
+		var show_heavy_trail: bool = busy_skill != "basic" or bool(skill.get("brutal_animation", false))
+		p._trail.active = String(skill["kind"]) == "melee" and show_heavy_trail and u > hf - 0.35 and u < hf + 0.22
 	if String(skill["kind"]) == "melee":
 		# Coil back while gathering the swing, then throw the weight forward through the strike.
 		var heft: float = clampf(float(skill["weight"]), 0.8, 1.7)
@@ -607,6 +776,7 @@ func _tick_charged(skill: Dictionary) -> void:
 		p.visual.rotation.x = 0.22 * (1.0 - clampf((busy_t - t_throw) / 0.3, 0.0, 1.0))
 		if not busy_hit_done and busy_t >= t_throw:
 			busy_hit_done = true
+			ItemEffects.on_skill_start(p, busy_skill)
 			_apply_skill(skill)
 			Fx.shake(p, 0.12)
 			Fx.punch(p, 2.4)
@@ -630,7 +800,7 @@ func _strike_fx(skill: Dictionary) -> void:
 	Fx.burst(p, p.global_position + dir * 0.5 + Vector3(0, 0.05, 0), Vector3.UP * 0.6, Color(0.5, 0.45, 0.38), int(4 + 3 * weight), 1.4 + 0.5 * weight, 0.05)
 	Fx.burst(p, p.global_position + dir * 1.3 + Vector3(0, 0.05, 0), dir + Vector3.UP * 0.4, Color(0.5, 0.45, 0.38),
 		int(5 + 6 * weight), 2.2 + weight, 0.04)
-	if weight >= 1.5:
+	if weight >= 1.5 and not bool(skill.get("brutal_animation", false)):
 		Fx.ring(p, p.global_position + dir * 1.2, 1.7, Color(0.9, 0.85, 0.7))
 
 ## Steps toward the target, but never into it: the lunge only closes the gap that actually exists.
@@ -764,11 +934,20 @@ func _apply_skill(skill: Dictionary) -> void:
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
 				var guaranteed_crit: bool = ItemEffects.guaranteed_crit(p, busy_target)
-				var damage: float = p.stats.weapon_damage(mult) * ItemEffects.outgoing_multiplier(p, busy_target)
+				var brutal: bool = busy_skill == "basic" and brutal_armed
+				var damage: float = p.stats.weapon_damage(mult * (BRUTAL_MULT if brutal else 1.0)) * ItemEffects.outgoing_multiplier(p, busy_target)
 				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL,
 					not guaranteed_crit, weight, guaranteed_crit)
-				result["skill_id"] = busy_skill
+				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)
+				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
+					var brutal_dir: Vector3 = busy_target.global_position - p.global_position
+					brutal_dir.y = 0.0
+					SkillFx.brutal_impact(p, busy_target.global_position, brutal_dir)
+				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
+					brutal_armed = false
+					p.stats.spend_brutal_attack()
+					_clear_brutal_visual()
 				busy_target.receive(result, p.global_position)
 				if busy_skill == "basic" and bool(skill.get("finisher", false)) and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 					_stun_finisher_hit(busy_target)
@@ -900,6 +1079,10 @@ func twin_destination(first_point: Vector3) -> Vector3:
 
 ## The sword stays red while it is bloody and slowly dries.
 func update_blade_blood(delta: float) -> void:
+	if brutal_armed:
+		blade_blood = maxf(blade_blood - delta * 0.04, 0.0)
+		_ensure_brutal_visual()
+		return
 	if p.model == null or p.model.weapon == null:
 		return
 	blade_blood = maxf(blade_blood - delta * 0.04, 0.0)

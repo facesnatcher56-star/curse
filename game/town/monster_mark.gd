@@ -1,7 +1,8 @@
 class_name MonsterMark
 extends RefCounted
 ## What shows a named monster out on the road: the ember diamond over its head (red for a nemesis), its name and title in small letters
-## above it, and for a nemesis a low red glow around its feet. It also grows with its level (see `apply`).
+## above it, and for a nemesis a low red glow around its feet. It also makes the body bigger as the monster grows (`apply_look`). Looks only:
+## a named monster's strength is its threat (`Enemy.set_threat`, set where it is spawned), and nothing here may touch a combat statistic.
 
 const GROW_PER_LEVEL := 0.05
 
@@ -44,19 +45,11 @@ static func attach(enemy: Enemy, mon: Dictionary) -> void:
 		var flicker := FlickerLight.new()
 		glow.add_child(flicker)
 
-## Sets a named monster's strength from its level: tougher, harder-hitting and bigger the more it has grown. Measured from the body it
-## was born with (kept in meta), so it can be redone every day without compounding.
-static func apply(enemy: Enemy, mon: Dictionary) -> void:
-	if not enemy.has_meta("base_health"):
-		enemy.set_meta("base_health", enemy.max_health)
-		enemy.set_meta("base_damage", Vector2(enemy.damage_min, enemy.damage_max))
+## Makes the body bigger the more the monster has grown. Measured from the size it was born with (kept in meta), so it can be redone
+## every day without compounding. Size only.
+static func apply_look(enemy: Enemy, mon: Dictionary) -> void:
+	if not enemy.has_meta("base_scale"):
 		enemy.set_meta("base_scale", enemy.visual.scale if enemy.visual != null else Vector3.ONE)
 	var grown: float = float(mon["level"]) - 1.0
-	var fraction: float = enemy.health / maxf(enemy.max_health, 1.0)
-	enemy.max_health = float(enemy.get_meta("base_health")) * (1.0 + 0.55 * grown)
-	enemy.health = enemy.max_health * fraction
-	var base_damage: Vector2 = enemy.get_meta("base_damage")
-	enemy.damage_min = base_damage.x * (1.0 + 0.15 * grown)
-	enemy.damage_max = base_damage.y * (1.0 + 0.15 * grown)
 	if enemy.visual != null:
 		enemy.visual.scale = (enemy.get_meta("base_scale") as Vector3) * minf(1.15 + GROW_PER_LEVEL * grown, 1.7)

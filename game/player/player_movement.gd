@@ -48,7 +48,7 @@ func update_locomotion_anim() -> void:
 ## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
 func _travel_speed(delta: float) -> float:
 	var speed: float = p.stats.run_speed * p.weapon_throw.move_factor()   # winding up a throw, he is slow, then planted
-	if p.combat_timer > 0.0:
+	if PlayerStats.STAMINA_ON and p.combat_timer > 0.0:
 		if p.stats.stamina <= 0.0:
 			speed = p.stats.run_speed * 0.6
 		else:
@@ -120,7 +120,7 @@ func try_roll(cursor: Vector3) -> void:
 	if p.skills.busy and not p.skills.busy_hit_done and p.skills.busy_skill != "basic":
 		return  # a skill is committed to its wind-up; once the blow lands the recovery can be cancelled. An auto attack never is: a dodge always wins
 	var roll_cost: float = ROLL_STAMINA * p.stats.armor_stat("roll_cost", 1.0)
-	if p.stats.stamina < roll_cost:
+	if PlayerStats.STAMINA_ON and p.stats.stamina < roll_cost:
 		p._say("Too tired to dodge")
 		return
 	var dir: Vector3 = Vector3.ZERO
@@ -135,14 +135,15 @@ func try_roll(cursor: Vector3) -> void:
 	if dir.length() < 0.1:
 		dir = Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
 	roll_dir = dir.normalized()
-	p.stats.stamina -= roll_cost
+	if PlayerStats.STAMINA_ON:
+		p.stats.stamina -= roll_cost
 	p.stats.cooldowns["dodge"] = float(SkillDb.all()["dodge"]["cd"])
 	rolling = true
 	roll_t = 0.0
 	if p.skills.busy:
 		p.skills.cancel_action()   # the swing in progress is dropped, the weapon trail and the pose with it
 	p.skills.busy = false
-	p.skills.queued_skill = ""
+	p.skills.clear_queue()
 	p.skills.swallow_alt = Input.is_action_pressed("alt_skill")   # a right-click (or the pad's attack button) still held does not start another swing after the roll
 	p.attack_target = null
 	p.click_mode = 0

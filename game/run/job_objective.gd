@@ -31,6 +31,8 @@ static func stages(job: Dictionary) -> int:
 
 ## Whether the job is won, given the run's progress ({"stage": n}).
 static func is_complete(job: Dictionary, progress: Dictionary) -> bool:
+	if bool(progress.get("climax_cleared", false)) or bool(progress.get("forecourt_cleared", false)):
+		return true
 	match String(objective_of(job).get("type", "")):
 		CLEAR_WAVES, DESTROY_NEST:
 			return int(progress.get("stage", 0)) >= stages(job)
@@ -57,6 +59,8 @@ static func describe(job: Dictionary) -> String:
 
 ## How far along it is, for the wave banner ("" when the objective has no steps to count).
 static func progress_text(job: Dictionary, progress: Dictionary) -> String:
+	if bool(progress.get("climax_cleared", false)) or bool(progress.get("forecourt_cleared", false)):
+		return "Forecourt secured — Return to Last Hearth"
 	match String(objective_of(job).get("type", "")):
 		CLEAR_WAVES:
 			return "wave %d of %d" % [int(progress.get("stage", 0)), stages(job)]

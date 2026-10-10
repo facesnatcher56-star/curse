@@ -28,6 +28,10 @@ window/size/window_height_override=720.0
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[gui]
+
+theme/custom_font="res://assets/fonts/CrimsonPro.ttf"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

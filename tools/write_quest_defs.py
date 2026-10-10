@@ -20,50 +20,50 @@ QUESTS = {
         title="Thin the Ghouls", giver="hale", kind="kill_group", target="ghoul", count=8, days=5, weight=3.0,
         text="The ghouls are working the trees along the road and the carters will not pass. Put eight of them down.",
         thanks="Eight less. The carters will risk it again.", fail_text="The road stayed closed. Folk went hungry for it.",
-        reward={"gold": 70, "happy": {"hale": 4}}, penalty={"happy": {"hale": -4}},
+        reward={"gold": 70, "xp": 60, "happy": {"hale": 4}}, penalty={"happy": {"hale": -4}},
         links={"complete": [link("grey_alpha", 0.3)]}),
     "grey_alpha": dict(
         title="The Grey Alpha", giver="hale", kind="slay_unique", target="ghoul", unique_name="Greywhisker", unique_hp=5.0,
         unique_level=1.5, zone=[50, 140], days=6, weight=0.0,
         text="Whoever was leading them is still out there. The carters call it Greywhisker. Find it before it finds the gate.",
         thanks="Greywhisker's head on a stick. That will keep them quiet.", fail_text="Greywhisker kept hunting. The road is not safe.",
-        reward={"gold": 90, "happy": {"all": 3}}, penalty={"happy": {"all": -3}}),
+        reward={"gold": 90, "xp": 110, "happy": {"all": 3}}, penalty={"happy": {"all": -3}}),
     "spitter_cull": dict(
         title="Spit and Rot", giver="hale", kind="kill_group", target="spitter", count=6, days=5, weight=2.0, min_jobs=1,
         text="The spitters are fouling the wells along the road. Six of them dead and the water might run clean again.",
         thanks="Cleaner water by the week's end. Take this.", fail_text="The wells turned. We are boiling everything now.",
-        reward={"gold": 80, "potions": 2}, penalty={"food": -2}),
+        reward={"gold": 80, "xp": 70, "potions": 2}, penalty={"food": -2}),
     "bloater_cull": dict(
         title="Bursting at the Seams", giver="hale", kind="kill_group", target="bloater", count=4, days=6, weight=1.5, min_jobs=2,
         text="Four bloaters, they say, wandering where they should not. Kill them far from anything we would like to keep.",
         thanks="Not a window broken. Well done.", fail_text="One got close to the granary before it burst. We lost food.",
-        reward={"gold": 90, "food": 3}, penalty={"food": -3}),
+        reward={"gold": 90, "xp": 90, "food": 3}, penalty={"food": -3}),
     "brute_bounty": dict(
         title="Bounty on Gorran", giver="hale", kind="slay_unique", target="brute", unique_name="Gorran Hollow-Eye", unique_hp=3.5,
         unique_level=1.6, zone=[100, 220], days=6, weight=1.5, min_jobs=1,
         text="Gorran Hollow-Eye walked off the gallows and has been killing patrols ever since. The town will pay for his head.",
         thanks="Hollow-Eye is finished. The town sleeps better.", fail_text="Gorran took two more patrols before the week was out.",
-        reward={"gold": 120, "happy": {"hale": 6}}, penalty={"happy": {"hale": -6}},
+        reward={"gold": 120, "xp": 150, "happy": {"hale": 6}}, penalty={"happy": {"hale": -6}},
         links={"complete": [link("stolen_ledger", 0.25)]}),
     "stolen_ledger": dict(
         title="The Warden's Ledger", giver="hale", kind="fetch", target="brute", item_name="Hale's ledger", count=12, days=6, weight=0.0,
         text="Gorran had my ledger on him, the one with the grain counts. Whatever kills a brute out there, look through its pockets.",
         thanks="Every column intact. You have no idea what this saves me.", fail_text="Without the ledger I cannot prove what we are owed.",
-        reward={"gold": 70, "happy": {"hale": 8}}, penalty={"happy": {"hale": -8}},
+        reward={"gold": 70, "xp": 80, "happy": {"hale": 8}}, penalty={"happy": {"hale": -8}},
         links={"fail": [link("tainted_grain", 0.4)]}),
     # --- Posted by the healer ---------------------------------------------------------------------------------------------------
     "lost_satchel": dict(
         title="Maren's Satchel", giver="maren", kind="fetch", target="zombie", item_name="herb satchel", count=10, days=6, weight=2.0,
         text="I dropped my satchel of dried herbs on the road, and the dead are wearing it now. I need it back. I can do nothing for the sick without it.",
         thanks="My herbs. Bless you. Here, take what I can spare.", fail_text="Without the herbs I can only sit with the sick.",
-        reward={"potions": 3, "happy": {"maren": 8}}, penalty={"happy": {"maren": -6}},
+        reward={"potions": 3, "xp": 60, "happy": {"maren": 8}}, penalty={"happy": {"maren": -6}},
         links={"fail": [link("fever", 0.5)]}),
     "ashgrave": dict(
         title="Mother Ashgrave", giver="maren", kind="slay_unique", target="priest", unique_name="Mother Ashgrave", unique_hp=3.0,
         unique_level=1.7, zone=[200, 300], days=7, weight=1.2, min_jobs=2,
         text="The shrine priests answer to someone, a woman I knew once. They call her Mother Ashgrave now. End it, for her sake and ours.",
         thanks="She was not herself for a long time. Thank you.", fail_text="The shrine is louder than ever.",
-        reward={"gold": 60, "potions": 3, "happy": {"maren": 10}}, penalty={"happy": {"maren": -8}}),
+        reward={"gold": 60, "xp": 130, "potions": 3, "happy": {"maren": 10}}, penalty={"happy": {"maren": -8}}),
     # --- Matters of the town: they turn up on their own and want a decision ------------------------------------------------------
     "fever": dict(
         title="Fever in the Hearth", giver="maren", kind="matter", days=2, weight=2.0,

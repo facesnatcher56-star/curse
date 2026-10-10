@@ -7,6 +7,9 @@ extends Actor
 ## Set before adding to the tree. `variant` is the EnemyDef id.
 var variant: String = "zombie"
 var level_scale: float = 1.0
+## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
+## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
+var xp_eligible: bool = true
 
 var def: EnemyDef
 var behavior: EnemyBehavior
@@ -23,6 +26,7 @@ var ring: float = 2.8
 var _attacking: bool = false
 
 var _nav_state: Dictionary = {}
+var _flinch_seen: int = 0
 var _aggro: bool = false
 
 ## What it does before it notices anyone (see _idle_tick): "" stands still, "wander" strolls about `home` (or round `patrol`, a loop
@@ -39,6 +43,10 @@ var _idle_wait: float = 0.0
 var _patrol_index: int = 0
 var _idle_clock: float = 0.0
 var _notice_timer: float = 0.0
+const KITE_RUN := 1.8
+const KITE_REST := 2.2
+var _kite_run: float = 0.0
+var _kite_rest: float = 0.0
 var _retreat_ms: int = -100000   # when it last backed away from the hero (see back_away_from)
 ## Seconds left before it notices anything (set by the wave director; gives the hero a moment to get their bearings).
 var alert_delay: float = 0.0
@@ -49,6 +57,19 @@ var _orbit_flip: float = 2.0
 # Crowd behaviour: only a few enemies may swing at once (attack tokens); the rest circle and wait their turn.
 static var max_tokens: int = 2
 static var _token_holders: Dictionary = {}   # instance id -> [weight, expiry (ms)]
+
+## Sets how dangerous the body is (a world threat, see WorldThreat: the same scale as `level_scale`) on one that already exists: health and
+## damage follow, the share of health left stays. A named monster calls this as it grows; spawning it with its threat does the same job.
+func set_threat(threat: float) -> void:
+	threat = maxf(threat, 0.1)
+	var fraction: float = health / maxf(max_health, 1.0)
+	var old_damage: float = 1.0 + 0.4 * (level_scale - 1.0)
+	var new_damage: float = 1.0 + 0.4 * (threat - 1.0)
+	max_health *= threat / maxf(level_scale, 0.1)
+	health = max_health * fraction
+	damage_min *= new_damage / old_damage
+	damage_max *= new_damage / old_damage
+	level_scale = threat
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -89,8 +110,17 @@ func _ready() -> void:
 	behavior = EnemyBehaviors.create(def.behavior)
 	behavior.setup(self)
 
+## Launch suspends AI, so cancel its attack before the body leaves the ground.
+func ragdoll_launch(launch_velocity: Vector3, lift: float, spin: Vector3) -> void:
+	_attacking = false
+	release_token()
+	if behavior != null:
+		behavior.on_interrupted()
+	super.ragdoll_launch(launch_velocity, lift, spin)
+
 func _physics_process(delta: float) -> void:
 	var frozen: bool = _actor_tick(delta)
+	_update_telegraph(delta)
 	if is_ragdolled() or impaled:
 		return  # the ragdoll (or the skewering player) is driving this actor
 	if frozen:
@@ -100,8 +130,9 @@ func _physics_process(delta: float) -> void:
 		move_with(Vector3.ZERO)
 		return
 	if stun_time > 0.0:
-		if not _was_stunned:
+		if not _was_stunned or flinch_serial != _flinch_seen:
 			_was_stunned = true
+			_flinch_seen = flinch_serial   # a fresh blow while it is still reeling restarts the hit pose and the interruption
 			_attacking = false
 			release_token()
 			behavior.on_interrupted()
@@ -217,12 +248,23 @@ func _wander(delta: float) -> void:
 func pace() -> float:
 	return move_speed * speed_factor() * (ward_haste if ward_time > 0.0 else 1.0)
 
-## Enemies run everywhere (the run clip, played faster or slower to suit their speed); "walk" is only a fallback.
+## Slow enemies shamble with the walk clip at a readable cadence instead of playing a run in slow motion. Fast enemies (notably the
+## Ghoul leaper) still run. The cutoff lives beside the reference speeds so movement balance and animation selection cannot drift apart.
 const RUN_REF_SPEED := 4.0
 const WALK_REF_SPEED := 1.3
+const SHAMBLE_MAX_SPEED := 1.5
 
 func locomotion_clip() -> String:
+	if def != null and def.speed <= SHAMBLE_MAX_SPEED and has_clip("walk"):
+		return "walk"
 	return "run" if has_clip("run") else "walk"
+
+func locomotion_rate(speed: float, clip: String = "") -> float:
+	var chosen: String = clip if clip != "" else locomotion_clip()
+	if chosen == "walk":
+		# Short, committed shuffle steps: keep the body alive while world speed remains slow.
+		return clampf(speed / WALK_REF_SPEED, 0.78, 1.08)
+	return clampf(speed / RUN_REF_SPEED, 0.75, 1.8)
 
 ## Runs toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
 ## `clip` is the clip to play while doing it (the strolling idle uses "walk"; asking for it here, not after, keeps the model from being told two
@@ -238,9 +280,9 @@ func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: boo
 	var speed: float = pace() * speed_mult
 	move_with(dir.normalized() * speed + separation() * speed)
 	if clip != "":
-		model.loop(clip, clampf(speed / WALK_REF_SPEED, 0.6, 1.4))
+		model.loop(clip, locomotion_rate(speed, clip))
 	else:
-		model.loop(locomotion_clip(), clampf(speed / RUN_REF_SPEED, 0.6, 1.8))
+		model.loop(locomotion_clip(), locomotion_rate(speed))
 
 ## Closes in on the target.
 func advance_on_target(delta: float, dist: float) -> void:
@@ -248,6 +290,20 @@ func advance_on_target(delta: float, dist: float) -> void:
 
 ## Backs straight away from a point (keeping its face to the target) at `speed_mult` of its walking speed.
 func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
+	var dt: float = get_physics_process_delta_time()
+	# Kiting tires: after KITE_RUN seconds of running backwards it plants its feet for KITE_REST, so a melee hero can always catch a ranged monster.
+	if Time.get_ticks_msec() - _retreat_ms > 400:
+		_kite_run = 0.0   # a fresh retreat
+	if _kite_rest > 0.0:
+		_kite_rest -= dt
+		face(target.global_position, 0.25)
+		move_with(separation() * pace() * 0.5)
+		model.loop("idle_alert" if has_clip("idle_alert") else locomotion_clip(), 0.9)
+		return
+	_kite_run += dt
+	if _kite_run > KITE_RUN:
+		_kite_run = 0.0
+		_kite_rest = KITE_REST
 	_retreat_ms = Time.get_ticks_msec()
 	var away: Vector3 = global_position - point
 	away.y = 0.0
@@ -255,7 +311,7 @@ func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
 	face(target.global_position, 0.25)
 	var speed: float = pace() * speed_mult
 	move_with(away * speed + separation() * speed * 0.5)
-	model.loop(locomotion_clip(), 0.9)
+	model.loop(locomotion_clip(), locomotion_rate(speed))
 
 ## Waiting for a turn: shuffle around the target at a respectful distance instead of standing in a stack.
 func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> void:
@@ -271,7 +327,7 @@ func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> 
 	face(target.global_position, 0.25)
 	move_with(desired)
 	if desired.length() > 0.25:
-		model.loop(locomotion_clip(), 0.75)
+		model.loop(locomotion_clip(), locomotion_rate(desired.length()))
 	else:
 		model.loop("idle")
 
@@ -348,10 +404,62 @@ func has_line_to(other: Actor) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 1.0, 0), other.global_position + Vector3(0, 1.0, 0), LAYER_WORLD)
 	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
-## Red glow: the wind-up cue that tells the hero a heavy attack is coming.
-func telegraph(strength: float = 0.55) -> void:
-	_flash = maxf(_flash, strength)
-	model.set_overlay(_flash_mat)
+## Attack telegraph kinds: tint (muted, no neon), pulse rate and peak alpha of the wind-up overlay. Deliberately not red: the red,
+## fast-decaying flash is reserved for "I was just hit". Unknown kinds fall back to "windup".
+const TELEGRAPH_LOOKS := {
+	"windup": [Color(0.95, 0.55, 0.15), 9.0, 0.5],   # heavy blows and the pouncer's crouch: slow ember-orange throb
+	"spit":   [Color(0.55, 0.78, 0.2), 14.0, 0.5],   # spitter: sickly green, quicker
+	"fuse":   [Color(0.92, 0.78, 0.18), 22.0, 0.55],   # bloater: sulphur yellow, racing as the fuse burns down
+	"cast":   [Color(0.6, 0.45, 0.95), 6.0, 0.5],     # support: cold violet, slow
+}
+const TELEGRAPH_HOLD := 0.12   # the behaviours call telegraph() every frame of the wind-up; it ends this long after the last call
+var _tele_mat: StandardMaterial3D
+var _tele_hold: float = 0.0
+var _tele_t: float = 0.0
+var _tele_look: Array = []
+var _tele_strength: float = 0.0
+
+## Wind-up cue that tells the hero an attack is coming: a pulsing, kind-tinted overlay (not the red hit flash). Call each frame of
+## the wind-up; `strength` scales the peak (0.55 = full). Never changes timing or damage.
+func telegraph(strength: float = 0.55, kind: String = "windup") -> void:
+	if model == null:
+		return
+	if _tele_mat == null:
+		_tele_mat = StandardMaterial3D.new()
+		_tele_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_tele_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tele_look = TELEGRAPH_LOOKS.get(kind, TELEGRAPH_LOOKS["windup"])
+	_tele_strength = maxf(_tele_strength if _tele_hold > 0.0 else 0.0, strength)
+	_tele_hold = TELEGRAPH_HOLD
+	_update_telegraph(0.0)
+
+func is_telegraphing() -> bool:
+	return _tele_hold > 0.0
+
+func _update_telegraph(delta: float) -> void:
+	if _tele_hold <= 0.0:
+		return
+	_tele_hold -= delta
+	if _tele_hold <= 0.0 or dead:
+		_tele_hold = 0.0
+		_tele_strength = 0.0
+		_refresh_overlay()
+		return
+	_tele_t += delta
+	var pulse: float = 0.5 + 0.5 * sin(_tele_t * float(_tele_look[1]))
+	var c: Color = _tele_look[0]
+	c.a = float(_tele_look[2]) * clampf(_tele_strength / 0.55, 0.3, 1.2) * (0.5 + 0.5 * pulse)
+	_tele_mat.albedo_color = c
+	_refresh_overlay()
+
+## The hit flash wins; then the telegraph; then the highlight glow.
+func _refresh_overlay() -> void:
+	if _flash > 0.0 or model == null:
+		return
+	if _tele_hold > 0.0 and _tele_mat != null:
+		model.set_overlay(_tele_mat)
+		return
+	model.set_overlay(get_highlight_material() if highlighted else null)
 
 ## One melee blow at the target. `power` scales the damage roll, `weight` the knock-back and stagger.
 func strike_target(power: float, weight: float) -> void:

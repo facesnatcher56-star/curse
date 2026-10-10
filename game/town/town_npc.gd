@@ -173,6 +173,16 @@ func set_reward_marker(on: bool) -> void:
 func has_reward_marker() -> bool:
 	return _reward != null and _reward.visible
 
+## Cutter's ArcherCompanion owns his physical presence; the TownNpc remains as the social-simulation identity only.
+func set_world_presence(on: bool) -> void:
+	visible = on
+	if _body != null:
+		_body.collision_layer = Actor.LAYER_WORLD if on else 0
+		_body.collision_mask = Actor.LAYER_WORLD if on else 0
+	if not on:
+		_tag_wanted = false
+		_refresh_tag()
+
 ## The name tag and the speech line take turns: the name hides while they talk, so the two never overlap.
 func _refresh_tag() -> void:
 	_tag.visible = _tag_wanted and not _bark.visible
