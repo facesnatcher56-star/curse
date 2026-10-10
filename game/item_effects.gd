@@ -59,9 +59,9 @@ static func on_skill_start(player: Player, id: String) -> void:
 
 ## Every hit the player lands (melee, fireball, even kills) passes through here.
 static func on_dealt_hit(player: Player, target: Actor, result: Dictionary) -> void:
-	if result.get("secondary", false):
+	if result.get("secondary", false) or target == null:
 		return
-	var outcome: int = result["outcome"]
+	var outcome: int = result.get("outcome", Combat.Outcome.HIT)
 	if outcome == Combat.Outcome.MISS or outcome == Combat.Outcome.BLOCK:
 		return
 	if not target.dead:

@@ -76,6 +76,8 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			continue
 		if id == "brutal_attack":
 			activate_brutal_attack()
+		elif id == "take_aim":
+			activate_take_aim()
 		elif id == "potion":
 			drink_potion()
 		else:
@@ -183,6 +185,19 @@ func activate_brutal_attack() -> void:
 		return
 	brutal_armed = true
 	_ensure_brutal_visual()
+
+func activate_take_aim() -> void:
+	var cutter: ArcherCompanion = p.stats._cutter()
+	if cutter == null or cutter.dead:
+		p._say("Cutter is not here")
+		return
+	if cutter.take_aim_armed:
+		p._say("Take Aim is armed")
+		return
+	if not p.stats.can_use("take_aim"):
+		p._say("Take Aim is %d%% charged" % int(p.stats.ult_fraction("take_aim") * 100.0))
+		return
+	cutter.arm_take_aim()
 
 func _ensure_brutal_visual() -> void:
 	if p == null:

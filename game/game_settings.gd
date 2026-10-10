@@ -16,8 +16,8 @@ const RENDER_SCALE_LABELS: Array[String] = ["100% (sharpest)", "85%", "75% (stea
 const ACTIONS: Array = [
 	["click", "Move / Attack"],
 	["alt_skill", "Right-click skill"],
-	["skill_1", "Hotbar 1 (Power Strike)"],
-	["skill_2", "Hotbar 2 (Fireball)"],
+	["skill_1", "Hotbar 1 (Brutal Attack)"],
+	["skill_2", "Hotbar 2 (Take Aim)"],
 	["skill_3", "Hotbar 3 (Potion)"],
 	["skill_4", "Hotbar 4 (Skewer)"],
 	["skill_5", "Hotbar 5 (Leap)"],
@@ -60,11 +60,10 @@ static var custom_bindings: Dictionary = {}
 ## Which skill is on which key (see HotbarLayout). SkillController shares `hotbar_slots` itself, so a change here is a change there.
 static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
 static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
-const HOTBAR_LAYOUT_REV := 2
+const HOTBAR_LAYOUT_REV := 3
 
 static func reset_hotbar() -> void:
-	for i in hotbar_slots.size():
-		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
+	hotbar_slots = HotbarLayout.DEFAULT_SLOTS.duplicate()
 	hotbar_alt = HotbarLayout.DEFAULT_ALT
 
 ## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.
@@ -379,6 +378,8 @@ static func load_from_disk() -> void:
 		for i in hotbar_slots.size():
 			hotbar_slots[i] = String(saved_slots[i])
 		hotbar_alt = saved_alt
+	else:
+		reset_hotbar()
 	custom_pad_bindings.clear()
 	if config.has_section("input_pad"):
 		for action in config.get_section_keys("input_pad"):

@@ -38,6 +38,12 @@ func skill_damage_text(id: String) -> String:
 			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * p.earthshatter.MULT
 			return "Damage %d-%d, thrown %d m up" % [int(weapon_min * factor * p.earthshatter.MIN_FALLOFF), int(weapon_max * factor),
 				int(pow(p.earthshatter.LAUNCH_LIFT, 2.0) / 40.0)]
+		"buff":
+			if id == "brutal_attack":
+				var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * SkillController.BRUTAL_MULT
+				return "Empowered hit %d-%d" % [int(weapon_min * factor), int(weapon_max * factor)]
+			elif id == "take_aim":
+				return "Cutter's arrow deals ~%d" % int(ArcherCompanion.DAMAGE * ArcherCompanion.TAKE_AIM_MULT)
 		"potion":
 			return "Heals 60"
 	return ""
@@ -95,15 +101,32 @@ func spend_brutal_attack() -> void:
 	brutal_reload_required = brutal_recharge_damage()
 	brutal_reload_remaining = brutal_reload_required
 
+func _cutter() -> ArcherCompanion:
+	if p != null and p.is_inside_tree():
+		for node in p.get_tree().get_nodes_in_group("companions"):
+			if node is ArcherCompanion and is_instance_valid(node):
+				return node as ArcherCompanion
+	return null
+
 func ult_cost(id: String) -> float:
 	if id == "brutal_attack":
 		return brutal_reload_required if brutal_reload_required > 0.0 else brutal_recharge_damage()
+	if id == "take_aim":
+		var cutter := _cutter()
+		if cutter != null:
+			return cutter.take_aim_reload_required if cutter.take_aim_reload_required > 0.0 else power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
+		return power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
 	return float(SkillDb.all()[id].get("charge", 0.0))
 
 func ult_fraction(id: String) -> float:
 	var cost: float = ult_cost(id)
 	if id == "brutal_attack":
 		return 1.0 if brutal_reload_remaining <= 0.0 else clampf(1.0 - brutal_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
+	if id == "take_aim":
+		var cutter := _cutter()
+		if cutter == null:
+			return 0.0
+		return 1.0 if cutter.take_aim_reload_remaining <= 0.0 else clampf(1.0 - cutter.take_aim_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
 	return clampf(ult_charge / cost, 0.0, 1.0) if cost > 0.0 else 1.0
 
 func gain_brutal_charge(damage: float) -> void:
@@ -118,7 +141,10 @@ func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "brutal_attack":
 		return brutal_reload_remaining <= 0.0
-	if ult_charge < ult_cost(id):
+	if id == "take_aim":
+		var cutter := _cutter()
+		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0
+	if ult_cost(id) > 0.0 and ult_fraction(id) < 1.0:
 		return false
 	if id == "power" and vault_time > 0.0:
 		return true   # Vaultborn: free, and no cooldown

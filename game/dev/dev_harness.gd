@@ -200,6 +200,8 @@ func _test_hotkeys() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
+	GameSettings.hotbar_slots[2] = "potion"
+	GameSettings.hotbar_slots[3] = "skewer"
 	var dummy: Enemy = _spawn_enemy(Vector3(1.8, 0, 0))
 	dummy.aggro_range = 0.0
 	dummy.max_health = 900.0
@@ -6842,6 +6844,22 @@ func _test_hotbar() -> void:
 		if hit["action"] == "dodge":
 			dodge_rect = hit["rect"]
 	expect("the dodge slot cannot be changed", not press.call(dodge_rect.get_center()) and not hud.picker_open())
+	# Take Aim can be assigned from the bench, shows in the picker, and commands Cutter.
+	press.call((second["rect"] as Rect2).get_center())
+	var take_aim_at: Vector2 = Vector2.ZERO
+	for cell in hud.picker_cells(size_px):
+		if cell["id"] == "take_aim":
+			take_aim_at = (cell["rect"] as Rect2).get_center()
+	expect("the picker presents Take Aim as an assignable power", take_aim_at != Vector2.ZERO)
+	press.call(take_aim_at)
+	expect("Take Aim can be assigned to hotbar slot 2", skills.hotbar[1] == "take_aim" and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
+	var cutter: ArcherCompanion = game.companion
+	if cutter != null:
+		cutter.take_aim_armed = false
+		cutter.take_aim_reload_remaining = 0.0
+		expect("Take Aim is usable when Cutter is ready", player.stats.can_use("take_aim") and is_equal_approx(player.stats.ult_fraction("take_aim"), 1.0))
+		skills.activate_take_aim()
+		expect("activating Take Aim hotkey arms Cutter", cutter.take_aim_armed)
 	GameSettings.reset_hotbar()
 
 ## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage

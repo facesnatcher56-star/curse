@@ -115,11 +115,14 @@ static func xp_text() -> String:
 ## The XP strip's rectangle, in screen pixels, for the viewport size: a long thin bar along the very bottom, under the hotbar's tray, with the
 ## level badge at its left end (drawn in `_draw_strip`; the badge is outside this rectangle, to its left).
 func strip_rect(size_px: Vector2) -> Rect2:
+	if _hud != null and _hud.use_ds2_ui:
+		return Rect2()
 	var slot: float = _hud.hotbar_slot_size(size_px)
 	var count: int = (_hud.player.skills.hotbar.size() + 2) if _hud.player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
 	var left: float = (size_px.x - total) * 0.5 - 24.0
-	return Rect2(Vector2(left + 38.0, size_px.y - 31.0), Vector2(total + 48.0 - 38.0, 16.0))
+	var y_pos: float = size_px.y - 31.0
+	return Rect2(Vector2(left + 38.0, y_pos), Vector2(total + 48.0 - 38.0, 16.0))
 
 func _draw() -> void:
 	if _hud == null or _hud.player == null:
@@ -127,8 +130,22 @@ func _draw() -> void:
 	var size_px: Vector2 = get_viewport_rect().size
 	var font: Font = ThemeDB.fallback_font
 	if not _hud.player.dead:
-		_draw_strip(size_px, font)
+		if _hud.use_ds2_ui:
+			_draw_ds2_points_chip(size_px, font)
+		else:
+			_draw_strip(size_px, font)
 	_draw_toast(size_px, font)
+
+func _draw_ds2_points_chip(size_px: Vector2, font: Font) -> void:
+	var waiting: String = points_available_text()
+	if waiting == "":
+		return
+	var pulse: float = 0.72 + 0.28 * sin(_clock * 2.4)
+	var chip: Rect2 = chip_rect(size_px)
+	var hovered: bool = chip.grow(4.0).has_point(get_viewport().get_mouse_position())
+	UiTheme.draw_panel(self, chip, 0.95 if hovered else 0.8, false)
+	draw_circle(chip.position + Vector2(10.0, 10.0), 2.6, Color(UiTheme.EMBER.r, UiTheme.EMBER.g, UiTheme.EMBER.b, 1.0 if hovered else pulse))
+	UiTheme.text(self, font, chip.position + Vector2(18.0, 15.0), waiting, 14, Color(UiTheme.EMBER.lightened(0.55 if hovered else 0.3), 1.0 if hovered else pulse))
 
 func _draw_strip(size_px: Vector2, font: Font) -> void:
 	var rect: Rect2 = strip_rect(size_px)
@@ -168,7 +185,8 @@ func chip_rect(size_px: Vector2) -> Rect2:
 		return Rect2()
 	var tray: Rect2 = _hud.hotbar_rect(size_px)
 	var width: float = ThemeDB.fallback_font.get_string_size(waiting, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-	return Rect2(Vector2(tray.get_center().x - width * 0.5 - 12.0, tray.position.y - 24.0), Vector2(width + 24.0, 20.0))
+	var y_pos: float = tray.position.y - 26.0 if (_hud != null and _hud.use_ds2_ui) else tray.position.y - 24.0
+	return Rect2(Vector2(tray.get_center().x - width * 0.5 - 12.0, y_pos), Vector2(width + 24.0, 20.0))
 
 ## A left click on the chip. True when it was one (and the Progression screen has been opened).
 func click_chip(point: Vector2) -> bool:

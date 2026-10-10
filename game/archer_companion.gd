@@ -133,10 +133,8 @@ func _physics_process(delta: float) -> void:
 	if _cooldown > 0.0:
 		_cancel_draw()
 		return
-	if not take_aim_armed and take_aim_reload_remaining <= 0.0:
-		take_aim_armed = true
-		Fx.text_at(self, global_position + Vector3(0.0, 2.25, 0.0), "Take Aim", Color(1.0, 0.58, 0.18), 30)
-		SkillFx.take_aim_ready(self, global_position + Vector3(0.0, 1.35, 0.0) - visual.global_basis.z * 0.38)
+	if not take_aim_armed and take_aim_reload_remaining <= 0.0 and not _is_take_aim_assigned_to_bar():
+		arm_take_aim()
 	var draw_time: float = TAKE_AIM_DRAW_TIME if take_aim_armed else DRAW_TIME
 	_draw = minf(_draw + delta / draw_time, 1.0)
 	_draw_arrow.visible = true
@@ -204,6 +202,18 @@ func _loose() -> void:
 	_draw = 0.0
 	_draw_arrow.visible = false
 	_cooldown = SHOT_COOLDOWN + randf_range(0.0, 0.22)
+
+func arm_take_aim() -> void:
+	if take_aim_armed or dead or stun_time > 0.0:
+		return
+	take_aim_armed = true
+	Fx.text_at(self, global_position + Vector3(0.0, 2.25, 0.0), "Take Aim", Color(1.0, 0.58, 0.18), 30)
+	SkillFx.take_aim_ready(self, global_position + Vector3(0.0, 1.35, 0.0) - visual.global_basis.z * 0.38)
+
+func _is_take_aim_assigned_to_bar() -> bool:
+	if player == null or player.skills == null:
+		return false
+	return HotbarLayout.where(player.skills.hotbar, player.skills.right_click_skill, "take_aim") != HotbarLayout.NONE
 
 func spend_take_aim() -> void:
 	take_aim_armed = false

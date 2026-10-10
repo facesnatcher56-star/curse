@@ -89,9 +89,12 @@ Each worktree has its own `.agentbridge/` runtime folder, so watcher state/inbox
 
 ## Shared local tools
 
-The OWNER's development PC has Blender installed and available to every implementation lane. See `docs/AGENT_ENVIRONMENT.md`.
+The OWNER's development PC has Blender and the Godot MCP server (`ziva-godot`) installed and available to every implementation lane. See `docs/AGENT_ENVIRONMENT.md` and `docs/MCP_GODOT.md`.
 
 Claude Code, Codex, and Antigravity may use Blender when a task requires or materially benefits from 3D modeling, rigging, animation, collision/proxy geometry, asset conversion/export, or scripted Blender processing. Do not reinstall it by default; verify the local executable/version when first needed.
+
+All agents should use the Godot MCP server (`ziva-godot`) to inspect scene hierarchies, diagnose errors, validate tilemaps and physics, run scenes, and execute test scripts directly against the Godot 4.8 engine.
+
 
 
 ## Autonomous usage reserve

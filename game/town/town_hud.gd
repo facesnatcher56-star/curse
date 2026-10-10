@@ -17,6 +17,7 @@ const FEED_SECONDS := 7.0
 var _feed_age: Dictionary = {}
 var overlay_rects: Array[Rect2] = []   # rectangles actually drawn, for ground-card clearance
 var modal_source: Hud   # the combat HUD that owns the character / progression screens (see modal_open)
+var heading: Font = UiTheme.heading_font()
 
 ## Something to tell the player: it goes into the small message box low on the left (never a big banner across the screen), one line per
 ## line of `text`, and fades after a while. `seconds` only makes a message linger a little longer or shorter.
@@ -55,36 +56,57 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	overlay_rects.clear()
 	var font: Font = ThemeDB.fallback_font
-	var size_px: Vector2 = get_viewport_rect().size
-	# The name of the place, top left, in the engraved face, with what kind of ground it is beneath it.
 	var heading: Font = UiTheme.heading_font()
-	var zone: String = modal_source.zone_name() if modal_source != null else "The Last Hearth"
-	var subtitle: String = modal_source.zone_subtitle() if modal_source != null else "Safe Haven"
-	UiTheme.text(self, heading, Vector2(34, 44), zone.to_upper(), 22, UiTheme.TEXT)
-	UiTheme.text(self, font, Vector2(34, 66), subtitle, 15, UiTheme.TEXT_DIM)
-	# Resources: a quiet strip under the title, an icon and a number each (coins, bread, potions). The bread goes red when the clan is on short rations.
-	var short: bool = TownState.rationing()
-	var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
-	var ids: Array[String] = ["gold", "food", "potion"]
-	var icon_px: float = 24.0
-	var gap: float = 20.0
-	var bar_width: float = 24.0
-	for i in 3:
-		bar_width += UiTheme.stat_width(font, values[i], icon_px, 18) + (gap if i < 2 else 0.0)
-	var strip := Rect2(14, 76, bar_width, 34)
-	draw_rect(strip, Color(0, 0, 0, 0.38))
-	draw_rect(Rect2(strip.position, Vector2(strip.size.x, 1.0)), UiTheme.BRONZE.darkened(0.2))
-	overlay_rects.append(strip)
-	var x: float = 26.0
-	for i in 3:
-		var warn: bool = i == 1 and short
-		x += UiTheme.draw_stat(self, font, Vector2(x, 81.0), ids[i], values[i], icon_px, 18,
-			Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
+	var size_px: Vector2 = get_viewport_rect().size
+	var is_ds2: bool = modal_source != null and modal_source.use_ds2_ui
+	if not is_ds2:
+		# The name of the place, top left, in the engraved face, with what kind of ground it is beneath it.
+		var zone: String = modal_source.zone_name() if modal_source != null else "The Last Hearth"
+		var subtitle: String = modal_source.zone_subtitle() if modal_source != null else "Safe Haven"
+		UiTheme.text(self, UiTheme.heading_font(), Vector2(34, 44), zone.to_upper(), 22, UiTheme.TEXT)
+		UiTheme.text(self, font, Vector2(34, 66), subtitle, 15, UiTheme.TEXT_DIM)
+		# Resources: a quiet strip under the title, an icon and a number each (coins, bread, potions).
+		var short: bool = TownState.rationing()
+		var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
+		var ids: Array[String] = ["gold", "food", "potion"]
+		var icon_px: float = 24.0
+		var gap: float = 20.0
+		var bar_width: float = 24.0
+		for i in 3:
+			bar_width += UiTheme.stat_width(font, values[i], icon_px, 18) + (gap if i < 2 else 0.0)
+		var strip := Rect2(14, 76, bar_width, 34)
+		draw_rect(strip, Color(0, 0, 0, 0.38))
+		draw_rect(Rect2(strip.position, Vector2(strip.size.x, 1.0)), UiTheme.BRONZE.darkened(0.2))
+		overlay_rects.append(strip)
+		var x: float = 26.0
+		for i in 3:
+			var warn: bool = i == 1 and short
+			x += UiTheme.draw_stat(self, font, Vector2(x, 81.0), ids[i], values[i], icon_px, 18,
+				Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
+	else:
+		# In DS2 mode, party cards occupy top-left (0..172). Place town resource indicators below party cards cleanly.
+		var short: bool = TownState.rationing()
+		var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
+		var ids: Array[String] = ["gold", "food", "potion"]
+		var icon_px: float = 20.0
+		var gap: float = 16.0
+		var bar_width: float = 20.0
+		for i in 3:
+			bar_width += UiTheme.stat_width(font, values[i], icon_px, 14) + (gap if i < 2 else 0.0)
+		var strip := Rect2(8, 178, bar_width, 28)
+		draw_rect(strip, Color(0.12, 0.11, 0.10, 0.88))
+		draw_rect(strip, Color(0.38, 0.34, 0.28, 0.85), false, 1.0)
+		overlay_rects.append(strip)
+		var x: float = 16.0
+		for i in 3:
+			var warn: bool = i == 1 and short
+			x += UiTheme.draw_stat(self, font, Vector2(x, 182.0), ids[i], values[i], icon_px, 14,
+				Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
 	var modal: bool = modal_open()
-	# The tracker, a column under the map: the main quest with its progress as a line to tick, and the other matters under OPTIONAL.
+	# The tracker: anchored top-right in DS2 mode, or under top-right map in classic mode.
 	var map_rect: Rect2 = Hud.minimap_rect(size_px)
-	var tx: float = map_rect.end.x - 292.0
-	var ty: float = map_rect.end.y + 66.0
+	var tx: float = size_px.x - 300.0 if is_ds2 else (map_rect.end.x - 292.0)
+	var ty: float = 24.0 if is_ds2 else (map_rect.end.y + 66.0)
 	var tracker_top: float = ty
 	var gold: Color = Color(1.0, 0.85, 0.5)
 	if quest_line != "":
@@ -96,8 +118,8 @@ func _draw() -> void:
 				draw_texture_rect(icon, Rect2(marker - Vector2(11, 11), Vector2(22, 22)), false)
 		else:
 			draw_arc(marker, 10.0, 0.0, TAU, 28, UiTheme.EMBER.lightened(0.15), 2.0)
-			UiTheme.text(self, heading, marker + Vector2(-3.0, 6.0), "!", 15, UiTheme.EMBER.lightened(0.25))
-		UiTheme.text(self, heading, Vector2(tx + 32.0, ty + 9.0), parts[0].to_upper(), 16, gold if quest_ready else UiTheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, 260.0)
+			UiTheme.text(self, UiTheme.heading_font(), marker + Vector2(-3.0, 6.0), "!", 15, UiTheme.EMBER.lightened(0.25))
+		UiTheme.text(self, UiTheme.heading_font(), Vector2(tx + 32.0, ty + 9.0), parts[0].to_upper(), 16, gold if quest_ready else UiTheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, 260.0)
 		ty += 32.0
 		if parts.size() > 1:
 			_check_line(Vector2(tx + 8.0, ty), parts[1], quest_ready, font)
@@ -107,7 +129,7 @@ func _draw() -> void:
 		var diamond := Vector2(tx + 12.0, ty + 3.0)
 		draw_colored_polygon(PackedVector2Array([diamond + Vector2(0, -8), diamond + Vector2(8, 0), diamond + Vector2(0, 8), diamond + Vector2(-8, 0)]), UiTheme.MANA.lightened(0.45))
 		draw_colored_polygon(PackedVector2Array([diamond + Vector2(0, -4.5), diamond + Vector2(4.5, 0), diamond + Vector2(0, 4.5), diamond + Vector2(-4.5, 0)]), Color(0.03, 0.04, 0.06))
-		UiTheme.text(self, heading, Vector2(tx + 32.0, ty + 9.0), "OPTIONAL", 16, UiTheme.TEXT)
+		UiTheme.text(self, UiTheme.heading_font(), Vector2(tx + 32.0, ty + 9.0), "OPTIONAL", 16, UiTheme.TEXT)
 		ty += 30.0
 		for i in mini(side_lines.size(), 5):
 			_check_line(Vector2(tx + 8.0, ty), side_lines[i], false, font)

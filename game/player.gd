@@ -541,7 +541,7 @@ func _read_input(cursor: Vector3) -> void:
 	for i in skills.hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
 		var slot_id: String = skills.hotbar[i]
-		if slot_id == "" or slot_id == "brutal_attack":
+		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim":
 			continue
 		if SkillDb.all()[slot_id].get("directional", false):
 			if Input.is_action_just_pressed(action):
@@ -559,6 +559,12 @@ func _read_input(cursor: Vector3) -> void:
 			skills.try_directional(alt_id, cursor)
 	elif bool(alt_def.get("aimed", false)):
 		skills.handle_aimed_key("alt_skill", alt_id, cursor)
+	elif alt_id == "brutal_attack":
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			skills.activate_brutal_attack()
+	elif alt_id == "take_aim":
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			skills.activate_take_aim()
 	elif alt_id == "potion":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
 			skills.drink_potion()

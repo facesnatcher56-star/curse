@@ -28,6 +28,17 @@ var _plinths: Array[TextureRect] = []
 var mana_orb: Control
 var tray: Texture2D
 var bezel: Texture2D
+const Ds2PartyFrameClass := preload("res://game/ui/ds2_party_frame.gd")
+const Ds2TargetBannerClass := preload("res://game/ui/ds2_target_banner.gd")
+const Ds2PotionDockClass := preload("res://game/ui/ds2_potion_dock.gd")
+
+var use_ds2_ui: bool = true
+var ds2_party_frame: Control
+var ds2_target_banner: Control
+var ds2_potion_dock: Control
+var ds2_action_bezel: Texture2D
+var ds2_power_bezel: Texture2D
+var ds2_compass_ring: Texture2D
 
 func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_text = text
@@ -75,6 +86,18 @@ func _ready() -> void:
 	add_child(mana_orb)
 	tray = preload("res://assets/ui/vessels/hotbar_tray.png")
 	bezel = preload("res://assets/ui/vessels/skill_bezel.png")
+	ds2_action_bezel = preload("res://assets/ui/ds2/action_slot_bezel.png")
+	ds2_power_bezel = preload("res://assets/ui/ds2/power_bezel.png")
+	ds2_compass_ring = preload("res://assets/ui/ds2/compass_ring.png")
+
+	ds2_party_frame = Ds2PartyFrameClass.new()
+	add_child(ds2_party_frame)
+
+	ds2_target_banner = Ds2TargetBannerClass.new()
+	add_child(ds2_target_banner)
+
+	ds2_potion_dock = Ds2PotionDockClass.new()
+	add_child(ds2_potion_dock)
 
 ## The minimap is its own canvas item, redrawn 20 times a second instead of every frame: it walks every obstacle and monster in the world
 ## (hundreds), and doing that at the full frame rate was about 8 ms of every frame, the biggest cost in the plaza.
@@ -98,10 +121,21 @@ func _paint_map() -> void:
 ## always points to world north) and the name of the place under it.
 func _paint_map_frame() -> void:
 	var screen: Vector2 = get_viewport_rect().size
-	var rect: Rect2 = minimap_rect(screen)
+	var rect: Rect2 = minimap_rect(screen, use_ds2_ui)
 	var c: Vector2 = rect.get_center()
 	var radius: float = rect.size.x * 0.5
 	var f: Control = _map_frame
+	if use_ds2_ui and ds2_compass_ring != null:
+		var inner_radius: float = radius * 0.69
+		# 1. Solid circular backing disc behind the map view
+		f.draw_circle(c, inner_radius + 2.0, Color(0.10, 0.09, 0.08, 0.98))
+		# 2. Draw compass ring matching the aperture exactly
+		var ring_span: float = (inner_radius / 0.6914) * 2.0
+		var ring_rect := Rect2(c - Vector2.ONE * (ring_span * 0.5), Vector2.ONE * ring_span)
+		f.draw_texture_rect(ds2_compass_ring, ring_rect, false)
+		# 3. Zone name neatly positioned above the compass ring
+		UiTheme.text(f, UiTheme.heading_font(), Vector2(c.x - 120.0, rect.position.y - 18.0), zone_name().to_upper(), 13, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, 240.0)
+		return
 	f.draw_circle(c + Vector2(0, 5), radius + 12.0, Color(0, 0, 0, 0.45))        # the shadow it casts
 	f.draw_circle(c, radius, Color(0.105, 0.09, 0.08, 0.96))                       # what the map sits on: worn earth, not a black hole beyond the world
 	f.draw_arc(c, radius + 5.0, 0.0, TAU, 96, Color(0.055, 0.05, 0.06), 11.0)      # the iron
@@ -135,7 +169,7 @@ func zone_subtitle() -> String:
 func _paint_map_view() -> void:
 	if player == null:
 		return
-	var radius: float = _map_view.size.x * 0.5
+	var radius: float = (_map_view.size.x * 0.5 * 0.69) if use_ds2_ui else (_map_view.size.x * 0.5)
 	_map_view.draw_circle(_map_view.size * 0.5, radius, Color.WHITE)   # this item only clips the one under it to a circle (it is not shown)
 
 func _paint_map_content() -> void:
@@ -150,7 +184,7 @@ func map_view_params(size_px: Vector2) -> Dictionary:
 	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
 	var half: float = 45.0 if windowed else Arena.HALF
 	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
-	return {"windowed": windowed, "half": half, "origin": origin, "scale": minimap_rect(size_px).size.x / (half * 2.0)}
+	return {"windowed": windowed, "half": half, "origin": origin, "scale": minimap_rect(size_px, use_ds2_ui).size.x / (half * 2.0)}
 
 func _make_map_layers() -> void:
 	_map = Control.new()
@@ -186,7 +220,7 @@ func _process(delta: float) -> void:
 		if player != null:
 			map_data.ensure_built(get_tree())
 			map_data.reveal(player.global_position)
-			var view: Rect2 = minimap_rect(get_viewport_rect().size)
+			var view: Rect2 = minimap_rect(get_viewport_rect().size, use_ds2_ui)
 			_map_view.position = view.position
 			_map_view.size = view.size
 		_map.queue_redraw()
@@ -202,16 +236,36 @@ func _process(delta: float) -> void:
 			var slab_h: float = maxf(reach / 8.0, 12.0)
 			_plinths[side].size = Vector2(reach, slab_h)
 			_plinths[side].position = Vector2(0.0 if side == 0 else screen.x - reach, screen.y - slab_h - 4.0)
+			_plinths[side].visible = not use_ds2_ui
 		for side in _busts.size():
 			var span: float = hp_rect.size.x * 0.92
 			_busts[side].size = Vector2(span, span)
 			_busts[side].position = Vector2(0.0 if side == 0 else screen.x - span, screen.y - span + 6.0)
+			_busts[side].visible = not use_ds2_ui
 		health_orb.position = hp_rect.position
 		health_orb.size = hp_rect.size
 		mana_orb.position = mp_rect.position
 		mana_orb.size = mp_rect.size
+		health_orb.visible = not use_ds2_ui
+		mana_orb.visible = not use_ds2_ui
 		health_orb.update_value(player.health, player.max_health, delta, player.velocity)
 		mana_orb.update_value(player.stats.mana, player.stats.max_mana, delta, player.velocity)
+
+		if use_ds2_ui:
+			ds2_party_frame.visible = true
+			ds2_party_frame.update_frame(player)
+			var target: Actor = player.hover_target
+			if target == null:
+				target = player.attack_target
+			if target == null and player.skills != null:
+				target = player.skills.queued_target
+			ds2_target_banner.update_target(target, delta)
+			ds2_potion_dock.visible = true
+			ds2_potion_dock.update_dock(player)
+		else:
+			ds2_party_frame.visible = false
+			ds2_target_banner.visible = false
+			ds2_potion_dock.visible = false
 	banner_time = maxf(banner_time - delta, 0.0)
 	queue_redraw()
 
@@ -230,8 +284,12 @@ func _draw() -> void:
 	var slot_count: int = player.skills.hotbar.size() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
-	var y0: float = size_px.y - slot - 24 - HOTBAR_LIFT
-	draw_texture_rect(tray, Rect2(x0 - 24.0, y0 - 22.0, total + 48.0, slot + 44.0), false, METAL_WARMTH)
+	var bar_height: float = slot + 28.0
+	var y0: float = (size_px.y - bar_height + 6.0) if use_ds2_ui else (size_px.y - slot - 18.0 - HOTBAR_LIFT)
+	if use_ds2_ui:
+		_draw_ds2_runner_bar(size_px, x0, y0, total, slot, bar_height)
+	else:
+		draw_texture_rect(tray, Rect2(x0 - 24.0, y0 - 22.0, total + 48.0, slot + 44.0), false, METAL_WARMTH)
 	# (A narrow stamina bar used to sit here, just above the skill tray; stamina is off, see PlayerStats.STAMINA_ON.)
 	if PlayerStats.STAMINA_ON:
 		_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
@@ -248,16 +306,17 @@ func _draw() -> void:
 	_draw_ability_toast(size_px, font)
 
 	# Target bar, top centre: whatever the mouse is over, else what we are attacking.
-	var target: Actor = player.hover_target
-	if target == null:
-		target = player.attack_target
-	if target == null and player.skills.queued_target != null:
-		target = player.skills.queued_target
-	if target != null and not target.dead:
-		var w: float = 340.0
-		var color: Color = Color(0.55, 0.1, 0.1) if target.max_health < 150.0 else Color(0.62, 0.3, 0.08)
-		_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
-			"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
+	if not use_ds2_ui:
+		var target: Actor = player.hover_target
+		if target == null:
+			target = player.attack_target
+		if target == null and player.skills.queued_target != null:
+			target = player.skills.queued_target
+		if target != null and not target.dead:
+			var w: float = 340.0
+			var color: Color = Color(0.55, 0.1, 0.1) if target.max_health < 150.0 else Color(0.62, 0.3, 0.08)
+			_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
+				"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
 
 	# Small bars over every enemy that has been hurt (and stays hurt), and over the one the pointer is on.
 	var camera: Camera3D = get_viewport().get_camera_3d()
@@ -302,16 +361,18 @@ func _draw() -> void:
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.28), lines[0], 50, Color(1.0, 0.9, 0.7, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 		for i in range(1, lines.size()):
 			UiTheme.text(self, font, Vector2(0, size_px.y * 0.28 + 30.0 * i), lines[i], 22, Color(0.85, 0.78, 0.65, fade), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
-	var has_title: bool = objective != "" or wave > 0   # the world draws its quest elsewhere: just the kill and enemy counts here
-	var row_y: float = (50.0 if has_title else 22.0) + top_offset
-	UiTheme.draw_panel(self, Rect2(14, 14 + top_offset, 250, 62 if has_title else 38), 0.7)
-	if objective != "":
-		UiTheme.text(self, font, Vector2(28, 42 + top_offset), objective, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
-	elif wave > 0:
-		UiTheme.text(self, font, Vector2(28, 42 + top_offset), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
-	var kills_text: String = str(kills)
-	var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
-	UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
+	var has_title: bool = objective != "" or wave > 0
+	if not use_ds2_ui or has_title:
+		var panel_top: float = (212.0 if use_ds2_ui else 14.0) + top_offset
+		var row_y: float = panel_top + (36.0 if has_title else 12.0)
+		UiTheme.draw_panel(self, Rect2(14, panel_top, 250, 62 if has_title else 38), 0.7)
+		if objective != "":
+			UiTheme.text(self, font, Vector2(28, panel_top + 28.0), objective, 20, UiTheme.BRONZE_LIGHT.lightened(0.25))
+		elif wave > 0:
+			UiTheme.text(self, font, Vector2(28, panel_top + 28.0), "WAVE %d" % wave, 24, UiTheme.BRONZE_LIGHT.lightened(0.25))
+		var kills_text: String = str(kills)
+		var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
+		UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
 	_draw_item_card(size_px, font)
 	if banner_time > 0.0 and banner_text.begins_with(CryptForecourtClimax.CLEAR_BANNER_TEXT):
 		_draw_forecourt_banner(size_px, font)
@@ -364,7 +425,7 @@ func ranged_warnings(camera: Camera3D, size_px: Vector2) -> Array[Dictionary]:
 ## Permanent HUD controls the offscreen chevron must not sit on: hotbar tray, both vessels, minimap.
 func ranged_warn_keepouts(size_px: Vector2) -> Array[Rect2]:
 	var pad: float = 22.0   # chevron half-size plus a breath
-	return [hotbar_rect(size_px).grow(pad), orb_rect(size_px, false).grow(pad), orb_rect(size_px, true).grow(pad), minimap_rect(size_px).grow(7.0 + pad)]
+	return [hotbar_rect(size_px).grow(pad), orb_rect(size_px, false).grow(pad), orb_rect(size_px, true).grow(pad), minimap_rect(size_px, use_ds2_ui).grow(7.0 + pad)]
 
 ## Slides an edge point the shortest way out of any keep-out rect (staying on screen and out of the others), so a spitter straight behind the
 ## camera warns just above the hotbar instead of over slot 5. Only the marker's position moves; its direction still points at the enemy.
@@ -440,13 +501,15 @@ func covers(point: Vector2) -> bool:
 		return true
 	if show_gear and character_panel != null and character_panel.get_global_rect().has_point(point):
 		return true
-	if minimap_rect(size_px).grow(7).has_point(point):
+	if minimap_rect(size_px, use_ds2_ui).grow(7).has_point(point) or minimap_rect(size_px, false).grow(7).has_point(point):
 		return true
 	if progression_hud != null and progression_hud.chip_rect(size_px).grow(4.0).has_point(point):
 		return true   # the points chip is a button: a click on it must not also walk the hero
 	if progression_hud != null and progression_hud.strip_rect(size_px).grow(22.0).has_point(point):
 		return true   # the XP bar and its badge along the bottom
 	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
+		return true
+	if use_ds2_ui and point.y >= size_px.y - (hotbar_slot_size(size_px) + 28.0):
 		return true
 	return hotbar_rect(size_px).has_point(point)
 
@@ -455,6 +518,9 @@ func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
 	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
+	if use_ds2_ui:
+		var bar_height: float = slot + 28.0
+		return Rect2(Vector2((size_px.x - total) * 0.5 - 16.0, size_px.y - bar_height), Vector2(total + 32.0, bar_height))
 	return Rect2(Vector2((size_px.x - total) * 0.5 - 24, size_px.y - slot - 46 - HOTBAR_LIFT), Vector2(total + 48, slot + 44))
 
 static func orb_rect(screen: Vector2, right: bool) -> Rect2:
@@ -462,7 +528,10 @@ static func orb_rect(screen: Vector2, right: bool) -> Rect2:
 	var inset: float = diameter * 0.50   # the bust stands outside the vessel, at the screen edge
 	return Rect2(Vector2(screen.x - diameter - inset if right else inset, screen.y - diameter - 6), Vector2.ONE * diameter)
 
-static func minimap_rect(screen: Vector2) -> Rect2:
+static func minimap_rect(screen: Vector2, ds2: bool = false) -> Rect2:
+	if ds2:
+		var size_map: float = 160.0
+		return Rect2(Vector2(screen.x - size_map - 18.0, screen.y - size_map - 12.0), Vector2(size_map, size_map))
 	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
@@ -516,7 +585,7 @@ func enemy_in_sight(enemy: Actor) -> bool:
 
 ## Whole-arena minimap, upper right. It turns with the camera, so whatever is up the screen is up on the map.
 func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
-	var rect: Rect2 = minimap_rect(size_px)
+	var rect: Rect2 = minimap_rect(size_px, use_ds2_ui)
 	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
 	var params: Dictionary = map_view_params(size_px)
 	var windowed: bool = bool(params["windowed"])
@@ -756,7 +825,7 @@ func _draw_return_card_body(item: Dictionary, worn: Variant, lines: Array[String
 ## Prefer full-size typography, widening wrapped content before uniformly scaling it.
 ## No unsafe original-anchor fallback: every result is bounded and unobstructed.
 func _return_card_layout(item: Dictionary, lines: Array[String], compare: Array[Dictionary], anchor: Vector2, screen: Vector2, prompt: Rect2, font: Font, with_compare: bool) -> Dictionary:
-	var obstacles: Array[Rect2] = [prompt.grow(6.0), minimap_rect(screen).grow(7.0), orb_rect(screen, false).grow(7.0), orb_rect(screen, true).grow(7.0)]
+	var obstacles: Array[Rect2] = [prompt.grow(6.0), minimap_rect(screen, use_ds2_ui).grow(7.0), orb_rect(screen, false).grow(7.0), orb_rect(screen, true).grow(7.0)]
 	obstacles.append(Rect2(14, 14 + top_offset, 250, 62 if objective != "" or wave > 0 else 38).grow(6.0))
 	var node := get_parent()
 	while node != null:
@@ -856,6 +925,37 @@ func _drop_in_focus() -> LootDrop:
 func mouse_over_hud(point: Vector2) -> bool:
 	return covers(point)
 
+func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float, _slot: float, bar_height: float) -> void:
+	var bar_y: float = size_px.y - bar_height
+
+	# 1. Full-width dark stone runner bar across the ENTIRE bottom of the screen
+	var bar_rect := Rect2(0, bar_y, size_px.x, bar_height)
+	draw_rect(bar_rect, Color(0.11, 0.10, 0.09, 0.98))
+
+	# Top beveled edge highlight
+	draw_line(Vector2(0, bar_y), Vector2(size_px.x, bar_y), Color(0.44, 0.40, 0.32, 0.95), 2.0)
+	# Subtle inner shadow groove
+	draw_line(Vector2(0, bar_y + 2.0), Vector2(size_px.x, bar_y + 2.0), Color(0.06, 0.05, 0.04, 0.9), 1.0)
+
+	# 2. Recessed action slot bay inside the stone console
+	var bay_rect := Rect2(x0 - 12.0, bar_y + 3.0, total + 24.0, bar_height - 5.0)
+	draw_rect(bay_rect, Color(0.07, 0.06, 0.05, 0.95))
+	draw_rect(bay_rect, Color(0.28, 0.25, 0.20, 0.8), false, 1.0)
+
+	# Bronze corner studs on the bay
+	for corner in [bay_rect.position + Vector2(3, 3), Vector2(bay_rect.end.x - 3, bay_rect.position.y + 3), Vector2(bay_rect.position.x + 3, bay_rect.end.y - 3), bay_rect.end - Vector2(3, 3)]:
+		draw_circle(corner, 2.5, Color(0.05, 0.04, 0.03, 0.9))
+		draw_circle(corner, 1.8, Color(0.72, 0.58, 0.34, 0.9))
+
+	# 3. Decorative central medallion at the top lip of the runner bar
+	var mid_x: float = x0 + total * 0.5
+	var medal_pos := Vector2(mid_x, bar_y + 1.0)
+	draw_circle(medal_pos + Vector2(0, 1), 12.0, Color(0.05, 0.04, 0.03, 0.85))
+	draw_circle(medal_pos, 11.0, Color(0.14, 0.12, 0.10))
+	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
+	draw_arc(medal_pos, 7.0, 0.0, TAU, 20, Color(0.55, 0.42, 0.24, 0.8), 1.0)
+	draw_circle(medal_pos, 3.5, Color(0.88, 0.70, 0.40, 0.95))
+
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)
 
@@ -868,7 +968,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 		draw_rect(rect, Color(0.3, 0.28, 0.28, 0.8), false, 2.0)
 		draw_texture_rect(bezel, rect.grow(3.0), false, Color(0.42, 0.38, 0.36))
-		UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, size_px + 17.0), GameSettings.short_binding_text(action), 13,
+		UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), GameSettings.short_binding_text(action), 12 if use_ds2_ui else 13,
 			Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
 		return
 	var skill: Dictionary = SkillDb.all()[id]
@@ -896,7 +996,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 
 	# An ultimate has no cooldown: it fills from the bottom as damage is dealt and glows when it is ready to use.
 	var ult_cost: float = player.stats.ult_cost(id)
-	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_charge < ult_cost
+	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_fraction(id) < 1.0
 	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
 	if was_on_cooldown and remaining <= 0.0 and not ult_filling:
@@ -928,7 +1028,10 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 			border = Color(1.0, 0.8, 0.4, 1.0)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
-	draw_texture_rect(bezel, rect.grow(3.0), false, METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46))
+	var active_bezel: Texture2D = bezel
+	if use_ds2_ui:
+		active_bezel = ds2_power_bezel if ult_cost > 0.0 else ds2_action_bezel
+	draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46))
 	if recall:   # a pulsing ember edge and a small curved arrow: it comes back
 		var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
 		draw_rect(rect.grow(2.0 + 1.5 * beat), Color(0.95, 0.6, 0.25, 0.3 + 0.3 * beat), false, 2.5)
@@ -940,7 +1043,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	# Key hint (follows rebinding), potion count and mana cost.
 	var key_text: String = GameSettings.short_binding_text(action)
 	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
-	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, size_px + 17.0), key_text, 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
+	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
 	if id == "potion":
 		draw_string(font, pos + Vector2(0, size_px - 5), "x%d" % player.stats.potions, HORIZONTAL_ALIGNMENT_RIGHT, size_px - 5, 15, Color(1, 1, 1))
 	elif float(skill["mana"]) > 0.0:
@@ -1301,7 +1404,7 @@ func _input(event: InputEvent) -> void:
 ## Forecourt announcements own a measured free block, rather than the full-width combat band.
 ## Keep the existing card/prompt placement and the other banner types unchanged.
 func _forecourt_keepouts(screen: Vector2, _font: Font) -> Array[Rect2]:
-	var blocks: Array[Rect2] = [minimap_rect(screen).grow(15), orb_rect(screen, false).grow(7), orb_rect(screen, true).grow(7)]
+	var blocks: Array[Rect2] = [minimap_rect(screen, use_ds2_ui).grow(15), orb_rect(screen, false).grow(7), orb_rect(screen, true).grow(7)]
 	if progression_hud != null:
 		blocks.append(progression_hud.strip_rect(screen).grow(6.0))
 	if _ground_card_rect.has_area():
