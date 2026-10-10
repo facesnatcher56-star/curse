@@ -439,8 +439,12 @@ static func get_highlight_material() -> StandardMaterial3D:
 		highlight_material = StandardMaterial3D.new()
 		highlight_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		highlight_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		highlight_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		highlight_material.albedo_color = Color(1.0, 0.42, 0.08, 0.35)
+		# Expanded back faces form a clean silhouette outline without washing the
+		# enemy's actual materials orange. This is the DS2 hover-target read.
+		highlight_material.cull_mode = BaseMaterial3D.CULL_FRONT
+		highlight_material.grow_enabled = true
+		highlight_material.grow_amount = 0.035
+		highlight_material.albedo_color = Color(1.0, 0.34, 0.08, 0.92)
 	return highlight_material
 
 func set_highlighted(on: bool) -> void:

@@ -63,7 +63,11 @@ static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
 const HOTBAR_LAYOUT_REV := 3
 
 static func reset_hotbar() -> void:
-	hotbar_slots = HotbarLayout.DEFAULT_SLOTS.duplicate()
+	# SkillController deliberately keeps this exact Array reference. Reset its
+	# contents in place so an already-spawned hero immediately sees the defaults.
+	hotbar_slots.resize(HotbarLayout.DEFAULT_SLOTS.size())
+	for i in HotbarLayout.DEFAULT_SLOTS.size():
+		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
 	hotbar_alt = HotbarLayout.DEFAULT_ALT
 
 ## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.

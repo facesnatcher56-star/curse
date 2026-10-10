@@ -35,6 +35,9 @@ var _scan_left: float = 0.0
 var _cooldown: float = 0.25
 var _draw: float = 0.0
 var _draw_arrow: Node3D
+var _bow_holder: Node3D
+var _string_upper: MeshInstance3D
+var _string_lower: MeshInstance3D
 var _skeleton: Skeleton3D
 var _pose_bones: Dictionary = {}
 
@@ -65,12 +68,18 @@ func _ready() -> void:
 	model.anim.mixer_applied.connect(_apply_draw_pose)
 
 func _attach_gear() -> void:
-	_attach_prop(BOW_MODEL, "LeftHand", 1.58, Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.0, 0.02, 0.02))
+	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it
+	# another quarter-turn made Cutter carry and draw it like a staff.
+	_bow_holder = _attach_prop(BOW_MODEL, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02))
 	# The imported quiver is already upright along +Y. Keep it aligned with the spine and add only a slight shoulder cant.
 	var quiver_basis := Basis(Vector3.FORWARD, -0.16)
 	_attach_prop(QUIVER_MODEL, "Spine02", 0.78, quiver_basis, Vector3(-0.14, -0.08, 0.08))
 	_draw_arrow = _attach_prop(ARROW_MODEL, "RightHand", 0.92, Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.0, 0.02, 0.02))
 	_draw_arrow.visible = false
+	_string_upper = _make_bow_cord()
+	_string_lower = _make_bow_cord()
+	add_child(_string_upper)
+	add_child(_string_lower)
 
 func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, offset: Vector3) -> Node3D:
 	var prop: Node3D = (load(path) as PackedScene).instantiate()
@@ -189,7 +198,9 @@ func _line_to(enemy: Enemy) -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 func _loose() -> void:
-	var from: Vector3 = global_position + Vector3(0, 1.35, 0) - visual.global_basis.z * 0.32
+	# The projectile leaves the nocked arrow in Cutter's actual drawing hand,
+	# not an approximate point in the middle of his chest.
+	var from: Vector3 = _draw_arrow.to_global(Vector3(0.0, 0.0, 0.46))
 	var aim: Vector3 = target.global_position + Vector3(0, target.body_height * 0.62, 0)
 	# A small physical lead keeps the arrow honest against moving enemies without homing after release.
 	aim += target.velocity * clampf(from.distance_to(aim) / CompanionArrow.SPEED, 0.0, 0.45)
@@ -201,6 +212,7 @@ func _loose() -> void:
 	shots_fired += 1
 	_draw = 0.0
 	_draw_arrow.visible = false
+	_set_bow_string_visible(false)
 	_cooldown = SHOT_COOLDOWN + randf_range(0.0, 0.22)
 
 func arm_take_aim() -> void:
@@ -209,6 +221,17 @@ func arm_take_aim() -> void:
 	take_aim_armed = true
 	Fx.text_at(self, global_position + Vector3(0.0, 2.25, 0.0), "Take Aim", Color(1.0, 0.58, 0.18), 30)
 	SkillFx.take_aim_ready(self, global_position + Vector3(0.0, 1.35, 0.0) - visual.global_basis.z * 0.38)
+
+## A party power interrupts Cutter's ordinary shot job immediately. If he just
+## fired, it also bypasses that ordinary-shot recovery; the power never queues.
+func activate_take_aim_now() -> void:
+	if dead or stun_time > 0.0 or take_aim_armed:
+		return
+	_cancel_draw(true)
+	_cooldown = 0.0
+	if not _valid_target(target):
+		target = _random_threat()
+	arm_take_aim()
 
 func _is_take_aim_assigned_to_bar() -> bool:
 	if player == null or player.skills == null:
@@ -223,10 +246,59 @@ func spend_take_aim() -> void:
 func gain_take_aim_charge(damage: float) -> void:
 	take_aim_reload_remaining = maxf(take_aim_reload_remaining - maxf(damage, 0.0), 0.0)
 
-func _cancel_draw() -> void:
-	_draw = move_toward(_draw, 0.0, 0.18)
+func _cancel_draw(immediate: bool = false) -> void:
+	_draw = 0.0 if immediate else move_toward(_draw, 0.0, 0.18)
 	if _draw <= 0.02 and _draw_arrow != null:
 		_draw_arrow.visible = false
+		_set_bow_string_visible(false)
+
+func _make_bow_cord() -> MeshInstance3D:
+	var cord := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.006
+	mesh.bottom_radius = 0.006
+	mesh.height = 1.0
+	mesh.radial_segments = 6
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.22, 0.16, 0.09)
+	mesh.material = mat
+	cord.mesh = mesh
+	cord.top_level = true
+	cord.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cord.visible = false
+	return cord
+
+func _set_cord(cord: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var delta: Vector3 = b - a
+	var length: float = delta.length()
+	if length <= 0.001:
+		cord.visible = false
+		return
+	var y_axis: Vector3 = delta / length
+	var x_axis: Vector3 = y_axis.cross(Vector3.FORWARD)
+	if x_axis.length_squared() < 0.001:
+		x_axis = y_axis.cross(Vector3.RIGHT)
+	x_axis = x_axis.normalized()
+	var z_axis: Vector3 = x_axis.cross(y_axis).normalized()
+	cord.global_transform = Transform3D(Basis(x_axis, y_axis, z_axis).scaled(Vector3(1.0, length, 1.0)), (a + b) * 0.5)
+	cord.visible = true
+
+func _update_bow_string() -> void:
+	if _bow_holder == null or _draw_arrow == null or _draw <= 0.01:
+		_set_bow_string_visible(false)
+		return
+	var upper: Vector3 = _bow_holder.to_global(Vector3(0.0, 0.78, 0.0))
+	var lower: Vector3 = _bow_holder.to_global(Vector3(0.0, -0.78, 0.0))
+	var nock: Vector3 = _draw_arrow.to_global(Vector3(0.0, 0.0, -0.46))
+	_set_cord(_string_upper, upper, nock)
+	_set_cord(_string_lower, nock, lower)
+
+func _set_bow_string_visible(on: bool) -> void:
+	if _string_upper != null:
+		_string_upper.visible = on
+	if _string_lower != null:
+		_string_lower.visible = on
 
 func _apply_draw_pose() -> void:
 	if _skeleton == null or _draw <= 0.01:
@@ -239,6 +311,27 @@ func _apply_draw_pose() -> void:
 	# Bow arm straight toward the shot; string hand pulls back beside the jaw. Iterating each chain twice settles the elbow cleanly.
 	_aim_chain(["LeftArm", "LeftForeArm"], "LeftHand", chest + forward * 0.58 - side * 0.12, weight)
 	_aim_chain(["RightArm", "RightForeArm"], "RightHand", chest - forward * 0.02 + side * 0.34, weight)
+	_present_draw_props(chest, forward, side)
+	_update_bow_string()
+
+## The recruit rig has no authored bow clip, and its idle hand transforms do not
+## carry props in an archery pose. During the draw, place the equipment from the
+## same three physical points an archer uses: bow hand, string hand, arrow tip.
+func _present_draw_props(chest: Vector3, forward: Vector3, side: Vector3) -> void:
+	if _bow_holder == null or _draw_arrow == null:
+		return
+	var bow_scale: float = maxf(_bow_holder.global_basis.get_scale().x, 0.001)
+	var arrow_scale: float = maxf(_draw_arrow.global_basis.get_scale().x, 0.001)
+	var bow_centre: Vector3 = chest + forward * 0.62 - side * 0.10
+	var nock: Vector3 = chest + Vector3.UP * 0.13 + side * 0.31 + forward * 0.02
+	var arrow_dir: Vector3 = (bow_centre + forward * 0.38 - nock).normalized()
+	var bow_x: Vector3 = side
+	var bow_y: Vector3 = Vector3.UP
+	var bow_z: Vector3 = bow_x.cross(bow_y).normalized()
+	_bow_holder.global_transform = Transform3D(Basis(bow_x, bow_y, bow_z).scaled(Vector3.ONE * bow_scale), bow_centre)
+	var arrow_x: Vector3 = Vector3.UP.cross(arrow_dir).normalized()
+	var arrow_y: Vector3 = arrow_dir.cross(arrow_x).normalized()
+	_draw_arrow.global_transform = Transform3D(Basis(arrow_x, arrow_y, arrow_dir).scaled(Vector3.ONE * arrow_scale), nock + arrow_dir * 0.46)
 
 func _aim_chain(chain: Array[String], hand_name: String, target_world: Vector3, weight: float) -> void:
 	var hand: int = int(_pose_bones.get(hand_name, -1))

@@ -183,8 +183,18 @@ func activate_brutal_attack() -> void:
 		return
 	if not weapon_ready("brutal_attack"):
 		return
+	# DS2 powers take priority over the ordinary attack job. Preserve the target
+	# before cancelling so the powered blow begins now, never behind the queue.
+	var immediate_target: Actor = busy_target if is_instance_valid(busy_target) else p.attack_target
+	if not is_instance_valid(immediate_target):
+		immediate_target = p.hover_target
+	if busy:
+		cancel_action()
 	brutal_armed = true
 	_ensure_brutal_visual()
+	if is_instance_valid(immediate_target) and not immediate_target.dead:
+		p.movement.has_goal = false
+		start_skill("basic", immediate_target)
 
 func activate_take_aim() -> void:
 	var cutter: ArcherCompanion = p.stats._cutter()
@@ -197,7 +207,7 @@ func activate_take_aim() -> void:
 	if not p.stats.can_use("take_aim"):
 		p._say("Take Aim is %d%% charged" % int(p.stats.ult_fraction("take_aim") * 100.0))
 		return
-	cutter.arm_take_aim()
+	cutter.activate_take_aim_now()
 
 func _ensure_brutal_visual() -> void:
 	if p == null:

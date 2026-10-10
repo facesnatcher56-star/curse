@@ -1538,6 +1538,8 @@ func _archer_shot() -> void:
 	player.visible = false   # leave the frame to Cutter; enemies still hunt this idle target
 	player.max_health = 5000.0
 	player.health = player.max_health
+	rig.target = game.companion
+	rig.set_zoom_now(CameraRig.ZOOM_MIN)
 	game.companion.testing_disabled = false
 	game.companion.global_position = Vector3(0.0, 0.0, -1.0)
 	for pos in [Vector3(-4.0, 0, -10.0), Vector3(0.0, 0, -12.0), Vector3(4.0, 0, -10.5)]:
@@ -3127,7 +3129,9 @@ func _test_pad_targeting() -> void:
 	Gamepad.active = false
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("the glow is removed when the mouse takes over", not behind.highlighted and not ahead.highlighted)
+	expect("mouse hover keeps DS2's target silhouette instead of removing the controller glow",
+		(player.hover_target == behind and behind.highlighted and not ahead.highlighted)
+		or (player.hover_target == ahead and ahead.highlighted and not behind.highlighted))
 	# Leave the hero idle for whatever test comes next (no swing in progress, no target, no queued skill).
 	player.skills.cancel_action()
 	player.skills.queued_skill = ""
@@ -6587,6 +6591,12 @@ func _test_archer_companion() -> void:
 		enemy.target = player
 		enemy.wake()
 		threats.append(enemy)
+	archer.target = threats[0]
+	archer._cooldown = 0.9
+	archer._draw = 0.45
+	archer.activate_take_aim_now()
+	expect("Take Aim interrupts Cutter's normal shot and bypasses its recovery instead of queueing",
+		archer.take_aim_armed and is_zero_approx(archer._cooldown) and is_zero_approx(archer._draw) and archer.target == threats[0])
 	var saw_draw: bool = false
 	var elapsed: float = 0.0
 	while elapsed < 3.5 and archer.last_hit_target == null:
@@ -6644,13 +6654,23 @@ func _test_archer_companion() -> void:
 
 func _test_brutal_attack() -> void:
 	GameSettings.reset_hotbar()
-	expect("the default loadout contains only Brutal Attack and the basic attack",
-		GameSettings.hotbar_slots == ["brutal_attack", "", "", "", "", ""] and GameSettings.hotbar_alt == "basic")
+	expect("the default loadout contains the two party powers and the basic attack",
+		GameSettings.hotbar_slots == ["brutal_attack", "take_aim", "", "", "", ""] and GameSettings.hotbar_alt == "basic")
 	var skills: SkillController = player.skills
 	skills.cancel_action()
 	player.stats.brutal_reload_remaining = 0.0
+	var priority_target: Enemy = _spawn_enemy(player.global_position + Vector3(0.0, 0.0, -1.7))
+	priority_target.aggro_range = 0.0
+	player.attack_target = priority_target
+	skills.start_skill("basic", priority_target)
+	await get_tree().create_timer(0.08).timeout
 	skills.activate_brutal_attack()
-	expect("Brutal Attack arms and keeps an orange aura around the hero", skills.brutal_armed and skills._brutal_aura != null)
+	expect("Brutal Attack interrupts the ordinary swing and begins its powered blow immediately",
+		skills.brutal_armed and skills._brutal_aura != null and skills.busy and skills.busy_skill == "basic"
+		and bool(skills.busy_def.get("brutal_animation", false)) and skills.busy_t < 0.08)
+	skills.cancel_action()
+	priority_target.queue_free()
+	player.attack_target = null
 	skills.combo_step = 2
 	var brutal_animation: Dictionary = skills._next_basic()
 	expect("an armed Brutal Attack replaces the basic combo with its own short heavy windup",

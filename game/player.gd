@@ -446,9 +446,10 @@ func _process(_delta: float) -> void:
 
 var _glowing: Actor
 
-## With the pad the targeted enemy also glows (the ring alone is easy to lose in a crowd).
+## DS2 outlines the creature under the pointer as well as the controller target;
+## keep that silhouette cue for both input methods (the ground ring is secondary).
 func _update_focus_glow(focus: Variant) -> void:
-	var want: Actor = focus as Actor if (Gamepad.active and is_instance_valid(focus) and not (focus as Actor).dead and skills.aiming_id == "") else null
+	var want: Actor = focus as Actor if (is_instance_valid(focus) and not (focus as Actor).dead and skills.aiming_id == "") else null
 	if _glowing != null and _glowing != want and is_instance_valid(_glowing):
 		_glowing.set_highlighted(false)
 	_glowing = want

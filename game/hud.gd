@@ -973,8 +973,15 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		return
 	var skill: Dictionary = SkillDb.all()[id]
 	var icon: Texture2D = _icon(id)
+	var ult_cost: float = player.stats.ult_cost(id)
+	var active_bezel: Texture2D = bezel
+	if use_ds2_ui:
+		active_bezel = ds2_power_bezel if ult_cost > 0.0 else ds2_action_bezel
+	# The DS2-inspired artwork includes an opaque, weathered inset. It is the
+	# slot backing, so draw it before the icon instead of hiding the icon with it.
+	draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
 	if icon != null:
-		draw_texture_rect(icon, rect.grow(-3.0), false)
+		draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
 
@@ -995,7 +1002,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
 	# An ultimate has no cooldown: it fills from the bottom as damage is dealt and glows when it is ready to use.
-	var ult_cost: float = player.stats.ult_cost(id)
 	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_fraction(id) < 1.0
 	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
@@ -1028,10 +1034,9 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 			border = Color(1.0, 0.8, 0.4, 1.0)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
-	var active_bezel: Texture2D = bezel
-	if use_ds2_ui:
-		active_bezel = ds2_power_bezel if ult_cost > 0.0 else ds2_action_bezel
-	draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46))
+	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel
+	# here would cover the ability art; status is already conveyed by overlays.
+	draw_rect(rect.grow(1.0), METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46), false, 1.0)
 	if recall:   # a pulsing ember edge and a small curved arrow: it comes back
 		var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
 		draw_rect(rect.grow(2.0 + 1.5 * beat), Color(0.95, 0.6, 0.25, 0.3 + 0.3 * beat), false, 2.5)

@@ -118,14 +118,6 @@ func _setup_ui() -> void:
 	w_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_col.add_child(w_box)
 
-	_weapon_slot = TextureRect.new()
-	_weapon_slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_weapon_slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_weapon_slot.size = Vector2(20, 20)
-	_weapon_slot.position = Vector2(3, 3)
-	_weapon_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	w_box.add_child(_weapon_slot)
-
 	var w_bezel := TextureRect.new()
 	w_bezel.texture = ACTION_BEZEL_TEX
 	w_bezel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -133,6 +125,16 @@ func _setup_ui() -> void:
 	w_bezel.size = Vector2(26, 26)
 	w_bezel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	w_box.add_child(w_bezel)
+
+	# These generated bezels have a weathered inset rather than a transparent
+	# hole. Keep that inset as the backing, then place the readable icon above it.
+	_weapon_slot = TextureRect.new()
+	_weapon_slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_weapon_slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_weapon_slot.size = Vector2(18, 18)
+	_weapon_slot.position = Vector2(4, 4)
+	_weapon_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	w_box.add_child(_weapon_slot)
 
 	# Character name / title engraved in top row
 	var name_lbl := Label.new()
@@ -159,11 +161,19 @@ func _setup_ui() -> void:
 		p_cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		powers_box.add_child(p_cell)
 
+		var p_frame := TextureRect.new()
+		p_frame.texture = POWER_BEZEL_TEX
+		p_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		p_frame.stretch_mode = TextureRect.STRETCH_SCALE
+		p_frame.size = Vector2(26, 26)
+		p_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p_cell.add_child(p_frame)
+
 		var p_icon := TextureRect.new()
 		p_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		p_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		p_icon.size = Vector2(20, 20)
-		p_icon.position = Vector2(3, 3)
+		p_icon.size = Vector2(16, 16)
+		p_icon.position = Vector2(5, 5)
 		p_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p_cell.add_child(p_icon)
 		_power_icons.append(p_icon)
@@ -174,14 +184,6 @@ func _setup_ui() -> void:
 		p_sweep.draw.connect(_draw_power_sweep)
 		p_cell.add_child(p_sweep)
 		_power_sweeps.append(p_sweep)
-
-		var p_frame := TextureRect.new()
-		p_frame.texture = POWER_BEZEL_TEX
-		p_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		p_frame.stretch_mode = TextureRect.STRETCH_SCALE
-		p_frame.size = Vector2(26, 26)
-		p_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		p_cell.add_child(p_frame)
 
 	# Thin amber/yellow power recharge bar under the 4 power bezels (matching DS2)
 	var bar_bg := ColorRect.new()
