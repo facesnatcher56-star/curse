@@ -1,57 +1,64 @@
-import re
 import os
+import re
 
 path_actives = r'C:\Users\lloyd\Desktop\DS2_Reference_Extracted\Extracted\skills_decompressed\active_skills.gas'
 text = open(path_actives, 'r', encoding='latin1').read()
 
-# Parse active_skills blocks
-def get_child_blocks(text, root_name):
-    root_m = re.search(r'\[' + root_name + r'\]\s*\{', text)
-    if not root_m:
+
+def strip_comments(s):
+    s = re.sub(r'/\*[\s\S]*?\*/', '', s)
+    s = re.sub(r'//[^\n]*', '', s)
+    return s
+
+
+def get_child_blocks(raw, root):
+    m = re.search(r'\[' + root + r'\]\s*\{', raw)
+    if not m:
         return {}
-    start_brace = root_m.end() - 1
-    depth = 0
-    end_brace = -1
-    for i in range(start_brace, len(text)):
-        if text[i] == '{':
-            depth += 1
-        elif text[i] == '}':
-            depth -= 1
-            if depth == 0:
-                end_brace = i
+    start = m.end() - 1
+    d = 0
+    end = -1
+    for i in range(start, len(raw)):
+        if raw[i] == '{':
+            d += 1
+        elif raw[i] == '}':
+            d -= 1
+            if d == 0:
+                end = i
                 break
-    inner = text[start_brace+1:end_brace]
-    
+    inner = raw[start + 1 : end]
     blocks = {}
     pos = 0
     while pos < len(inner):
-        m = re.search(r'\[([a-zA-Z0-9_]+)\]\s*\{', inner[pos:])
-        if not m:
+        bm = re.search(r'\[([a-zA-Z0-9_]+)\]\s*\{', inner[pos:])
+        if not bm:
             break
-        bname = m.group(1)
-        b_start = pos + m.end() - 1
-        d = 0
-        b_end = -1
-        for j in range(b_start, len(inner)):
+        name = bm.group(1)
+        bstart = pos + bm.end() - 1
+        bd = 0
+        bend = -1
+        for j in range(bstart, len(inner)):
             if inner[j] == '{':
-                d += 1
+                bd += 1
             elif inner[j] == '}':
-                d -= 1
-                if d == 0:
-                    b_end = j
+                bd -= 1
+                if bd == 0:
+                    bend = j
                     break
-        if b_end == -1:
+        if bend == -1:
             break
-        blocks[bname] = inner[b_start+1:b_end]
-        pos = b_end + 1
+        blocks[name] = inner[bstart + 1 : bend]
+        pos = bend + 1
     return blocks
 
-a_blocks = get_child_blocks(text, 'active_skills')
+
+powers_raw = get_child_blocks(text, 'active_skills')
 
 powers = []
 
-for name, body in a_blocks.items():
+for name, body in powers_raw.items():
     sn_m = re.search(r'screen_name\s*=\s*"([^"]+)";', body)
+    sn = sn_m.group(1) if sn_m else name
     t_m = re.search(r'type\s*=\s*([a-zA-Z0-9_]+);', body)
     stances_m = re.search(r'valid_stances\s*=\s*"([^"]+)";', body)
     reload_m = re.search(r'reload_damage_formula\s*=\s*([^;]+);', body)
@@ -59,73 +66,62 @@ for name, body in a_blocks.items():
     target_m = re.search(r'target\s*=\s*([^;]+);', body)
     desc_m = re.search(r'description\s*=\s*"([^"]+)";', body)
     summary_m = re.search(r'summary\s*=\s*"([^"]+)";', body)
-    
-    # parse skill_values
+    max_lvl_m = re.search(r'max_level\s*=\s*(\d+);', body)
+    max_lvl = int(max_lvl_m.group(1)) if max_lvl_m else 1
+
+    # Clean body for skill_values
+    sv_m = re.search(
+        r'\[skill_values\]\s*\{([^{}]+(?:\{[^{}]*\}[^{}]*)*)\}', body
+    )
     skill_values = {}
-    sv_m = re.search(r'\[skill_values\]\s*\{', body)
     if sv_m:
-        sv_start = sv_m.end() - 1
-        d = 0
-        sv_end = -1
-        for j in range(sv_start, len(body)):
-            if body[j] == '{': d += 1
-            elif body[j] == '}':
-                d -= 1
-                if d == 0:
-                    sv_end = j
-                    break
-        sv_inner = body[sv_start+1:sv_end]
-        # find sub-blocks
-        for sub_m in re.finditer(r'\[([a-zA-Z0-9_]+)\]\s*\{([^}]+)\}', sv_inner):
-            sub_name = sub_m.group(1)
-            sub_body = sub_m.group(2)
+        sv_clean = strip_comments(sv_m.group(1))
+        for sub_name, sub_body in re.findall(
+            r'\[([a-zA-Z0-9_]+)\]\s*\{([^}]+)\}', sv_clean
+        ):
             levels = {}
-            for l_item in sub_body.split(';'):
-                l_item = l_item.strip()
-                if '=' in l_item:
-                    k, v = l_item.split('=', 1)
-                    levels[k.strip()] = v.strip()
+            for lk, lv in re.findall(r'(level_\d+)\s*=\s*([^;]+);', sub_body):
+                levels[lk] = ' '.join(lv.split())
             skill_values[sub_name] = levels
 
-    # parse requirements per rank
+    # Requirements per rank
     reqs = {}
-    for r_idx in range(3):
-        r_m = re.search(r'\[skill_requirements_' + str(r_idx) + r'\]\s*\{([^}]+)\}', body)
+    for r_idx in range(max_lvl):
+        r_m = re.search(
+            r'\[skill_requirements_' + str(r_idx) + r'\]\s*\{([^}]+)\}', body
+        )
         if r_m:
+            r_clean = strip_comments(r_m.group(1))
             r_dict = {}
-            for item in r_m.group(1).split(';'):
+            for item in r_clean.split(';'):
                 item = item.strip()
                 if '=' in item:
                     k, v = item.split('=', 1)
-                    k_clean = re.sub(r'//[^\n]*', '', k).strip()
-                    r_dict[k_clean] = v.strip()
-            reqs[f"Rank_{r_idx+1}"] = r_dict
+                    r_dict[k.strip()] = v.strip()
+            reqs[f'Rank_{r_idx+1}'] = r_dict
 
     powers.append({
         'id': name,
-        'screen_name': sn_m.group(1) if sn_m else name,
+        'screen_name': sn,
         'type': t_m.group(1) if t_m else 'unknown',
+        'max_level': max_lvl,
         'stances': stances_m.group(1) if stances_m else 'Any / None required',
-        'reload_formula': reload_m.group(1).strip() if reload_m else 'None',
+        'reload_formula': (
+            ' '.join(strip_comments(reload_m.group(1)).split())
+            if reload_m
+            else 'None'
+        ),
         'charge_time': charge_m.group(1).strip() if charge_m else '0',
         'target': target_m.group(1).strip() if target_m else 'None',
         'description': desc_m.group(1) if desc_m else '',
         'summary': summary_m.group(1) if summary_m else '',
         'skill_values': skill_values,
-        'requirements': reqs
+        'requirements': reqs,
     })
 
-# Group by type
-type_order = ['melee', 'ranged', 'combat', 'nature']
-for t in type_order:
-    print(f"\n==================== {t.upper()} POWERS ====================")
-    for p in powers:
-        if p['type'] == t:
-            print(f"\n--- {p['screen_name']} ({p['id']}) ---")
-            print(f"Stances: {p['stances']}")
-            print(f"Charge Time: {p['charge_time']}s | Target: {p['target']}")
-            print(f"Reload Formula: {p['reload_formula']}")
-            print(f"Requirements: {p['requirements']}")
-            print(f"Values:")
-            for vk, vv in p['skill_values'].items():
-                print(f"  {vk}: {vv}")
+if __name__ == '__main__':
+    print(f'Total powers parsed: {len(powers)}')
+    hero = [p for p in powers if p['max_level'] > 1]
+    pets = [p for p in powers if p['max_level'] == 1]
+    print(f'Hero powers: {len(hero)} (all 3 ranks)')
+    print(f'Pet powers: {len(pets)} (1 rank)')
