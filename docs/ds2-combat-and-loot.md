@@ -225,6 +225,30 @@ Attack loop duration = `reload_delay × (1 + reload bonus) + base attack-animati
 | | Ignite / Arcing | see §4; arc damage `0.18 → 1.0 × INT` |
 | | Arcane Fury | Combat and nature **power** damage +3 → +30% |
 
+### 6.1 The trees: tiers, prerequisites and the powers they open (`passive_skills.gas`, `active_skills.gas`)
+Read from the installed game's data by the owner's agent (2026-10). Tiers are the class level a passive opens at; an arrow is a
+prerequisite (one rank). Powers open on passive ranks (the first rank's needs shown).
+
+| Tree | Tier 1 (L1) | Tier 2 (L5) | Tier 3 (L12) | Tier 4 (L24) | Tier 5 (L36) |
+| --- | --- | --- | --- | --- | --- |
+| Melee | Fortitude, Critical Strike | Barricade (Fortitude), Overbear (Critical Strike), Dual Wield (Critical Strike) | Toughness (Fortitude), Alacrity (Dual Wield) | Reinforced Armor (Barricade), Smite (Overbear, Toughness), Fierce Renewal (Alacrity) | Rebuke (Reinforced Armor), Deadly Strike (Critical Strike) |
+| Ranged | Critical Shot, Dodge | Biting Arrow (Critical Shot), Quick Draw (Critical Shot), Survival | Far Shot (Biting Arrow), Bleed (Quick Draw) | Shockwave (Far Shot), Penetrate, Cunning Renewal (Bleed) | Mortal Wound (Far Shot, Penetrate), Ricochet (Bleed, Penetrate) |
+| Combat | Brilliance, Devastation | Debilitation, Searing Flames (Devastation), Amplified Lightning (Devastation) | Summon Alacrity, Grim Necromancy (Devastation) | Quickened Casting (Brilliance), Ignite (Searing Flames), Vampirism (Grim Necromancy) | Arcane Fury (Quickened Casting), Arcing (Amplified Lightning) |
+| Nature | Natural Bond, Aquatic Affinity | Summon Fortitude, Enveloping Embrace, Arctic Mastery (Aquatic Affinity) | Summon Might (Summon Fortitude), Feral Wrath (Enveloping Embrace), Nurturing Gift (Aquatic Affinity) | Arcane Renewal (Natural Bond), Freezing (Arctic Mastery) | Summon Bond (Summon Might), Absorption (Feral Wrath, Nurturing Gift) |
+
+Powers and what opens them:
+
+* **Melee**: Brutal Attack (Critical Strike 1), Provoke (Barricade 1), Staggering Blow (Overbear 1), Waves of Force (Dual Wield 1),
+  Whirling Strike (Critical Strike 6, Fortitude 8), War Cry (Critical Strike 8, Smite 1), Elemental Rage (Critical Strike 8, Fierce Renewal 2).
+* **Ranged**: Take Aim (Critical Shot 1), Thunderous Shot (Biting Arrow 1), Shrapnel Blast (Quick Draw 1), Repulse (Dodge 4, Survival 3),
+  Silence (Dodge 5, Survival 3), Flurry (Critical Shot 8, Cunning Renewal 4).
+* **Combat**: Energy Orb (Brilliance 1), Flame Nexus (Devastation 2, Searing Flames 1), Chain Lightning (Devastation 2, Amplified Lightning 1),
+  Corrosive Eruption (Debilitation 1), Harvest Soul (Devastation 6, Grim Necromancy 5), Detonation (Searing Flames 8, Ignite 1),
+  Gathered Bolt (Amplified Lightning 8, Quickened Casting 1).
+* **Nature**: Gravity Stone (Natural Bond 1), Icicle Blast (Aquatic Affinity 2), Invulnerability (Enveloping Embrace 1), Summon Provoke
+  (Summon Fortitude 3, Summon Might 1), Circle of Frost (Natural Bond 5, Arctic Mastery 8, Freezing 1), Aether Blast (Summon Might 8,
+  Arcane Renewal 1), Glacial Aura (Feral Wrath 8, Freezing 4).
+
 Skill suites bundle three skills so that gear can say "+2 to Barricade, Toughness, and Reinforced Armor" (14 suites in `skill_suites.gas`).
 
 ---

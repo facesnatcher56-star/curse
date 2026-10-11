@@ -96,9 +96,8 @@ Curse choices (labelled in code):
 
 Curse choices (labelled in `tools/write_passive_defs.py`):
 
-* **Tiers and prerequisites** follow DS2 where the reference names them (Smite needs Fortitude; Reinforced Armor Barricade and Melee 24;
-  Rebuke Barricade; Alacrity at 12). The rest are placed by Curse until the full `passive_skills.gas` table is read; Alacrity asks for
-  Critical Strike instead of DS2's Dual Wield, which Curse does not have.
+* **Tiers and prerequisites** are DS2's own (`ds2-combat-and-loot.md` 6.1), except that Alacrity asks for Critical Strike instead of DS2's
+  Dual Wield, which Curse does not have.
 * **Left out** until Curse has the mechanic: Dual Wield, the bow and crossbow passives, summons, ice, lightning, death, curses and the Nature
   Magic tree. Cunning Renewal waits for a hero ranged power.
 * **Deadly Strike** also raises the hero's thrown crits (DS2 gives bows Mortal Wound; Curse's thrown blade is his sword).

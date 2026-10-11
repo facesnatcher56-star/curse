@@ -7,7 +7,7 @@ script = ExtResource("1")
 id = "quickened_casting"
 display_name = "Quickened Casting"
 tree = "combat"
-class_level = 12
+class_level = 24
 prereqs = {
 "brilliance": 1
 }

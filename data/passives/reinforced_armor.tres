@@ -14,4 +14,4 @@ prereqs = {
 first = 4.0
 last = 35.0
 text = "Armor +%s%%"
-order = 7
+order = 6

@@ -7,10 +7,8 @@ script = ExtResource("1")
 id = "survival"
 display_name = "Survival"
 tree = "ranged"
-class_level = 12
-prereqs = {
-"dodge": 1
-}
+class_level = 5
+prereqs = {}
 first = 10.0
 last = 60.0
 text = "Fire resistance +%s%%"

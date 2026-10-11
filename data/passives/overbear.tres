@@ -8,8 +8,10 @@ id = "overbear"
 display_name = "Overbear"
 tree = "melee"
 class_level = 5
-prereqs = {}
+prereqs = {
+"critical_strike": 1
+}
 first = 8.0
 last = 50.0
 text = "Two-handed weapons; their damage +%s%%"
-order = 2
+order = 3

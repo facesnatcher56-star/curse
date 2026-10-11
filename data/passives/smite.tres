@@ -7,11 +7,12 @@ script = ExtResource("1")
 id = "smite"
 display_name = "Smite"
 tree = "melee"
-class_level = 12
+class_level = 24
 prereqs = {
-"fortitude": 1
+"overbear": 1,
+"toughness": 1
 }
 first = 5.0
 last = 50.0
 text = "Two-handed hits stun: %s%% chance"
-order = 6
+order = 7

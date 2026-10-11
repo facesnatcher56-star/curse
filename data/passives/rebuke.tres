@@ -9,7 +9,7 @@ display_name = "Rebuke"
 tree = "melee"
 class_level = 36
 prereqs = {
-"barricade": 1
+"reinforced_armor": 1
 }
 first = 0.4
 last = 2.5

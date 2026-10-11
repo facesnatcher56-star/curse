@@ -265,32 +265,35 @@ func _test_skill_tree() -> void:
 	expect("a new hero has a human's two skill points", TownState.skill_points_total() == 2 and TownState.skill_points_left() == 2)
 	TownState.dev_set_hero_level(10)
 	expect("one point a level after that (11 at level 10)", TownState.skill_points_left() == 11)
-	expect("a passive opens at its tree's class level (Barricade at Melee 12; a level 10 fighter is Melee 9)",
-		TownState.passive_blocker("barricade") == "Needs Melee 12" and TownState.passive_blocker("fortitude") == "")
-	expect("and may need another first (Smite needs Fortitude 1)", TownState.passive_blocker("smite").begins_with("Needs Melee")
-		or TownState.passive_blocker("smite") == "Needs Fortitude 1")
+	expect("a passive opens at its tree's class level (Toughness at Melee 12; a level 10 fighter is Melee 9)",
+		TownState.passive_blocker("toughness") == "Needs Melee 12" and TownState.passive_blocker("fortitude") == "")
+	expect("and may need another first (Barricade needs Fortitude 1)", TownState.passive_blocker("barricade") == "Needs Fortitude 1")
 	TownState.dev_set_hero_level(30)
-	expect("Smite needs Fortitude first", TownState.passive_blocker("smite") == "Needs Fortitude 1")
-	expect("a staged rank counts for what comes after it", TownState.passive_blocker("smite", {"fortitude": 1}) == "")
+	expect("Smite needs Overbear and Toughness first (DS2)", TownState.passive_blocker("smite") == "Needs Overbear 1"
+		and TownState.passive_blocker("smite", {"overbear": 1}) == "Needs Toughness 1")
+	expect("a staged rank counts for what comes after it", TownState.passive_blocker("barricade", {"fortitude": 1}) == "")
 	var life_before: float = player.max_health
-	expect("buying ranks spends points and keeps them", TownState.buy_passives({"fortitude": 20, "smite": 1}) and TownState.passive_rank("fortitude") == 20
+	expect("buying ranks spends points and keeps them", TownState.buy_passives({"fortitude": 20, "barricade": 1}) and TownState.passive_rank("fortitude") == 20
 		and TownState.skill_points_left() == 31 - 21)
 	await get_tree().process_frame
-	expect("Fortitude 20 is +45% life (%.0f -> %.0f)" % [life_before, player.max_health], absf(player.max_health - life_before * 1.45) < 1.0)
+	expect("Fortitude 20 is +45%% life (%.0f -> %.0f)" % [life_before, player.max_health], absf(player.max_health - life_before * 1.45) < 1.0)
 	expect("no rank past 20", TownState.passive_blocker("fortitude") == "At its highest rank")
-	expect("a purchase that breaks a rule buys nothing", not TownState.buy_passives({"reinforced_armor": 1}) and TownState.passive_rank("reinforced_armor") == 0)
+	expect("a purchase that breaks a rule buys nothing", not TownState.buy_passives({"rebuke": 1}) and TownState.passive_rank("rebuke") == 0)
 	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
 	TownState.reset()
 	TownState.from_dict(TownState.migrate(saved))
-	expect("ranks survive a save", TownState.passive_rank("fortitude") == 20 and TownState.passive_rank("smite") == 1)
+	expect("ranks survive a save", TownState.passive_rank("fortitude") == 20 and TownState.passive_rank("barricade") == 1)
 	expect("a version 8 save starts with nothing bought", (TownState.migrate({"save_version": 8})["passive_ranks"] as Dictionary).is_empty())
 	# Stances.
 	var great: Dictionary = Items.build(ItemDb.get_def("greatsword"), 6, Items.Rarity.NORMAL)
 	var shield: Dictionary = Items.build(ItemDb.get_def("buckler"), 6, Items.Rarity.NORMAL)
+	var bare: Dictionary = TownState.passive_ranks.duplicate()
+	TownState.passive_ranks = {}
 	expect("a two-handed weapon needs Overbear and a shield Barricade (DS2)", not Items.hero_can_wear(great) and not Items.hero_can_wear(shield)
 		and Items.requirement_text(great).contains("Overbear") and Items.requirement_text(shield).contains("Barricade"))
-	TownState.buy_passives({"overbear": 1})
-	expect("with Overbear the greatsword can be wielded", Items.hero_can_wear(great))
+	TownState.passive_ranks = bare
+	TownState.buy_passives({"critical_strike": 1, "overbear": 1})
+	expect("with Overbear the greatsword can be wielded, with Barricade the buckler", Items.hero_can_wear(great) and Items.hero_can_wear(shield))
 	# Effects.
 	var stats: PlayerStats = player.stats
 	TownState.passive_ranks["critical_strike"] = 20

@@ -7,9 +7,11 @@ script = ExtResource("1")
 id = "barricade"
 display_name = "Barricade"
 tree = "melee"
-class_level = 12
-prereqs = {}
+class_level = 5
+prereqs = {
+"fortitude": 1
+}
 first = 2.0
 last = 20.0
 text = "Shields; block +%s%% and shield armor +20 to +120%%"
-order = 4
+order = 2

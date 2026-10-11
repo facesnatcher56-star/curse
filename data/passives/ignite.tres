@@ -7,7 +7,7 @@ script = ExtResource("1")
 id = "ignite"
 display_name = "Ignite"
 tree = "combat"
-class_level = 12
+class_level = 24
 prereqs = {
 "searing_flames": 1
 }
