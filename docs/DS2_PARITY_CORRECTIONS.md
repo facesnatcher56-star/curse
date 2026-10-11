@@ -60,4 +60,4 @@ error appeared in that run. Existing bow/quiver art was not retuned by this numb
 
 Godot MCP project/scene/error queries were used. Its editor output still contains historical DevHarness parse messages; fresh
 watchdog runs compile and execute successfully. The production save was not touched. No full-suite, unrelated world/UI regression,
-commit or push was performed. AgentBridge sync was attempted but GitHub authentication failed.
+commit or push was performed. 

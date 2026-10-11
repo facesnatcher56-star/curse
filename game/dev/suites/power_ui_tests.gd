@@ -35,6 +35,21 @@ func _test_power_ui() -> void:
 	var below := node.find_valid_focus_neighbor(SIDE_BOTTOM)
 	expect("directional controller navigation reaches another chart node", below != null and chart.is_ancestor_of(below))
 	await _capture("skill_detail")
+	var power_def: PowerDef = null
+	for def in PowerDb.of_tree("melee"):
+		if def.id != "take_aim" and not def.ranks.is_empty() and def.rank_for(view._ranks()) == 0 and chart.points.has(String(def.ranks[0].keys()[0])):
+			power_def = def
+			break
+	var power_button := view.find_child("power_" + power_def.id, true, false) as Button
+	power_button.mouse_entered.emit()
+	await _settle()
+	var needed: String = String(power_def.ranks[0].keys()[0])
+	expect("a hovered power lists Requirements, red while unmet, and pulses the passives it needs on the chart",
+		view._detail_label.text.contains("Requirements") and view._detail_label.text.contains("[color=#" + view.UNMET_COLOR.to_html(false) + "]")
+		and not view._detail_label.text.contains("Next rank") and chart._pulse.has(needed) and chart._pulse[needed] == false)
+	await _capture("power_requirements")
+	power_button.mouse_exited.emit()
+	expect("leaving the power stops the pulse", chart._pulse.is_empty())
 	node.pressed.emit()
 	await _settle()
 	expect("selecting a node stages a rank without buying it", int(view.staged.get("fortitude", 0)) == 1 and TownState.passive_rank("fortitude") == 0)

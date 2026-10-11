@@ -9,6 +9,7 @@ var _banner_rect: TextureRect
 var _hp_fill: ColorRect
 var _name_label: Label
 var _health_label: Label
+var _level_label: Label
 var _fade: float = 0.0
 
 func _init() -> void:
@@ -68,6 +69,16 @@ func _ready() -> void:
 	_health_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_health_label)
 
+	# The monster's level, inside the health bar at its left end.
+	_level_label = Label.new()
+	_level_label.position = Vector2(52, 22)
+	_level_label.size = Vector2(60, 16)
+	_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_level_label.add_theme_font_size_override("font_size", 11)
+	_level_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.62))
+	_level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_level_label)
+
 func update_target(target: Actor, delta: float) -> void:
 	var screen: Vector2 = get_viewport_rect().size
 	position.x = (screen.x - 400.0) * 0.5
@@ -80,6 +91,7 @@ func update_target(target: Actor, delta: float) -> void:
 		var pct: float = clampf(cur_hp / max_hp, 0.0, 1.0)
 		_hp_fill.size.x = pct * 304.0
 		_health_label.text = "%d / %d" % [ceili(cur_hp), int(max_hp)]
+		_level_label.text = "LV %d" % target.level
 		
 		# Boss / Elite color
 		if target.is_boss or max_hp >= 150.0:

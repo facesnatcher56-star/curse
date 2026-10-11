@@ -32,8 +32,12 @@ var tree: String = "melee"
 var staged: Dictionary = {}
 var points: Dictionary = {}
 var links: Array[Dictionary] = []
+## Passives a hovered power needs: id -> met. They pulse, green once met and red until then.
+var _pulse: Dictionary = {}
+var _pulse_time: float = 0.0
 
 func _ready() -> void:
+	set_process(false)
 	custom_minimum_size = Vector2(560, 340)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -90,6 +94,17 @@ func _build() -> void:
 			button.add_child(minus)
 	_layout()
 
+## Pulses these passives (id -> met) until called again with an empty dictionary.
+func set_pulse(needed: Dictionary) -> void:
+	_pulse = needed.duplicate()
+	_pulse_time = 0.0
+	set_process(not _pulse.is_empty())
+	queue_redraw()
+
+func _process(delta: float) -> void:
+	_pulse_time += delta
+	queue_redraw()
+
 func _layout() -> void:
 	points.clear()
 	links.clear()
@@ -124,3 +139,12 @@ func _draw() -> void:
 				Vector2(channel, b.y - 7), Vector2(b.x, b.y - 7), b])
 		draw_polyline(path, color, 2, true)
 		draw_colored_polygon(PackedVector2Array([b, b + Vector2(-4, -6), b + Vector2(4, -6)]), color)
+	# A hovered power's requirements: a breathing ring round each needed passive.
+	for id in _pulse:
+		if not points.has(id):
+			continue
+		var ring: Color = Color(0.47, 0.86, 0.46) if _pulse[id] else Color(0.93, 0.30, 0.24)
+		var beat: float = 0.5 + 0.5 * sin(_pulse_time * 5.0)
+		ring.a = 0.45 + 0.55 * beat
+		var grow: float = 2.0 + 4.0 * beat
+		draw_rect(Rect2(points[id] - Vector2(24 + grow, 24 + grow), Vector2(48 + grow * 2.0, 48 + grow * 2.0)), ring, false, 3.0)

@@ -37,31 +37,33 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the graveyard threshold encounter groups.
 ## All enemies are placed at z <= 85 so they are >= 65 m from player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 24: Risen Pallbearers & Hearse Pack (Eastern Road Verge & Broken Wagon).
-	# 2 placed zombies (pallbearers, 3 pack copies = 6 zombies) + 1 placed ghoul (3 pack copies = 3 ghouls) = 9 enemies.
-	# Mode "wander": picking through the shattered casket and spilled wagon cargo.
+	# Group 24: Risen Pallbearers & Hearse Pack (Eastern Road Verge & Broken Wagon): a plague priest with three slayers, picking through
+	# the shattered casket (DS2's shaman-and-three-slayers group).
 	road._group(24, "wander", [
-		["zombie", 3.2, 82.5],
-		["zombie", 5.0, 84.0],
-		["ghoul", 4.2, 81.2]
+		["zombie", 3.2, 82.5, 3, "trivial"],
+		["zombie", 5.0, 84.0, 3, "trivial"],
+		["zombie", 4.2, 80.6, 3, "trivial"],
+		["priest", 5.8, 82.4, 4]
 	], Vector2(4.0, 82.5), 3.5, Vector2.ZERO, [
 		Vector2(3.0, 84.5),
 		Vector2(5.5, 82.0),
 		Vector2(3.8, 80.5)
 	])
 
-	# Group 25: Cemetery Threshold Lookout (Western Verge & Disturbed Trench).
-	# 1 spitter lookout (1 copy) stationed at z = 83.5 behind grave marker cover + 1 zombie gravedigger (3 pack copies = 3 zombies) = 4 enemies.
-	# Placed at z = 83.5 (> 80.0) so it does not interfere with cottage spitter test checks in dev_harness.
+	# Group 25: Cemetery Threshold Lookout (Western Verge & Disturbed Trench): four hunters behind a brute holding the verge (DS2's
+	# boarbeast-and-four-hunters group; the brute is level 5, not DS2's 7, as the hero meets it earlier). Placed at z >= 80.5 so it does not
+	# interfere with cottage spitter test checks in dev_harness.
 	road._group(25, "", [
-		["spitter", -6.2, 83.5],
-		["zombie", -4.5, 82.0]
+		["spitter", -6.2, 84.8, 4, "weak"],
+		["spitter", -4.0, 84.2, 4, "weak"],
+		["spitter", -8.2, 83.6, 4, "weak"],
+		["spitter", -3.2, 82.6, 4, "weak"],
+		["brute", -5.5, 81.0, 5]
 	], Vector2(-5.5, 83.0), 3.0)
 
-	# Group 26: Graveyard Flank Prowler (Threshold Shrine & Cemetery Trail).
-	# 1 placed ghoul (3 pack copies = 3 ghouls) stalking the western detour route.
+	# Group 26: Graveyard Flank Prowler (Threshold Shrine & Cemetery Trail): one level-4 thug stalking the western detour route.
 	road._group(26, "wander", [
-		["ghoul", -5.5, 76.5]
+		["ghoul", -5.5, 76.5, 4]
 	], Vector2(-5.0, 76.5), 3.5, Vector2.ZERO, [
 		Vector2(-4.0, 78.5),
 		Vector2(-6.5, 75.0)

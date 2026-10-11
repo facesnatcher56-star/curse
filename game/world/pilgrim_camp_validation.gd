@@ -134,7 +134,7 @@ func _run_validation() -> void:
 	print("  [PASS] Group distribution: %s, all unalerted, none near START" % str(groups))
 
 	# 3. Capture screenshots from 4 authored perspectives.
-	var dir_path: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots")
+	var dir_path: String = ProjectSettings.globalize_path("res://.dev_output/screenshots")
 	DirAccess.make_dir_absolute(dir_path)
 
 	# View 1: Approach Silhouette (looking North from z = 114 toward burned wagon, ember firepit, and tents).
@@ -163,7 +163,7 @@ func _run_validation() -> void:
 func _capture(filename: String) -> void:
 	await get_tree().create_timer(0.3).timeout
 	var img: Image = get_viewport().get_texture().get_image()
-	var out_local: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots/" + filename)
+	var out_local: String = ProjectSettings.globalize_path("res://.dev_output/screenshots/" + filename)
 	var out_temp: String = OS.get_environment("TEMP") + "/" + filename
 	img.save_png(out_local)
 	img.save_png(out_temp)

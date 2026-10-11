@@ -26,7 +26,7 @@ func _initialize() -> void:
 		if arg.begins_with("--evidence="):
 			evidence_dir = arg.substr(11)
 	if evidence_dir == "":
-		evidence_dir = ProjectSettings.globalize_path("res://.agentbridge/task056-evidence")
+		evidence_dir = ProjectSettings.globalize_path("res://.dev_output/task056-evidence")
 	DirAccess.make_dir_recursive_absolute(evidence_dir)
 	print("=== VALIDATE CRYPT RETURN FLOW 056 START ===")
 	print("Target evidence directory: ", evidence_dir)

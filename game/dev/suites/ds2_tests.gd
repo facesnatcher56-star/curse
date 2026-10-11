@@ -87,20 +87,23 @@ func _test_ds2_combat() -> void:
 	await get_tree().process_frame
 	expect("a level 1 zombie has DS2's life, damage and armour (%.1f life, %.1f armour)" % [target.max_health, target.armor], target.level == 1
 		and absf(target.max_health - 30.24) < 0.01 and absf(target.armor - MonsterScaling.armor(1)) < 0.01 and absf(target.average_hit() - 10.5248) < 0.01)
-	# The opening encounter uses DS2's introductory Bracken tier, not the normal template above.
-	expect("level-one road fodder uses the introductory tier, later and elite encounters do not",
-		CryptRoad.encounter_tier("zombie", 1.25) == "trivial" and CryptRoad.encounter_tier("ghoul", 1.25) == "trivial"
-		and CryptRoad.encounter_tier("spitter", 1.25) == "trivial" and CryptRoad.encounter_tier("zombie", 1.3).is_empty()
-		and CryptRoad.encounter_tier("brute", 1.25).is_empty())
-	var intro: Enemy = game.director.spawn_enemy(Vector3(28, 0, 30), "zombie", 1.25, CryptRoad.encounter_tier("zombie", 1.25))
+	# The opening is DS2's first real region (jnglight), not its attack-less tutorial dummies: levels 3 to 6, Haku Slayers are trivial level 3.
+	expect("the road opens at level 3 and deepens to 6 (zones), and a level converts to its threat and back",
+		WorldThreat.monster_level(TownDb.zone_at(10.0).base_threat) == 3 and WorldThreat.monster_level(TownDb.zone_at(300.0).base_threat) == 6
+		and WorldThreat.monster_level(WorldThreat.threat_for_level(1)) == 1 and WorldThreat.monster_level(WorldThreat.threat_for_level(7)) == 7)
+	var intro: Enemy = game.director.spawn_enemy(Vector3(28, 0, 30), "zombie", WorldThreat.threat_for_level(3), "trivial")
 	intro.set_physics_process(false)
 	target.set_physics_process(false)
-	expect("an opening zombie matches DS2's level-one Bracken: 7.56 life and 3.9-6.5 damage",
-		is_equal_approx(intro.max_health, 7.56) and is_equal_approx(intro.damage_min, 3.9) and is_equal_approx(intro.damage_max, 6.5)
-		and is_equal_approx(intro.armor, MonsterScaling.armor(1)) and intro.def.tier == "trivial" and is_equal_approx(intro.move_speed, 2.7))
-	expect("introductory XP and loot tier is local, never mutates the shared zombie definition",
-		EnemyDb.get_def("zombie").tier == "normal" and target.def.tier == "normal"
-		and HeroProgression.monster_xp(intro.level, intro.def.tier) == HeroProgression.monster_xp(1, "trivial"))
+	expect("an opening slayer-grade zombie is DS2 trivial melee at level 3: 15.3 life and its own damage and armour",
+		intro.level == 3 and is_equal_approx(intro.max_health, MonsterScaling.life(3, "trivial")) and absf(intro.max_health - 15.3) < 0.01
+		and is_equal_approx(intro.damage_min, 0.75 * MonsterScaling.damage(3, "trivial")) and is_equal_approx(intro.armor, MonsterScaling.armor(3))
+		and intro.def.tier == "trivial" and is_equal_approx(intro.move_speed, 2.7))
+	var hunter: Enemy = game.director.spawn_enemy(Vector3(26, 0, 30), "spitter", WorldThreat.threat_for_level(4), "weak")
+	hunter.set_physics_process(false)
+	expect("an opening spitter is a DS2 hunter: weak ranged at level 4, a thug-grade ghoul weak melee",
+		hunter.level == 4 and hunter.def.tier == "weak" and is_equal_approx(hunter.max_health, MonsterScaling.life(4, "weak", "ranged")))
+	expect("tier is local to the spawn, never mutating the shared zombie definition",
+		EnemyDb.get_def("zombie").tier == "normal" and target.def.tier == "normal")
 	intro.target = target
 	intro.damage_min = 5.2
 	intro.damage_max = 5.2
@@ -132,7 +135,7 @@ func _test_ds2_combat() -> void:
 		and is_equal_approx(MonsterScaling.damage(1, "strong", "tank"), 17.992))
 	expect("tiers and roles: a miniboss outlives a strong one, a tank a normal one, a mage is frail", MonsterScaling.life(5, "miniboss") > MonsterScaling.life(5, "strong")
 		and MonsterScaling.life(5, "normal", "tank") > MonsterScaling.life(5, "normal") and MonsterScaling.life(5, "normal", "magic") < MonsterScaling.life(5, "normal"))
-	expect("the road opens at level 1 and deepens (threat 1.25 -> 1, 1.5 -> 4)", WorldThreat.monster_level(1.25) == 1 and WorldThreat.monster_level(1.5) == 4)
+	expect("levels follow threat (1.25 -> 1, 1.5 -> 4)", WorldThreat.monster_level(1.25) == 1 and WorldThreat.monster_level(1.5) == 4)
 	# No accuracy roll; blocks need a chance to block; crits double.
 	target.armor = 0.0
 	target.dodge_chance = 0.0

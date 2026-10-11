@@ -323,7 +323,7 @@ func _run_validation() -> void:
 	get_tree().quit(0)
 
 func _resolve_capture_dir() -> String:
-	var raw_dir: String = "res://.agentbridge/screenshots"
+	var raw_dir: String = "res://.dev_output/screenshots"
 	var all_args: Array[String] = []
 	all_args.append_array(OS.get_cmdline_user_args())
 	all_args.append_array(OS.get_cmdline_args())

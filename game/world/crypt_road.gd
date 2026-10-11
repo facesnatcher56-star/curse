@@ -362,26 +362,27 @@ func _exit_gate() -> void:
 
 # --- The monsters -------------------------------------------------------------------------------------------------------------
 
-## The DS2 introductory tier applies to ordinary fodder in the opening stretch only.
-static func encounter_tier(kind: String, threat: float) -> String:
-	# DS2's level-one Bracken Defender inherits melee_trivial, not melee_normal.
-	# Map the opening fodder to that tier; retain their roles and the later roster's tiers.
-	return "trivial" if WorldThreat.monster_level(threat) == 1 and kind in ["zombie", "ghoul", "spitter"] else ""
-
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
-## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
+## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples, drawn at the stretch's threat with `PACK_COPIES` bodies for
+## zombies and ghouls; or [kind, x, z, monster_level] / [kind, x, z, monster_level, tier] for a DS2-sized group, one body each at exactly
+## that level (and tier, when it is not the kind's own).
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
 		patrol: Array[Vector2] = []) -> void:
 	_homes.append(home)
 	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
 	for m in members:
-		var copies: int = PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1
+		var exact: bool = m.size() > 3
+		var copies: int = 1 if exact else (PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1)
+		var level_threat: float = WorldThreat.threat_for_level(int(m[3])) if exact else threat
+		var tier: String = String(m[4]) if m.size() > 4 else ""
 		for c in copies:
 			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
-			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), threat, encounter_tier(String(m[0]), threat))
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), level_threat, tier)
 			e.group_id = id
+			if exact:
+				e.set_meta("exact_level", true)   # authored at a DS2 level of its own, not its stretch's threat
 			e.idle_mode = mode
 			e.home = at(home.x, home.y)
 			e.idle_radius = radius

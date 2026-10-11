@@ -29,28 +29,29 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the waystation encounter groups.
 ## All enemies are placed at z <= 132 so they are > 18 m from the player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 1: Barricade defenders holding the breached road gate.
-	# 1 ghoul scavenger (3 pack copies) and 1 watchman zombie (3 pack copies) = 6 monsters.
+	# DS2's first real region (a1_02_01_jnglight) sets the sizes and makeup of the opening three beats: groups of 2-5, trivial level-3
+	# melee (Haku Slayers) in threes, weak melee (Urg Thugs, level 3 and 5), weak ranged (Haku Hunters, level 4) in pairs and fours.
+	# Group 1: Barricade defenders holding the breached road gate: a thug and three slayers.
 	road._group(1, "wander", [
-		["ghoul", 1.8, 126.2],
-		["zombie", 3.8, 127.8]
+		["ghoul", 1.8, 126.2, 3],
+		["zombie", 3.8, 127.8, 3, "trivial"],
+		["zombie", 2.6, 129.2, 3, "trivial"],
+		["zombie", 4.9, 126.3, 3, "trivial"]
 	], Vector2(2.5, 127.0), 3.5, Vector2.ZERO, [
 		Vector2(1.5, 129.5),
 		Vector2(3.5, 125.5),
 		Vector2(0.8, 126.0)
 	])
 
-	# Group 20: Tollhouse interior sentry and lookout.
-	# 1 spitter lookout (1 copy) covering the frontal approach + 1 interior zombie (3 pack copies) = 4 monsters.
+	# Group 20: Tollhouse lookouts, a pair of hunters covering the frontal approach.
 	road._group(20, "", [
-		["spitter", 9.5, 128.0],
-		["zombie", 12.5, 125.5]
+		["spitter", 9.5, 128.0, 4, "weak"],
+		["spitter", 12.0, 126.5, 4, "weak"]
 	], Vector2(11.0, 127.0), 2.5)
 
-	# Group 21: Western flank roamer stalking the ditch bypass.
-	# 1 ghoul prowler (3 pack copies) = 3 monsters.
+	# Group 21: Western flank roamer stalking the ditch bypass: a lone level-5 thug.
 	road._group(21, "wander", [
-		["ghoul", -10.0, 127.0]
+		["ghoul", -10.0, 127.0, 5]
 	], Vector2(-10.0, 127.0), 4.0, Vector2.ZERO, [
 		Vector2(-9.5, 133.0),
 		Vector2(-10.5, 122.0)

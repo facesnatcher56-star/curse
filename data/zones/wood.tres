@@ -8,7 +8,7 @@ id = "wood"
 display_name = "The Wood"
 from_m = 134.0
 to_m = 214.0
-base_threat = 1.4
+base_threat = 1.5833
 density = 1.0
 groups = [{
 "weight": 45,

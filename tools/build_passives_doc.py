@@ -2,7 +2,7 @@ import os
 import re
 import json
 
-GAS_PATH = r"c:\Users\lloyd\OneDrive\Documents\curse\.agentbridge\ds2_reference\passive_skills.gas"
+GAS_PATH = r"c:\Users\lloyd\OneDrive\Documents\curse\ds2_sourceds2_reference\passive_skills.gas"
 if not os.path.exists(GAS_PATH):
     GAS_PATH = r"C:\Users\lloyd\Desktop\DS2_Reference_Extracted\Extracted\skills_decompressed\passive_skills.gas"
 

@@ -174,7 +174,7 @@ func _test_world_progression() -> void:
 	var checked: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
-		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
+		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid") and not e.has_meta("exact_level"):
 			checked += 1
 			placed_right = placed_right and absf(e.level_scale - crypt.threat_at(e.home)) < 0.001
 	expect("every ordinary monster on the road has its stretch's threat (%d checked)" % checked, checked > 20 and placed_right)

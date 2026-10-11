@@ -36,31 +36,29 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the pilgrim camp encounter groups.
 ## All enemies are placed at z <= 106 so they are >= 44 m from the player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 2: The Feeding Pack (Center Firepit & Overturned Wagon).
-	# Feeding on fallen refugees; distracted until the player enters aggro range.
-	# 2 placed zombies (3 pack copies each = 6 zombies) + 1 placed ghoul (3 pack copies = 3 ghouls) = 9 enemies.
-	# Mode "feed" satisfies Crypt Road feeding pack expectations (e.g. self-test feeder checks).
+	# Group 2: The Feeding Pack (Center Firepit & Overturned Wagon): three slayers and a level-5 drummer-grade fighter,
+	# distracted until the player enters aggro range. Mode "feed" satisfies the feeding pack self-test checks.
 	road._group(2, "feed", [
-		["zombie", -3.6, 101.2],
-		["zombie", -5.2, 99.8],
-		["ghoul", 3.8, 103.8]
+		["zombie", -3.6, 101.2, 3, "trivial"],
+		["zombie", -5.2, 99.8, 3, "trivial"],
+		["zombie", -4.3, 102.6, 3, "trivial"],
+		["zombie", -2.4, 100.0, 5]
 	], Vector2(-3.0, 101.0), 3.5, Vector2(-4.5, 100.8))
 
-	# Group 22: Western Flank Ambushers (Tents & Outer Woods).
-	# 1 spitter lookout (1 copy) behind tent cover + 1 roaming ghoul (3 pack copies = 3 ghouls) = 4 enemies.
+	# Group 22: Western Flank Ambushers (Tents & Outer Woods): a pair of hunters behind tent cover and a level-3 thug.
 	road._group(22, "wander", [
-		["spitter", -11.0, 98.0],
-		["ghoul", -8.5, 95.5]
+		["spitter", -11.0, 98.0, 4, "weak"],
+		["spitter", -9.5, 99.6, 4, "weak"],
+		["ghoul", -8.5, 95.5, 3]
 	], Vector2(-10.0, 97.0), 4.0, Vector2.ZERO, [
 		Vector2(-10.5, 103.0),
 		Vector2(-12.0, 97.0),
 		Vector2(-8.0, 94.0)
 	])
 
-	# Group 23: Eastern Wagon Scavengers.
-	# 1 placed zombie scavenger (3 pack copies = 3 zombies) picking through luggage debris.
+	# Group 23: Eastern Wagon Scavenger: a lone level-5 thug picking through luggage debris.
 	road._group(23, "wander", [
-		["zombie", 7.8, 97.5]
+		["ghoul", 7.8, 97.5, 5]
 	], Vector2(7.5, 98.0), 3.5, Vector2.ZERO, [
 		Vector2(6.5, 101.0),
 		Vector2(8.5, 96.0)

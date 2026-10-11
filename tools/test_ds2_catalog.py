@@ -59,7 +59,7 @@ class CatalogTests(unittest.TestCase):
         self.assertTrue(all(len(digest) == 64 for digest in self.catalog["source_sha256"].values()))
 
     def test_snapshot_reproduces_from_local_source(self):
-        source = ROOT / ".agentbridge/ds2_catalog_source"
+        source = ROOT / "ds2_source/ds2_catalog_source"
         if not source.exists():
             self.skipTest("Installed DS2 sources not extracted on this machine")
         rebuilt = build(source)

@@ -8,7 +8,11 @@ var selected_tree: String = "melee"
 var _focus_key: String = "tab_melee"
 var _box: VBoxContainer
 var _detail: PanelContainer
-var _detail_label: Label
+var _detail_label: RichTextLabel
+var _chart: Control
+
+const MET_COLOR := Color(0.47, 0.86, 0.46)
+const UNMET_COLOR := Color(0.93, 0.30, 0.24)
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
@@ -24,8 +28,13 @@ func _ready() -> void:
 	_detail.z_index = 20
 	_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_detail.add_theme_stylebox_override("panel", UiTheme.panel_box())
-	_detail_label = ItemTile._label("", 14, UiTheme.TEXT)
+	_detail_label = RichTextLabel.new()
+	_detail_label.bbcode_enabled = true
+	_detail_label.fit_content = true
+	_detail_label.scroll_active = false
 	_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_label.add_theme_font_size_override("normal_font_size", 14)
+	_detail_label.add_theme_color_override("default_color", UiTheme.TEXT)
 	_detail_label.custom_minimum_size.x = 270
 	_detail_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_detail.add_child(_detail_label)
@@ -66,6 +75,7 @@ func _build() -> void:
 	chart.inspect_node.connect(_inspect)
 	chart.leave_node.connect(_hide_detail)
 	scroll.add_child(chart)
+	_chart = chart
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 12)
 	_box.add_child(footer)
@@ -112,32 +122,57 @@ func _add_power(parent: Control, def: PowerDef) -> void:
 
 func _inspect(id: String, power: bool, button: Button) -> void:
 	var text: String
+	var pulse: Dictionary = {}
 	if power:
 		var def := PowerDb.get_def(id)
-		var rank := def.rank_for(_ranks())
-		text = "%s  %d/3\n%s" % [def.display_name, rank, def.summary]
+		var ranks := _ranks()
+		var rank := def.rank_for(ranks)
+		text = "%s  %d/3
+%s" % [_plain(def.display_name), rank, _plain(def.summary)]
 		if def.id == "take_aim":
-			text = "%s — Cutter\n%s\nCutter's power; always available to him." % [def.display_name, def.summary]
+			text = "%s - Cutter
+%s
+Cutter's power; always available to him." % [_plain(def.display_name), _plain(def.summary)]
 		elif rank < 3:
-			var requirements: PackedStringArray = []
+			# What the next rank needs, each line green once met and red until then; the same passives pulse on the chart.
+			text += "
+
+Requirements (%s):" % ("unlocks the power" if rank == 0 else "next rank")
 			for required in def.ranks[rank]:
 				var passive := PassiveDb.get_def(String(required))
-				requirements.append("%s %d" % [passive.display_name if passive != null else String(required).capitalize(), int(def.ranks[rank][required])])
-			text += "\nNext rank: " + ", ".join(requirements)
-		if def.needs != "": text += "\nNot implemented: " + def.needs
+				var need: int = int(def.ranks[rank][required])
+				var have: int = int(ranks.get(required, 0))
+				var met: bool = have >= need
+				var where: String = "" if passive == null or passive.tree == selected_tree else "  [%s tree]" % HeroAttributes.CLASS_NAMES.get(passive.tree, passive.tree)
+				text += "
+[color=#%s]%s %d  (you have %d)%s[/color]" % [(MET_COLOR if met else UNMET_COLOR).to_html(false),
+					_plain(passive.display_name if passive != null else String(required).capitalize()), need, have, where]
+				pulse[String(required)] = met
+		if def.needs != "": text += "
+Not implemented: " + _plain(def.needs)
 	else:
 		var def := PassiveDb.get_def(id)
 		var rank := TownState.passive_rank(id, staged)
-		text = "%s  %d/%d" % [def.display_name, rank, PassiveDef.MAX_RANK]
-		if rank > 0: text += "\nCurrent: " + def.describe(rank)
-		if rank < PassiveDef.MAX_RANK: text += "\nNext: " + def.describe(rank + 1)
+		text = "%s  %d/%d" % [_plain(def.display_name), rank, PassiveDef.MAX_RANK]
+		if rank > 0: text += "
+Current: " + _plain(def.describe(rank))
+		if rank < PassiveDef.MAX_RANK: text += "
+Next: " + _plain(def.describe(rank + 1))
 		var blocker := TownState.passive_blocker(id, staged)
-		if blocker != "": text += "\n" + blocker
-		if def.needs != "": text += "\nNo effect yet: needs " + def.needs
+		if blocker != "": text += "
+" + _plain(blocker)
+		if def.needs != "": text += "
+No effect yet: needs " + _plain(def.needs)
 	_detail_label.text = text
+	if _chart != null and is_instance_valid(_chart) and _chart.has_method("set_pulse"):
+		_chart.set_pulse(pulse)
 	_detail.size = Vector2(296, 0)
 	_detail.show()
 	_place_detail.call_deferred(button)
+
+## Game text shown through BBCode: brackets would otherwise be read as tags.
+static func _plain(text: String) -> String:
+	return text.replace("[", "[lb]")
 
 func _place_detail(button: Button) -> void:
 	if not is_instance_valid(button): return
@@ -147,6 +182,8 @@ func _place_detail(button: Button) -> void:
 
 func _hide_detail() -> void:
 	_detail.hide()
+	if _chart != null and is_instance_valid(_chart) and _chart.has_method("set_pulse"):
+		_chart.set_pulse({})
 
 func _add_button(parent: Control, key: String, text: String, disabled: bool, action: Callable, width: float = 100.0) -> void:
 	var button := UiTheme.button(text, width)

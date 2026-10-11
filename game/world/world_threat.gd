@@ -13,20 +13,25 @@ extends RefCounted
 const FALLBACK_THREAT := 1.0
 
 ## Placeholders until merchants and quest item rewards get their own progression (see Items.roll_choices, Quests): an explicit source
-## threat and rarity chance, not a hidden count of jobs done. 1.5 is the deepest stretch of the road today (monster level 4).
-const MERCHANT_THREAT := 1.5
+## threat and rarity chance, not a hidden count of jobs done. 1.6667 is the deepest stretch of the road today (monster level 6).
+const MERCHANT_THREAT := 1.6667
 const MERCHANT_RARE_CHANCE := 0.4
-const QUEST_REWARD_THREAT := 1.5
+const QUEST_REWARD_THREAT := 1.6667
 
 ## The Dungeon Siege II monster level of a threat. Threat stays the world's one danger dial (zones, quest monsters, named monsters
 ## growing); this is the only place it becomes a DS2 level, which sets a monster's life, damage, armour and XP (see Enemy) and the
-## level gap in combat. CURSE CHOICE: the road's first stretch (threat 1.25) is level 1, as DS2 opens, and every point of threat is
-## 12 levels: the road runs 1 (Road In) to 4 (the Crypt Approach), and a named monster grown to threat 3.4 is level 27.
+## level gap in combat. Threat 1.25 is level 1 and every point of threat is 12 levels. The road opens where DS2's first real region
+## does, not at its attack-less tutorial dummies: level 3 (Road In), up to level 6 (the Crypt Approach). A named monster grown to
+## threat 3.4 is level 27.
 const LEVEL_ONE_THREAT := 1.25
 const LEVELS_PER_THREAT := 12.0
 
 static func monster_level(threat: float) -> int:
 	return maxi(1 + int(round((threat - LEVEL_ONE_THREAT) * LEVELS_PER_THREAT)), 1)
+
+## The threat that makes a monster of exactly this DS2 level (the inverse of `monster_level`).
+static func threat_for_level(level: int) -> float:
+	return LEVEL_ONE_THREAT + float(maxi(level, 1) - 1) / LEVELS_PER_THREAT
 
 ## The threat of the authored stretch that covers a distance (metres) out from the town gate.
 static func for_distance(distance: float) -> float:

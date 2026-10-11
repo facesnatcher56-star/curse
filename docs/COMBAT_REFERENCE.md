@@ -74,14 +74,17 @@ Implemented from `ds2-combat-and-loot.md` and locked by `--only=classskills`, `-
   `0.2 x STR` (0.75 / 1.25 on the low / high roll); thrown uses DEX; Fireball is a DS2 spell (damage and mana grow with INT).
 * **Monsters** (`MonsterScaling`): DS2 life, damage per hit and armour by level, tier (`EnemyDef.tier`) and role (`EnemyDef.role`).
 
-Opening encounter parity (2026-10-11): DS2's Mercenary level-one `bracken_defender_stats` inherits
-`base_actor_evil_melee_trivial`: 7.56 life, 3.9-6.5 damage, and the standard level-one armour curve.
-`CryptRoad.encounter_tier` maps level-one road zombies, ghouls and spitters to the trivial tier (retaining their roles).
-This is a Curse roster mapping, not a claim that DS2 has those same enemies. Later encounters and named/elite spawns retain
-their authored tiers. The per-spawn definition is copied so XP and loot follow the same introductory tier without mutating
-the shared resource. Ordinary melee contacts now use the copied damage range directly: neither the old 0.85 swipe multiplier
-nor the 1.6 heavy multiplier applies. Heavy timing, lunges and physical weight remain; special pounces/spells retain their
-explicit ability multipliers. Crowd density and attack tokens are unchanged, so encounter layouts are not one-for-one DS2.
+Opening encounter parity (2026-10-11, revised): the first version mapped the opening to the level-one Bracken Defender. That was
+wrong. The Bracken Defenders in DS2's tutorial (`a0_01_02_tutarena`, `tutcommand`) are hand-placed target dummies the player skips,
+so they are not the baseline. DS2's first real fights are in `a1_02_01_jnglight`, read from `World.ds2map` and `Logic.ds2res`:
+Haku Slayers (melee trivial, level 3), Haku Hunters (ranged weak, level 4), Urg Thugs (melee weak, level 3 and 5), a Haku Shaman
+(magic normal, level 4), a Drummer (melee normal, level 5) and a Boarbeast (melee strong, level 7), in groups of 2 to 5: a boarbeast
+with four hunters, a shaman or drummer with three slayers, pairs of thugs and hunters, and a few singles. The road now opens at
+level 3 (Road In 3, Graveyard 4, Wood 5, Crypt Approach 6; `data/zones`), and the three opening beats (Waystation, Pilgrim Camp,
+Graveyard Threshold) are authored the same way: zombie = slayer (trivial, 3), spitter = hunter (weak, 4), ghoul = thug (weak, 3-5),
+plague priest = shaman (4), the Brute = boarbeast (level 5, a deliberate departure from DS2's 7 because the hero meets it earlier).
+Members list an exact level and tier (`CryptRoad._group`), one body each: the old three-copy packs are gone from these beats.
+The level appears on every enemy's health bar and in the target banner (`LV n`).
 Player human starting attributes (12/11/11), life (64.1), mana (55.05), and 1% regeneration already match the verified formulas.
 The missing human +10% racial magic find is now included in actual loot rolls and displayed on the character sheet.
 The class-XP-to-attribute conversion remains the engine-side approximation documented below, not claimed exact parity.

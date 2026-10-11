@@ -2,7 +2,7 @@
 """Extract the installed DS2 equipment catalogue as reference data, NOT live loot.
 
 Usage: python tools/extract_ds2_catalog.py
-Source scripts stay in ignored .agentbridge/ds2_catalog_source. No scripts or art
+Source scripts stay in ignored ds2_source/ds2_catalog_source. No scripts or art
 are distributed with the JSON. Expressions are retained as data, never evaluated.
 """
 import copy
@@ -192,7 +192,7 @@ def build(source):
 
 
 def main():
-    source = ROOT / ".agentbridge/ds2_catalog_source"
+    source = ROOT / "ds2_source/ds2_catalog_source"
     names = [name for name, _ in list_files() if equipment_file(name)]
     names += ["templates.gas", "wpn_bases.gas", "amr_bases.gas", "amr_generic_sets.gas", "pcontent.gas", "set_definitions.gas"]
     extract_targets(str(source), names)

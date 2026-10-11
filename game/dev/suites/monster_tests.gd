@@ -433,7 +433,7 @@ func _warden_shots() -> void:
 	brute.set_physics_process(false)
 	brute.visual.rotation.y = PI
 	var behavior: WardenBehavior = _warden_begin(enemy)
-	var folder: String = "res://.agentbridge/warden033-png"
+	var folder: String = "res://.dev_output/warden033-png"
 	DirAccess.make_dir_recursive_absolute(folder)
 	for sample in [["windup", 0.70], ["commit", 0.27], ["strike-evaded", 0.30], ["recovery", 0.50]]:
 		if sample[0] == "strike-evaded":

@@ -218,7 +218,7 @@ func _draw() -> void:
 			var w: float = 340.0
 			var color: Color = Color(0.62, 0.3, 0.08) if target.is_big() else Color(0.55, 0.1, 0.1)
 			_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
-				"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
+				"%s   Lv %d   %d / %d" % [target.display_name, target.level, ceili(target.health), int(target.max_health)], font)
 
 	# Small bars over every enemy that has been hurt (and stays hurt), and over the one the pointer is on.
 	var camera: Camera3D = get_viewport().get_camera_3d()
@@ -237,6 +237,9 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(bar_w, 6)), Color(0, 0, 0, 0.7 * alpha))
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 6)), Color(0.8, 0.15, 0.12, alpha))
 			draw_rect(Rect2(pos, Vector2(bar_w, 6)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
+			# The monster's level, small, at the bar's left end (DS2 shows it with the name; here it is always readable over the body).
+			var level_text: String = str(enemy.level)
+			UiTheme.text(self, font, pos + Vector2(-font.get_string_size(level_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x - 4.0, 7.0), level_text, 12, Color(1.0, 0.9, 0.7, alpha))
 
 		# Objectives that must be destroyed (the nests) always carry a bar, even before the first hit.
 		for node in get_tree().get_nodes_in_group("nests"):

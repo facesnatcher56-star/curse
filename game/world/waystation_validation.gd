@@ -131,7 +131,7 @@ func _run_validation() -> void:
 	print("  [PASS] Hearthward Waystation field respite verified at %s" % str(respite.global_position))
 
 	# 4. Capture screenshots from 5 authored perspectives.
-	var dir_path: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots")
+	var dir_path: String = ProjectSettings.globalize_path("res://.dev_output/screenshots")
 	DirAccess.make_dir_absolute(dir_path)
 
 	# View 1: Approach Silhouette (looking North from z = 148 toward tollhouse and barricade).
@@ -172,7 +172,7 @@ func _capture(filename: String) -> void:
 	if img == null or img.is_empty():
 		print("  [CAPTURE] Empty image in headless mode, skipping %s" % filename)
 		return
-	var out_local: String = ProjectSettings.globalize_path("res://.agentbridge/screenshots/" + filename)
+	var out_local: String = ProjectSettings.globalize_path("res://.dev_output/screenshots/" + filename)
 	var out_temp: String = OS.get_environment("TEMP") + "/" + filename
 	img.save_png(out_local)
 	img.save_png(out_temp)

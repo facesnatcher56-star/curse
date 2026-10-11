@@ -403,7 +403,7 @@ func _test_crypt_road() -> void:
 				asleep_far += 1
 			elif sleeper.global_position.distance_to(run.player.global_position) < RunDirector.WAKE_WITHIN:
 				asleep_near += 1
-	expect("monsters far from the hero (at the crypt) sleep and none near him do", asleep_far > 100 and asleep_near == 0)
+	expect("monsters far from the hero (at the crypt) sleep and none near him do (%d far)" % asleep_far, asleep_far > 60 and asleep_near == 0)
 	run.player.global_position = CryptRoad.START
 	await get_tree().create_timer(0.8).timeout
 	var woken: int = 0
