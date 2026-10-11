@@ -81,11 +81,11 @@ func _run() -> void:
 		await process_frame
 	expect("world: ground loot has landed", loot.landed)
 	await _shot("world_alive_loot")
-	expect("world alive: loot name plate is laid out", world._loot_names.size() > 0)
+	expect("world alive: loot name plate is laid out", world.loot_cards.names.size() > 0)
 	town.player.dead = true
 	await process_frame
 	await process_frame
-	expect("world dead: no loot name plates, no focused drop", world._loot_names.is_empty() and LootDrop.focused == null)
+	expect("world dead: no loot name plates, no focused drop", world.loot_cards.names.is_empty() and LootDrop.focused == null)
 	for active in [false, true]:
 
 		Gamepad.active = active
@@ -96,7 +96,7 @@ func _run() -> void:
 	town.player.dead = false
 	await process_frame
 	await process_frame
-	expect("world revived: loot name plate returns", world._loot_names.size() > 0)
+	expect("world revived: loot name plate returns", world.loot_cards.names.size() > 0)
 	town.player.dead = true
 	town.hud.show_banner("You were dragged back\nTaunt goes here", 4.0)
 	await _shot("world_death")
