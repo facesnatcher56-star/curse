@@ -117,7 +117,7 @@ func _test_owner_feedback_1() -> void:
 	var stats: PlayerStats = player.stats
 	player.message_time = 0.0
 	player.message = ""
-	var drop_item: Dictionary = Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1, "Charm")
+	var drop_item: Dictionary = Items.make(Items.Slot.AMULET, Items.Rarity.NORMAL, 1, "Charm")
 	var text: String = stats.pickup(drop_item)
 	expect("picking an item up still reports what happened to callers", text.contains("Charm"))
 	expect("but the HUD message line says nothing", player.message_time <= 0.0 and player.message == "")
