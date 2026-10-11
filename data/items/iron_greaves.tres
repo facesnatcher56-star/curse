@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "iron_greaves"
+display_name = "Iron Greaves"
+slot = 6
+order = 15
+model_path = "res://assets/models/items/iron_greaves/model.glb"
+icon_path = "res://assets/icons/items/iron_greaves.png"
+item_type = "boots"
+armor_class = "fighter"
+levels = Array[int]([5, 19, 37, 57, 83])
+stats = {}

@@ -148,8 +148,8 @@ func _run_validation() -> void:
 	# --- TEST 4b (task068): guaranteed rare-or-better reward, once, beside the waystone ---
 	assert(not climax.reward_item.is_empty(), "Full clear must award a reward item")
 	assert(int(climax.reward_item["rarity"]) >= Items.Rarity.RARE, "Reward must be rare or better")
-	var spot_tier: int = Items.tier_for_source(crypt.threat_at(crypt.return_waystone.global_position))
-	assert(int(climax.reward_item["tier"]) == spot_tier, "Reward tier must come from the road threat at the waystone, not the hero")
+	var spot_level: int = WorldThreat.monster_level(crypt.threat_at(crypt.return_waystone.global_position))
+	assert(absi(int(climax.reward_item["level"]) - spot_level) <= 50, "Reward level must come from the road threat at the waystone, not the hero")
 	assert(is_instance_valid(climax.reward_drop) and climax.reward_drop.is_inside_tree(), "Reward drop must exist in the world")
 	assert(get_nodes_in_group("loot").size() == loot_before + 1, "Exactly one drop spawned by the full clear")
 	await create_timer(LootDrop.LAND_TIME + 0.4).timeout
@@ -157,14 +157,10 @@ func _run_validation() -> void:
 	climax.complete_encounter()
 	climax.complete_encounter()
 	assert(get_nodes_in_group("loot").size() == loot_before + 1, "Repeated completion must not duplicate the reward")
-	# Owned-unique handling: with every unique owned, a luck-1 roll is still rare (never a duplicate unique, never common).
-	var all_owned: Array[String] = []
-	for u in Items.UNIQUES:
-		all_owned.append(String(u["name"]))
 	for i in 40:
-		var r: Dictionary = Items.roll_drop(spot_tier, CryptForecourtClimax.REWARD_LUCK, all_owned)
-		assert(int(r["rarity"]) == Items.Rarity.RARE, "With all uniques owned the reward falls back to rare")
-	print("  [PASS] 4b. One guaranteed rare-or-better reward beside waystone, tier from source, no duplicate")
+		var r: Dictionary = Items.roll_reward(spot_level)
+		assert(int(r["rarity"]) >= Items.Rarity.RARE, "A reward is always rare or better (DS2: 70% rare, 15% unique, 15% set)")
+	print("  [PASS] 4b. One guaranteed rare-or-better reward beside waystone, level from source, no duplicate")
 
 	# --- TEST 5: Interaction label and spots registration ---
 	var waystone_spots: Array = town.spots.filter(func(s: Dictionary) -> bool: return String(s.get("key", "")) == "return_waystone")

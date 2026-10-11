@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "spell_pct_7"
+family = "spell_pct"
+stat = "spell_pct"
+title = "Doomed"
+position = "prefix"
+tier = 7
+level = 46
+value = 28.0
+percent = true
+slots = Array[String](["ring", "amulet"])

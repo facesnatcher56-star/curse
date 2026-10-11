@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "roadwarden_helm"
+display_name = "Roadwarden's Visor"
+base = "iron_helm"
+level = 20
+mods = {
+"life": 40.0,
+"armor": 10.0
+}
+set_id = "roadwarden"

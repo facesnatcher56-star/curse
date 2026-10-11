@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "gravity_stone"
+display_name = "Gravity Stone"
+tree = "nature"
+recharge = 35.0
+stance = "any"
+ranks = Array[Dictionary]([{"natural_bond": 1}, {"natural_bond": 5}, {"natural_bond": 8, "arcane_renewal": 6}])
+values = {
+"radius": ["4", "5", "6"],
+"pull": ["2", "2", "2"],
+"duration": ["4", "5", "6"]
+}
+estimated = Array[String]([])
+summary = "Pull enemies together."
+order = 20
+needs = "the Nature Magic tree"

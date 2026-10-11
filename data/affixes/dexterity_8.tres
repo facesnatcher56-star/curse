@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dexterity_8"
+family = "dexterity"
+stat = "dex"
+title = "of Fluidity"
+position = "suffix"
+tier = 8
+level = 71
+value = 88.0
+percent = false
+slots = Array[String](["weapon", "body", "gloves", "boots", "ring", "amulet"])

@@ -46,11 +46,11 @@ func _run() -> void:
 	# --- profiles: strictly ordered and bounded
 	var light: Dictionary = Fx.impact_profile(Combat.Outcome.HIT, 1.0)
 	var crit: Dictionary = Fx.impact_profile(Combat.Outcome.CRITICAL, 1.0)
-	var crush: Dictionary = Fx.impact_profile(Combat.Outcome.CRUSHING, 1.0)
+	var crush: Dictionary = Fx.impact_profile(Combat.Outcome.HIT, 2.5)
 	check("light hit: tier 0, no hit-stop", light.tier == 0 and light.hitstop == 0.0)
 	check("critical stronger than light", crit.tier > light.tier and crit.kick > light.kick and crit.hitstop > 0.0)
-	check("crushing stronger than critical", crush.tier > crit.tier and crush.kick > crit.kick and crush.hitstop > crit.hitstop)
-	var huge: Dictionary = Fx.impact_profile(Combat.Outcome.CRUSHING, 99.0)
+	check("a heavy blow is stronger than a critical", crush.tier > crit.tier and crush.kick > crit.kick and crush.hitstop > crit.hitstop)
+	var huge: Dictionary = Fx.impact_profile(Combat.Outcome.HIT, 99.0)
 	check("heavy profile bounded", huge.kick <= 1.4 and huge.hitstop <= 0.08, str(huge))
 	check("miss/block map to the light profile", Fx.impact_profile(Combat.Outcome.MISS, 1.0).tier == 0 and Fx.impact_profile(Combat.Outcome.BLOCK, 1.0).hitstop == 0.0)
 
@@ -82,7 +82,7 @@ func _run() -> void:
 	Sfx.enabled = false
 	var played: int = Sfx.samples_played
 	Sfx.body_impact(scene, "wall", 10.0)
-	Sfx.sword_hit(scene, Combat.Outcome.CRUSHING, 1.0)
+	Sfx.sword_hit(scene, Combat.Outcome.HIT, 2.5)
 	check("Sfx.enabled=false stays silent", Sfx.samples_played == played)
 	Sfx.enabled = true
 	Sfx.played_log.clear()

@@ -103,7 +103,6 @@ func _run() -> void:
 	player.combat_timer = 0.0
 	player.attack_target = null
 	var potions_before: int = player.stats.potions
-	var ult_before: float = player.stats.ult_charge
 
 	var check1: Dictionary = respite.can_rest(player)
 	expect("Can rest when safely out of combat with missing resources", check1.allowed)
@@ -113,7 +112,6 @@ func _run() -> void:
 	expect("Partial HP restored (+35 HP, resulting in 85)", is_equal_approx(player.health, 85.0))
 	expect("Partial Mana restored (+25 MP, resulting in 45)", is_equal_approx(player.stats.mana, 45.0))
 	expect("Does NOT refill scarce potions (potions count unchanged)", player.stats.potions == potions_before)
-	expect("Does NOT charge ultimate", is_equal_approx(player.stats.ult_charge, ult_before))
 	expect("Respite marked as used", respite.is_used)
 
 	# --- TEST 3: Single-Use Guard ---

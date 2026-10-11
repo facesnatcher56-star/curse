@@ -10,33 +10,14 @@ slot = 0
 order = 0
 model_path = "res://assets/models/items/falchion/model.glb"
 icon_path = "res://assets/icons/items/falchion.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([1, 13, 31, 50, 72])
 stats = {
-"damage": 0.9,
+"damage": 0.85,
 "speed": 1.18
 }
-tier_mult = {
-"damage": 0.08
-}
-tier_add = {}
 profile = {
-"throw": {
-"charge_time": 0.85,
-"min_range": 5.0,
-"max_range": 17.0,
-"speed": 36.0,
-"recall_speed": 35.0,
-"recall_accel": 80.0,
-"damage": 1.9,
-"mass": 0.7,
-"prop_force": 0.8,
-"spin": 15.0,
-"swing_speed": 1.3,
-"catch_time": 0.28,
-"catch_recover": 0.1,
-"rip_time": 0.3,
-"sweep_radius": 0.4,
-"pitch": 1.0
-},
 "recovery": 1.7,
 "weight": 0.7,
 "finisher_time": 0.9,

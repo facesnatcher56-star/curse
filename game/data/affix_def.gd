@@ -1,15 +1,24 @@
 class_name AffixDef
 extends Resource
-## One gear affix as data: what it is called, which slot it rolls on and what it does, in words.
-## What it actually *does* is code keyed by `id` in item_effects.gd (the hooks check `has_affix(id)`); this resource is the
-## catalogue entry the item generator, the tooltips and the reward screen read. Files live in res://data/affixes/.
+## One tier of a Dungeon Siege II item modifier family (docs/ds2-combat-and-loot.md 10.5): "of the Wolf" is +N life at modifier level L.
+## Written by tools/write_affix_defs.py into res://data/affixes/; read through AffixDb. What a stat does is PlayerStats' (gear_stat).
 
 @export var id: String = ""
-## Prefix for rare items ("Frostbitten Longsword"). Empty = unique-only (never rolled on a rare).
+## The family (its exclusion group: an item carries at most one tier of each) and the stat it raises.
+@export var family: String = ""
+@export var stat: String = ""
+## The name it gives an item: a prefix ("Cruel Longsword") or a suffix ("Longsword of the Wolf").
 @export var title: String = ""
-@export_enum("Weapon", "Armor", "Trinket") var slot: int = 0
-@export_multiline var description: String = ""
+@export_enum("prefix", "suffix") var position: String = "suffix"
+@export var tier: int = 1
+## Its modifier level: it rolls only on an item whose drop allows that level.
+@export var level: int = 1
+@export var value: float = 0.0
+## True when `value` is a percentage.
+@export var percent: bool = false
+## The item kinds it may roll on (weapon, body, helm, gloves, boots, shield, ring, amulet).
+@export var slots: Array[String] = []
 
-## The dictionary form the item code reads: {title, slot, desc}.
-func to_dict() -> Dictionary:
-	return {"title": title, "slot": slot, "desc": description}
+## "+12 Strength", "+18% Melee damage": the line on an item card.
+func describe() -> String:
+	return AffixDb.describe_stat(stat, value)

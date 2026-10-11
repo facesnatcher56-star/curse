@@ -36,24 +36,18 @@ var _pad_hold: Vector3 = Vector3.ZERO          # aim offset kept while an aimed 
 var _pad_hold_valid: bool = false
 
 # Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
-var skewer: SkewerSkill
-var leap: LeapSkill
-var earthshatter: EarthshatterSkill
 var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
-var weapon_throw: WeaponThrowSkill
+var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
 var knockdown: Knockdown
 var hit_reaction: HitReaction
 
 func _init() -> void:
-	skewer = SkewerSkill.new(self)
-	leap = LeapSkill.new(self)
-	earthshatter = EarthshatterSkill.new(self)
 	movement = PlayerMovement.new(self)
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
-	weapon_throw = WeaponThrowSkill.new(self)
+	powers = PowerController.new(self)
 	knockdown = Knockdown.new(self)
 	hit_reaction = HitReaction.new(self)
 
@@ -65,12 +59,11 @@ func _ready() -> void:
 	display_name = "Knight"
 	collision_layer = LAYER_PLAYER
 	collision_mask = LAYER_WORLD | LAYER_ENEMY
-	max_health = 120.0
+	stats.refresh()   # DS2: life and mana from his attributes, which come from his class skills; his level is his character level
 	health = max_health
-	attack_rating = 40.0
-	defense = 30.0
+	stats.mana = stats.max_mana
 	armor = stats.base_armor
-	block_chance = 0.1
+	block_chance = 0.0   # DS2: blocking needs a shield
 	_build_model(MODEL_DIR, CLIPS, 1.8, 0.4)
 	model.loop("idle_alert")
 	if ResourceLoader.exists(SWORD_PATH):
@@ -111,87 +104,17 @@ func refresh_weapon_model() -> void:
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
 
-## Whether a Skewer charge is under way (wind-up, run or skid): nothing may stall or push the hero then.
-func is_charging() -> bool:
-	return skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3
-
-## The hero is never frozen by the blows he lands while charging: every enemy the blade takes would otherwise stop him for a beat.
-func add_hitpause(duration: float) -> void:
-	if is_charging():
-		return
-	super.add_hitpause(duration)
-
-# --- Build (see BuildDefs, TownState): what the hero has bought; read straight from the one saved source, never cached here -----------------
-
-func has_passive(id: String) -> bool:
-	return TownState.has_passive(id)
-
-func evolution_of(skill_id: String) -> String:
-	return TownState.selected_evolution(skill_id)
-
-## One blow is HEAVY at a tenth of max health or an enemy's heavy attack; anything else is light. (The one definition: Unbowed, Stubborn
-## Advance, Iron Recovery and Retaliation all ask it.)
+## A HEAVY blow is an enemy's heavy attack (its strike weight, Actor.HEAVY_BLOW_WEIGHT); it puts him on the ground (see Knockdown).
 func is_heavy_hit(result: Dictionary) -> bool:
-	return float(result.get("damage", 0.0)) >= max_health * BuildDefs.HEAVY_HIT_FRACTION or float(result.get("weight", 1.0)) >= BuildDefs.HEAVY_HIT_WEIGHT
+	return float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT
 
-const COMMITTED_SKILLS: Array[String] = ["power", "skewer", "leap", "throw"]
-
-## Winding up or charging one of the heavy skills (aiming a held one, or between the start of a committed one and its strike).
-func is_committed_windup() -> bool:
-	return skills.aiming_id != "" or weapon_throw.charging() or (skills.busy and not skills.busy_hit_done and skills.busy_skill in COMMITTED_SKILLS)
-
-## Pressing in on a target (clicked or locked on), not busy with a skill, not in town idling.
-func is_advancing() -> bool:
-	return attack_target != null and is_instance_valid(attack_target) and not attack_target.dead and not skills.busy and not movement.rolling
-
-var retaliation_time: float = 0.0           # Retaliation: seconds left in which the next basic strike staggers hard
-var unbowed_suppressed: int = 0             # how often Unbowed / Stubborn Advance have shrugged a light stagger off (tests, diagnostics)
-var stubborn_suppressed: int = 0
-var iron_shoves: int = 0
-var retaliations_fired: int = 0
-var last_stun_blocked: String = ""
-var _unbowed_ready_ms: int = 0
-
-## A stagger that would stop him. A LIGHT one is shrugged off while he winds up a heavy skill (Unbowed, then a short cooldown so chip
-## damage cannot make him unstoppable) or presses in on a target (Stubborn Advance: he only flinches, slowed a moment). A HEAVY one always
-## lands and puts him on the ground (see Knockdown). None of this is damage immunity.
+## A stagger that would stop him. A HEAVY one always lands and puts him on the ground (see Knockdown); a light one is an ordinary flinch.
 func _gain_stun(duration: float, result: Dictionary = {}) -> void:
-	var heavy: bool = is_heavy_hit(result)
-	if not heavy:
-		if has_passive("unbowed") and is_committed_windup() and Time.get_ticks_msec() >= _unbowed_ready_ms:
-			_unbowed_ready_ms = Time.get_ticks_msec() + int(BuildDefs.UNBOWED_COOLDOWN * 1000.0)
-			unbowed_suppressed += 1
-			last_stun_blocked = "unbowed"
-			return
-		if has_passive("stubborn_advance") and is_advancing():
-			apply_slow(BuildDefs.STUBBORN_SLOW, BuildDefs.STUBBORN_SLOW_TIME)
-			stubborn_suppressed += 1
-			last_stun_blocked = "stubborn_advance"
-			return
 	if knockdown.active():
 		return   # already down: the lock is the fall's own, and a second blow neither restarts nor stretches it
-	if heavy and knockdown.begin():
+	if is_heavy_hit(result) and knockdown.begin():
 		return
 	super._gain_stun(duration, result)
-
-## Iron Recovery: Knockdown calls it when a get-up runs to the end. On his feet again, he drives the lesser enemies round him back
-## with his whole body (no damage; bosses and heavy bodies resist).
-func _iron_recovery() -> void:
-	iron_shoves += 1
-	var centre: Vector3 = global_position
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or e.impaled or e.is_boss or e.knock_resist >= 0.5 or e.flat_distance_to(self) > BuildDefs.IRON_RADIUS + e.body_radius:
-			continue
-		var away: Vector3 = e.global_position - centre
-		away.y = 0.0
-		away = away.normalized() if away.length() > 0.05 else Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
-		e.knock += away * BuildDefs.IRON_KNOCK * (1.0 - e.knock_resist)
-		e.interrupt(BuildDefs.IRON_STAGGER)
-	Fx.ring(self, centre + Vector3(0, 0.08, 0), BuildDefs.IRON_RADIUS * 0.8, Color(0.75, 0.62, 0.45))
-	Fx.burst(self, centre + Vector3(0, 0.2, 0), Vector3.UP, Color(0.42, 0.36, 0.28), 14, 3.5, 0.05)
-	Fx.shake(self, 0.1)
-	Fx.punch(self, 1.4)
 
 ## The flinch of an ordinary stagger. A blow that lands in the middle of a swing is only felt once the swing is over (the swing is
 ## never cut short), so the reaction runs at the speed that ends it with the stun: it never plays on after control is back, and a
@@ -206,26 +129,22 @@ func _play_flinch() -> void:
 	hit_reaction.begin(_last_hit_from, stun_time)
 
 func _physics_process(delta: float) -> void:
-	weapon_throw.tick(delta)
+	powers.tick(delta)   # (power timers and Repulse's field run through a hit-pause too)
 	_dormancy_timer -= delta
 	if _dormancy_timer <= 0.0:
 		_dormancy_timer = 0.5
 		_manage_dormancy()
-	if skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3:
-		knock = Vector3.ZERO   # nothing pushes the hero off a Skewer charge, not even a hit-pause frame
 	if _actor_tick(delta):
 		move_with(Vector3.ZERO)
 		return
 	if dead:
 		return
-	retaliation_time = maxf(retaliation_time - delta, 0.0)
 	knockdown.tick(delta)
 	hit_reaction.tick(delta)
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
-	skills.update_buff_visuals()
 	if model != null and model.weapon != null:
-		model.weapon.visible = not weapon_throw.is_away() and not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (not while it is out in the world)
+		model.weapon.visible = not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (put away while casting)
 	if not skills.busy and not knockdown.active() and visual != null and absf(visual.rotation.x) > 0.001:
 		visual.rotation.x = lerpf(visual.rotation.x, 0.0, 1.0 - exp(-14.0 * delta))
 	message_time = maxf(message_time - delta, 0.0)
@@ -233,11 +152,6 @@ func _physics_process(delta: float) -> void:
 	for id in stats.cooldowns.keys():
 		stats.cooldowns[id] = maxf(float(stats.cooldowns[id]) - delta, 0.0)
 	stats.regen(delta)
-	stats.haste_time = maxf(stats.haste_time - delta, 0.0)
-	stats.vault_time = maxf(stats.vault_time - delta, 0.0)
-	stats.chain_time = maxf(stats.chain_time - delta, 0.0)
-	if stats.chain_time <= 0.0:
-		stats.chain_stacks = 0
 	stats.collect_orbs()
 	skills.combo_timer = maxf(skills.combo_timer - delta, 0.0)
 	if skills.combo_timer <= 0.0 and not skills.busy:
@@ -542,22 +456,16 @@ func _read_input(cursor: Vector3) -> void:
 	for i in skills.hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
 		var slot_id: String = skills.hotbar[i]
-		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim":
-			continue
-		if SkillDb.all()[slot_id].get("directional", false):
-			if Input.is_action_just_pressed(action):
-				skills.try_directional(skills.hotbar[i], cursor)
-		elif SkillDb.all()[skills.hotbar[i]].get("aimed", false):
+		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim" or PowerController.LIVE.has(slot_id):
+			continue   # (powers go off from SkillController.handle_hotkeys)
+		if SkillDb.all()[skills.hotbar[i]].get("aimed", false):
 			skills.handle_aimed_key(action, skills.hotbar[i], cursor)
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
 			skills.queue_skill(skills.hotbar[i], cursor)
 	# The right mouse button carries whichever skill is on it (the attack by default), and drives it the way a numbered slot would.
 	var alt_id: String = skills.right_click_skill
 	var alt_def: Dictionary = SkillDb.all()[alt_id]
-	if bool(alt_def.get("directional", false)):
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			skills.try_directional(alt_id, cursor)
-	elif bool(alt_def.get("aimed", false)):
+	if bool(alt_def.get("aimed", false)):
 		skills.handle_aimed_key("alt_skill", alt_id, cursor)
 	elif alt_id == "brutal_attack":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
@@ -565,6 +473,9 @@ func _read_input(cursor: Vector3) -> void:
 	elif alt_id == "take_aim":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
 			skills.activate_take_aim()
+	elif PowerController.LIVE.has(alt_id):
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			powers.activate(alt_id, cursor)
 	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
 		if Input.is_action_just_pressed("alt_skill") and alt_id != "basic":
 			skills.interrupt_for(alt_id, cursor)   # a skill on the right button cancels the swing in progress, like a numbered key
@@ -612,14 +523,40 @@ func _manage_dormancy() -> void:
 		var d: float = here.distance_to(Vector2(e.global_position.x, e.global_position.z))
 		e.set_dormant(d > (Enemy.WAKE_RANGE if e.dormant else Enemy.SLEEP_RANGE))
 
+func _enter_tree() -> void:
+	if not TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
+		TownState.events.hero_xp_changed.connect(_on_xp_changed)
+		TownState.events.hero_leveled.connect(_on_leveled)
+		TownState.events.passives_changed.connect(stats.refresh)
+
+func _on_xp_changed(_old_xp: int, _new_xp: int) -> void:
+	stats.refresh()
+
+## DS2's level-up: full life and mana, and every power and skill ready again (Brutal Attack, Earthshatter, Cutter's Take Aim, cooldowns).
+func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
+	stats.refresh()
+	if dead:
+		return
+	health = max_health
+	stats.mana = stats.max_mana
+	stats.cooldowns.clear()
+	stats.brutal_reload_remaining = 0.0
+	powers.reset()
+	var cutter := stats._cutter()
+	if cutter != null:
+		cutter.take_aim_reload_remaining = 0.0
+
 func _exit_tree() -> void:
-	if weapon_throw != null:
-		weapon_throw.reset()
+	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
+		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
+	if TownState.events.hero_leveled.is_connected(_on_leveled):
+		TownState.events.hero_leveled.disconnect(_on_leveled)
+	if TownState.events.passives_changed.is_connected(stats.refresh):
+		TownState.events.passives_changed.disconnect(stats.refresh)
 
 func _on_death() -> void:
 	hit_reaction.clear()
 	knockdown.die()   # dying supersedes the fall (no get-up, no Iron Recovery) and the death clip carries on from his pose
-	weapon_throw.reset()   # a weapon out in the world comes back to his hand: it is never left lying where he fell
 	skills.reset()
 
 ## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
@@ -627,7 +564,6 @@ func _on_death() -> void:
 func revive_at(pos: Vector3) -> void:
 	if not dead:
 		return
-	weapon_throw.reset()
 	dead = false
 	if ragdoll != null and ragdoll.is_active():
 		ragdoll._finish()
@@ -694,7 +630,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 			if stats.can_use(skill_id):
 				skills.start_skill(skill_id, target)
 				return
-			if stats.mana < float(skill["mana"]):
+			if stats.mana < stats.mana_cost(skill_id):
 				_say("Not enough mana")
 			skills.clear_queue()
 			move_with(Vector3.ZERO)
@@ -716,38 +652,56 @@ func _act(delta: float, cursor: Vector3) -> void:
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	var outcome: int = result.get("outcome", 0)
-	if retaliation_time > 0.0 and String(result.get("skill_id", "")) == "basic" and not result.get("secondary", false):
-		_retaliate(target)
-	if outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
+	if outcome == Combat.Outcome.CRITICAL or float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)
-	if result.get("skill_id", "") != "earthshatter":
-		stats.gain_ult_charge(float(result.get("damage", 0.0)))   # the ultimate does not charge itself
 	if result.get("skill_id", "") != "brutal_attack":
 		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
+	powers.gain(float(result.get("damage", 0.0)), String(result.get("skill_id", "")))
+	_steal_life(result)
+	_passive_on_hit(target, result)
 	for companion in get_tree().get_nodes_in_group("companions"):
 		if companion.has_method("gain_take_aim_charge"):
 			companion.gain_take_aim_charge(float(result.get("damage", 0.0)))
-	ItemEffects.on_dealt_hit(self, target, result)
+
+## DS2's life steal and life per hit (gear): `life + flat + steal% x damage dealt`, on the hero's physical blows.
+func _steal_life(result: Dictionary) -> void:
+	if dead or int(result.get("type", 0)) != Combat.DamageType.PHYSICAL or String(result.get("skill_id", "")) == "reflect":
+		return
+	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
+	if gain > 0.0:
+		health = minf(health + gain, max_health)
+
+## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Ignite sets a
+## fire hit alight (DS2's rules.skrit: `increased_ignite_chance x damage / (1.2 + 0.6 INT)` against a 0-100 roll, the chance from its 5-30 table,
+## 0.08-0.5 x INT a second for 3 s).
+func _passive_on_hit(target: Actor, result: Dictionary) -> void:
+	if target == null or target.dead or result.get("secondary", false):
+		return
+	var skill: String = String(result.get("skill_id", ""))
+	var damage: float = float(result.get("damage", 0.0))
+	var smite: int = TownState.passive_rank("smite")
+	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
+			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
+		target._gain_stun(PassiveDb.get_def("smite").extra_value("stun", smite))
+	var ignite: int = TownState.passive_rank("ignite")
+	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
+			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
+		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true)
+
+## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
+func _filter_incoming(result: Dictionary) -> Dictionary:
+	var source: Variant = result.get("source")
+	var share: float = stats.gear_stat("reflect") / 100.0
+	if share > 0.0 and source is Enemy and not (source as Enemy).dead and int(result.get("type", 0)) == Combat.DamageType.PHYSICAL \
+			and int(result.get("outcome", 0)) >= Combat.Outcome.HIT and not result.get("quiet", false):
+		(source as Enemy).receive({"outcome": Combat.Outcome.HIT, "damage": maxf(float(result["damage"]) * share, 1.0), "weight": 0.3,
+			"source": self, "type": Combat.DamageType.PHYSICAL, "calm": true, "secondary": true, "skill_id": "reflect"}, global_position)
+	return result
 
 func on_enemy_killed(enemy: Actor) -> void:
-	ItemEffects.on_kill(self, enemy)
-
-## Retaliation: the basic strike that lands inside the window sends its target reeling (no extra damage), and uses the window up.
-func _retaliate(target: Actor) -> void:
-	retaliation_time = 0.0
-	retaliations_fired += 1
-	var away: Vector3 = target.global_position - global_position
-	away.y = 0.0
-	away = away.normalized() if away.length() > 0.05 else Vector3(sin(visual.rotation.y), 0.0, cos(visual.rotation.y))
-	target.interrupt(BuildDefs.RETALIATION_STAGGER)
-	target.knock += away * BuildDefs.RETALIATION_KNOCK * (1.0 - target.knock_resist)
-	Fx.ring(self, target.global_position + Vector3(0, 0.08, 0), 1.6, Color(0.9, 0.55, 0.25))
-	Fx.punch(self, 1.6)
-
-func _filter_incoming(result: Dictionary) -> Dictionary:
-	return ItemEffects.filter_incoming(self, result)
+	HealthOrb.drop_for_kill(self, enemy)
 
 ## The throw samples aim at release, after the short catch beat. Stick input wins
 ## while it is active; otherwise the controller uses current combat facing.
@@ -774,17 +728,21 @@ func _say(text: String) -> void:
 	message_time = 1.5
 
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
-	ItemEffects.on_player_hurt(self)
-	if has_passive("retaliation") and is_heavy_hit(result) and float(result.get("damage", 0.0)) > 0.0:
-		retaliation_time = BuildDefs.RETALIATION_SECONDS   # a heavy hit taken: the next basic strike will send its target reeling
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0
 	hurt_flash = 1.0
 	Fx.shake(self, 0.08)
 
-func _on_avoided(_outcome: int) -> void:
+func _on_avoided(outcome: int) -> void:
 	combat_timer = 5.0
+	# DS2's Rebuke: a block hits back for 0.4-2.5 x Melee level and stuns for 1-2 s.
+	var rebuke: int = TownState.passive_rank("rebuke")
+	if rebuke > 0 and outcome == Combat.Outcome.BLOCK and last_hit_by is Enemy and not last_hit_by.dead:
+		var melee: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get("melee", 0))
+		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,
+			"source": self, "type": Combat.DamageType.PHYSICAL, "secondary": true, "skill_id": "rebuke"}, global_position)
+		last_hit_by._gain_stun(PassiveDb.get_def("rebuke").extra_value("stun", rebuke))
 
 func _popup_tint() -> Color:
 	return Color(1.0, 0.35, 0.3)

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "life_steal_4"
+family = "life_steal"
+stat = "life_steal"
+title = "of the Vampire"
+position = "suffix"
+tier = 4
+level = 38
+value = 6.0
+percent = true
+slots = Array[String](["weapon", "ring"])

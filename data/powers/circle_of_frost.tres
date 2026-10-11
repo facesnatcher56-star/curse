@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "circle_of_frost"
+display_name = "Circle of Frost"
+tree = "nature"
+recharge = 60.0
+stance = "any"
+ranks = Array[Dictionary]([{"natural_bond": 5, "arctic_mastery": 8, "freezing": 1}, {"natural_bond": 6, "arctic_mastery": 10, "freezing": 6}, {"natural_bond": 8, "arctic_mastery": 12, "freezing": 12}])
+values = {
+"freeze": ["12", "15", "18"],
+"radius": ["3.5", "4", "4.5"],
+"damage": ["(13.3 + 3.3 * nature) * (2.0 + 0.015 * nature)", "(13.3 + 3.3 * nature) * (2.0 + 0.029 * nature)", "(13.3 + 3.3 * nature) * (2.5 + 0.036 * nature)"]
+}
+estimated = Array[String]([])
+summary = "Freeze everything around you."
+order = 22
+needs = "ice"

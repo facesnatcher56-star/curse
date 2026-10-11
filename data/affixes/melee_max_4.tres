@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "melee_max_4"
+family = "melee_max"
+stat = "melee_max"
+title = "of Ravaging"
+position = "suffix"
+tier = 4
+level = 45
+value = 44.0
+percent = false
+slots = Array[String](["weapon", "gloves"])

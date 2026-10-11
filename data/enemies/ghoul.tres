@@ -12,15 +12,11 @@ height = 1.6
 radius = 0.36
 clips = Array[String](["idle", "walk", "run", "attack", "hit", "death", "leap", "charge_run"])
 gib_color = Color(0.5, 0.5, 0.47, 1)
-health = 38.0
-damage_min = 5.0
-damage_max = 8.0
+tier = "weak"
+role = "rogue"
 speed = 4.8
 attack_range = 1.5
 attack_time = 0.8
-armor = 3.0
-defense = 20.0
-attack_rating = 30.0
 flinch = 0.5
 knock_resist = 0.0
 stun_resist = 0.0
@@ -42,9 +38,6 @@ params = {
 "cooldown_max": 3.6
 }
 token_weight = 1
-drop_chance = 0.09
-drop_luck = 0.0
-xp_reward = 2
 min_wave = 2
 spawn_mode = "pack"
 base_count = 2.0

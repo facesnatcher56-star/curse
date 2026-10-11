@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "quick_draw"
+display_name = "Quick Draw"
+tree = "ranged"
+class_level = 5
+prereqs = {
+"critical_shot": 1
+}
+first = 3.0
+last = 25.0
+text = "Thrown weapons; their attack rate +%s%%"
+order = 13
+table = Array[float]([3.0, 5.0, 7.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0])
+extra = {}
+needs = "throwing weapons"

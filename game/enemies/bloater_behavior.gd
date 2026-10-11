@@ -52,7 +52,7 @@ func _burst(by_fire: bool) -> void:
 	e.visual.scale = _base_scale
 	var centre: Vector3 = e.global_position
 	var radius: float = float(e.def.param("blast_radius", 3.2))
-	var damage: float = float(e.def.param("blast_damage", 22.0)) * (1.0 + 0.4 * (e.level_scale - 1.0))
+	var damage: float = e.average_hit() * float(e.def.param("blast_mult", 1.6))   # (a multiple of its own DS2 blow, so it grows with its level)
 	var scene: Node = e.get_tree().current_scene
 	Destructible.blast(e.get_tree(), centre, radius, 80.0, Vector3.ZERO, 1.5)
 	# Everyone close takes it: the hero, and other enemies (so luring a Bloater into a pack is a plan).
@@ -63,7 +63,7 @@ func _burst(by_fire: bool) -> void:
 		if other != null and other != e:
 			var amount: float = damage * 0.6
 			if by_fire:
-				amount += float(e.def.param("fire_blast_damage", 32.0))
+				amount += e.average_hit() * float(e.def.param("fire_blast_mult", 2.3))
 			_blast_actor(other, centre, radius, amount, by_fire)
 	if by_fire:
 		Fx.light_flash(scene, centre + Vector3(0, 1.0, 0), Color(1.0, 0.6, 0.25), 9.0, 0.35)
@@ -77,7 +77,7 @@ func _burst(by_fire: bool) -> void:
 		var cloud := HazardZone.new()
 		cloud.radius = radius * 0.9
 		cloud.lifetime = float(e.def.param("cloud_time", 4.5))
-		cloud.dps = float(e.def.param("cloud_dps", 5.0))
+		cloud.dps = e.average_hit() * float(e.def.param("cloud_mult", 0.36))
 		cloud.slow = 0.35
 		cloud.source = e
 		scene.add_child(cloud)

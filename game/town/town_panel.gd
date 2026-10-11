@@ -195,7 +195,7 @@ func _page_smith(id: String) -> void:
 		wares.add_child(_item_card(entry["item"], "Buy  %dg" % price, TownState.gold < price, func() -> void: _smith_buy(i, price, id)))
 	var sellable: Array[int] = []
 	for i in TownState.stash.size():
-		if int(TownState.stash[i]["slot"]) != Items.Slot.TRINKET:
+		if int(TownState.stash[i]["slot"]) not in [Items.Slot.RING, Items.Slot.AMULET]:
 			sellable.append(i)
 	if not sellable.is_empty():
 		_text("Sell weapons and armour from your stash (half price, while his coin lasts):", UiTheme.TEXT_DIM)
@@ -209,14 +209,14 @@ func _page_smith(id: String) -> void:
 
 func _restock_smith() -> void:
 	TownState.smith_stock = []
-	var none: Array[String] = []
 	var names: Array[String] = []
 	var rare_chance: float = WorldThreat.MERCHANT_RARE_CHANCE   # a placeholder, not a count of jobs done
 	for attempt in 80:
 		if TownState.smith_stock.size() >= 4:
 			break
-		var item: Dictionary = Items.roll_one(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), 0.0, rare_chance, none)
-		if int(item["slot"]) == Items.Slot.TRINKET or String(item["name"]) in names:
+		var item: Dictionary = Items.shop_item(WorldThreat.monster_level(WorldThreat.MERCHANT_THREAT), rare_chance,
+			[Items.Slot.WEAPON, Items.Slot.ARMOR, Items.Slot.SHIELD, Items.Slot.HELM, Items.Slot.GLOVES, Items.Slot.BOOTS])
+		if String(item["name"]) in names:
 			continue
 		names.append(String(item["name"]))
 		TownState.smith_stock.append({"item": item, "price": TownState.item_price(item)})
@@ -228,13 +228,20 @@ func _smith_buy(index: int, price: int, id: String) -> void:
 	TownState.gold -= price
 	TownState.smith_gold += price
 	TownState.smith_stock.remove_at(index)
-	var old: Variant = town.equip_town_item(item)
-	if old != null:
-		TownState.stash_item(old as Dictionary)
+	notice = _wear_bought(item)
 	TownState.add_happiness(id, 1.0)
-	notice = "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
 	TownState.save()
 	_rebuild()
+
+## A bought piece is put on at once and what it replaces goes to the stash; one he cannot wear yet goes to the stash itself. Returns the notice.
+func _wear_bought(item: Dictionary) -> String:
+	var off: Variant = town.equip_town_item(item)
+	if off == null:
+		TownState.stash_item(item)
+		return "Bought %s. You cannot wear it yet (%s): it went to the stash." % [item["name"], Items.requirement_text(item)]
+	for old in off:
+		TownState.stash_item(old)
+	return "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
 
 func _smith_sell(index: int, offer: int) -> void:
 	if index >= TownState.stash.size() or TownState.smith_gold < offer:
@@ -249,11 +256,7 @@ func _smith_sell(index: int, offer: int) -> void:
 
 func _restock() -> void:
 	TownState.stock = []
-	var owned: Array[String] = []
-	for item in TownState.gear.values():
-		if int((item as Dictionary)["rarity"]) == Items.Rarity.UNIQUE:
-			owned.append(String((item as Dictionary)["name"]))
-	for item in Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned):
+	for item in Items.roll_choices(WorldThreat.monster_level(WorldThreat.MERCHANT_THREAT)):
 		TownState.stock.append({"item": item, "price": TownState.item_price(item)})
 
 func _buy(index: int, price: int) -> void:
@@ -263,11 +266,8 @@ func _buy(index: int, price: int) -> void:
 	TownState.gold -= price
 	TownState.vendor_gold += price
 	TownState.stock.remove_at(index)
-	var old: Variant = town.equip_town_item(item)
-	if old != null:
-		TownState.stash_item(old as Dictionary)
+	notice = _wear_bought(item)
 	TownState.add_happiness("marlow", 1.0)
-	notice = "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
 	TownState.save()
 	_rebuild()
 
@@ -475,7 +475,7 @@ func _page_stash() -> void:
 	var worn_row := HBoxContainer.new()
 	worn_row.add_theme_constant_override("separation", 14)
 	_box.add_child(worn_row)
-	for slot in 3:
+	for slot in Items.SLOT_NAMES.size():
 		var worn: Variant = TownState.gear.get(slot)
 		if worn != null:
 			worn_row.add_child(ItemTile.create(worn, null))
@@ -496,9 +496,13 @@ func _wear(index: int) -> void:
 	if index >= TownState.stash.size():
 		return
 	var item: Dictionary = TownState.stash[index]
+	var off: Variant = town.equip_town_item(item)
+	if off == null:
+		notice = "You cannot wear %s yet: %s." % [item["name"], Items.requirement_text(item)] if not Items.hero_can_wear(item) else "Recall your weapon first."
+		_rebuild()
+		return
 	TownState.stash.remove_at(index)
-	var old: Variant = town.equip_town_item(item)
-	if old != null:
+	for old in off:
 		TownState.stash.append(old)
 	notice = "Now wearing %s." % item["name"]
 	TownState.save()

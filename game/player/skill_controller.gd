@@ -20,8 +20,6 @@ var right_click_skill: String:
 func assign_slot(slot: int, id: String) -> void:
 	GameSettings.assign_hotbar(slot, id)
 	clear_aim()
-var _glow_light: OmniLight3D
-var _haste_fx: CPUParticles3D
 var queued_skill: String = ""
 var queued_target: Actor
 var busy: bool = false
@@ -38,7 +36,6 @@ var blade_blood: float = 0.0    # 0..1 how bloody the sword is; fades slowly
 var _blood_mat: ShaderMaterial
 var _brutal_aura: Node3D
 var brutal_armed: bool = false
-const BRUTAL_MULT := 15.0
 var fire_orb: FireOrb
 var _release_started: bool = false
 var aiming_id: String = ""
@@ -49,9 +46,6 @@ var aim_point: Vector3 = Vector3.ZERO
 var _aim_root: Node3D
 var _aim_sphere_mat: StandardMaterial3D
 var _aim_line: MeshInstance3D
-var _lane: SkewerPreview   # the lane Skewer shows while its key is held
-var _wave_preview: PowerPreview   # the strip a Power Strike's shockwave will tear along, shown while the blow is gathered
-var _wave_clock: float = 0.0
 var _highlighted: Array[Actor] = []
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
@@ -80,14 +74,16 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			activate_brutal_attack()
 		elif id == "take_aim":
 			activate_take_aim()
+		elif PowerController.LIVE.has(id):
+			p.powers.activate(id, cursor)
 		else:
 			interrupt_for(id, cursor)
 
 ## A skill pressed mid-action cancels it (a skill never waits behind a basic swing); the same for a numbered key and for the skill on the right mouse button.
 func interrupt_for(id: String, cursor: Vector3) -> void:
-	if busy and not p.movement.rolling and p.stun_time <= 0.0 and not bool(busy_def.get("weapon_throw", false)):
+	if busy and not p.movement.rolling and p.stun_time <= 0.0:
 		if not p.stats.can_use(id):
-			if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+			if p.stats.mana < p.stats.mana_cost(id):
 				p._say("Not enough mana")
 			else:
 				p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
@@ -112,12 +108,6 @@ func cancel_action() -> void:
 	if not busy:
 		return
 	_refund_unreleased_cast()
-	if bool(busy_def.get("skewer", false)):
-		p.skewer.end_skewer()  # releases anyone on the blade and restores collision
-	if bool(busy_def.get("leap", false)):
-		p.leap.end_leap()
-	if bool(busy_def.get("earthshatter", false)):
-		p.earthshatter.end()
 	if bool(busy_def.get("charged", false)):
 		drop_orb()
 	busy = false
@@ -135,29 +125,24 @@ func cancel_action() -> void:
 	busy_t = 0.0
 	_release_started = false
 
+## What the skill under way cost (Fireball's cost grows with INT, so the refund is what was taken, not the data's number).
+var _mana_spent: float = 0.0
+
 ## The charged cast reserves its cost at start; every abort path settles the same reservation.
 func _refund_unreleased_cast() -> void:
 	if busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
-		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
+		p.stats.mana = minf(p.stats.mana + _mana_spent, p.stats.max_mana)
 		p.stats.cooldowns[busy_skill] = 0.0
 
 ## Death/revive cleanup without changing the actor's animation or transition.
 func reset() -> void:
 	_refund_unreleased_cast()
 	clear_aim()
-	if p.skewer.skewer_phase != 0:
-		p.skewer.end_skewer(false)
-	if p.leap.leap_phase != 0:
-		p.leap.end_leap(false)
-	if p.earthshatter.phase != 0:
-		p.earthshatter.end(false)
 	if p.model != null:
 		p.model.weapon_aim = null
 		p.model.leg_raise = 0.0
 	if p._trail != null:
 		p._trail.active = false
-	if _glow_light != null:
-		_glow_light.light_energy = 0.0
 	busy = false
 	busy_skill = ""
 	busy_def = {}
@@ -178,10 +163,11 @@ func activate_brutal_attack() -> void:
 	if brutal_armed:
 		p._say("Brutal Attack is armed")
 		return
+	if PowerDb.hero_rank("brutal_attack") <= 0:   # DS2: a power opens with passive ranks (Critical Strike 1)
+		p._say("Brutal Attack needs Critical Strike")
+		return
 	if not p.stats.can_use("brutal_attack"):
 		p._say("Brutal Attack is %d%% charged" % int(p.stats.ult_fraction("brutal_attack") * 100.0))
-		return
-	if not weapon_ready("brutal_attack"):
 		return
 	# DS2 powers take priority over the ordinary attack job. Preserve the target
 	# before cancelling so the powered blow begins now, never behind the queue.
@@ -266,67 +252,6 @@ func _clear_brutal_visual() -> void:
 		_brutal_aura.queue_free()
 	_brutal_aura = null
 
-## Skills that need the sword in his hand: with it thrown (or being thrown) none of them can start, and he is told why.
-const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "power", "skewer", "leap", "earthshatter"]
-
-func weapon_ready(id: String) -> bool:
-	if not (id in SWORD_SKILLS) or p.weapon_throw.has_weapon():
-		return true
-	if p.message_time <= 0.0:
-		p._say("Weapon is out")
-	return false
-
-## The Weapon Throw key. With the weapon in his hand: hold to wind up and aim, let go to throw. With it out: pressing it again recalls it
-## (whatever the cooldown says; the cooldown only stops another throw).
-func _handle_throw_key(action: String, cursor: Vector3) -> void:
-	var throw: WeaponThrowSkill = p.weapon_throw
-	if throw.is_away():
-		if Input.is_action_just_pressed(action):
-			throw.recall()
-		return
-	if Input.is_action_pressed(action):
-		if aim_blocked == action or aiming_id == WeaponThrowSkill.SKILL_ID:
-			return
-		if not Input.is_action_just_pressed(action):
-			return   # (a key still held from before is not a new wind-up)
-		if throw.can_begin():
-			clear_queue()
-			aiming_id = WeaponThrowSkill.SKILL_ID
-			aiming_action = action
-			throw.begin_charge()
-		elif throw.has_weapon() and not p.stats.can_use(WeaponThrowSkill.SKILL_ID):
-			p._say("Weapon Throw is recharging")
-			aim_blocked = action
-	elif aim_blocked == action:
-		aim_blocked = ""
-	elif aiming_id == WeaponThrowSkill.SKILL_ID and aiming_action == action:
-		throw.release(throw.aim_point_from(cursor))
-		clear_aim(true)
-
-## Skills that launch in a direction (Skewer) trigger on press, toward the cursor.
-func try_directional(id: String, cursor: Vector3) -> void:
-	if busy or p.dead:
-		return
-	if not weapon_ready(id):
-		return
-	if not p.stats.can_use(id):
-		if p.stats.ult_charge < p.stats.ult_cost(id):
-			p._say("%s is %d%% charged" % [SkillDb.all()[id]["name"], int(p.stats.ult_fraction(id) * 100.0)])
-		elif p.stats.mana < float(SkillDb.all()[id]["mana"]):
-			p._say("Not enough mana")
-		return
-	if bool(SkillDb.all()[id].get("earthshatter", false)):
-		clear_queue()
-		p.earthshatter.start(cursor)
-	elif bool(SkillDb.all()[id].get("leap", false)):
-		clear_queue()
-		p.leap.start_leap(cursor)
-	elif id == "power":
-		start_skill("power", null, cursor)   # no target is picked for the hero: the blow goes where the cursor points (see _power_target)
-	else:
-		clear_queue()
-		p.skewer.start_skewer(cursor)
-
 ## Right-click or dodge backs out of a Fireball. While aiming nothing has been spent; during the wind-up the mana and cooldown come
 ## back. Once the fireball has left the hand it is thrown, and nothing cancels it.
 func check_cancel() -> void:
@@ -348,18 +273,12 @@ func check_cancel() -> void:
 
 ## Holding the key aims; letting go casts at the point under the cursor.
 func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
-	if id == WeaponThrowSkill.SKILL_ID:
-		_handle_throw_key(action, cursor)
-		return
-	if bool(SkillDb.all()[id].get("skewer", false)) and not weapon_ready(id):
-		return
 	if Input.is_action_pressed(action):
 		if aim_blocked == action:
 			return   # cancelled while this key was held: nothing happens until it is released
 		aiming_id = id
 		aiming_action = action
-		if not bool(SkillDb.all()[id].get("skewer", false)):
-			p.movement.has_goal = false   # (Skewer is aimed on the move: the hero keeps running while its lane shows, and charges from that speed)
+		p.movement.has_goal = false
 	elif aim_blocked == action:
 		aim_blocked = ""
 	elif aiming_id == id and aiming_action == action:
@@ -370,18 +289,13 @@ func _release_aim(cursor: Vector3) -> void:
 	var point: Vector3 = aim_point_for(id, cursor)
 	if not p.stats.can_use(id):
 		clear_aim()
-		if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+		if p.stats.mana < p.stats.mana_cost(id):
 			p._say("Not enough mana")
 		return
 	clear_aim(true)
-	if bool(SkillDb.all()[id].get("skewer", false)):
-		clear_queue()
-		p.skewer.start_skewer(point)   # (its own charge, not a timed skill)
-		return
 	start_skill(id, null, point)
 
 func clear_aim(keep_orb: bool = false) -> void:
-	p.weapon_throw.cancel_charge()   # backing out of an unreleased throw spends nothing
 	if not keep_orb:
 		drop_orb()
 	aiming_id = ""
@@ -394,8 +308,6 @@ func clear_aim(keep_orb: bool = false) -> void:
 		_aim_root.visible = false
 	if _aim_line != null:
 		_aim_line.visible = false
-	if _lane != null:
-		_lane.hide_lane()
 
 ## The cursor point on the ground, pulled in to the skill's range if it is too far.
 func aim_point_for(id: String, cursor: Vector3) -> Vector3:
@@ -409,20 +321,9 @@ func aim_point_for(id: String, cursor: Vector3) -> Vector3:
 ## Per-frame preview while aiming: sphere at the impact point, ring on the ground, a line from the hero,
 ## and every enemy inside the blast lit up.
 func update_aim(cursor: Vector3) -> void:
-	# A directed Power Strike follows the cursor for the whole of its wind-up: the hero turns with it and the blow lands where it ends up.
-	if busy and busy_skill == "power" and not busy_hit_done and busy_target == null and not p.movement.rolling:
-		busy_aim = cursor
-		p.face(busy_aim, 0.4)
-	_update_wave_preview()
 	if aiming_id == "":
 		return
-	if aiming_id == WeaponThrowSkill.SKILL_ID:
-		p.weapon_throw.update_preview(cursor)
-		return
 	aim_point = aim_point_for(aiming_id, cursor)
-	if bool(SkillDb.all()[aiming_id].get("skewer", false)):
-		_update_lane(cursor)
-		return
 	if bool(SkillDb.all()[aiming_id].get("charged", false)) and not busy:
 		_ensure_orb(0.28)
 	_ensure_aim_nodes()
@@ -453,38 +354,6 @@ func update_aim(cursor: Vector3) -> void:
 		gap.y = 0.0
 		if gap.length() <= radius + e.body_radius * 0.5:
 			now_hit.append(e)
-	for e in _highlighted:
-		if is_instance_valid(e) and not (e in now_hit):
-			e.set_highlighted(false)
-	for e in now_hit:
-		e.set_highlighted(true)
-	_highlighted = now_hit
-
-## Skewer's preview: the lane the charge will run and the fan the kick throws across, with the enemies the blade would take lit up.
-func _update_lane(cursor: Vector3) -> void:
-	if _lane == null:
-		_lane = SkewerPreview.new(p)
-	var dir: Vector3 = cursor - p.global_position
-	dir.y = 0.0
-	if dir.length() < 0.4:
-		dir = Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	dir = dir.normalized()
-	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.009)
-	_lane.show_lane(p.get_world_3d(), p.global_position, dir, float(SkillDb.all()[aiming_id]["range"]), pulse)
-	Actor.get_highlight_material().albedo_color.a = 0.3 + 0.2 * pulse
-	# The first three that fit on the blade, nearest first, are the ones it would run through.
-	var in_lane: Array[Actor] = []
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or not e.can_be_impaled():
-			continue
-		var rel: Vector3 = e.global_position - p.global_position
-		rel.y = 0.0
-		var ahead: float = rel.dot(dir)
-		if ahead > 0.2 and ahead < _lane.length + 1.0 and absf(rel.cross(dir).y) <= SkewerPreview.LANE_HALF_WIDTH + e.body_radius * 0.3:
-			in_lane.append(e)
-	in_lane.sort_custom(func(a: Actor, b: Actor) -> bool: return a.global_position.distance_squared_to(p.global_position) < b.global_position.distance_squared_to(p.global_position))
-	var now_hit: Array[Actor] = in_lane.slice(0, 3)
 	for e in _highlighted:
 		if is_instance_valid(e) and not (e in now_hit):
 			e.set_highlighted(false)
@@ -570,8 +439,6 @@ func clear_queue() -> void:
 func queue_skill(id: String, cursor: Vector3) -> void:
 	if p.dead:
 		return
-	if not weapon_ready(id):
-		return
 	var target: Actor = p.enemy_near(cursor, 12.0)
 	if target == null:
 		return
@@ -584,21 +451,15 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		return
 	if aim == null and not is_instance_valid(target):
 		return
-	if not weapon_ready(id):
-		return
 	var skill: Dictionary = SkillDb.all()[id]
 	clear_queue()   # an accepted immediate action replaces any pending order
 	if id == "basic":
 		skill = _next_basic()
 	busy_def = skill
-	busy_time = float(skill["time"]) / p.stats.attack_speed()
-	if id == "power" and p.stats.vault_time > 0.0:
-		p.stats.vault_time = 0.0   # Vaultborn: this one is free
-	else:
-		p.stats.mana -= float(skill["mana"])
-		p.stats.cooldowns[id] = float(skill["cd"])
-	if not bool(skill.get("charged", false)):
-		ItemEffects.on_skill_start(p, id)
+	busy_time = float(skill["time"]) / p.stats.skill_speed(id)
+	_mana_spent = p.stats.mana_cost(id)
+	p.stats.mana -= _mana_spent
+	p.stats.cooldowns[id] = float(skill["cd"])
 	busy = true
 	busy_skill = id
 	busy_target = target
@@ -622,73 +483,13 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
 
-## Blade ribbon colour and length per skill: plain steel for the combo, hot orange for Power Strike.
-func _style_trail(id: String) -> void:
+## Blade ribbon colour and length: plain steel.
+func _style_trail(_id: String) -> void:
 	if p._trail == null:
 		return
-	match id:
-		"power":
-			p._trail.tint = Color(1.0, 0.62, 0.25)
-			p._trail.max_age = 0.34
-			p._trail.strength = 0.85
-		_:
-			p._trail.tint = Color(1.0, 0.92, 0.75)
-			p._trail.max_age = WeaponTrail.DEFAULT_AGE
-			p._trail.strength = 0.4
-
-## The blade glows as a heavy skill is wound up (a light on the tip that peaks at the strike, then fades).
-func _blade_glow(u: float, hit_frac: float) -> void:
-	if p.model == null or p.model.weapon_tip == null:
-		return
-	if _glow_light == null:
-		_glow_light = OmniLight3D.new()
-		_glow_light.omni_range = 4.0
-		p.model.weapon_tip.add_child(_glow_light)
-	_glow_light.light_color = Color(1.0, 0.6, 0.25) if busy_skill == "power" else Color(0.7, 0.9, 1.0)
-	if u < hit_frac:
-		_glow_light.light_energy = 3.5 * pow(u / hit_frac, 2.0)
-	else:
-		_glow_light.light_energy = 3.5 * clampf(1.0 - (u - hit_frac) / 0.3, 0.0, 1.0)
-
-## Gear buffs you can see: a haste wake behind you.
-func update_buff_visuals() -> void:
-	if _glow_light != null and not (busy and busy_skill == "power"):
-		_glow_light.light_energy = 0.0
-	if _haste_fx == null and p.stats.haste_time > 0.0:
-		_haste_fx = _make_haste_fx()
-		p.add_child(_haste_fx)
-	if _haste_fx != null:
-		_haste_fx.emitting = p.stats.haste_time > 0.0
-
-func _make_haste_fx() -> CPUParticles3D:
-	var p := CPUParticles3D.new()
-	p.amount = 18
-	p.lifetime = 0.5
-	p.local_coords = false
-	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 0.35
-	p.direction = Vector3.UP
-	p.spread = 25.0
-	p.initial_velocity_min = 0.3
-	p.initial_velocity_max = 1.0
-	p.gravity = Vector3(0, 0.5, 0)
-	p.position = Vector3(0, 0.5, 0)
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.22, 0.22)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = Fx.soft_texture()
-	quad.material = mat
-	p.mesh = quad
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.7, 0.25, 0.8))
-	ramp.set_color(1, Color(1.0, 0.35, 0.05, 0.0))
-	p.color_ramp = ramp
-	return p
+	p._trail.tint = Color(1.0, 0.92, 0.75)
+	p._trail.max_age = WeaponTrail.DEFAULT_AGE
+	p._trail.strength = 0.4
 
 ## Picks the next swing of the combo and returns it merged over the basic attack stats.
 func _next_basic() -> Dictionary:
@@ -716,19 +517,7 @@ func tick_busy(delta: float) -> void:
 	if not busy or p.dead:
 		return
 	var skill: Dictionary = busy_def
-	if bool(skill.get("weapon_throw", false)):
-		p.weapon_throw.tick_busy(delta)   # the throw's release and the catch are timed by the throw itself
-		return
 	busy_t += delta
-	if bool(skill.get("skewer", false)):
-		p.skewer.tick_skewer(delta)
-		return
-	if bool(skill.get("leap", false)):
-		p.leap.tick_leap(delta)
-		return
-	if bool(skill.get("earthshatter", false)):
-		p.earthshatter.tick(delta)
-		return
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
 		return
@@ -745,8 +534,6 @@ func tick_busy(delta: float) -> void:
 		busy_t += delta * (float(p.stats.weapon_profile("recovery", 1.0)) - 1.0)
 	var u: float = busy_t / duration
 	var hf: float = hit_fraction(skill)
-	if busy_skill == "power":
-		_blade_glow(u, hf)
 	if p._trail != null:
 		var show_heavy_trail: bool = busy_skill != "basic" or bool(skill.get("brutal_animation", false))
 		p._trail.active = String(skill["kind"]) == "melee" and show_heavy_trail and u > hf - 0.35 and u < hf + 0.22
@@ -786,7 +573,6 @@ func _tick_charged(skill: Dictionary) -> void:
 		p.visual.rotation.x = 0.22 * (1.0 - clampf((busy_t - t_throw) / 0.3, 0.0, 1.0))
 		if not busy_hit_done and busy_t >= t_throw:
 			busy_hit_done = true
-			ItemEffects.on_skill_start(p, busy_skill)
 			_apply_skill(skill)
 			Fx.shake(p, 0.12)
 			Fx.punch(p, 2.4)
@@ -798,8 +584,6 @@ func _tick_charged(skill: Dictionary) -> void:
 func _strike_fx(skill: Dictionary) -> void:
 	if String(skill["kind"]) != "melee":
 		return
-	if busy_skill == "power":
-		return   # these have their own, much bigger impact effects (SkillFx)
 	var weight: float = float(skill["weight"])
 	var dir: Vector3 = busy_aim - p.global_position
 	dir.y = 0.0
@@ -830,124 +614,19 @@ func _lunge(max_distance: float) -> void:
 static func hit_fraction(skill: Dictionary) -> float:
 	return (float(skill["strike"]) - float(skill["start"])) / (float(skill["end"]) - float(skill["start"]))
 
-## While a Power Strike is being gathered and the weapon throws a shockwave, show the strip it will hit.
-func _update_wave_preview() -> void:
-	var gathering: bool = busy and busy_skill == "power" and not busy_hit_done and p.stats.has_affix("gravewarden")
-	if not gathering:
-		if _wave_preview != null:
-			_wave_preview.hide_wave()
-		_highlight_wave_targets([])
-		return
-	if _wave_preview == null:
-		_wave_preview = PowerPreview.new(p)
-	_wave_clock += p.get_process_delta_time()
-	var dir: Vector3 = busy_aim - p.global_position
-	dir.y = 0.0
-	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	var duration: float = maxf(busy_time, 0.01)
-	var strength: float = clampf(busy_t / duration / maxf(hit_fraction(busy_def), 0.01) * 1.6, 0.25, 1.0)
-	_wave_preview.show_wave(p.global_position, dir, strength, _wave_clock)
-	# And who it will hit: every enemy inside the strip glows, the way Skewer's lane lights the ones its blade would take.
-	var in_wave: Array[Actor] = []
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead:
-			continue
-		var to_e: Vector3 = e.global_position - p.global_position
-		to_e.y = 0.0
-		if to_e.dot(dir) > PowerPreview.FROM and to_e.dot(dir) < PowerPreview.REACH and absf(to_e.cross(dir).y) < PowerPreview.HALF_WIDTH:
-			in_wave.append(e)
-	Actor.get_highlight_material().albedo_color.a = 0.3 + 0.2 * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.009))
-	_highlight_wave_targets(in_wave)
-
-var _wave_hit: Array[Actor] = []
-
-func _highlight_wave_targets(now: Array) -> void:
-	for e in _wave_hit:
-		if is_instance_valid(e) and not (e in now):
-			e.set_highlighted(false)
-	for e in now:
-		(e as Actor).set_highlighted(true)
-	_wave_hit.clear()
-	for e in now:
-		_wave_hit.append(e as Actor)
-
 ## The enemy a directed Power Strike lands on: the nearest one to the point the blow lands on (a stride out toward the cursor), if any is
 ## in reach. Chosen when the blade comes down, not when the key is pressed.
-func _power_target() -> Actor:
-	var dir: Vector3 = busy_aim - p.global_position
-	dir.y = 0.0
-	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	var point: Vector3 = p.global_position + dir * 1.9
-	var best: Actor = null
-	var best_d: float = 2.1
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or e.impaled:
-			continue
-		var d: float = Vector2(e.global_position.x - point.x, e.global_position.z - point.z).length() - e.body_radius * 0.5
-		if d < best_d and p.flat_distance_to(e) - e.body_radius <= float(SkillDb.all()["power"]["range"]) + 0.5:
-			best_d = d
-			best = e
-	return best
-
-## Power Strike lands: crater, rings, rocks and cracks at the point of impact, splash on neighbours, and a shove.
-func _power_impact() -> void:
-	var dir: Vector3 = busy_aim - p.global_position
-	dir.y = 0.0
-	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	var point: Vector3 = p.global_position + dir * 1.9
-	if busy_target != null and is_instance_valid(busy_target):
-		point = busy_target.global_position
-	point.y = 0.0
-	SkillFx.power_impact(p, point, dir, p.stats.has_affix("gravewarden"))
-	Destructible.blast(p.get_tree(), point, 2.4, 60.0, dir, 1.7, Destructible.HERO)
-	Fx.hitstop(p, 0.08)
-	if busy_target != null and is_instance_valid(busy_target) and not busy_target.dead:
-		busy_target.knocked_by = p
-		busy_target.knock += dir * POWER_KNOCK * (1.0 - busy_target.knock_resist)   # thrown back, hard: into a wall or another monster it pays for it
-		busy_target.interrupt(POWER_STUN)
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or e == busy_target:
-			continue
-		var gap: Vector3 = e.global_position - point
-		gap.y = 0.0
-		if gap.length() > POWER_SPLASH_RADIUS + e.body_radius:
-			continue
-		var splash: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(SkillDb.all()["power"]["mult"]) * 0.5), Combat.DamageType.PHYSICAL, false, 1.5)
-		splash["skill_id"] = "power"
-		splash["secondary"] = true
-		e.receive(splash, point)
-		if is_instance_valid(e) and not e.dead:
-			var outward: Vector3 = (gap.normalized() * 0.6 + dir * 0.4).normalized() if gap.length() > 0.1 else dir
-			e.knocked_by = p
-			e.knock += outward * POWER_SPLASH_KNOCK * (1.0 - e.knock_resist)
-			e.interrupt(POWER_SPLASH_STUN)
-	ItemEffects.power_shockwave(p, dir)
-
-const POWER_SPLASH_RADIUS := 2.0
-## Power Strike throws what it hits (m/s of knock-back added to the blow's own: about 4-5 m for the one struck, 3 for its neighbours, less for the heavy ones) and
-## stuns them longer than a normal blow, so it clears the space round the hero. See Actor._knock_impact for what a wall or another monster costs.
-const POWER_KNOCK := 9.0
-const POWER_SPLASH_KNOCK := 6.5
-const POWER_STUN := 1.5
-const POWER_SPLASH_STUN := 1.1
 func _apply_skill(skill: Dictionary) -> void:
 	var mult: float = skill["mult"]
-	if busy_skill == "power" and busy_target == null:
-		busy_target = _power_target()
 	match String(skill["kind"]):
 		"melee":
 			# The basic combo's stagger and knockback follow the weapon: light for a falchion, heavy for a greatsword.
 			var weight: float = float(skill["weight"]) * (float(p.stats.weapon_profile("weight", 1.0)) if busy_skill == "basic" else 1.0)
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
-				var guaranteed_crit: bool = ItemEffects.guaranteed_crit(p, busy_target)
 				var brutal: bool = busy_skill == "basic" and brutal_armed
-				var damage: float = p.stats.weapon_damage(mult * (BRUTAL_MULT if brutal else 1.0)) * ItemEffects.outgoing_multiplier(p, busy_target)
-				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL,
-					not guaranteed_crit, weight, guaranteed_crit)
+				var damage: float = p.stats.weapon_damage(mult * (p.stats.brutal_mult() if brutal else 1.0))
+				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight)
 				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
@@ -959,15 +638,14 @@ func _apply_skill(skill: Dictionary) -> void:
 					p.stats.spend_brutal_attack()
 					_clear_brutal_visual()
 				busy_target.receive(result, p.global_position)
-				if busy_skill == "basic" and bool(skill.get("finisher", false)) and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
-					_stun_finisher_hit(busy_target)
+				if p.powers.staggering_armed and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] \
+						and is_instance_valid(busy_target):
+					p.powers.release_staggering(busy_target)   # DS2's Staggering Blow rides the next blow that lands
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
 			if busy_skill == "basic":
 				_weapon_style_hits(skill, mult, weight)
-			_smash_props(mult, 1.4 + (1.0 if busy_skill == "power" else 0.0), 1.0 + (0.5 if busy_skill == "power" else 0.0))
-			if busy_skill == "power":
-				_power_impact()
+			_smash_props(mult, 1.4, 1.0)
 		"projectile":
 			Sfx.sample(p, "fireball_cast", -1.0, 1.0)   # the cast burst lands exactly as the fireball leaves the hands
 			var ball := Projectile.new()
@@ -975,7 +653,7 @@ func _apply_skill(skill: Dictionary) -> void:
 			var dir: Vector3 = busy_aim - p.global_position
 			dir.y = 0.0
 			ball.direction = dir.normalized()
-			ball.damage = (14.0 + p.stats.strength * 0.4) * ItemEffects.virtuoso_multiplier(p)
+			ball.damage = p.stats.spell_damage()   # a DS2 spell: grows with INT
 			ball.destination = busy_aim + Vector3(0, 0.8, 0)
 			p.get_tree().current_scene.add_child(ball)
 			var origin: Vector3 = p.global_position + Vector3(0, 1.2, 0) + ball.direction * 0.8
@@ -983,17 +661,6 @@ func _apply_skill(skill: Dictionary) -> void:
 				origin = fire_orb.release()  # the gathered orb is the fireball that gets thrown
 				fire_orb = null
 			ball.global_position = origin
-			if p.stats.has_affix("twin_flame"):
-				var twin := Projectile.new()
-				twin.owner_actor = p
-				twin.damage = ball.damage * 0.6
-				var twin_point: Vector3 = twin_destination(busy_aim)
-				var heading: Vector3 = twin_point - p.global_position
-				heading.y = 0.0
-				twin.direction = heading.normalized() if heading.length() > 0.05 else ball.direction
-				twin.destination = twin_point + Vector3(0, 0.8, 0)
-				p.get_tree().current_scene.add_child(twin)
-				twin.global_position = ball.global_position
 
 ## What the wielded weapon adds to a basic swing. A wide weapon (the greatsword) also hits the other enemies inside its arc, for a
 ## share of the damage; a slam finisher drives the blade into the ground and throws a shockwave through everything in front.
@@ -1019,13 +686,11 @@ func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
 		if not (in_arc or in_slam):
 			continue
 		var frac: float = share if in_arc and not in_slam else 0.8
-		var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * frac * ItemEffects.outgoing_multiplier(p, e),
+		var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * frac,
 			Combat.DamageType.PHYSICAL, true, weight * (1.6 if in_slam else 1.0), false)
 		swing["skill_id"] = busy_skill
 		swing["secondary"] = true
 		e.receive(swing, p.global_position)
-		if bool(skill.get("finisher", false)) and swing["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
-			_stun_finisher_hit(e)
 		if in_slam and is_instance_valid(e) and not e.dead:
 			e.interrupt(0.7)
 		swept += 1
@@ -1041,51 +706,12 @@ func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
 
 const SLAM_RADIUS := 3.2
 
-func _stun_finisher_hit(enemy: Actor) -> void:
-	if p.stats.has_affix("maelstrom") and is_instance_valid(enemy) and not enemy.dead:
-		enemy.interrupt(1.0)
-
 ## A swing also breaks a barrel in front of the hero (only barrels, for now), so one can be attacked like an enemy.
 func _smash_props(mult: float, reach: float, force: float) -> void:
 	var dir: Vector3 = busy_aim - p.global_position
 	dir.y = 0.0
 	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
 	Destructible.blast(p.get_tree(), p.global_position + dir * 1.2, reach, p.stats.weapon_damage(mult) * 1.5, dir, force, Destructible.HERO)
-
-## Where the second Twin Flame fireball goes: at a second enemy (the nearest one to the first fireball's target that is not the
-## target itself, preferring one outside the first blast); with only one enemy about, right next to it.
-func twin_destination(first_point: Vector3) -> Vector3:
-	var enemies: Array[Actor] = []
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e != null and not e.dead and p.flat_distance_to(e) <= float(SkillDb.all()["fireball"]["range"]) + 2.0:
-			enemies.append(e)
-	var primary: Actor = null
-	var primary_d: float = INF
-	for e in enemies:
-		var d: float = Vector2(e.global_position.x - first_point.x, e.global_position.z - first_point.z).length()
-		if d < primary_d:
-			primary_d = d
-			primary = e
-	var second: Actor = null
-	var second_d: float = INF
-	var outside: bool = false   # one beyond the first blast beats any inside it
-	for e in enemies:
-		if e == primary:
-			continue
-		var d: float = Vector2(e.global_position.x - first_point.x, e.global_position.z - first_point.z).length()
-		var is_outside: bool = d > Projectile.BLAST_RADIUS * 0.9
-		if (is_outside and not outside) or (is_outside == outside and d < second_d):
-			second = e
-			second_d = d
-			outside = is_outside
-	if second != null:
-		return Vector3(second.global_position.x, 0.0, second.global_position.z)
-	var anchor: Vector3 = primary.global_position if primary != null else first_point
-	var side: Vector3 = (anchor - p.global_position)
-	side.y = 0.0
-	side = side.normalized().rotated(Vector3.UP, PI * 0.5) if side.length() > 0.05 else Vector3.RIGHT
-	return Vector3(anchor.x, 0.0, anchor.z) + side * 0.8   # right beside the only target
 
 ## The sword stays red while it is bloody and slowly dries.
 func update_blade_blood(delta: float) -> void:

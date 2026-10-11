@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "emberheart"
+display_name = "Emberheart"
+base = "talisman"
+level = 30
+mods = {
+"int": 25.0,
+"spell_pct": 25.0,
+"fire_resist": 20.0,
+"mana": 120.0
+}
+set_id = ""

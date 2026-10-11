@@ -140,33 +140,7 @@ func _run() -> void:
 	wall.queue_free()
 	thrown.queue_free()
 
-	# 2. Earthshatter landing on a pack.
-	_reset_hero()
-	var pack: Array[Enemy] = []
-	for i in 6:
-		var a: float = TAU * float(i) / 6.0
-		pack.append(_spawn(Vector3(0, 0, -3.2) + Vector3(sin(a), 0, cos(a)) * 1.6))
-	await create_timer(0.3).timeout
-	player.stats.ult_charge = player.stats.ult_cost("earthshatter")
-	peak_voices = 0
-	peak_shake = 0.0
-	player.skills.try_directional("earthshatter", Vector3(0, 0, -6))
-	check("earthshatter started in the real scene", player.earthshatter.phase != 0)
-	tiles = await _film([0.4, 0.9, 1.3, 1.5, 1.7, 2.0, 2.4, 3.0, 3.6], Vector2(0, -120))
-	_sheet(tiles, 3, "heavy_skill_landing.png")
-	check("earthshatter: voices stay capped", peak_voices <= Sfx.MAX_VOICES, "peak voices %d (cap %d)" % [peak_voices, Sfx.MAX_VOICES])
-	check("earthshatter: camera shake bounded", peak_shake <= 0.35, "peak shake %.3f" % peak_shake)
-	var airborne: int = 0
-	for e in pack:
-		if is_instance_valid(e) and (e.dead or e.health < e.max_health):
-			airborne += 1
-	check("earthshatter hit the pack", airborne >= 3, "%d of 6 hurt" % airborne)
-	await create_timer(2.5).timeout
-	for e in pack:
-		if is_instance_valid(e):
-			e.queue_free()
-
-	# 3. Critical vs crushing at the normal camera: the same enemy and spot, one tier then the other.
+	# 3. Critical vs crushing	# 3. Critical vs crushing at the normal camera: the same enemy and spot, one tier then the other.
 	_reset_hero()
 	var dummy: Enemy = _spawn(Vector3(2.2, 0, 0))
 	await create_timer(0.3).timeout
@@ -196,7 +170,7 @@ func _run() -> void:
 		footprints.append(peak)
 		await create_timer(0.8).timeout
 	_sheet(rows, 3, "critical_vs_crushing.png")
-	check("critical and crushing profiles differ", Fx.impact_profile(Combat.Outcome.CRITICAL, 1.0).tier != Fx.impact_profile(Combat.Outcome.CRUSHING, 1.0).tier)
+	check("critical and heavy-blow profiles differ", Fx.impact_profile(Combat.Outcome.CRITICAL, 1.0).tier != Fx.impact_profile(Combat.Outcome.HIT, 2.5).tier)
 	print("changed-pixel footprint at normal camera (160px window around the chest): critical %d, crushing %d" % [footprints[0], footprints[1]])
 
 	# 4. Settings toggles.
@@ -218,7 +192,7 @@ func _run() -> void:
 	for n in main.get_children():
 		if n is Label3D:
 			labels_before += 1
-	Fx.popup(dummy, Combat.Outcome.CRUSHING, 99.0)
+	Fx.popup(dummy, Combat.Outcome.CRITICAL, 99.0)
 	var labels_after: int = 0
 	for n in main.get_children():
 		if n is Label3D:

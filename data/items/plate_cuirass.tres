@@ -10,12 +10,10 @@ slot = 1
 order = 5
 model_path = "res://assets/models/items/plate_cuirass/model.glb"
 icon_path = "res://assets/icons/items/plate_cuirass.png"
+item_type = "body"
+armor_class = "fighter"
+levels = Array[int]([22, 40, 58, 77, 95])
 stats = {
-"armor": 60.0,
 "roll_cost": 1.4,
 "roll_speed": 0.9
-}
-tier_mult = {}
-tier_add = {
-"armor": 6.0
 }

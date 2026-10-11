@@ -24,6 +24,15 @@ ICONS = {
     "dodge": "an armored knight tumbling in a dodge roll with motion streaks and kicked-up dust",
     "leap": "an armored knight leaping through the air high above the ground, gripping a longsword with both hands pointed straight down, about to stab a fallen enemy, dust ring and motion streaks",
     "skewer": "an armored knight charging forward with a long sword thrust through three enemies lined up on the blade, motion streaks and sparks",
+    # The Dungeon Siege II powers (Blender placeholders from tools/blender/make_power_icons.py until these are generated: delete the
+    # placeholder PNG, then run this with the power's id). Whirling Strike uses the cleave icon.
+    "staggering_blow": "a heavy two-handed greatsword slammed point-first into cracked earth, a dull ring of dust and stunned debris thrown outward",
+    "war_cry": "a battered horned iron helm with the mouth of the visor open, rings of a roaring shout bursting forward",
+    "provoke": "a scarred round wooden shield with an iron boss struck by a sword, sparks at the clash",
+    "repulse": "a ring of force throwing stones and dirt outward from a dark centre",
+    "silence": "a cracked human skull with its jaw bound shut by a rusted iron band",
+    "flame_nexus": "a ring of fire erupting from scorched ground around a dark centre, embers rising",
+    "detonation": "a violent burst of fire and rock fragments exploding outward from a glowing core",
     "earthshatter": "an armored knight on one knee driving a longsword deep into cracked ground, a huge glowing orange shockwave and fissures bursting outward, rocks and enemies flung into the air",
 }
 

@@ -24,7 +24,7 @@ func _run() -> void:
 		await process_frame
 	var player: Player = main.hud.player
 	var drops: Array[LootDrop] = []
-	var rarities := [Items.Rarity.COMMON, Items.Rarity.RARE, Items.Rarity.UNIQUE]
+	var rarities := [Items.Rarity.NORMAL, Items.Rarity.MAGIC, Items.Rarity.RARE]
 	for i in 3:
 		var d: LootDrop = main.director.drop_item(player.global_position + Vector3(-1.6 + i * 1.6, 0, -3.0), Items.make(Items.Slot.WEAPON, rarities[i], 1))
 		drops.append(d)

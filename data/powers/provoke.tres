@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "provoke"
+display_name = "Provoke"
+tree = "melee"
+recharge = 12.0
+stance = "shield"
+ranks = Array[Dictionary]([{"barricade": 1}, {"barricade": 6, "toughness": 4}, {"barricade": 10, "toughness": 10, "rebuke": 5}])
+values = {
+"radius": ["6", "7", "8"],
+"armor_pct": ["25", "30", "50"],
+"duration": ["5", "8", "10"]
+}
+estimated = Array[String]([])
+summary = "Enemies around you turn on you, and your armour rises while you hold them."
+order = 1
+needs = "not built yet"

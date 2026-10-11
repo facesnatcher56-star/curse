@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "harvest_soul"
+display_name = "Harvest Soul"
+tree = "combat"
+recharge = 35.0
+stance = "any"
+ranks = Array[Dictionary]([{"devastation": 6, "grim_necromancy": 5}, {"devastation": 8, "grim_necromancy": 8, "vampirism": 4}, {"devastation": 10, "grim_necromancy": 12, "vampirism": 10}])
+values = {
+"damage": ["(40 + 10 * combat) * (1.5 + 0.015 * combat)", "(40 + 10 * combat) * (2.0 + 0.029 * combat)", "(40 + 10 * combat) * (2.5 + 0.036 * combat)"],
+"radius": ["3", "3", "3"],
+"healed_pct": ["6", "6", "6"]
+}
+estimated = Array[String]([])
+summary = "Rip the life from enemies around a target and take some of it."
+order = 17
+needs = "death damage"

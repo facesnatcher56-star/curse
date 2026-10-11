@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ashen_crown"
+display_name = "The Ashen Crown"
+base = "iron_helm"
+level = 58
+mods = {
+"str": 30.0,
+"life": 180.0,
+"armor_pct": 80.0,
+"magic_find": 20.0
+}
+set_id = ""

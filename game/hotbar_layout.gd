@@ -5,7 +5,8 @@ extends RefCounted
 ## the settings; `SkillController.assign_slot` is what the hotbar's click-to-change popup calls.
 
 ## What can go on a slot, in the order the picker shows them.
-const ASSIGNABLE: Array[String] = ["basic", "brutal_attack", "take_aim", "power", "fireball", "skewer", "leap", "earthshatter", "throw"]
+const ASSIGNABLE: Array[String] = ["basic", "brutal_attack", "take_aim", "fireball",
+	"whirling_strike", "staggering_blow", "war_cry", "provoke", "repulse", "silence", "flame_nexus", "detonation"]
 # Start with the powers equipped on slots 1 and 2. Empty slots remain assignable through the picker.
 const DEFAULT_SLOTS: Array[String] = ["brutal_attack", "take_aim", "", "", "", ""]
 const DEFAULT_ALT := "basic"

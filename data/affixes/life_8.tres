@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "life_8"
+family = "life"
+stat = "life"
+title = "of the Elk"
+position = "suffix"
+tier = 8
+level = 48
+value = 152.0
+percent = false
+slots = Array[String](["weapon", "body", "helm", "gloves", "boots", "shield", "ring", "amulet"])

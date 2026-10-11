@@ -7,8 +7,6 @@ const OUTCOME_STYLE := {
 	Combat.Outcome.BLOCK: ["Block", Color(0.5, 0.85, 1.0), 34],
 	Combat.Outcome.HIT: ["", Color(1, 1, 1), 36],
 	Combat.Outcome.CRITICAL: ["Critical ", Color(1.0, 0.9, 0.2), 46],
-	Combat.Outcome.CRUSHING: ["Crushing ", Color(1.0, 0.55, 0.15), 54],
-	Combat.Outcome.DEEP_WOUNDS: ["Wound ", Color(0.85, 0.15, 0.15), 42],
 }
 
 static var _hitstop_id: int = 0
@@ -33,18 +31,19 @@ static func claim_impact(kind: String, pos: Vector3) -> bool:
 	return true
 
 ## What a landed blow should feel like, from its outcome and weight. Pure (no scene needed), so it is checked directly.
-## tier 0 light, 1 critical (heavy), 2 crushing; every value is bounded so a crowd of heavy blows cannot pile up.
+## tier 0 light, 1 critical, 2 a heavy blow (weight Actor.HEAVY_BLOW_WEIGHT or more); every value is bounded so a crowd of heavy blows
+## cannot pile up.
 static func impact_profile(outcome: int, weight: float) -> Dictionary:
 	var w: float = clampf(weight, 0.5, 3.0)
+	if weight >= Actor.HEAVY_BLOW_WEIGHT:
+		return {"tier": 2, "kick": minf(0.5 * w * 1.7, 1.4), "hitstop": 0.07}
 	match outcome:
-		Combat.Outcome.CRUSHING:
-			return {"tier": 2, "kick": minf(0.5 * w * 1.7, 1.4), "hitstop": 0.07}
 		Combat.Outcome.CRITICAL:
 			return {"tier": 1, "kick": minf(0.5 * w * 1.3, 1.1), "hitstop": 0.045}
 		_:
 			return {"tier": 0, "kick": minf(0.5 * w, 0.8), "hitstop": 0.0}
 
-## Compact, grounded melee impact: tier 0 light (a few sparks), 1 heavy (sparks, a puff of dust, a short flash), 2 crushing
+## Compact, grounded melee impact: tier 0 light (a few sparks), 1 critical (sparks, a puff of dust, a short flash), 2 a heavy blow
 ## (the same pieces, a bigger dust cloud and a brighter flash). A repeat on the same target inside the dedup window is dropped.
 static func melee_impact(from: Node, pos: Vector3, away: Vector3, tier: int, target_id: int = 0) -> bool:
 	if not claim_impact("melee_%d_%d" % [tier, target_id], pos):

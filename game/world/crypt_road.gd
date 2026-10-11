@@ -494,8 +494,9 @@ func _fill_kinds(zone: ZoneDef) -> Array[String]:
 
 func _on_nest_destroyed(prop: Destructible) -> void:
 	nests_destroyed += 1
-	TownState.add_hero_xp(HeroProgression.NEST_XP)   # when it breaks (a prop breaks once), not when the quest is handed in
-	HeroProgression.log_xp("nest %d of %d: %d" % [nests_destroyed, total_nests, HeroProgression.NEST_XP])
+	var nest_xp: int = HeroProgression.nest_xp(WorldThreat.monster_level(threat_at(prop.global_position)))
+	TownState.add_hero_xp(nest_xp)   # when it breaks (a prop breaks once), not when the quest is handed in
+	HeroProgression.log_xp("nest %d of %d: %d" % [nests_destroyed, total_nests, nest_xp])
 	nest_destroyed.emit(nests_destroyed, total_nests)
 	if director == null:
 		return

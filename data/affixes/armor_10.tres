@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "armor_10"
+family = "armor"
+stat = "armor"
+title = "Impervious"
+position = "prefix"
+tier = 10
+level = 71
+value = 70.0
+percent = false
+slots = Array[String](["body", "helm", "gloves", "boots", "shield"])

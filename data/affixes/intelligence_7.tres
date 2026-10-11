@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "intelligence_7"
+family = "intelligence"
+stat = "int"
+title = "of Sagacity"
+position = "suffix"
+tier = 7
+level = 63
+value = 45.0
+percent = false
+slots = Array[String](["weapon", "body", "helm", "ring", "amulet"])

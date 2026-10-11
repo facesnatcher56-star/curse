@@ -1,56 +1,67 @@
 class_name Combat
 extends RefCounted
-## Combat rules, modelled on the layered mitigation described in the Zombasite manual:
-## avoid (attack vs defense) -> block -> armor/resist -> health.
-## The exact curves are our own tunable approximations, not copied from the original.
+## Combat rules: Dungeon Siege II's (docs/ds2-combat-and-loot.md section 2). There is no accuracy roll: a blow lands unless it is
+## dodged (the defender's dodge chance) or blocked (a shield's chance). Then a critical (a second hit on top), added fire, armour as a ratio against
+## the attacker's level, resistance for fire, the level-gap penalty, and a floor of 1.
 
-enum Outcome { MISS, BLOCK, HIT, CRITICAL, CRUSHING, DEEP_WOUNDS }
+enum Outcome { MISS, BLOCK, HIT, CRITICAL }
 enum DamageType { PHYSICAL, FIRE }
+
+## The most a hero's resistance can be (DS2 caps it at 80%).
+const RESIST_CAP := 0.8
 
 ## Optional counters used by the self test.
 static var tally: Dictionary = {}
 
-static func hit_chance(attack: float, defense: float) -> float:
-	return clampf(attack / maxf(attack + defense * 0.6, 1.0), 0.1, 0.95)
+## The share of a blow that gets through armour: `min(8 + 2 x attacker level, armour) / armour`. Armour at or under `8 + 2L` stops
+## nothing; every point above it cuts the blow in proportion.
+static func armor_factor(attacker_level: int, armor: float) -> float:
+	if armor <= 0.0:
+		return 1.0
+	return minf(8.0 + 2.0 * float(attacker_level), armor) / armor
 
-static func mitigate(damage: float, armor_or_resist: float) -> float:
-	return damage * 100.0 / (100.0 + maxf(armor_or_resist, 0.0))
+## DS2's level gap (attacker level - defender level): more than 4 below x0.75, 6 below x0.5, 8 below x0.25. Both ways: an under-levelled
+## hero is nearly toothless, and an over-levelled hero takes little from small fry.
+static func level_gap_factor(attacker_level: int, defender_level: int) -> float:
+	var gap: int = attacker_level - defender_level
+	if gap < -8:
+		return 0.25
+	if gap < -6:
+		return 0.5
+	if gap < -4:
+		return 0.75
+	return 1.0
 
-## `weight` scales knockback, hit-pause and shake: 1.0 for a light swing, higher for heavy blows.
+## `base_damage` is the rolled blow (the attacker's weapon or spell, already times any skill multiplier). `can_miss` false: it cannot be
+## dodged (a blast, a collision). `weight` scales knockback, hit-pause and shake: 1.0 for a light swing, higher for heavy blows.
+## `allow_crit` false for powers (DS2: powers never crit).
 static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false,
 		allow_crit: bool = true) -> Dictionary:
-	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "bleed_dps": 0.0, "bleed_time": 0.0,
-		"weight": weight, "source": attacker, "type": damage_type}
-	if damage_type == DamageType.PHYSICAL:
-		if can_miss and randf() > hit_chance(attacker.attack_rating, defender.defense):
-			return _done(result, Outcome.MISS)
-		if randf() < defender.block_chance:
-			return _done(result, Outcome.BLOCK)
-
-	var dmg: float = base_damage * randf_range(0.85, 1.15)
+	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "weight": weight, "source": attacker, "type": damage_type}
+	if can_miss and randf() < defender.dodge_chance:
+		return _done(result, Outcome.MISS)
+	if damage_type == DamageType.PHYSICAL and can_miss and randf() < defender.block_chance:
+		return _done(result, Outcome.BLOCK)
+	var dmg: float = base_damage
 	var outcome: int = Outcome.HIT
-	var roll: float = randf()
-	if force_crit:
+	var forced: bool = allow_crit and attacker.forced_crits > 0
+	if forced:
+		attacker.forced_crits -= 1   # DS2's War Cry: the next blows crit
+	if force_crit or forced or (allow_crit and randf() < attacker.crit_chance):
+		# DS2 adds a second, separately rolled hit; CURSE CHOICE: the second roll is taken equal to the first (200%), since the blow
+		# arrives here already rolled.
 		outcome = Outcome.CRITICAL
-		dmg *= 1.75
-	elif damage_type == DamageType.PHYSICAL and allow_crit:
-		if roll < attacker.crushing_chance:
-			outcome = Outcome.CRUSHING
-			dmg *= 1.25
-		elif roll < attacker.crushing_chance + attacker.crit_chance:
-			outcome = Outcome.CRITICAL
-			dmg *= 1.75
-		elif roll < attacker.crushing_chance + attacker.crit_chance + attacker.deep_wounds_chance:
-			outcome = Outcome.DEEP_WOUNDS
-			result["bleed_dps"] = dmg * 0.12
-			result["bleed_time"] = 4.0
-	elif allow_crit and roll < attacker.crit_chance:
-		outcome = Outcome.CRITICAL
-		dmg *= 1.5
-
-	var protection: float = defender.armor if damage_type == DamageType.PHYSICAL else defender.fire_resist
-	result["damage"] = maxf(mitigate(dmg, protection), 1.0)
+		dmg *= attacker.crit_mult
+	if damage_type == DamageType.PHYSICAL:
+		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)   # DS2's Toughness: the victim's physical damage cut
+		if attacker.added_fire > 0.0:   # DS2: added elemental damage, less the victim's resistance, before armour
+			dmg += attacker.added_fire * (1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0))
+		dmg *= armor_factor(attacker.level, defender.armor * (1.0 - defender.armor_shred))
+	else:
+		dmg *= 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0)
+	dmg *= level_gap_factor(attacker.level, defender.level)
+	result["damage"] = maxf(dmg, 1.0)
 	return _done(result, outcome)
 
 static func _done(result: Dictionary, outcome: int) -> Dictionary:

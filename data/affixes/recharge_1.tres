@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "recharge_1"
+family = "recharge"
+stat = "recharge"
+title = "Rousing"
+position = "prefix"
+tier = 1
+level = 20
+value = 5.0
+percent = true
+slots = Array[String](["weapon", "ring", "amulet"])

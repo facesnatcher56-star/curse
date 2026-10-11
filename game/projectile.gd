@@ -65,7 +65,6 @@ func _explode() -> void:
 	if Fx.claim_impact("fireball", center):   # one logical blast draws once
 		_explosion_flash(center)
 	var tree: SceneTree = get_tree()
-	var caught: int = 0
 	var index: int = 0
 	var flamed: bool = false
 	while index < victims.size():
@@ -76,15 +75,12 @@ func _explode() -> void:
 			index += 1
 			if is_instance_valid(enemy) and not enemy.dead:
 				_hit(enemy, center)
-				caught += 1
 		await tree.process_frame
 		if not flamed and (index >= BATCH * 2 or index >= victims.size()):
 			flamed = true
 			_explosion_flames(center)   # the heavier visuals follow the first hits, not on the same frame
 	if not flamed:
 		_explosion_flames(center)
-	if owner_actor is Player:
-		ItemEffects.on_fireball_blast(owner_actor as Player, caught)
 	await tree.process_frame
 	_explosion_ground(center)
 	await tree.process_frame
@@ -96,6 +92,7 @@ func _hit(enemy: Enemy, center: Vector3) -> void:
 	var dist: float = enemy.flat_distance_to(self)
 	var closeness: float = clampf(1.0 - dist / blast_radius, 0.0, 1.0)   # 1 at the centre, 0 at the rim
 	var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4)
+	result["skill_id"] = "fireball"
 	enemy.receive(result, center)
 	if not is_instance_valid(enemy):
 		return

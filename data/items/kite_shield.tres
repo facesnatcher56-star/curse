@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "kite_shield"
+display_name = "Kite Shield"
+slot = 3
+order = 9
+model_path = "res://assets/models/items/kite_shield/model.glb"
+icon_path = "res://assets/icons/items/kite_shield.png"
+item_type = "shield"
+armor_class = "fighter"
+levels = Array[int]([20, 44, 60, 78, 94])
+stats = {}

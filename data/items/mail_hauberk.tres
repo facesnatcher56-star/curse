@@ -10,12 +10,10 @@ slot = 1
 order = 4
 model_path = "res://assets/models/items/mail_hauberk/model.glb"
 icon_path = "res://assets/icons/items/mail_hauberk.png"
+item_type = "body"
+armor_class = "fighter"
+levels = Array[int]([5, 14, 30, 46, 62])
 stats = {
-"armor": 35.0,
 "roll_cost": 1.0,
 "roll_speed": 1.0
-}
-tier_mult = {}
-tier_add = {
-"armor": 6.0
 }

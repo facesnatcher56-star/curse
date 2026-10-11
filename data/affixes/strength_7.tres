@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "strength_7"
+family = "strength"
+stat = "str"
+title = "of the Ox"
+position = "suffix"
+tier = 7
+level = 62
+value = 54.0
+percent = false
+slots = Array[String](["weapon", "body", "helm", "gloves", "ring", "amulet"])

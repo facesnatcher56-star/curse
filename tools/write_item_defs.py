@@ -1,43 +1,49 @@
 #!/usr/bin/env python3
-"""Writes res://data/items/*.tres (ItemDef resources): the base items. Slot: 0 weapon, 1 armor, 2 trinket. Edit and re-run.
+"""Writes res://data/items/*.tres (ItemDef resources): the base items, Dungeon Siege II style (docs/ds2-combat-and-loot.md 10).
 
-Models and icons come from tools/blender/make_items.py (assets/models/items/<id>/model.glb, assets/icons/items/<id>.png).
-Weapons trade speed against damage; armour trades protection against mobility. Stats are at tier 1; `tier_mult` grows a stat by a
-fraction per tier above 1, `tier_add` by a flat amount.
+Slots (Items.Slot): 0 weapon, 1 body armour, 2 ring, 3 shield, 4 helm, 5 gloves, 6 boots, 7 amulet. Edit and re-run.
+Every base has five item levels (DS2's base and var1-var4): the same sword turns up again, stronger, deeper in the world. Its numbers come
+from DS2's curves at that level (ItemDef.stats_at): weapons by type, armour by class and slot. `stats` holds only what is not a curve:
+a weapon's swing speed and the share of its type's damage it deals per hit (a faster blade hits for less, as DS2's swing time does), and
+a body armour's roll numbers. Models and icons come from tools/blender/make_items.py (assets/models/items/<id>/model.glb,
+assets/icons/items/<id>.png).
 """
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "data" / "items"
 
+# CURSE CHOICE: DS2 has ~190 bases; Curse starts with two or three a slot, their levels spread so that between them a slot has a base
+# within a few levels of any monster level (the Leather Jerkin and the Buckler keep DS2's own levels; the Jerkin's first is 2, not 3,
+# so a new hero can wear it). A fighter piece has armour class 1.0, a ranger's 0.8 (DS2's mage 0.6 is not used yet).
 ITEMS = [
-    # id, display name, slot, stats, tier_mult, tier_add
-    ("falchion", "Falchion", 0, {"damage": 0.9, "speed": 1.18}, {"damage": 0.08}, {}),
-    ("longsword", "Longsword", 0, {"damage": 1.0, "speed": 1.0}, {"damage": 0.08}, {}),
-    ("greatsword", "Greatsword", 0, {"damage": 1.35, "speed": 0.82}, {"damage": 0.08}, {}),
-    ("leather_jerkin", "Leather Jerkin", 1, {"armor": 15.0, "roll_cost": 0.8, "roll_speed": 1.1}, {}, {"armor": 6.0}),
-    ("mail_hauberk", "Mail Hauberk", 1, {"armor": 35.0, "roll_cost": 1.0, "roll_speed": 1.0}, {}, {"armor": 6.0}),
-    ("plate_cuirass", "Plate Cuirass", 1, {"armor": 60.0, "roll_cost": 1.4, "roll_speed": 0.9}, {}, {"armor": 6.0}),
-    ("charm", "Charm", 2, {}, {}, {}),
-    ("signet", "Signet", 2, {}, {}, {}),
-    ("talisman", "Talisman", 2, {}, {}, {}),
+    # id, display name, slot, item type, armour class, item levels, stats
+    ("falchion", "Falchion", 0, "1h", "", [1, 13, 31, 50, 72], {"damage": 0.85, "speed": 1.18}),
+    ("longsword", "Longsword", 0, "1h", "", [2, 17, 38, 60, 84], {"damage": 1.0, "speed": 1.0}),
+    ("greatsword", "Greatsword", 0, "2h", "", [6, 26, 47, 68, 92], {"damage": 1.0, "speed": 0.82}),
+    ("leather_jerkin", "Leather Jerkin", 1, "body", "ranger", [2, 9, 18, 27, 36], {"roll_cost": 0.8, "roll_speed": 1.1}),
+    ("mail_hauberk", "Mail Hauberk", 1, "body", "fighter", [5, 14, 30, 46, 62], {"roll_cost": 1.0, "roll_speed": 1.0}),
+    ("plate_cuirass", "Plate Cuirass", 1, "body", "fighter", [22, 40, 58, 77, 95], {"roll_cost": 1.4, "roll_speed": 0.9}),
+    ("signet", "Signet", 2, "ring", "", [1, 16, 34, 55, 78], {}),
+    ("band", "Iron Band", 2, "ring", "", [8, 25, 45, 66, 92], {}),
+    ("buckler", "Buckler", 3, "shield", "fighter", [6, 11, 17, 28, 39], {}),
+    ("kite_shield", "Kite Shield", 3, "shield", "fighter", [20, 44, 60, 78, 94], {}),
+    ("leather_cap", "Leather Cap", 4, "helm", "ranger", [1, 12, 28, 46, 68], {}),
+    ("iron_helm", "Iron Helm", 4, "helm", "fighter", [5, 20, 38, 58, 84], {}),
+    ("leather_gloves", "Leather Gloves", 5, "gloves", "ranger", [1, 10, 26, 44, 66], {}),
+    ("iron_gauntlets", "Iron Gauntlets", 5, "gloves", "fighter", [4, 18, 36, 56, 82], {}),
+    ("leather_boots", "Leather Boots", 6, "boots", "ranger", [2, 11, 27, 45, 67], {}),
+    ("iron_greaves", "Iron Greaves", 6, "boots", "fighter", [5, 19, 37, 57, 83], {}),
+    ("charm", "Charm", 7, "amulet", "", [3, 20, 40, 62, 86], {}),
+    ("talisman", "Talisman", 7, "amulet", "", [10, 30, 50, 72, 95], {}),
 ]
 
 
 # Weapons beyond damage and speed (see ItemDef.profile). The longsword is the baseline: its moveset is what the game always had.
 PROFILES = {
-    "falchion": {"throw": {"charge_time": 0.85, "min_range": 5.0, "max_range": 17.0, "speed": 36.0, "recall_speed": 35.0, "recall_accel": 80.0,
-                           "damage": 1.9, "mass": 0.7, "prop_force": 0.8, "spin": 15.0, "swing_speed": 1.3, "catch_time": 0.28,
-                           "catch_recover": 0.1, "rip_time": 0.3, "sweep_radius": 0.4, "pitch": 1.0},
-                 "recovery": 1.7, "weight": 0.7, "finisher_time": 0.9,
+    "falchion": {"recovery": 1.7, "weight": 0.7, "finisher_time": 0.9,
                  "style": "Fast combo and recovery, light stagger"},
-    "longsword": {"throw": {"charge_time": 1.15, "min_range": 6.0, "max_range": 21.0, "speed": 30.0, "recall_speed": 28.0, "recall_accel": 60.0,
-                            "damage": 2.4, "mass": 1.0, "prop_force": 1.0, "spin": 9.0, "swing_speed": 1.0, "catch_time": 0.36,
-                            "catch_recover": 0.18, "rip_time": 0.4, "sweep_radius": 0.45, "pitch": 0.88},
-                  "style": "Balanced"},
-    "greatsword": {"throw": {"charge_time": 1.5, "min_range": 6.5, "max_range": 24.0, "speed": 24.0, "recall_speed": 23.0, "recall_accel": 42.0,
-                             "damage": 3.4, "mass": 2.0, "prop_force": 1.7, "spin": 5.5, "swing_speed": 0.75, "catch_time": 0.55,
-                             "catch_recover": 0.3, "rip_time": 0.6, "sweep_radius": 0.6, "pitch": 0.7},
-                   "two_handed": True,
+    "longsword": {"style": "Balanced"},
+    "greatsword": {"two_handed": True,
                    "two_hand_clips": {"atk_slash_r": {"clip": "atk2_slash_r", "start": 0.0, "strike": 0.38, "end": 0.75},
                                       "atk_thrust": {"clip": "atk2_thrust", "start": 0.0, "strike": 0.57, "end": 1.1},
                                       "atk_slash_l": {"clip": "atk2_slash_l", "start": 0.0, "strike": 0.67, "end": 1.15},
@@ -64,14 +70,15 @@ def fmt(v) -> str:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     wanted = set()
-    for order, (ident, name, slot, stats, mult, add) in enumerate(ITEMS):
+    for order, (ident, name, slot, kind, armor_class, levels, stats) in enumerate(ITEMS):
         wanted.add(ident + ".tres")
         lines = [
             '[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]', "",
             '[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]', "", "[resource]",
             'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name, "slot = %d" % slot, "order = %d" % order,
             'model_path = "res://assets/models/items/%s/model.glb"' % ident, 'icon_path = "res://assets/icons/items/%s.png"' % ident,
-            "stats = %s" % fmt(stats), "tier_mult = %s" % fmt(mult), "tier_add = %s" % fmt(add),
+            'item_type = "%s"' % kind, 'armor_class = "%s"' % armor_class,
+            "levels = Array[int]([%s])" % ", ".join(str(level) for level in levels), "stats = %s" % fmt(stats),
         ]
         if ident in PROFILES:
             lines.append("profile = %s" % fmt(PROFILES[ident]))

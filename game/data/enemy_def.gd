@@ -18,15 +18,13 @@ extends Resource
 @export var gib_color: Color = Color(0.42, 0.48, 0.37)
 
 @export_group("Stats")
-@export var health: float = 60.0
-@export var damage_min: float = 6.0
-@export var damage_max: float = 10.0
+## Dungeon Siege II tier (trivial, weak, normal, strong, miniboss) and role ("", rogue, tank, ranged, magic): with the monster's level
+## they decide its life, damage per hit, armour and XP (MonsterScaling, HeroProgression.monster_xp).
+@export var tier: String = "normal"
+@export var role: String = ""
 @export var speed: float = 2.4
 @export var attack_range: float = 1.6
 @export var attack_time: float = 1.1
-@export var armor: float = 8.0
-@export var defense: float = 12.0
-@export var attack_rating: float = 28.0
 @export var flinch: float = 0.35
 @export var knock_resist: float = 0.0
 @export var stun_resist: float = 0.0
@@ -45,13 +43,6 @@ extends Resource
 @export var params: Dictionary = {}
 ## How many of the hero's "attackers at once" slots this enemy takes up.
 @export var token_weight: int = 1
-
-@export_group("Loot")
-## Chance of dropping an item when killed, and how lucky the drop is (0 ordinary, 1 a Brute: rare or better, often unique).
-@export var drop_chance: float = 0.0
-@export var drop_luck: float = 0.0
-## What a kill is worth to the hero before the world's threat is counted (see HeroProgression.kill_xp). 0: nothing.
-@export var xp_reward: int = 0
 
 @export_group("Spawning")
 @export var min_wave: int = 1

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "leather_gloves"
+display_name = "Leather Gloves"
+slot = 5
+order = 12
+model_path = "res://assets/models/items/leather_gloves/model.glb"
+icon_path = "res://assets/icons/items/leather_gloves.png"
+item_type = "gloves"
+armor_class = "ranger"
+levels = Array[int]([1, 10, 26, 44, 66])
+stats = {}

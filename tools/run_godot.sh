@@ -35,5 +35,10 @@ while kill -0 "$pid" 2>/dev/null; do
 done
 wait "$pid"
 code=$?
+if grep -qE "$ERRORS" "$LOG"; then   # an error printed just before Godot exited, between two polls
+	echo "STOPPED ON ERROR:"
+	grep -E -A2 "$ERRORS" "$LOG" | head -20
+	exit 2
+fi
 grep -E "\[FAIL\]|Self-test|SELFTEST" "$LOG" | head -20
 exit $code

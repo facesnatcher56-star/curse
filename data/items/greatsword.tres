@@ -10,33 +10,14 @@ slot = 0
 order = 2
 model_path = "res://assets/models/items/greatsword/model.glb"
 icon_path = "res://assets/icons/items/greatsword.png"
+item_type = "2h"
+armor_class = ""
+levels = Array[int]([6, 26, 47, 68, 92])
 stats = {
-"damage": 1.35,
+"damage": 1.0,
 "speed": 0.82
 }
-tier_mult = {
-"damage": 0.08
-}
-tier_add = {}
 profile = {
-"throw": {
-"charge_time": 1.5,
-"min_range": 6.5,
-"max_range": 24.0,
-"speed": 24.0,
-"recall_speed": 23.0,
-"recall_accel": 42.0,
-"damage": 3.4,
-"mass": 2.0,
-"prop_force": 1.7,
-"spin": 5.5,
-"swing_speed": 0.75,
-"catch_time": 0.55,
-"catch_recover": 0.3,
-"rip_time": 0.6,
-"sweep_radius": 0.6,
-"pitch": 0.7
-},
 "two_handed": true,
 "two_hand_clips": {
 "atk_slash_r": {

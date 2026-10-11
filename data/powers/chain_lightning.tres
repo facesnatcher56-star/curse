@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "chain_lightning"
+display_name = "Chain Lightning"
+tree = "combat"
+recharge = 21.0
+stance = "any"
+ranks = Array[Dictionary]([{"devastation": 2, "amplified_lightning": 1}, {"devastation": 5, "amplified_lightning": 4}, {"devastation": 12, "amplified_lightning": 8, "arcing": 5}])
+values = {
+"damage": ["(66.4 + 16.6 * combat) * (0.82 + 0.015 * combat)", "(40.9 + 10.2 * combat) * (1.2 + 0.029 * combat)", "(29.5 + 7.4 * combat) * (2.0 + 0.036 * combat)"],
+"jumps": ["2", "4", "6"],
+"damage_ratio": ["0.38", "0.22", "0.15"]
+}
+estimated = Array[String]([])
+summary = "Lightning leaps from enemy to enemy."
+order = 18
+needs = "lightning"

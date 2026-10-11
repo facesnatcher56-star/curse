@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "aether_blast"
+display_name = "Aether Blast"
+tree = "nature"
+recharge = 35.0
+stance = "any"
+ranks = Array[Dictionary]([{"summon_might": 8, "arcane_renewal": 1}, {"summon_might": 10, "arcane_renewal": 6, "summon_bond": 2}, {"summon_might": 14, "arcane_renewal": 8, "summon_bond": 12}])
+values = {
+"radius": ["3.5", "4", "5"],
+"stun": ["5", "5", "5"],
+"damage_pct": ["240 + 1.8 * nature", "240 + 3.5 * nature", "350 + 4.3 * nature"]
+}
+estimated = Array[String]([])
+summary = "Your summon bursts with aether, stunning those around it."
+order = 24
+needs = "summons"

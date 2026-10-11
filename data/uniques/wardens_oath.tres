@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "wardens_oath"
+display_name = "The Warden's Oath"
+base = "kite_shield"
+level = 44
+mods = {
+"armor_pct": 60.0,
+"block": 12.0,
+"life": 120.0,
+"reflect": 20.0
+}
+set_id = ""

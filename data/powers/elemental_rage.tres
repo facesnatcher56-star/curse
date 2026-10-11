@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "elemental_rage"
+display_name = "Elemental Rage"
+tree = "melee"
+recharge = 60.0
+stance = "dual_wield"
+ranks = Array[Dictionary]([{"critical_strike": 8, "fierce_renewal": 2}, {"critical_strike": 10, "fierce_renewal": 6, "deadly_strike": 1}, {"critical_strike": 14, "fierce_renewal": 12, "deadly_strike": 12}])
+values = {
+"duration": ["15", "15", "15"],
+"attack_rate_pct": ["10", "15", "20"],
+"elements": ["3", "3", "3"],
+"element_damage_min": ["(3.7 + 0.9 * melee) * (2.0 + 0.015 * melee)", "(3.6 + 0.87 * melee) * (2.0 + 0.029 * melee)", "(3.4 + 0.83 * melee) * (2.5 + 0.036 * melee)"],
+"element_damage_max": ["(6.2 + 1.54 * melee) * (2.0 + 0.015 * melee)", "(5.9 + 1.48 * melee) * (2.0 + 0.029 * melee)", "(5.7 + 1.42 * melee) * (2.5 + 0.036 * melee)"],
+"vulnerability_pct": ["12", "15", "20"]
+}
+estimated = Array[String]([])
+summary = "A frenzy: faster attacks carrying fire, ice and lightning, but you take more damage."
+order = 6
+needs = "dual wielding, ice and lightning"

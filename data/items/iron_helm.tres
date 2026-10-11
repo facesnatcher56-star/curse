@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "iron_helm"
+display_name = "Iron Helm"
+slot = 4
+order = 11
+model_path = "res://assets/models/items/iron_helm/model.glb"
+icon_path = "res://assets/icons/items/iron_helm.png"
+item_type = "helm"
+armor_class = "fighter"
+levels = Array[int]([5, 20, 38, 58, 84])
+stats = {}

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mana_10"
+family = "mana"
+stat = "mana"
+title = "of the Gryphon"
+position = "suffix"
+tier = 10
+level = 55
+value = 225.0
+percent = false
+slots = Array[String](["body", "helm", "ring", "amulet"])

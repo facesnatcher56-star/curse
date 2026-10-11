@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "melee_pct_8"
+family = "melee_pct"
+stat = "melee_pct"
+title = "Excruciating"
+position = "prefix"
+tier = 8
+level = 53
+value = 56.0
+percent = true
+slots = Array[String](["weapon", "gloves"])

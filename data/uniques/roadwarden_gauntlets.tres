@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "roadwarden_gauntlets"
+display_name = "Roadwarden's Grip"
+base = "iron_gauntlets"
+level = 18
+mods = {
+"str": 6.0,
+"melee_max": 8.0
+}
+set_id = "roadwarden"

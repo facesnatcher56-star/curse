@@ -80,9 +80,10 @@ static func sword_miss(from: Node) -> void:
 
 ## The sword connecting with a body: a heavier hit sounds lower and louder. Never called for misses or blocks.
 static func sword_hit(from: Node, outcome: int, weight: float) -> void:
+	if weight >= Actor.HEAVY_BLOW_WEIGHT:
+		sample(from, "sword_hit", 3.0, 0.8)
+		return
 	match outcome:
-		Combat.Outcome.CRUSHING:
-			sample(from, "sword_hit", 3.0, 0.8)
 		Combat.Outcome.CRITICAL:
 			sample(from, "sword_hit", 1.5, 0.9)
 		_:

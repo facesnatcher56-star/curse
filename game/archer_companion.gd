@@ -17,8 +17,10 @@ const MIN_COMBAT_RANGE := 8.0
 const PREFERRED_COMBAT_RANGE := 12.0
 const DRAW_TIME := 0.62
 const SHOT_COOLDOWN := 1.05
-const DAMAGE := 17.0
-const TAKE_AIM_MULT := 15.0
+## Take Aim's arrow multiplier (DS2: 1500 + 25 x Ranged %). CURSE CHOICE: Cutter buys no passives, so his Take Aim stays at rank 1, its
+## damage growing with his own Ranged level.
+static func take_aim_mult() -> float:
+	return PowerDb.get_def("take_aim").value("damage_pct", 1, {"ranged": HeroAttributes.class_level(TownState.cutter_xp)}) / 100.0
 const TAKE_AIM_COMBAT_SECONDS := 21.0
 const TAKE_AIM_DRAW_TIME := 0.92
 
@@ -48,14 +50,8 @@ func setup(hero: Player) -> void:
 func _ready() -> void:
 	add_to_group("companions")
 	display_name = "Cutter"
-	max_health = 180.0
+	refresh_level()   # a DS2 party member: his level, attributes, life and armour from his own XP (TownState.cutter_xp)
 	health = max_health
-	attack_rating = 42.0
-	defense = 28.0
-	armor = 18.0
-	crit_chance = 0.08
-	crushing_chance = 0.0
-	deep_wounds_chance = 0.10
 	impalable = false
 	collision_layer = LAYER_PLAYER
 	collision_mask = LAYER_WORLD | LAYER_ENEMY
@@ -66,6 +62,26 @@ func _ready() -> void:
 	for bone_name in ["Spine02", "LeftArm", "LeftForeArm", "RightArm", "RightForeArm", "RightHand"]:
 		_pose_bones[bone_name] = _skeleton.find_bone(bone_name)
 	model.anim.mixer_applied.connect(_apply_draw_pose)
+
+## Cutter levels with the hero's kills (his share, see RunDirector._pay_kill_xp), all of it Ranged: his character level is his combat
+## level, his Ranged class level his attributes (HeroAttributes) and so his life; he wears a ranger's on-level armour (DS2: the armour
+## budget `16 + 4L` x 0.8 over a full set). The share of life he has left stays.
+func refresh_level() -> void:
+	level = HeroProgression.level_for_xp(TownState.cutter_xp)
+	var attr: Vector3 = HeroAttributes.attributes({"ranged": HeroAttributes.class_level(TownState.cutter_xp)})
+	var share: float = health / maxf(max_health, 1.0)
+	max_health = HeroAttributes.max_life(attr)
+	health = max_health * clampf(share, 0.0, 1.0)
+	armor = (16.0 + 4.0 * level) * 0.8
+	_dexterity = attr.y
+
+var _dexterity: float = 11.0
+
+## One arrow: a DS2 bow of his level (`3.0 + 0.65 L` on average) plus 0.2 x DEX, 0.75 of that on the low roll and 1.25 on the high.
+func arrow_damage() -> float:
+	var bow: float = 3.0 + 0.65 * level
+	var bonus: float = 0.2 * maxf(_dexterity, 10.0)
+	return randf_range(bow * 0.75 + 0.75 * bonus, bow * 1.25 + 1.25 * bonus)
 
 func _attach_gear() -> void:
 	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it
@@ -205,7 +221,7 @@ func _loose() -> void:
 	# A small physical lead keeps the arrow honest against moving enemies without homing after release.
 	aim += target.velocity * clampf(from.distance_to(aim) / CompanionArrow.SPEED, 0.0, 0.45)
 	var arrow: CompanionArrow = CompanionArrow.fire(get_parent(), self, from, aim,
-		DAMAGE * (TAKE_AIM_MULT if take_aim_armed else 1.0), take_aim_armed)
+		arrow_damage() * (take_aim_mult() if take_aim_armed else 1.0), take_aim_armed)
 	arrow.tree_exiting.connect(func() -> void:
 		if arrow.struck is Enemy:
 			last_hit_target = arrow.struck as Enemy)

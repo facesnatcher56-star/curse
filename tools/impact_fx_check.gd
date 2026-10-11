@@ -79,27 +79,6 @@ func _run() -> void:
 	await settle(0.3)
 	check("heavy melee flash gone", count_of("OmniLight3D") == 0)
 
-	# --- Power Strike impact
-	_fresh()
-	SkillFx.power_impact(hero, Vector3(2, 0, 0), Vector3.RIGHT, false)
-	var power_nodes: int = fx_nodes().size()
-	var power_lights: int = count_of("OmniLight3D")
-	check("power strike: bounded node count", power_nodes <= 32, "nodes=%d lights=%d" % [power_nodes, power_lights])
-	SkillFx.power_impact(hero, Vector3(2.1, 0, 0), Vector3.RIGHT, false)
-	check("power strike duplicate report suppressed", fx_nodes().size() == power_nodes, "nodes=%d" % fx_nodes().size())
-	await settle(1.8)
-	check("power strike cleans up", transient_left() == 0, "left=%d" % transient_left())
-
-	# --- Earthshatter / ground slam
-	_fresh()
-	SkillFx.earthshatter_impact(hero, Vector3(0, 0, 0), 7.0)
-	var es_nodes: int = fx_nodes().size()
-	check("earthshatter: bounded node count", es_nodes <= 26, "nodes=%d lights=%d" % [es_nodes, count_of("OmniLight3D")])
-	SkillFx.earthshatter_impact(hero, Vector3(0, 0, 0), 7.0)
-	check("earthshatter duplicate suppressed", fx_nodes().size() == es_nodes)
-	await settle(1.8)
-	check("earthshatter cleans up (scars linger by design)", transient_left() == 0, "left=%d" % transient_left())
-
 	# --- light cap when a crowd flashes at once
 	_fresh()
 	for i in 10:

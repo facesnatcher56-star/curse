@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "war_cry"
+display_name = "War Cry"
+tree = "melee"
+recharge = 35.0
+stance = "melee"
+ranks = Array[Dictionary]([{"critical_strike": 8, "smite": 1}, {"critical_strike": 12, "smite": 8, "deadly_strike": 2}, {"critical_strike": 12, "smite": 12, "deadly_strike": 8}])
+values = {
+"armor_reduction_pct": ["35", "50", "60"],
+"duration": ["20", "20", "20"],
+"critical_hits": ["8", "12", "15"]
+}
+estimated = Array[String]([])
+summary = "A deafening cry in a cone: enemies flee with their armour stripped, and your next hits are critical."
+order = 4
+needs = "not built yet"

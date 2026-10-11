@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "life_regen_1"
+family = "life_regen"
+stat = "life_regen"
+title = "of Mending"
+position = "suffix"
+tier = 1
+level = 5
+value = 4.0
+percent = true
+slots = Array[String](["body", "boots", "ring", "amulet"])

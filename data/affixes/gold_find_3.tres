@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "gold_find_3"
+family = "gold_find"
+stat = "gold_find"
+title = "Golden"
+position = "prefix"
+tier = 3
+level = 30
+value = 38.0
+percent = true
+slots = Array[String](["ring", "amulet"])

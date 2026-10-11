@@ -48,13 +48,13 @@ var progression_hud: ProgressionHud
 ## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
 var level_toast_text: String:
 	get: return progression_hud.toast_text if progression_hud != null else ""
-var level_toast_points: String:
-	get: return progression_hud.toast_points if progression_hud != null else ""
 var level_toast_time: float:
 	get: return progression_hud.toast_time if progression_hud != null else 0.0
 
 func _ready() -> void:
-	progression_hud = ProgressionHud.new()   # the level and XP strip, the level-up plate and the points-available mark
+	loot_cards.hud = self
+	picker.hud = self
+	progression_hud = ProgressionHud.new()   # the level and XP strip and the level-up plate
 	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -99,56 +99,13 @@ func _ready() -> void:
 	ds2_potion_dock = Ds2PotionDockClass.new()
 	add_child(ds2_potion_dock)
 
-## The minimap is its own canvas item, redrawn 20 times a second instead of every frame: it walks every obstacle and monster in the world
-## (hundreds), and doing that at the full frame rate was about 8 ms of every frame, the biggest cost in the plaza.
-const MAP_REDRAW := 0.05
 ## How far the hotbar sits above the bottom edge: the XP bar and the level badge run along the very bottom, under it.
 const HOTBAR_LIFT := 30.0
-var _map: Control
-var _map_clock: float = 0.0
-## The map under the dots, and its fog of war (see MinimapMap). Two children drawn BEHIND the map item (frame, then the clipped terrain+fog view), so
-## the dots, the nests and the hero's arrow, which the map item itself draws, sit on top of them.
-var map_data: MinimapMap = MinimapMap.new()
-var _map_frame: Control
-var _map_view: Control
-var _map_content: Control
-
-func _paint_map() -> void:
-	if player != null:
-		_draw_minimap(_map, get_viewport_rect().size, ThemeDB.fallback_font)
-
-## The round map's frame: a dark worn-iron ring with a bronze line, studs at the four quarters, the compass N (it turns with the camera, so it
-## always points to world north) and the name of the place under it.
-func _paint_map_frame() -> void:
-	var screen: Vector2 = get_viewport_rect().size
-	var rect: Rect2 = minimap_rect(screen, use_ds2_ui)
-	var c: Vector2 = rect.get_center()
-	var radius: float = rect.size.x * 0.5
-	var f: Control = _map_frame
-	if use_ds2_ui and ds2_compass_ring != null:
-		var inner_radius: float = radius * 0.69
-		# 1. Solid circular backing disc behind the map view
-		f.draw_circle(c, inner_radius + 2.0, Color(0.10, 0.09, 0.08, 0.98))
-		# 2. Draw compass ring matching the aperture exactly
-		var ring_span: float = (inner_radius / 0.6914) * 2.0
-		var ring_rect := Rect2(c - Vector2.ONE * (ring_span * 0.5), Vector2.ONE * ring_span)
-		f.draw_texture_rect(ds2_compass_ring, ring_rect, false)
-		# 3. Zone name neatly positioned above the compass ring
-		UiTheme.text(f, UiTheme.heading_font(), Vector2(c.x - 120.0, rect.position.y - 18.0), zone_name().to_upper(), 13, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, 240.0)
-		return
-	f.draw_circle(c + Vector2(0, 5), radius + 12.0, Color(0, 0, 0, 0.45))        # the shadow it casts
-	f.draw_circle(c, radius, Color(0.105, 0.09, 0.08, 0.96))                       # what the map sits on: worn earth, not a black hole beyond the world
-	f.draw_arc(c, radius + 5.0, 0.0, TAU, 96, Color(0.055, 0.05, 0.06), 11.0)      # the iron
-	f.draw_arc(c, radius + 9.5, 0.0, TAU, 96, Color(0, 0, 0, 0.9), 2.0)
-	f.draw_arc(c, radius + 6.0, -2.4, -0.7, 32, UiTheme.BRONZE_LIGHT.darkened(0.35), 1.5)   # a glint, upper right
-	f.draw_arc(c, radius + 0.5, 0.0, TAU, 96, UiTheme.BRONZE.darkened(0.1), 1.5)   # the bronze inner line
-	for quarter in 4:
-		var stud: Vector2 = c + Vector2.from_angle(quarter * PI * 0.5) * (radius + 5.0)
-		f.draw_circle(stud, 3.2, Color(0, 0, 0, 0.85))
-		f.draw_circle(stud, 2.0, UiTheme.BRONZE_LIGHT.darkened(0.3))
-	var north: Vector2 = c + Vector2(0, -1).rotated(Gamepad.view_yaw) * (radius + 17.0)
-	UiTheme.text(f, UiTheme.heading_font(), north + Vector2(-5.0, 5.5), "N", 15, UiTheme.BRONZE_LIGHT.lightened(0.15))
-	UiTheme.text(f, UiTheme.heading_font(), Vector2(rect.position.x, rect.end.y + 30.0), zone_name().to_upper(), 15, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x)
+## The round minimap (made on the first frame, so it sits above everything _ready adds), the loot name plates and item card, and the
+## hotbar's skill picker: each in its own file under game/ui/.
+var minimap: HudMinimap
+var loot_cards := HudLootCards.new()
+var picker := HudSkillPicker.new()
 
 ## Where the hero is, for the map's caption and the title at the top left.
 func zone_name() -> String:
@@ -166,67 +123,12 @@ func zone_subtitle() -> String:
 	var zone: String = zone_name()
 	return "Safe Haven" if zone == "The Last Hearth" else ("Hostile Ground" if zone == "The Crypt Road" else "Deep Beyond")
 
-func _paint_map_view() -> void:
-	if player == null:
-		return
-	var radius: float = (_map_view.size.x * 0.5 * 0.69) if use_ds2_ui else (_map_view.size.x * 0.5)
-	_map_view.draw_circle(_map_view.size * 0.5, radius, Color.WHITE)   # this item only clips the one under it to a circle (it is not shown)
-
-func _paint_map_content() -> void:
-	if player == null:
-		return
-	var params: Dictionary = map_view_params(get_viewport_rect().size)
-	map_data.draw(_map_content, MinimapMap.transform_for(params["origin"], Gamepad.view_yaw, float(params["scale"]), _map_content.size * 0.5))
-
-## How the map is framed: a window round the hero in the connected world (and on any long arena), the whole arena otherwise.
-func map_view_params(size_px: Vector2) -> Dictionary:
-	var bounds: Vector2 = Arena.bounds_of(get_tree())
-	var windowed: bool = force_window or bounds.y > bounds.x * 1.6
-	var half: float = 45.0 if windowed else Arena.HALF
-	var origin: Vector3 = player.global_position if windowed and player != null else Vector3.ZERO
-	return {"windowed": windowed, "half": half, "origin": origin, "scale": minimap_rect(size_px, use_ds2_ui).size.x / (half * 2.0)}
-
-func _make_map_layers() -> void:
-	_map = Control.new()
-	_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_map.draw.connect(_paint_map)
-	add_child(_map)
-	_map_frame = Control.new()
-	_map_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_frame.show_behind_parent = true
-	_map_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_map_frame.draw.connect(_paint_map_frame)
-	_map.add_child(_map_frame)
-	_map_view = Control.new()   # a disc that clips what is drawn in it (the map content) to a circle; it is not shown itself
-	_map_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_view.show_behind_parent = true
-	_map_view.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
-	_map_view.draw.connect(_paint_map_view)
-	_map.add_child(_map_view)
-	_map_content = Control.new()
-	_map_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_content.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_map_content.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_map_content.draw.connect(_paint_map_content)
-	_map_view.add_child(_map_content)
-
 func _process(delta: float) -> void:
-	if _map == null:
-		_make_map_layers()
-	_map_clock += delta
-	if _map_clock >= MAP_REDRAW:
-		_map_clock = 0.0
-		if player != null:
-			map_data.ensure_built(get_tree())
-			map_data.reveal(player.global_position)
-			var view: Rect2 = minimap_rect(get_viewport_rect().size, use_ds2_ui)
-			_map_view.position = view.position
-			_map_view.size = view.size
-		_map.queue_redraw()
-		_map_frame.queue_redraw()
-		_map_view.queue_redraw()
-		_map_content.queue_redraw()
+	if minimap == null:
+		minimap = HudMinimap.new()
+		minimap.hud = self
+		add_child(minimap)
+	minimap.tick(delta)
 	if player != null:
 		var screen: Vector2 = get_viewport_rect().size
 		var hp_rect: Rect2 = orb_rect(screen, false)
@@ -299,8 +201,8 @@ func _draw() -> void:
 	var extra: int = player.skills.hotbar.size()
 	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
-	if picker_open():
-		_draw_picker(font, size_px)
+	if picker.is_open():
+		picker.draw(font, size_px)
 	else:
 		_draw_tooltip(font, size_px)
 	_draw_ability_toast(size_px, font)
@@ -314,7 +216,7 @@ func _draw() -> void:
 			target = player.skills.queued_target
 		if target != null and not target.dead:
 			var w: float = 340.0
-			var color: Color = Color(0.55, 0.1, 0.1) if target.max_health < 150.0 else Color(0.62, 0.3, 0.08)
+			var color: Color = Color(0.62, 0.3, 0.08) if target.is_big() else Color(0.55, 0.1, 0.1)
 			_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
 				"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
 
@@ -373,7 +275,7 @@ func _draw() -> void:
 		var kills_text: String = str(kills)
 		var used: float = UiTheme.draw_stat(self, font, Vector2(28, row_y), "kills", kills_text, 24.0, 18)
 		UiTheme.draw_stat(self, font, Vector2(28 + used + 22.0, row_y), "enemies", str(alive), 24.0, 18)
-	_draw_item_card(size_px, font)
+	loot_cards.draw(size_px, font)
 	if banner_time > 0.0 and banner_text.begins_with(CryptForecourtClimax.CLEAR_BANNER_TEXT):
 		_draw_forecourt_banner(size_px, font)
 
@@ -497,14 +399,12 @@ func death_detail() -> String:
 ## True when a screen point is over a HUD panel (minimap, hotbar, resource vessels): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:
 	var size_px: Vector2 = get_viewport_rect().size
-	if picker_open() and picker_panel(size_px).grow(6.0).has_point(point):
+	if picker.is_open() and picker.panel_rect(size_px).grow(6.0).has_point(point):
 		return true
 	if show_gear and character_panel != null and character_panel.get_global_rect().has_point(point):
 		return true
 	if minimap_rect(size_px, use_ds2_ui).grow(7).has_point(point) or minimap_rect(size_px, false).grow(7).has_point(point):
 		return true
-	if progression_hud != null and progression_hud.chip_rect(size_px).grow(4.0).has_point(point):
-		return true   # the points chip is a button: a click on it must not also walk the hero
 	if progression_hud != null and progression_hud.strip_rect(size_px).grow(22.0).has_point(point):
 		return true   # the XP bar and its badge along the bottom
 	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
@@ -583,345 +483,6 @@ func enemy_in_sight(enemy: Actor) -> bool:
 	var gap := Vector2(enemy.global_position.x - player.global_position.x, enemy.global_position.z - player.global_position.z)
 	return gap.length() <= MinimapMap.SIGHT
 
-## Whole-arena minimap, upper right. It turns with the camera, so whatever is up the screen is up on the map.
-func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
-	var rect: Rect2 = minimap_rect(size_px, use_ds2_ui)
-	# A long, narrow arena (the Crypt Road) would be a thin strip, so its map shows a window round the hero instead of the whole place.
-	var params: Dictionary = map_view_params(size_px)
-	var windowed: bool = bool(params["windowed"])
-	var half: float = float(params["half"])
-	var origin: Vector3 = params["origin"]
-	var scale_px: float = float(params["scale"])
-	var centre: Vector2 = rect.get_center()
-	# (The panel, the backdrop, the ground, the road, the solid props and the fog are the two layers drawn behind this item: see MinimapMap.)
-	# Corrupted nests (the job's targets): a sickly green ring, always shown, pinned to the edge of the map when out of the window.
-	for node in get_tree().get_nodes_in_group("nests"):
-		var nest := node as Destructible
-		if nest == null or nest.broken:
-			continue
-		var nrel: Vector3 = nest.global_position - origin
-		var nat: Vector2 = centre + Vector2(nrel.x, nrel.z).limit_length(half).rotated(Gamepad.view_yaw) * scale_px
-		t.draw_circle(nat, 6.0, Color(0, 0, 0, 0.8))
-		t.draw_arc(nat, 4.2, 0.0, TAU, 16, Color(0.55, 0.8, 0.2), 2.0)
-	# Enemies: red dots, larger orange for bosses. (No count: how many are left is not the player's business.)
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var enemy := node as Actor
-		if enemy == null or enemy.dead:
-			continue
-		var p: Vector3 = enemy.global_position - origin
-		if windowed and (Vector2(p.x, p.z).length() > half) and not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")):
-			continue   # (a named monster is pinned to the edge of the map instead, so it can be found)
-		if not (enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid")) and not enemy_in_sight(enemy):
-			continue   # fog of war: a monster is shown only while it is near enough to be seen
-		var rel: Vector2 = Vector2(p.x, p.z).rotated(Gamepad.view_yaw)
-		var at: Vector2 = centre + Vector2(rel.x, rel.y).limit_length(half) * scale_px
-		if enemy.has_meta("monster_uid") or enemy.has_meta("quest_uid"):   # a named monster: a diamond (red for a nemesis), not a dot
-			var named: Color = Color(1.0, 0.75, 0.3) if enemy.has_meta("quest_uid") else Color(1.0, 0.5, 0.18)
-			if enemy.has_meta("monster_uid") and bool(Monsters.find(int(enemy.get_meta("monster_uid"))).get("nemesis", false)):
-				named = Color(0.95, 0.2, 0.14)
-			t.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -8), at + Vector2(8, 0), at + Vector2(0, 8), at + Vector2(-8, 0)]), Color(0, 0, 0, 0.9))
-			t.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -6), at + Vector2(6, 0), at + Vector2(0, 6), at + Vector2(-6, 0)]), named)
-		elif enemy.is_boss or enemy.max_health >= 150.0:
-			t.draw_circle(at, 5.0, Color(0, 0, 0, 0.8))
-			t.draw_circle(at, 3.8, Color(1.0, 0.55, 0.12))
-		else:
-			t.draw_circle(at, 3.0, Color(0, 0, 0, 0.7))
-			t.draw_circle(at, 2.2, Color(0.95, 0.15, 0.12))
-	# Items on the ground: a diamond in the rarity colour (bigger for rares and uniques), so they can be found from the map too.
-	for node in get_tree().get_nodes_in_group("loot"):
-		var drop := node as LootDrop
-		if drop == null:
-			continue
-		var lp: Vector3 = drop.global_position - origin
-		if windowed and (Vector2(lp.x, lp.z).length() > half):
-			continue
-		if not map_data.is_explored(drop.global_position):
-			continue   # fog of war: only where the hero has been
-		var lrel: Vector2 = Vector2(lp.x, lp.z).rotated(Gamepad.view_yaw)
-		var lat: Vector2 = centre + Vector2(lrel.x, lrel.y).limit_length(half) * scale_px
-		var rarity: int = int(drop.item["rarity"])
-		var r: float = 3.0 + 1.5 * rarity
-		var tint: Color = Items.RARITY_COLORS[rarity] if rarity > 0 else Color(0.78, 0.76, 0.7)
-		t.draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r - 1), lat + Vector2(r + 1, 0), lat + Vector2(0, r + 1), lat + Vector2(-r - 1, 0)]), Color(0, 0, 0, 0.85))
-		t.draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)
-	# What a monster's plot has put up (altar, war banner, bones), a violet triangle; a quest item lying on the road, a small gold ring.
-	for node in get_tree().get_nodes_in_group("plot_signs"):
-		if not map_data.is_explored((node as Node3D).global_position):
-			continue
-		var sp: Vector3 = (node as Node3D).global_position - origin
-		var srel: Vector2 = Vector2(sp.x, sp.z).rotated(Gamepad.view_yaw)
-		var sat: Vector2 = centre + Vector2(srel.x, srel.y).limit_length(half) * scale_px
-		t.draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -9), sat + Vector2(8, 6), sat + Vector2(-8, 6)]), Color(0, 0, 0, 0.9))
-		t.draw_colored_polygon(PackedVector2Array([sat + Vector2(0, -6.5), sat + Vector2(5.5, 4.5), sat + Vector2(-5.5, 4.5)]), Color(0.75, 0.4, 0.9))
-	for node in get_tree().get_nodes_in_group("quest_pickups"):
-		if not map_data.is_explored((node as Node3D).global_position):
-			continue
-		var qp: Vector3 = (node as Node3D).global_position - origin
-		var qrel: Vector2 = Vector2(qp.x, qp.z).rotated(Gamepad.view_yaw)
-		var qat: Vector2 = centre + Vector2(qrel.x, qrel.y).limit_length(half) * scale_px
-		t.draw_circle(qat, 5.5, Color(0, 0, 0, 0.85))
-		t.draw_arc(qat, 4.0, 0.0, TAU, 14, Color(1.0, 0.8, 0.3), 2.0)
-	# The hero: a white arrow pointing the way they face.
-	var pp: Vector3 = player.global_position - origin
-	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px
-	var yaw: float = player.visual.rotation.y if player.visual != null else 0.0
-	var fwd: Vector2 = Vector2(sin(yaw), cos(yaw)).rotated(Gamepad.view_yaw)
-	var side_v := Vector2(-fwd.y, fwd.x)
-	t.draw_colored_polygon(PackedVector2Array([me + fwd * 7.0, me - fwd * 4.0 + side_v * 4.5, me - fwd * 2.0, me - fwd * 4.0 - side_v * 4.5]),
-		Color(1, 1, 1))
-
-## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
-## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
-func _draw_item_card(size_px: Vector2, font: Font) -> void:
-	_ground_card_rect = Rect2()
-	if player != null and player.dead:   # the death plate owns the screen: no loot name plates or item card showing through it
-		_loot_names = []
-		LootDrop.focused = null
-		return
-	_loot_names = _layout_loot_names(font)
-	_draw_loot_names(font)
-	var drop: LootDrop = _drop_in_focus()
-	LootDrop.focused = drop
-	if drop == null:
-		return
-	var pointer: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
-	var anchor: Vector2 = pointer + Vector2(24, 18) if not Gamepad.active else Vector2(size_px.x * 0.5 + 40.0, size_px.y * 0.5 - 150.0)
-	_draw_card(drop.item, player.stats.equipment.get(int(drop.item["slot"])), anchor, size_px, font, true, true)
-
-## An item's details card at `anchor`: name, kind, stats and effect, then (optionally) how it compares with `worn`, and (for a drop on the
-## ground) whether walking over it will put it on or send it to the bag.
-func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vector2, font: Font, with_compare: bool, for_drop: bool) -> void:
-	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
-	var width: float = 340.0
-	var pad: float = 14.0
-	var inner: float = width - pad * 2.0
-	var lines: Array[String] = Items.lines(item)
-	var compare: Array[Dictionary] = []
-	if with_compare:
-		compare = Items.compare(item, worn)
-	var height: float = pad * 2.0 + 54.0
-	for line in lines:
-		height += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 4.0
-	if with_compare:
-		height += 30.0 + 18.0 * compare.size()
-	if for_drop:
-		height += 30.0
-	var pos := Vector2(clampf(anchor.x, 8.0, size_px.x - width - 8.0), clampf(anchor.y, 8.0, size_px.y - height - 110.0))
-	var return_prompt := _return_prompt_rect() if for_drop else Rect2()
-	if return_prompt.has_area():
-		var layout := _return_card_layout(item, lines, compare, anchor, size_px, return_prompt, font, with_compare)
-		if layout.is_empty():
-			push_warning("No clear return-card space in viewport")
-			return
-		_ground_card_rect = layout.rect
-		draw_set_transform(layout.rect.position, 0.0, Vector2.ONE * float(layout.scale))
-		_draw_return_card_body(item, worn, lines, compare, layout.metrics, color, font, with_compare)
-		draw_set_transform(Vector2.ZERO)
-		return
-	if for_drop:
-		_ground_card_rect = Rect2(pos, Vector2(width, height))
-	UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
-	draw_rect(Rect2(pos + Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
-	var y: float = pos.y + pad + 18.0
-	UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), String(item["name"]), 21, color, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-	y += 20.0
-	UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
-		Color(1, 1, 1, 0.55))
-	y += 10.0
-	for line in lines:
-		var h: float = font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y
-		draw_multiline_string(font, Vector2(pos.x + pad + 6.0, y + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, Color(0.9, 0.88, 0.82))
-		y += h + 4.0
-	if with_compare:
-		y += 8.0
-		draw_line(Vector2(pos.x + pad, y), Vector2(pos.x + width - pad, y), Color(1, 1, 1, 0.12), 1.0)
-		y += 18.0
-		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
-			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-		for entry in compare:
-			y += 18.0
-			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
-			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
-			UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), mark + String(entry["text"]), 14, sign_color)
-	if for_drop:
-		y += 26.0
-		var upgrade: bool = player.stats.takes_empty_slot(item)
-		UiTheme.text(self, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
-			Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
-
-## Restrict clearance to the active return-waystone decision; other cards retain their layout.
-func _return_prompt_rect() -> Rect2:
-	var node := get_parent()
-	while node != null:
-		if node is TownScene:
-			var town := node as TownScene
-			if String(town.near.get("kind", "")) == "waystone" and town.hud != null:
-				return town.hud.interaction_prompt_rect()
-			break
-		node = node.get_parent()
-	return Rect2()
-
-## Measure all content before fitting: wrapping is part of the card, not a later addition. The return card keeps its text at full size and
-## spends the slack on rhythm instead: a tighter line gap and, when every row fits half the card, the comparison in two columns.
-## Positions are relative to the card's top-left; measuring and drawing both read them, so they cannot drift apart.
-var _return_card_measure_key: Array = []
-var _return_card_measures: Array[Dictionary] = []
-
-func _return_card_metrics(item: Dictionary, lines: Array[String], compare: Array[Dictionary], width: float, font: Font, with_compare: bool) -> Dictionary:
-	var pad := 12.0
-	var inner := width - pad * 2.0
-	var name_h := maxf(20.0, font.get_multiline_string_size(String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21).y)
-	var y := pad + 18.0 + name_h   # baseline of the kind line
-	var kind_y := y
-	y += 4.0
-	var line_ys: Array[float] = []
-	for line in lines:
-		line_ys.append(y + 14.0)
-		y += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14).y + 3.0
-	var m := {"width": width, "inner": inner, "name_h": name_h, "kind_y": kind_y, "line_ys": line_ys, "cols": 1}
-	if with_compare:
-		y += 4.0
-		m["rule_y"] = y
-		y += 15.0
-		m["header_y"] = y
-		var cols := 2 if compare.size() >= 3 else 1
-		for entry in compare:
-			if font.get_string_size("+ " + String(entry["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > inner * 0.5 - 12.0:
-				cols = 1
-		m["cols"] = cols
-		m["rows_y"] = y + 18.0
-		y += 18.0 * ceilf(float(compare.size()) / float(cols))
-	y += 21.0   # the walk-over line
-	m["drop_y"] = y
-	m["height"] = y + 12.0
-	return m
-
-func _draw_return_card_body(item: Dictionary, worn: Variant, lines: Array[String], compare: Array[Dictionary], m: Dictionary, color: Color, font: Font, with_compare: bool) -> void:
-	var width: float = m.width
-	var height: float = m.height
-	var pad := 12.0
-	var inner: float = m.inner
-	UiTheme.draw_panel(self, Rect2(Vector2.ZERO, Vector2(width, height)), 0.97)
-	draw_rect(Rect2(Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
-	draw_multiline_string(font, Vector2(pad + 6.0, pad + 18.0), String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21, -1, color)
-	UiTheme.text(self, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13, Color(1, 1, 1, 0.55))
-	for i in lines.size():
-		draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), lines[i], HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, Color(0.9, 0.88, 0.82))
-	if with_compare:
-		draw_line(Vector2(pad, m.rule_y), Vector2(width - pad, m.rule_y), Color(1, 1, 1, 0.12), 1.0)
-		UiTheme.text(self, font, Vector2(pad + 6.0, m.header_y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
-			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-		var per_col: int = ceili(float(compare.size()) / float(m.cols))
-		for i in compare.size():
-			var entry: Dictionary = compare[i]
-			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
-			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
-			UiTheme.text(self, font, Vector2(pad + 6.0 + float(i / per_col) * inner * 0.5, float(m.rows_y) + 18.0 * float(i % per_col)), mark + String(entry["text"]), 14, sign_color)
-	var upgrade: bool = player.stats.takes_empty_slot(item)
-	UiTheme.text(self, font, Vector2(pad + 6.0, m.drop_y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
-		Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
-
-## Find empty rectangles from actual obstacle edges, then fit the complete card into them.
-## Prefer full-size typography, widening wrapped content before uniformly scaling it.
-## No unsafe original-anchor fallback: every result is bounded and unobstructed.
-func _return_card_layout(item: Dictionary, lines: Array[String], compare: Array[Dictionary], anchor: Vector2, screen: Vector2, prompt: Rect2, font: Font, with_compare: bool) -> Dictionary:
-	var obstacles: Array[Rect2] = [prompt.grow(6.0), minimap_rect(screen, use_ds2_ui).grow(7.0), orb_rect(screen, false).grow(7.0), orb_rect(screen, true).grow(7.0)]
-	obstacles.append(Rect2(14, 14 + top_offset, 250, 62 if objective != "" or wave > 0 else 38).grow(6.0))
-	var node := get_parent()
-	while node != null:
-		if node is TownScene:
-			for overlay in (node as TownScene).hud.overlay_rects:
-				obstacles.append(overlay.grow(6.0))
-			break
-		node = node.get_parent()
-	for entry in _loot_names:
-		obstacles.append((entry["rect"] as Rect2).grow(6.0))
-	obstacles.append(hotbar_rect(screen).grow(6.0))
-	if progression_hud != null:
-		obstacles.append(progression_hud.strip_rect(screen).grow(6.0))
-	var bounds := Rect2(Vector2(8, 8), Vector2(screen.x - 16, screen.y - 118))
-	var xs: Array[float] = [bounds.position.x, bounds.end.x]
-	for obstacle in obstacles:
-		for edge in [obstacle.position.x, obstacle.end.x]:
-			var x := clampf(edge, bounds.position.x, bounds.end.x)
-			if not xs.has(x):
-				xs.append(x)
-	xs.sort()
-	var spaces: Array[Rect2] = []
-	for left in xs:
-		for right in xs:
-			if right <= left:
-				continue
-			var spans: Array[Vector2] = []
-			for obstacle in obstacles:
-				if obstacle.position.x < right and obstacle.end.x > left and obstacle.position.y < bounds.end.y and obstacle.end.y > bounds.position.y:
-					spans.append(Vector2(maxf(bounds.position.y, obstacle.position.y), minf(bounds.end.y, obstacle.end.y)))
-			spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
-			var top := bounds.position.y
-			for span in spans:
-				if span.x > top:
-					spaces.append(Rect2(left, top, right - left, span.x - top))
-				top = maxf(top, span.y)
-			if top < bounds.end.y:
-				spaces.append(Rect2(left, top, right - left, bounds.end.y - top))
-	var measure_key: Array = [String(item["name"]), lines, compare, font, with_compare]
-	if measure_key != _return_card_measure_key:
-		_return_card_measure_key = measure_key.duplicate(true)
-		_return_card_measures.clear()
-		for width in range(340, 641, 20):
-			_return_card_measures.append(_return_card_metrics(item, lines, compare, float(width), font, with_compare))
-	var best: Dictionary = {}
-	var best_score := INF
-	for metrics in _return_card_measures:
-		var content := Vector2(metrics.width, metrics.height)
-		var width := content.x
-		for space in spaces:
-			# The drawn panel includes a four-pixel shadow; reserve it too.
-			var room := space.grow(-4.0)
-			var scale := minf(1.0, minf(room.size.x / content.x, room.size.y / content.y))
-			if scale <= 0.0:
-				continue
-			var extent := content * scale
-			var pos := Vector2(clampf(anchor.x, room.position.x, room.end.x - extent.x), clampf(anchor.y, room.position.y, room.end.y - extent.y))
-			var score := (1.0 - scale) * 10000000.0 + (width - 340) * 100.0 + pos.distance_squared_to(anchor)
-			if score < best_score:
-				best_score = score
-				best = {"rect": Rect2(pos, extent), "content": content, "scale": scale, "metrics": metrics}
-	return best
-
-## The dropped item the player is pointing at: under the mouse (by where it is on screen), or with a controller the nearest within reach.
-func _drop_in_focus() -> LootDrop:
-	var best: LootDrop = null
-	var best_d: float = 1.0e9
-	if Gamepad.active:
-		for node in get_tree().get_nodes_in_group("loot"):
-			var drop := node as LootDrop
-			if drop == null or not drop.landed:
-				continue
-			var d: float = player.global_position.distance_to(drop.global_position)
-			if d < 4.0 and d < best_d:
-				best_d = d
-				best = drop
-		return best
-	var mouse: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
-	if mouse_over_hud(mouse):
-		return null
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if camera == null:
-		return null
-	for entry in _loot_names:   # a name plate under the pointer is the item
-		if (entry["rect"] as Rect2).has_point(mouse):
-			return entry["drop"]
-	for node in get_tree().get_nodes_in_group("loot"):
-		var drop := node as LootDrop
-		if drop == null or not drop.landed or camera.is_position_behind(drop.global_position):
-			continue
-		var d: float = minf(camera.unproject_position(drop.global_position + Vector3(0, 1.5, 0)).distance_to(mouse), camera.unproject_position(drop.global_position + Vector3(0, 0.5, 0)).distance_to(mouse))
-		if d < 56.0 and d < best_d:
-			best_d = d
-			best = drop
-	return best
-
 func mouse_over_hud(point: Vector2) -> bool:
 	return covers(point)
 
@@ -985,19 +546,9 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
 
-	if player.stats.skill_has_modifier(id):
-		# A small gold diamond: gear you wear is changing this skill (hover it for the details).
-		var c: Vector2 = pos + Vector2(size_px - 11.0, 11.0)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7), c + Vector2(7, 0), c + Vector2(0, 7), c + Vector2(-7, 0)]), Color(0.1, 0.07, 0.02, 0.9))
-		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -5), c + Vector2(5, 0), c + Vector2(0, 5), c + Vector2(-5, 0)]), Color(1.0, 0.82, 0.3))
 	var remaining: float = float(player.stats.cooldowns.get(id, 0.0))
 	var fraction: float = player.stats.cooldown_fraction(id)
-	# Weapon Throw with the weapon out is the recall key: available whatever the throw cooldown says, so it is not dimmed or swept.
-	var recall: bool = id == WeaponThrowSkill.SKILL_ID and player.weapon_throw.is_away()
-	if recall:
-		remaining = 0.0
-		fraction = 0.0
-	var affordable: bool = player.stats.mana >= float(skill["mana"])
+	var affordable: bool = player.stats.mana >= player.stats.mana_cost(id)
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
@@ -1037,21 +588,13 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel
 	# here would cover the ability art; status is already conveyed by overlays.
 	draw_rect(rect.grow(1.0), METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46), false, 1.0)
-	if recall:   # a pulsing ember edge and a small curved arrow: it comes back
-		var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
-		draw_rect(rect.grow(2.0 + 1.5 * beat), Color(0.95, 0.6, 0.25, 0.3 + 0.3 * beat), false, 2.5)
-		var arrow: Vector2 = pos + Vector2(size_px - 16.0, size_px - 16.0)
-		draw_arc(arrow, 7.0, PI * 0.15, PI * 1.65, 14, Color(0, 0, 0, 0.8), 4.5)
-		draw_arc(arrow, 7.0, PI * 0.15, PI * 1.65, 14, Color(1.0, 0.86, 0.5), 2.5)
-		var head: Vector2 = arrow + Vector2(cos(PI * 0.15), sin(PI * 0.15)) * 7.0
-		draw_colored_polygon(PackedVector2Array([head + Vector2(-5, -3), head + Vector2(4, -3), head + Vector2(0, 5)]), Color(1.0, 0.86, 0.5))
 	# Key hint (follows rebinding) and mana cost. Consumables live only in the
 	# dedicated DS2 dock and never render as ability-slot content.
 	var key_text: String = GameSettings.short_binding_text(action)
 	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
 	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
-	if float(skill["mana"]) > 0.0:
-		draw_string(font, pos + Vector2(5, size_px - 5), str(int(skill["mana"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
+	if player.stats.mana_cost(id) > 0.0:
+		draw_string(font, pos + Vector2(5, size_px - 5), str(int(player.stats.mana_cost(id))), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.
 func _draw_tooltip(font: Font, size_px: Vector2) -> void:
@@ -1068,8 +611,8 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		var pad: float = 14.0
 		var inner: float = width - pad * 2.0
 		var stats: Array[String] = []
-		if float(skill["mana"]) > 0.0:
-			stats.append("Mana %d" % int(skill["mana"]))
+		if player.stats.mana_cost(id) > 0.0:
+			stats.append("Mana %d" % int(player.stats.mana_cost(id)))
 		if float(skill["cd"]) > 0.0:
 			stats.append("Cooldown %.1f s" % float(skill["cd"]))
 		if float(skill["range"]) > 0.0:
@@ -1079,12 +622,8 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		var stat_line: String = "    ".join(stats)
 		var damage_line: String = player.stats.skill_damage_text(id)
 		var desc: String = SkillDb.description(id)
-		if slot_of_action(String(hit["action"])) != HotbarLayout.NONE:
+		if HudSkillPicker.slot_of_action(String(hit["action"])) != HotbarLayout.NONE:
 			desc += "\n\nClick to change what is on this key."
-		var mods: Array[String] = []
-		for affix_id in SkillDb.modifier_affixes(id):
-			if player.stats.has_affix(affix_id):
-				mods.append(AffixDb.all()[affix_id]["desc"])
 		# Measure, then draw the panel.
 		var height: float = pad + 26.0
 		if stat_line != "":
@@ -1092,10 +631,6 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if damage_line != "":
 			height += 20.0
 		height += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y + 10.0
-		for m in mods:
-			height += font.get_multiline_string_size(m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 6.0
-		if not mods.is_empty():
-			height += 18.0
 		height += pad
 		var pos := Vector2(clampf(rect.get_center().x - width * 0.5, 8.0, size_px.x - width - 8.0), rect.position.y - height - 10.0)
 		UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
@@ -1113,200 +648,12 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		y += 22.0
 		draw_multiline_string(font, Vector2(pos.x + pad, y), desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15, -1, Color(0.92, 0.9, 0.85))
 		y += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y - 8.0
-		if not mods.is_empty():
-			y += 20.0
-			draw_string(font, Vector2(pos.x + pad, y), "From your gear", HORIZONTAL_ALIGNMENT_LEFT, inner, 13, Color(0.45, 0.72, 1.0))
-			for m in mods:
-				y += 16.0
-				draw_multiline_string(font, Vector2(pos.x + pad, y), m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14, -1, Color(0.8, 0.85, 0.95))
-				y += font.get_multiline_string_size(m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y - 12.0
 		return
 
 static var _icons: Dictionary = {}
 ## Test hook: when set (x >= 0) it replaces the real mouse position for tooltips.
 var mouse_override: Vector2 = Vector2(-1.0, -1.0)
 var _slot_hits: Array = []  # [{rect, id, action}] for the slots drawn this frame (tooltip hit-testing)
-var _loot_names: Array[Dictionary] = []   # [{drop, rect, anchor}] this frame's name plates over the items on the ground
-var _ground_card_rect := Rect2()   # actual drawn ground card, for focused layout regression checks
-
-# --- Names over loot ------------------------------------------------------------------------------------------------------------
-## Every item on the ground shows its name over it, in its rarity's colour. The plates are laid out on the screen so that they never
-## overlap: they are placed from the bottom of the screen (nearest the camera) up, and any plate that would land on another is lifted
-## above it, with a thin line back to its item. They are also what you click or point at to pick an item up.
-
-const NAME_HEIGHT := 21.0
-const NAME_FONT := 15
-
-func _layout_loot_names(font: Font) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if camera == null or show_gear or player == null:
-		return out
-	var entries: Array[Dictionary] = []
-	for node in get_tree().get_nodes_in_group("loot"):
-		var drop := node as LootDrop
-		if drop == null or not drop.landed or camera.is_position_behind(drop.global_position):
-			continue
-		var anchor: Vector2 = camera.unproject_position(drop.global_position + Vector3(0, 0.4, 0))
-		var width: float = font.get_string_size(String(drop.item["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_FONT).x + 14.0
-		entries.append({"drop": drop, "anchor": anchor, "width": width})
-	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["anchor"].y > b["anchor"].y)
-	var placed: Array[Rect2] = []
-	for entry in entries:
-		var anchor: Vector2 = entry["anchor"]
-		var rect := Rect2(anchor.x - float(entry["width"]) * 0.5, anchor.y - NAME_HEIGHT - 10.0, float(entry["width"]), NAME_HEIGHT)
-		var guard: int = 0
-		while guard < 60:
-			var clash: bool = false
-			for other in placed:
-				if rect.grow(2.0).intersects(other):
-					clash = true
-					rect.position.y = other.position.y - NAME_HEIGHT - 3.0   # lifted just above the plate it landed on
-					break
-			if not clash:
-				break
-			guard += 1
-		if covers(rect.get_center()) or covers(rect.position) or covers(rect.end):
-			continue   # it would sit under the hotbar, the minimap or an open panel: left out, not drawn over them
-		placed.append(rect)
-		out.append({"drop": entry["drop"], "rect": rect, "anchor": anchor})
-	return out
-
-func _draw_loot_names(font: Font) -> void:
-	var mouse: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
-	for entry in _loot_names:
-		var drop: LootDrop = entry["drop"]
-		var rect: Rect2 = entry["rect"]
-		var anchor: Vector2 = entry["anchor"]
-		var colour: Color = Items.RARITY_COLORS[int(drop.item["rarity"])]
-		var focus: bool = LootDrop.focused == drop or rect.has_point(mouse)
-		if rect.end.y < anchor.y - 12.0:   # lifted off its item: a line shows whose name it is
-			draw_line(Vector2(rect.get_center().x, rect.end.y), anchor, Color(colour.r, colour.g, colour.b, 0.55), 1.0)
-		draw_rect(rect, Color(0.03, 0.03, 0.04, 0.82 if focus else 0.62))
-		draw_rect(rect, Color(colour.r, colour.g, colour.b, 0.95 if focus else 0.45), false, 1.5 if focus else 1.0)
-		UiTheme.text(self, font, rect.position + Vector2(0, 15.5), String(drop.item["name"]), NAME_FONT, colour.lightened(0.2 if focus else 0.0),
-			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
-
-
-# --- The skill picker --------------------------------------------------------------------------------------------------------
-# Click a hotbar slot (the numbered ones or the right mouse button) and every skill appears above it as an icon; click one and it goes
-# on that key. A skill that was on another key trades places with what was here, so nothing is ever lost. See HotbarLayout.
-
-var picker_slot: int = HotbarLayout.NONE   # the slot it is open for (HotbarLayout.NONE: closed)
-var _picker_anchor: Rect2 = Rect2()
-const PICKER_CELL := 62.0
-const PICKER_GAP := 8.0
-const PICKER_PAD := 12.0
-
-func picker_open() -> bool:
-	return picker_slot != HotbarLayout.NONE
-
-func open_picker(slot: int, anchor: Rect2) -> void:
-	picker_slot = slot
-	_picker_anchor = anchor
-
-func close_picker() -> void:
-	picker_slot = HotbarLayout.NONE
-
-## The slot number a hotbar slot's action stands for: 0.. for skill_1.., HotbarLayout.ALT for the mouse button, NONE for the dodge.
-static func slot_of_action(action: String) -> int:
-	if action == "alt_skill":
-		return HotbarLayout.ALT
-	if action.begins_with("skill_"):
-		return int(action.substr(6)) - 1
-	return HotbarLayout.NONE
-
-## The change-able hotbar slot under a point, as {slot, rect}; {} when there is none.
-func slot_at(point: Vector2) -> Dictionary:
-	for hit in _slot_hits:
-		var rect: Rect2 = hit["rect"]
-		var slot: int = slot_of_action(String(hit["action"]))
-		if slot != HotbarLayout.NONE and rect.has_point(point):
-			return {"slot": slot, "rect": rect}
-	return {}
-
-func picker_panel(size_px: Vector2) -> Rect2:
-	var count: int = HotbarLayout.ASSIGNABLE.size()
-	var width: float = PICKER_PAD * 2.0 + PICKER_CELL * count + PICKER_GAP * (count - 1)
-	var height: float = PICKER_PAD * 2.0 + PICKER_CELL + 30.0
-	var x: float = clampf(_picker_anchor.get_center().x - width * 0.5, 8.0, maxf(size_px.x - width - 8.0, 8.0))
-	return Rect2(x, _picker_anchor.position.y - height - 16.0, width, height)
-
-## Every skill's icon cell in the open picker: [{rect, id}].
-func picker_cells(size_px: Vector2) -> Array[Dictionary]:
-	var panel: Rect2 = picker_panel(size_px)
-	var cells: Array[Dictionary] = []
-	for i in HotbarLayout.ASSIGNABLE.size():
-		cells.append({"rect": Rect2(panel.position + Vector2(PICKER_PAD + i * (PICKER_CELL + PICKER_GAP), PICKER_PAD + 26.0), Vector2.ONE * PICKER_CELL),
-			"id": HotbarLayout.ASSIGNABLE[i]})
-	return cells
-
-## A left click on a hotbar slot opens the picker; with it open, a click on a skill chooses it, on another slot moves the picker there,
-## anywhere else (or the right button) closes it. Returns true when the click was used.
-func _picker_click(click: InputEventMouseButton) -> bool:
-	var size_px: Vector2 = get_viewport_rect().size
-	if picker_open():
-		if click.button_index != MOUSE_BUTTON_LEFT:
-			close_picker()
-			return true
-		for cell in picker_cells(size_px):
-			if (cell["rect"] as Rect2).has_point(click.position):
-				player.skills.assign_slot(picker_slot, String(cell["id"]))
-				close_picker()
-				return true
-		var other: Dictionary = slot_at(click.position)
-		if not other.is_empty() and int(other["slot"]) != picker_slot:
-			open_picker(int(other["slot"]), other["rect"])
-		else:
-			close_picker()
-		return true
-	if click.button_index == MOUSE_BUTTON_LEFT:
-		var hit: Dictionary = slot_at(click.position)
-		if not hit.is_empty():
-			open_picker(int(hit["slot"]), hit["rect"])
-			return true
-	return false
-
-func _draw_picker(font: Font, size_px: Vector2) -> void:
-	var panel: Rect2 = picker_panel(size_px)
-	var mouse: Vector2 = get_viewport().get_mouse_position() if mouse_override.x < 0.0 else mouse_override
-	UiTheme.draw_panel(self, panel, 0.95)
-	var here: String = HotbarLayout.skill_at(player.skills.hotbar, player.skills.right_click_skill, picker_slot)
-	var title: String = "Put on %s" % (GameSettings.short_binding_text("alt_skill") if picker_slot == HotbarLayout.ALT else GameSettings.short_binding_text("skill_%d" % (picker_slot + 1)))
-	var hovered_id: String = ""
-	for cell in picker_cells(size_px):
-		if (cell["rect"] as Rect2).has_point(mouse):
-			hovered_id = String(cell["id"])
-	UiTheme.text(self, font, panel.position + Vector2(PICKER_PAD, 24.0), title, 16, UiTheme.BRONZE_LIGHT.lightened(0.25))
-	if hovered_id != "":
-		UiTheme.text(self, font, panel.position + Vector2(panel.size.x - PICKER_PAD, 24.0), String(SkillDb.all()[hovered_id]["name"]), 16, UiTheme.TEXT,
-			HORIZONTAL_ALIGNMENT_RIGHT, panel.size.x * 0.6)
-	for cell in picker_cells(size_px):
-		var rect: Rect2 = cell["rect"]
-		var id: String = cell["id"]
-		draw_rect(rect, UiTheme.INK)
-		var icon: Texture2D = _icon(id)
-		if icon != null:
-			draw_texture_rect(icon, rect.grow(-3.0), false)
-		else:
-			draw_string(font, rect.position + Vector2(2, PICKER_CELL * 0.5 + 4), String(SkillDb.all()[id]["name"]), HORIZONTAL_ALIGNMENT_CENTER, PICKER_CELL - 4, 11, Color(1, 1, 1))
-		var border: Color = Color(0.32, 0.30, 0.26)
-		if id == here:
-			border = UiTheme.ACCENT
-		elif id == hovered_id:
-			border = Color(1.0, 0.95, 0.8)
-		draw_rect(rect, border, false, 3.0 if id == hovered_id or id == here else 1.5)
-		# Which key it is on now, so a swap is no surprise.
-		var where: int = HotbarLayout.where(player.skills.hotbar, player.skills.right_click_skill, id)
-		var tag: String = ""
-		if where == HotbarLayout.ALT:
-			tag = GameSettings.short_binding_text("alt_skill")
-		elif where != HotbarLayout.NONE:
-			tag = GameSettings.short_binding_text("skill_%d" % (where + 1))
-		if tag != "":
-			UiTheme.text(self, font, rect.position + Vector2(5, 15), tag, 13, Color(1, 0.95, 0.7))
-
-
 var _was_cooling: Dictionary = {}
 var _ready_flash: Dictionary = {}
 
@@ -1339,41 +686,17 @@ func _open_character() -> void:
 	add_child(character_panel)
 	get_tree().paused = true
 
-## The Progression screen (passives and evolutions), opened from the character screen: it sits over it and leaves it as it was.
-var progression_panel: ProgressionPanel
-
-func open_progression() -> void:
-	if progression_panel != null:
-		return
+## The skill screen (DS2's passive trees) in the character panel's place.
+func open_skills() -> void:
 	if character_panel != null:
-		character_panel.visible = false
-	progression_panel = ProgressionPanel.new()
-	progression_panel.closed.connect(close_progression)
-	add_child(progression_panel)
-
-## From play (the "points available" chip): the character screen opens behind the Progression screen, so closing it lands back there and
-## the game stays paused exactly as it does when you go in through the PROGRESSION button.
-func open_progression_from_play() -> void:
-	if progression_panel != null or player == null or player.dead or show_gear:
-		return
-	show_gear = true
-	_open_character()
-	open_progression()
-
-func close_progression() -> void:
-	if progression_panel != null:
-		progression_panel.queue_free()
-		progression_panel = null
-	if character_panel != null:
-		character_panel.visible = true
-		if character_panel.has_method("focus_progression_button"):
-			character_panel.call_deferred("focus_progression_button")
+		character_panel.queue_free()
+	character_panel = preload("res://game/ui/skill_tree_view.gd").new()
+	character_panel.hero = player
+	add_child(character_panel)
+	get_tree().paused = true
 
 func close_character() -> void:
 	show_gear = false
-	if progression_panel != null:
-		progression_panel.queue_free()
-		progression_panel = null
 	if character_panel != null:
 		character_panel.queue_free()
 		character_panel = null
@@ -1383,21 +706,15 @@ func _input(event: InputEvent) -> void:
 	if event.is_echo():
 		return
 	if player != null and not get_tree().paused:
-		if picker_open() and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
-			close_picker()
+		if picker.is_open() and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause")):
+			picker.close()
 			get_viewport().set_input_as_handled()
 			return
 		var click := event as InputEventMouseButton
-		if click != null and click.pressed and _picker_click(click):
+		if click != null and click.pressed and picker.handle_click(click):
 			get_viewport().set_input_as_handled()
 			return
-		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and progression_hud != null and progression_hud.click_chip(click.position):
-			get_viewport().set_input_as_handled()   # the "points available" chip: straight to where they are spent
-			return
-	if progression_panel != null and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
-		progression_panel.back()   # a question first, then the screen
-		get_viewport().set_input_as_handled()
-	elif show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
 		close_character()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("gear") and not get_tree().paused:
@@ -1411,9 +728,9 @@ func _forecourt_keepouts(screen: Vector2, _font: Font) -> Array[Rect2]:
 	var blocks: Array[Rect2] = [minimap_rect(screen, use_ds2_ui).grow(15), orb_rect(screen, false).grow(7), orb_rect(screen, true).grow(7)]
 	if progression_hud != null:
 		blocks.append(progression_hud.strip_rect(screen).grow(6.0))
-	if _ground_card_rect.has_area():
-		blocks.append(_ground_card_rect.grow(8))
-	for entry in _loot_names:
+	if loot_cards.ground_card_rect.has_area():
+		blocks.append(loot_cards.ground_card_rect.grow(8))
+	for entry in loot_cards.names:
 		blocks.append((entry["rect"] as Rect2).grow(6))
 	for sibling in get_parent().get_children():
 		if sibling is TownHud:

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "gravecutter"
+display_name = "Gravecutter"
+base = "falchion"
+level = 12
+mods = {
+"melee_min": 7.0,
+"melee_pct": 20.0,
+"life_steal": 5.0,
+"magic_find": 10.0
+}
+set_id = ""
