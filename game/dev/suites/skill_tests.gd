@@ -15,7 +15,7 @@ func _test_hotkeys() -> void:
 	dummy.health = 900.0
 	await get_tree().physics_frame
 	# 1. Potion during a swing.
-	player.health = 40.0
+	player.health = player.max_health * 0.3
 	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.15).timeout
 	var was_busy: bool = player.skills.busy
@@ -23,7 +23,7 @@ func _test_hotkeys() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	Input.action_release("use_potion")
-	var potion_ok: bool = player.stats.potions == 2 and player.health > 80.0 and not player.skills.busy
+	var potion_ok: bool = player.stats.potions == 2 and player.health > player.max_health * 0.3 + 20.0 and not player.skills.busy
 	# 2. Potion while stunned.
 	player.health = 30.0
 	player.stats.cooldowns.clear()
