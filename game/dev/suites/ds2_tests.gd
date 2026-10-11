@@ -278,6 +278,10 @@ func _test_skill_tree() -> void:
 	await get_tree().process_frame
 	expect("Fortitude 20 is +45%% life (%.0f -> %.0f)" % [life_before, player.max_health], absf(player.max_health - life_before * 1.45) < 1.0)
 	expect("no rank past 20", TownState.passive_blocker("fortitude") == "At its highest rank")
+	expect("ranks follow DS2's own tables, not a straight line (Fortitude 10 is +32%, Deadly Strike 2 is 242%, Smite 6 stuns 1.25 s)",
+		is_equal_approx(PassiveDb.get_def("fortitude").value(10), 32.0) and is_equal_approx(PassiveDb.get_def("deadly_strike").value(2), 242.0)
+		and is_equal_approx(PassiveDb.get_def("smite").extra_value("stun", 6), 1.25)
+		and is_equal_approx(PassiveDb.get_def("barricade").extra_value("shield_armor", 2), 35.0))
 	expect("a purchase that breaks a rule buys nothing", not TownState.buy_passives({"rebuke": 1}) and TownState.passive_rank("rebuke") == 0)
 	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
 	TownState.reset()

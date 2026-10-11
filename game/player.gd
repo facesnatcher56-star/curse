@@ -674,7 +674,7 @@ func _steal_life(result: Dictionary) -> void:
 		health = minf(health + gain, max_health)
 
 ## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Ignite sets a
-## fire hit alight (chance `rank x damage / (1.2 + 0.6 INT)`,
+## fire hit alight (chance `ignite chance % x damage / (1.2 + 0.6 INT)`, its chance from DS2's 5-30 table,
 ## 0.08-0.5 x INT a second for 3 s).
 func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	if target == null or target.dead or result.get("secondary", false):
@@ -684,10 +684,10 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	var smite: int = TownState.passive_rank("smite")
 	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
 			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
-		target._gain_stun(1.0 + float(smite - 1) / 19.0)
+		target._gain_stun(PassiveDb.get_def("smite").extra_value("stun", smite))
 	var ignite: int = TownState.passive_rank("ignite")
 	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
-			and randf() < float(ignite) * damage / (1.2 + 0.6 * stats.intelligence):
+			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
 		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true)
 
 ## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
@@ -742,7 +742,7 @@ func _on_avoided(outcome: int) -> void:
 		var melee: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get("melee", 0))
 		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,
 			"source": self, "type": Combat.DamageType.PHYSICAL, "secondary": true, "skill_id": "rebuke"}, global_position)
-		last_hit_by._gain_stun(1.0 + float(rebuke - 1) / 19.0)
+		last_hit_by._gain_stun(PassiveDb.get_def("rebuke").extra_value("stun", rebuke))
 
 func _popup_tint() -> Color:
 	return Color(1.0, 0.35, 0.3)

@@ -15,5 +15,6 @@ first = 8.0
 last = 60.0
 text = "Fire damage +%s%%"
 order = 18
-table = Array[float]([])
+table = Array[float]([8.0, 14.0, 20.0, 24.0, 28.0, 32.0, 36.0, 39.0, 42.0, 44.0, 46.0, 48.0, 50.0, 52.0, 54.0, 56.0, 57.0, 58.0, 59.0, 60.0])
+extra = {}
 needs = ""

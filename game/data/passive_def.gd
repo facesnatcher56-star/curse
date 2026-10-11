@@ -21,6 +21,8 @@ const MAX_RANK := 20
 ## DS2's own value at each of the 20 ranks, when the reference has the table (the curve is not a straight line); empty: straight from
 ## `first` to `last`.
 @export var table: Array[float] = []
+## Its other values, each DS2's 20-rank table: name -> Array (Barricade's shield armour, Smite's and Rebuke's stun, Ignite's chance ...).
+@export var extra: Dictionary = {}
 ## What Curse is missing for its effect ("" when it works): it can still be bought, as DS2's path to what comes after it.
 @export var needs: String = ""
 ## Order within its tree.
@@ -33,6 +35,13 @@ func value(rank: int) -> float:
 	if table.size() == MAX_RANK:
 		return table[mini(rank, MAX_RANK) - 1]
 	return first + (last - first) * float(mini(rank, MAX_RANK) - 1) / float(MAX_RANK - 1)
+
+## One of its other values at `rank` (0 at rank 0 or when it has no such table).
+func extra_value(key: String, rank: int) -> float:
+	var list: Array = extra.get(key, [])
+	if rank <= 0 or list.size() != MAX_RANK:
+		return 0.0
+	return float(list[mini(rank, MAX_RANK) - 1])
 
 func describe(rank: int) -> String:
 	var v: float = value(maxi(rank, 1))

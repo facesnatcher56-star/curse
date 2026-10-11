@@ -95,14 +95,13 @@ func gear_totals() -> Dictionary:
 	return out
 
 ## DS2's armour: the worn pieces' armour plus flat armour modifiers, then x (1 + armour %). Heroes have none of their own.
-## Barricade raises the shield's own armour (+20 to +120%), Reinforced Armor all of it (DS2 section 3).
+## Barricade raises the shield's own armour (its table: +20 to +120%), Reinforced Armor all of it (DS2 section 3).
 func total_armor() -> float:
 	var armor: float = base_armor
 	for place in equipment:
 		var piece: float = float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
-		var barricade: int = TownState.passive_rank("barricade")
-		if place == Items.Slot.SHIELD and barricade > 0:
-			piece *= 1.0 + (20.0 + 100.0 * float(barricade - 1) / 19.0) / 100.0
+		if place == Items.Slot.SHIELD:
+			piece *= 1.0 + PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade")) / 100.0
 		armor += piece
 	var provoke: float = p.powers.provoke_armor_pct if p.powers != null else 0.0   # DS2's Provoke, while it holds
 	return (armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)
