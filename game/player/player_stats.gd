@@ -25,7 +25,9 @@ func skill_damage_text(id: String) -> String:
 				return "Empowered hit %d-%d" % [int(brutal.x), int(brutal.y)]
 			elif id == "take_aim":
 				var cutter := _cutter()
-				return "Cutter's arrow deals ~%d" % int((cutter.arrow_damage() if cutter != null else 10.0) * ArcherCompanion.take_aim_mult())
+				if cutter == null: return "Cutter unavailable"
+				var damage: Vector2 = cutter.arrow_damage_range() * ArcherCompanion.take_aim_mult()
+				return "Cutter's arrow deals %d-%d" % [int(damage.x), int(damage.y)]
 		"potion":
 			return "Heals 60"
 	return ""
@@ -146,7 +148,8 @@ var cooldowns: Dictionary = {}
 # Equipment (see items.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
 var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
-const MAX_BAG := 12
+const BagGrid := preload("res://game/inventory_grid.gd")
+const MAX_BAG := BagGrid.WIDTH * BagGrid.HEIGHT # upper bound for 1x1 items; actual capacity is geometric
 var base_armor: float = 0.0   # DS2: a hero's armour is all his gear's
 const BRUTAL_COMBAT_SECONDS := 21.0
 var brutal_reload_required: float = 0.0
@@ -297,20 +300,22 @@ func skill_speed(id: String) -> float:
 
 ## Puts `item` on. Returns what came off to make room (the piece in its place, and a shield for a two-handed weapon or a two-handed weapon
 ## for a shield), or null when the hero does not meet its requirement (DS2: class skill at least item level - 2, and the stance passive). A ring goes on a free hand, else replaces the first ring.
-func equip(item: Dictionary, announce: bool = true) -> Variant:
+func equip(item: Dictionary, announce: bool = true, target_place: int = -1) -> Variant:
 	if not Items.hero_can_wear(item):
 		if announce:
 			p._say(Items.requirement_text(item))
 		return null
 	var off: Array[Dictionary] = []
-	var place: int = place_for(item)
+	var place: int = target_place if target_place in Items.places(int(item["slot"])) else place_for(item)
 	if equipment.has(place):
 		off.append(equipment[place])
 	var conflict: int = _hand_conflict(item)
 	if conflict >= 0 and equipment.has(conflict):
 		off.append(equipment[conflict])
 		equipment.erase(conflict)
-	equipment[place] = item
+	equipment[place] = item.duplicate(true)
+	equipment[place].erase("bag_cell")
+	equipment[place].erase("bag_rotated")
 	refresh()
 	if place == Items.Slot.WEAPON or conflict == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
@@ -368,20 +373,63 @@ func pickup(item: Dictionary) -> String:
 	if takes_empty_slot(item) and equip(item, false) != null:
 		text = "Equipped %s" % item["name"]
 	else:
-		add_to_bag(item)
+		if not add_to_bag(item):
+			p._say("Inventory full")
+			return ""
 		text = "Found %s (bag)" % item["name"]
 	# (no "Equipped X" / "Found X (bag)" line: the item name floating over the hero is enough; `text` is still returned for callers and tests)
 	Fx.text_at(p, p.global_position + Vector3(0, 2.6, 0), String(item["name"]), color, 40)
 	return text
 
-func add_to_bag(item: Dictionary) -> void:
-	bag.append(item)
-	while bag.size() > MAX_BAG:
-		var worst: int = 0
-		for i in bag.size():
-			if int(bag[i]["rarity"]) < int(bag[worst]["rarity"]):
-				worst = i
-		bag.remove_at(worst)
+func add_to_bag(item: Dictionary) -> bool:
+	var candidate: Array = bag.duplicate()
+	var incoming: Dictionary = item.duplicate(true)
+	incoming.erase("bag_cell")
+	incoming.erase("bag_rotated")
+	candidate.append(incoming)
+	if not BagGrid.can_hold(candidate): return false
+	bag.append(incoming)
+	BagGrid.arrange(bag)
+	return true
+
+## Check the complete swap before changing equipment, including shield/2H conflicts.
+func equip_from_bag(index: int, target_place: int = -1) -> bool:
+	if index < 0 or index >= bag.size(): return false
+	var item: Dictionary = bag[index]
+	var candidate: Array = bag.duplicate()
+	candidate.remove_at(index)
+	var destination: int = target_place if target_place in Items.places(int(item["slot"])) else place_for(item)
+	for place in [destination, _hand_conflict(item)]:
+		if equipment.has(place):
+			var old: Dictionary = equipment[place].duplicate(true)
+			old.erase("bag_cell")
+			old.erase("bag_rotated")
+			candidate.append(old)
+	if not BagGrid.can_hold(candidate):
+		p._say("Inventory full")
+		return false
+	if equip(item, true, destination) == null: return false
+	bag.assign(candidate)
+	BagGrid.arrange(bag)
+	return true
+
+func unequip_to_bag(place: int, cell: Vector2i = BagGrid.NONE) -> bool:
+	if not equipment.has(place): return false
+	var item: Dictionary = equipment[place].duplicate(true)
+	item.erase("bag_cell")
+	item.erase("bag_rotated")
+	var candidate: Array = bag.duplicate()
+	candidate.append(item)
+	if cell != BagGrid.NONE:
+		if not BagGrid.can_place(candidate, candidate.size() - 1, cell): return false
+		item["bag_cell"] = cell
+	if not BagGrid.can_hold(candidate):
+		p._say("Inventory full")
+		return false
+	unequip(place)
+	bag.assign(candidate)
+	BagGrid.arrange(bag)
+	return true
 
 func heal(amount: float) -> void:
 	p.health = minf(p.health + amount, p.max_health)

@@ -1,6 +1,6 @@
 class_name TownHud
 extends Control
-## What the town screen shows outside the panels: gold, food and potions (icons and numbers), the job you have taken, what the hero is near ("E  Talk to Marlow"),
+## What the town screen shows outside the panels: the job you have taken, what the hero is near ("E  Talk to Marlow"),
 ## and a short feed of what has been happening in town.
 
 var quest_line: String = ""    # "Cleanse the Crypt Road: 1 / 3", set by the world every frame
@@ -30,14 +30,14 @@ func show_banner(text: String, seconds: float = 3.0) -> void:
 	while log_lines.size() > 12:
 		log_lines.pop_front()
 
-## The character screen is open: it covers the left of the screen, and this HUD is drawn above it. The side quests, plots, edge arrows and the
-## message box wait (the message box is also held, not aged, so the guidance is still there on closing); the resources and the main quest stay.
+## Character/skill screens own the foreground. Hold messages and hide town overlays until closed.
 func modal_open() -> bool:
 	return modal_source != null and modal_source.show_gear
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	z_index = -1 # Ambient tracker/help stays behind combat tooltips and foreground controls.
 
 func _process(delta: float) -> void:
 	if modal_open():
@@ -55,6 +55,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	overlay_rects.clear()
+	if modal_open():
+		return
 	var font: Font = ThemeDB.fallback_font
 	var heading: Font = UiTheme.heading_font()
 	var size_px: Vector2 = get_viewport_rect().size
@@ -65,43 +67,6 @@ func _draw() -> void:
 		var subtitle: String = modal_source.zone_subtitle() if modal_source != null else "Safe Haven"
 		UiTheme.text(self, UiTheme.heading_font(), Vector2(34, 44), zone.to_upper(), 22, UiTheme.TEXT)
 		UiTheme.text(self, font, Vector2(34, 66), subtitle, 15, UiTheme.TEXT_DIM)
-		# Resources: a quiet strip under the title, an icon and a number each (coins, bread, potions).
-		var short: bool = TownState.rationing()
-		var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
-		var ids: Array[String] = ["gold", "food", "potion"]
-		var icon_px: float = 24.0
-		var gap: float = 20.0
-		var bar_width: float = 24.0
-		for i in 3:
-			bar_width += UiTheme.stat_width(font, values[i], icon_px, 18) + (gap if i < 2 else 0.0)
-		var strip := Rect2(14, 76, bar_width, 34)
-		draw_rect(strip, Color(0, 0, 0, 0.38))
-		draw_rect(Rect2(strip.position, Vector2(strip.size.x, 1.0)), UiTheme.BRONZE.darkened(0.2))
-		overlay_rects.append(strip)
-		var x: float = 26.0
-		for i in 3:
-			var warn: bool = i == 1 and short
-			x += UiTheme.draw_stat(self, font, Vector2(x, 81.0), ids[i], values[i], icon_px, 18,
-				Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
-	else:
-		# In DS2 mode, party cards occupy top-left (0..172). Place town resource indicators below party cards cleanly.
-		var short: bool = TownState.rationing()
-		var values: Array[String] = [str(TownState.gold), str(TownState.food), str(TownState.potions)]
-		var ids: Array[String] = ["gold", "food", "potion"]
-		var icon_px: float = 20.0
-		var gap: float = 16.0
-		var bar_width: float = 20.0
-		for i in 3:
-			bar_width += UiTheme.stat_width(font, values[i], icon_px, 14) + (gap if i < 2 else 0.0)
-		var strip := Rect2(8, 178, bar_width, 28)
-		draw_rect(strip, Color(0.12, 0.11, 0.10, 0.88))
-		draw_rect(strip, Color(0.38, 0.34, 0.28, 0.85), false, 1.0)
-		overlay_rects.append(strip)
-		var x: float = 16.0
-		for i in 3:
-			var warn: bool = i == 1 and short
-			x += UiTheme.draw_stat(self, font, Vector2(x, 182.0), ids[i], values[i], icon_px, 14,
-				Color(1.0, 0.55, 0.5) if warn else Color.WHITE, Color(1.0, 0.5, 0.45) if warn else Color(0.95, 0.9, 0.78)) + gap
 	var modal: bool = modal_open()
 	# The tracker: anchored top-right in DS2 mode, or under top-right map in classic mode.
 	var map_rect: Rect2 = Hud.minimap_rect(size_px)
@@ -109,6 +74,9 @@ func _draw() -> void:
 	var ty: float = 24.0 if is_ds2 else (map_rect.end.y + 66.0)
 	var tracker_top: float = ty
 	var gold: Color = Color(1.0, 0.85, 0.5)
+	if quest_line != "" or not side_lines.is_empty():
+		var tracker_height: float = (58.0 if quest_line != "" else 0.0) + (38.0 + mini(side_lines.size(), 5) * 25.0 if not side_lines.is_empty() else 0.0)
+		UiTheme.draw_panel(self, Rect2(tx - 8, ty - 16, 300, tracker_height + 22), 0.98)
 	if quest_line != "":
 		var parts: PackedStringArray = quest_line.split(": ", true, 1)
 		var marker := Vector2(tx + 12.0, ty + 3.0)
@@ -136,7 +104,7 @@ func _draw() -> void:
 			ty += 25.0
 	if ty > tracker_top:
 		overlay_rects.append(Rect2(tx - 8.0, tracker_top - 16.0, 300.0, ty - tracker_top + 22.0))
-	# The left column under the resources: the monsters' plots, below.
+	# The left column: the monsters' plots.
 	var card_y: float = 128.0
 	# What the monsters are plotting: only the plots that are running (those are the ones to act on), one slim line each with a bar. The
 	# rest (monsters just wandering, standing effects) is in the Chronicle.

@@ -177,6 +177,34 @@ func _test_loading() -> void:
 		seen[next] = true
 	expect("loading messages are plentiful and never repeat back to back", LoadingScreen.MESSAGES.size() >= 40 and seen.size() >= 25 and not repeat)
 	print("  loading: ", screen.assets_done, "/", screen.assets_total, " assets in ", snappedf(elapsed, 0.1), " s, ", LoadingScreen.MESSAGES.size(), " messages, e.g. \"", screen.message, "\"")
+	if DisplayServer.get_name() != "headless":
+		var old_size := get_window().size
+		var old_scale := GameSettings.ui_size
+		var old_screen := get_window().current_screen
+		var old_borderless := get_window().borderless
+		hud.hide()
+		for resolution in GameSettings.RESOLUTIONS:
+			for multiplier in [0.5, 1.0, 1.5]:
+				var monitor := 0 if resolution.y > 1080 else mini(1, DisplayServer.get_screen_count() - 1)
+				get_window().current_screen = monitor
+				get_window().borderless = true
+				get_window().size = resolution
+				get_window().position = DisplayServer.screen_get_position(monitor) + (DisplayServer.screen_get_size(monitor) - resolution) / 2
+				GameSettings.ui_size = multiplier
+				GameSettings.apply_ui_scale()
+				for frame in 8: await get_tree().process_frame
+				var tag := "%dx%d_scale%s" % [resolution.x, resolution.y, str(multiplier)]
+				var panel: Control = screen._bar.get_parent().get_parent()
+				expect("loading panel fits: " + tag, get_viewport().get_visible_rect().encloses(panel.get_global_rect()))
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_loading_" + tag + ".png")
+				print("LOADING_CASE ", tag)
+		GameSettings.ui_size = old_scale
+		get_window().borderless = old_borderless
+		get_window().current_screen = old_screen
+		get_window().size = old_size
+		GameSettings.apply_ui_scale()
+		hud.show()
 	screen.queue_free()
 	await get_tree().process_frame
 

@@ -109,11 +109,13 @@ func _test_town_state() -> void:
 	expect("a save from before versions is migrated", int(upgraded["save_version"]) == TownState.SAVE_VERSION
 		and JobObjective.stages(upgraded["board"][0]) == 3)
 	expect("a save from a newer build is refused, not overwritten", TownState.migrate({"save_version": TownState.SAVE_VERSION + 1}).is_empty())
-	# Items are definitions plus a small instance: saved as {def, level, rarity, mods, unique}, rebuilt from the data on load.
+	# Compact item data includes rolled modifier values, but never session-only backpack placement.
 	var made: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 30, "Greatsword")
+	made["bag_cell"] = Vector2i(2, 3)
 	var slim: Dictionary = Items.to_save(made)
 	var rebuilt: Dictionary = Items.from_save(JSON.parse_string(JSON.stringify(slim)))
-	expect("an item is saved as only its definition, level, rarity, modifiers and unique", slim.keys().size() == 5 and slim["def"] == "greatsword"
+	expect("item save keeps definition and modifier rolls, never backpack coordinates", slim.keys().size() == 6 and slim.has("mod_values")
+		and not slim.has("bag_cell") and slim["def"] == "greatsword"
 		and rebuilt["name"] == made["name"] and rebuilt["mods"] == made["mods"] and is_equal_approx(float(rebuilt["stats"]["max"]), float(made["stats"]["max"])))
 	var def: ItemDef = ItemDb.get_def("greatsword")
 	var old_speed: float = float(def.stats["speed"])

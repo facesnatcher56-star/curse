@@ -105,6 +105,15 @@ func _test_ds2_combat() -> void:
 		hunter.level == 4 and hunter.def.tier == "weak" and is_equal_approx(hunter.max_health, MonsterScaling.life(4, "weak", "ranged")))
 	expect("tier is local to the spawn, never mutating the shared zombie definition",
 		EnemyDb.get_def("zombie").tier == "normal" and target.def.tier == "normal")
+	var gate: Enemy = game.director.spawn_enemy(Vector3(24, 0, 30), "zombie", WorldThreat.threat_for_level(2))
+	gate.set_physics_process(false)
+	gate.use_tutorial_fighter_stats()
+	gate.set_threat(WorldThreat.threat_for_level(2))
+	expect("tutorial fighter overrides survive stat refresh without changing other zombies",
+		gate.level == 0 and is_equal_approx(gate.max_health, 12.0) and is_equal_approx(gate.damage_min, 2.0)
+		and is_equal_approx(gate.damage_max, 3.0) and is_equal_approx(gate.armor, 8.0)
+		and EnemyDb.get_def("zombie").tier == "normal" and target.level == 1)
+	gate.queue_free()
 	intro.target = target
 	intro.damage_min = 5.2
 	intro.damage_max = 5.2

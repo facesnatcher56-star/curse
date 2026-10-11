@@ -257,24 +257,24 @@ func _test_inventory_equip() -> void:
 		expect("a bag item's card ends with (R-click to equip)", hint_texts.has("(R-click to equip)") or hint_texts.has("(Confirm to equip)"))
 		expect("a ground or trader card has no such hint", not ItemTile.card(item, old, true).find_children("*", "Label", true, false).any(func(l: Node) -> bool: return (l as Label).text.contains("to equip")))
 		await _inventory_mouse_click(item_tile, MOUSE_BUTTON_RIGHT)
-		expect("a right-click equips the bag item", player.stats.equipment[Items.Slot.WEAPON] == item)
-		expect("equipping puts old gear in bag", player.stats.bag.has(old) and not player.stats.bag.has(item))
+		expect("a right-click equips the bag item", Items.to_save(player.stats.equipment[Items.Slot.WEAPON]) == Items.to_save(item))
+		expect("equipping puts old gear in bag", _bag_has_item(old) and not _bag_has_item(item))
 	# Right-click the icon to swap back; names also support a double-click.
 	var tile: Control = _inventory_item_control(hud, old, false)
 	expect("old weapon is available in bag", tile != null)
 	if tile != null:
 		await _inventory_mouse_click(tile, MOUSE_BUTTON_RIGHT)
-		expect("right-clicking the icon equips", player.stats.equipment[Items.Slot.WEAPON] == old and player.stats.bag.has(item))
+		expect("right-clicking the icon equips", Items.to_save(player.stats.equipment[Items.Slot.WEAPON]) == Items.to_save(old) and _bag_has_item(item))
 	var armor: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "Plate Cuirass")
 	player.stats.bag.append(armor)
 	hud._open_character()
 	await get_tree().create_timer(0.1).timeout
-	var item_name: Control = _inventory_item_control(hud, armor, true)
+	var item_name: Control = _inventory_item_control(hud, armor, false)
 	if item_name != null:
 		await _inventory_mouse_click(item_name, MOUSE_BUTTON_LEFT, true)
-		expect("double-clicking a name equips armor and updates defenses", player.stats.equipment[Items.Slot.ARMOR] == armor and is_equal_approx(player.armor, player.stats.total_armor()))
+		expect("double-clicking a sized icon equips armor and updates defenses", Items.to_save(player.stats.equipment[Items.Slot.ARMOR]) == Items.to_save(armor) and is_equal_approx(player.armor, player.stats.total_armor()))
 	else:
-		expect("bag armor has a clickable name", false)
+		expect("bag armor has a clickable sized icon", false)
 	var ring: Dictionary = Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1, "Charm")
 	player.stats.bag.append(ring)
 	hud._open_character()
@@ -291,7 +291,7 @@ func _test_inventory_equip() -> void:
 		accept.pressed = false
 		get_viewport().push_input(accept, true)
 		await get_tree().process_frame
-		expect("controller confirmation equips focused icon into empty slot", player.stats.equipment.get(Items.Slot.RING) == ring and not player.stats.bag.has(ring))
+		expect("controller confirmation equips focused icon into empty slot", Items.to_save(player.stats.equipment.get(Items.Slot.RING, {})) == Items.to_save(ring) and not _bag_has_item(ring))
 		expect("controller focus stays on remaining bag items", get_viewport().gui_get_focus_owner() is ItemTile)
 	else:
 		expect("bag trinket is focusable", false)
@@ -299,11 +299,14 @@ func _test_inventory_equip() -> void:
 	hud.close_character()
 	await get_tree().process_frame
 
+func _bag_has_item(item: Dictionary) -> bool:
+	return player.stats.bag.any(func(it: Dictionary) -> bool: return Items.to_save(it) == Items.to_save(item))
+
 func _inventory_item_control(view_hud: Hud, item: Dictionary, name_only: bool) -> Control:
 	for control in view_hud.character_panel.find_children("*", "Control", true, false):
 		if name_only and control.get_script() == preload("res://game/item_name.gd") and control.item == item:
 			return control
-		if not name_only and control is ItemTile and control.item == item:
+		if not name_only and control is ItemTile and Items.to_save(control.item) == Items.to_save(item):
 			return control
 	return null
 

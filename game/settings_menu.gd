@@ -16,6 +16,7 @@ var _hotbar_options: Dictionary = {}   # slot number -> its OptionButton (see _b
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS  # must work while the game is paused
 	theme = UiTheme.get_theme()
+	UiTheme.responsive_window(self)
 	custom_minimum_size = Vector2(780, 560)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 12)

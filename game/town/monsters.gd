@@ -53,13 +53,17 @@ static var gossip: Array[Dictionary] = []   # {who: [npc ids], text}, said once 
 ## The self-test keeps the monsters out of the old checks (they would rise and plot in the middle of unrelated days); the checks for them turn this on.
 static var in_tests: bool = false
 
+## Named monsters (rising on the road, growing, plotting, becoming nemeses) are switched off for now: the road runs on DS2's own
+## levels and nothing grows. Flip this to bring the whole system back; saved monsters stay in the save, inert, until then.
+const ENABLED := false
+
 static func _off() -> bool:
-	return OS.get_cmdline_user_args().has("--selftest") and not in_tests
+	return not (ENABLED or in_tests)
 
 # --- Lookup ---------------------------------------------------------------------------------------------------------------------
 
 static func alive() -> Array:
-	return TownState.monsters.duplicate()
+	return [] if _off() else TownState.monsters.duplicate()
 
 static func find(uid: int) -> Dictionary:
 	for mon in TownState.monsters:
@@ -255,7 +259,7 @@ static func plot_name(type: String) -> String:
 ## One card per named monster and per standing world effect that came from one: {title, sub, frac, tint}, for the HUD and the Chronicle page.
 static func cards() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for mon in TownState.monsters:
+	for mon in alive():
 		var plot: Dictionary = mon["plot"]
 		var sub: String = "level %d, wandering the road" % int(floor(float(mon["level"])))
 		var frac: float = -1.0

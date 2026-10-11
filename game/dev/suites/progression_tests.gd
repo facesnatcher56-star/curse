@@ -1,6 +1,48 @@
 extends DevSuite
 ## Self-test: progression, XP, level rewards and the save policy.
 
+func _test_class_notice() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	await get_tree().process_frame
+	var seen: Array = []
+	var on_increase: Callable = func(levels: Dictionary) -> void: seen.append(levels.duplicate())
+	TownState.events.class_skills_leveled.connect(on_increase)
+	TownState.add_hero_xp(300, false, {"melee": 1})
+	expect("earned class level emits its final level once", seen == [{"melee": 1}])
+	var label: Label3D
+	for node in get_tree().current_scene.get_children():
+		if node is Label3D and node.text == "Melee increased to 1": label = node
+	expect("class increase appears above the hero", label != null and label.global_position.y > player.global_position.y + player.body_height)
+	TownState.add_hero_xp(1, false, {"melee": 1})
+	expect("XP within the same class level is silent", seen.size() == 1)
+	if DisplayServer.get_name() != "headless":
+		await get_tree().create_timer(0.2).timeout
+		await RenderingServer.frame_post_draw
+		var path: String = OS.get_environment("TEMP").path_join("curse_class_notice.png")
+		get_viewport().get_texture().get_image().save_png(path)
+		print("CLASS_NOTICE_CAPTURE ", path)
+	await get_tree().create_timer(1.3).timeout
+	expect("class text fades", is_instance_valid(label) and label.modulate.a < 1.0)
+	await get_tree().create_timer(1.0).timeout
+	expect("class text cleans itself up", not is_instance_valid(label))
+	TownState.reset()
+	expect("reset does not celebrate a class increase", seen.size() == 1)
+	TownState.class_xp = {"melee": 299, "ranged": 299, "combat": 299, "nature": 299}
+	TownState.add_hero_xp(4, false, {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})
+	expect("simultaneous increases combine all four classes into one event", seen.size() == 2 and seen[-1] == {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})
+	var combined: bool = false
+	for node in get_tree().current_scene.get_children():
+		if node is Label3D and node.text.contains("Nature Magic increased to 1"):
+			combined = node.text.split("\n").size() == 4
+	expect("simultaneous classes share a readable multiline notice", combined)
+	TownState.add_hero_xp(7600, false, {"ranged": 1})
+	expect("a multi-level jump shows only the final class level", int(seen[-1]["ranged"]) == HeroAttributes.class_level(7900))
+	TownState.events.class_skills_leveled.disconnect(on_increase)
+	TownState.reset()
+
 ## The hero's permanent level: the curve, awarding XP (several levels at once, the cap), saving, loading, repairing and migrating, and
 ## how the character screen and the HUD show it.
 func _test_progression() -> void:
@@ -529,7 +571,7 @@ func _test_xp() -> void:
 func _test_save_policy() -> void:
 	var production: String = SavePolicy.PRODUCTION_PATH
 	var normal: PackedStringArray = PackedStringArray([])
-	expect("a normal launch uses the production save and saves", SavePolicy.path_for(normal) == production and SavePolicy.persists_by_default(normal)
+	expect("a normal launch uses the production save path and saves only when saving is enabled", SavePolicy.path_for(normal) == production and SavePolicy.persists_by_default(normal) == SavePolicy.SAVING_ENABLED
 		and not SavePolicy.is_dev_session(normal))
 	var sessions: Dictionary = {"self-test": ["--selftest", "--only=xp"], "screenshot": ["--townshot", "--zoom=4"], "xp demo": ["--townshot", "--xpdemo", "--xplog"],
 		"xp report": ["--townshot", "--xpreport"], "threats": ["--townshot", "--threats", "--road=40"], "item sheet": ["--itemsheet", "--gear"],
@@ -544,7 +586,7 @@ func _test_save_policy() -> void:
 		all_isolated = all_isolated and isolated
 	expect("every developer mode (self-test, screenshots, XP diagnostics, item sheets, dev commands, flags not yet written) is kept off the production save", all_isolated)
 	var opted_in := PackedStringArray(["--townshot", SavePolicy.REAL_SAVE_FLAG])
-	expect("only the explicit flag lets a developer session use the production save", SavePolicy.path_for(opted_in) == production and SavePolicy.persists_by_default(opted_in)
+	expect("only the explicit flag lets a developer session use the production save", SavePolicy.path_for(opted_in) == production and SavePolicy.persists_by_default(opted_in) == SavePolicy.SAVING_ENABLED
 		and SavePolicy.may_modify(production, opted_in) and not SavePolicy.allows_production(PackedStringArray(["--xp=5", "--allow-real-save"])))
 	expect("the override flag is not something an ordinary argument could be", SavePolicy.REAL_SAVE_FLAG == "--write-production-save")
 	var selftest := PackedStringArray(["--selftest"])

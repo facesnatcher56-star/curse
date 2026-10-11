@@ -838,7 +838,7 @@ func _arrive_in_town() -> void:
 func _killer_takes_credit() -> String:
 	var killer := player.last_hit_by as Enemy
 	player.last_hit_by = null
-	if killer == null or not is_instance_valid(killer) or crypt == null:
+	if Monsters._off() or killer == null or not is_instance_valid(killer) or crypt == null:
 		return ""
 	if killer.has_meta("monster_uid"):
 		return Monsters.hero_fell(int(killer.get_meta("monster_uid")))

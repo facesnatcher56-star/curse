@@ -21,6 +21,8 @@ const ARMOR_SLOT := {"body": 0.5, "helm": 0.2, "shield": 0.2, "gloves": 0.15, "b
 @export var icon_path: String = ""
 ## What it is to DS2: 1h, 2h (weapons), body, helm, gloves, boots, shield (armour), ring, amulet (jewellery).
 @export var item_type: String = ""
+## Optional DS2 inventory footprint override; zero uses the source-backed type default.
+@export var inventory_size: Vector2i = Vector2i.ZERO
 ## An armour piece's class: fighter, ranger or mage (its share of the armour budget).
 @export var armor_class: String = ""
 ## The item levels this base comes in (DS2's base and var1-var4), lowest first.

@@ -86,9 +86,9 @@ func _ready() -> void:
 	add_child(mana_orb)
 	tray = preload("res://assets/ui/vessels/hotbar_tray.png")
 	bezel = preload("res://assets/ui/vessels/skill_bezel.png")
-	ds2_action_bezel = preload("res://assets/ui/ds2/action_slot_bezel.png")
-	ds2_power_bezel = preload("res://assets/ui/ds2/power_bezel.png")
-	ds2_compass_ring = preload("res://assets/ui/ds2/compass_ring.png")
+	ds2_action_bezel = UiTheme.art("metal")
+	ds2_power_bezel = UiTheme.art("metal")
+	ds2_compass_ring = UiTheme.art("compass")
 
 	ds2_party_frame = Ds2PartyFrameClass.new()
 	add_child(ds2_party_frame)
@@ -291,11 +291,14 @@ func _draw() -> void:
 			UiTheme.text(self, font, anchor - Vector2(width * 0.5, 0), player.message, 18, Color(1, 0.85, 0.5, minf(player.message_time, 1.0)))
 	if player.dead:
 		draw_rect(Rect2(Vector2.ZERO, size_px), Color(0, 0, 0, 0.4 if world_mode else 0.55))   # the world's drag-back banner sits over this: keep it readable
+		UiTheme.draw_panel(self, Rect2(size_px.x * 0.5 - 300, size_px.y * 0.45 - 72, 600, 180), 0.98)
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45), "YOU DIED", 64, Color(0.72, 0.12, 0.1), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 		UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 44), death_subline(), 22, Color(0.9, 0.86, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
 		var detail: String = death_detail()
 		if detail != "":
-			UiTheme.text(self, font, Vector2(0, size_px.y * 0.45 + 76), detail, 17, Color(0.72, 0.68, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px.x)
+			var at := Vector2(size_px.x * 0.5 - 276, size_px.y * 0.45 + 76)
+			draw_multiline_string(font, at + Vector2(1, 1), detail, HORIZONTAL_ALIGNMENT_CENTER, 552, 17, 2, Color(0, 0, 0, 0.85))
+			draw_multiline_string(font, at, detail, HORIZONTAL_ALIGNMENT_CENTER, 552, 17, 2, Color(0.72, 0.68, 0.6))
 
 ## Offscreen ranged warning: while a spitter is in its wind-up and out of the camera view, a sickly-green chevron on the screen edge points
 ## toward it, pulsing like the on-model "spit" telegraph. Display only; it never touches timing or damage.
@@ -494,7 +497,7 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 
 	# 1. Full-width dark stone runner bar across the ENTIRE bottom of the screen
 	var bar_rect := Rect2(0, bar_y, size_px.x, bar_height)
-	draw_rect(bar_rect, Color(0.11, 0.10, 0.09, 0.98))
+	UiTheme.draw_panel(self, bar_rect, 1.0)
 
 	# Top beveled edge highlight
 	draw_line(Vector2(0, bar_y), Vector2(size_px.x, bar_y), Color(0.44, 0.40, 0.32, 0.95), 2.0)
@@ -503,8 +506,7 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 
 	# 2. Recessed action slot bay inside the stone console
 	var bay_rect := Rect2(x0 - 12.0, bar_y + 3.0, total + 24.0, bar_height - 5.0)
-	draw_rect(bay_rect, Color(0.07, 0.06, 0.05, 0.95))
-	draw_rect(bay_rect, Color(0.28, 0.25, 0.20, 0.8), false, 1.0)
+	UiTheme.draw_panel(self, bay_rect, 1.0, false)
 
 	# Bronze corner studs on the bay
 	for corner in [bay_rect.position + Vector2(3, 3), Vector2(bay_rect.end.x - 3, bay_rect.position.y + 3), Vector2(bay_rect.position.x + 3, bay_rect.end.y - 3), bay_rect.end - Vector2(3, 3)]:
@@ -514,6 +516,7 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 	# 3. Decorative central medallion at the top lip of the runner bar
 	var mid_x: float = x0 + total * 0.5
 	var medal_pos := Vector2(mid_x, bar_y + 1.0)
+	draw_texture_rect(UiTheme.art("crest"), Rect2(medal_pos - Vector2(80, 24), Vector2(160, 48)), false)
 	draw_circle(medal_pos + Vector2(0, 1), 12.0, Color(0.05, 0.04, 0.03, 0.85))
 	draw_circle(medal_pos, 11.0, Color(0.14, 0.12, 0.10))
 	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
@@ -531,9 +534,12 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	if id == "":
 		draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 		draw_rect(rect, Color(0.3, 0.28, 0.28, 0.8), false, 2.0)
-		draw_texture_rect(bezel, rect.grow(3.0), false, Color(0.42, 0.38, 0.36))
+		var empty_style := UiTheme.framed("icon", 0, Color(0.60, 0.57, 0.50))
+		empty_style.set_texture_margin_all(12)
+		draw_style_box(empty_style, rect)
 		UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), GameSettings.short_binding_text(action), 12 if use_ds2_ui else 13,
 			Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
+		if rect.has_point(get_viewport().get_mouse_position() if mouse_override.x < 0 else mouse_override): UiTheme.draw_hover(self, rect)
 		return
 	var skill: Dictionary = SkillDb.all()[id]
 	var icon: Texture2D = _icon(id)
@@ -543,7 +549,12 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		active_bezel = ds2_power_bezel if ult_cost > 0.0 else ds2_action_bezel
 	# The DS2-inspired artwork includes an opaque, weathered inset. It is the
 	# slot backing, so draw it before the icon instead of hiding the icon with it.
-	draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
+	if use_ds2_ui:
+		var slot_style := UiTheme.framed("icon", 0)
+		slot_style.set_texture_margin_all(12)
+		draw_style_box(slot_style, rect.grow(3))
+	else:
+		draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
 	if icon != null:
 		draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
 	else:
@@ -591,6 +602,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
 	if player.stats.mana_cost(id) > 0.0:
 		draw_string(font, pos + Vector2(5, size_px - 5), str(int(player.stats.mana_cost(id))), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
+	if rect.has_point(get_viewport().get_mouse_position() if mouse_override.x < 0 else mouse_override): UiTheme.draw_hover(self, rect)
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.
 func _draw_tooltip(font: Font, size_px: Vector2) -> void:
@@ -604,7 +616,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 			continue
 		var skill: Dictionary = SkillDb.all()[id]
 		var width: float = 340.0
-		var pad: float = 14.0
+		var pad: float = 18.0
 		var inner: float = width - pad * 2.0
 		var stats: Array[String] = []
 		if player.stats.mana_cost(id) > 0.0:
@@ -629,7 +641,7 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		height += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y + 10.0
 		height += pad
 		var pos := Vector2(clampf(rect.get_center().x - width * 0.5, 8.0, size_px.x - width - 8.0), rect.position.y - height - 10.0)
-		UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
+		draw_style_box(UiTheme.tooltip_box(), Rect2(pos, Vector2(width, height)))
 		var y: float = pos.y + pad + 16.0
 		draw_string(font, Vector2(pos.x + pad, y), skill["name"], HORIZONTAL_ALIGNMENT_LEFT, inner - 70.0, 21, Color(1.0, 0.88, 0.6))
 		draw_string(font, Vector2(pos.x + width - pad - 66.0, y), "[%s]" % GameSettings.short_binding_text(hit["action"]),
@@ -675,19 +687,25 @@ func _sweep_polygon(rect: Rect2, fraction: float) -> PackedVector2Array:
 	return points
 
 func _open_character() -> void:
+	show_gear = true
+	picker.close()
 	if character_panel != null:
 		character_panel.queue_free()
 	character_panel = preload("res://game/character_view.gd").new()
 	character_panel.hero = player
+	character_panel.z_index = 20
 	add_child(character_panel)
 	get_tree().paused = true
 
 ## The skill screen (DS2's passive trees) in the character panel's place.
 func open_skills() -> void:
+	show_gear = true
+	picker.close()
 	if character_panel != null:
 		character_panel.queue_free()
 	character_panel = preload("res://game/ui/skill_tree_view.gd").new()
 	character_panel.hero = player
+	character_panel.z_index = 20
 	add_child(character_panel)
 	get_tree().paused = true
 
@@ -711,6 +729,15 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+		var grid: Control = character_panel.find_child("BackpackGrid", true, false) if is_instance_valid(character_panel) else null
+		if event.is_action_pressed("ui_cancel") and grid != null and get_viewport().gui_is_dragging():
+			get_viewport().gui_cancel_drag()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_cancel") and grid != null and grid.moving >= 0:
+			grid.handle_input(event, grid.moving)
+			get_viewport().set_input_as_handled()
+			return
 		close_character()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("gear") and not get_tree().paused:

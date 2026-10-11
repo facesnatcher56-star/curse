@@ -9,7 +9,6 @@ const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
 const SAVE_VERSION := 10
-const MAX_STASH := 12
 const LOW_FOOD := 3
 
 static var persist: bool = SavePolicy.persists_by_default(OS.get_cmdline_user_args())
@@ -391,7 +390,10 @@ static var _gear_stashed: Array = []
 ## The bag goes to the stash when the road is left (home, death, run end, leaving the game). What `take_gear` already stashed for the
 ## same swap is not added again. Items that merely look alike are counted one for one, so a genuine second copy is still kept.
 static func stash_carried(bag: Array) -> void:
-	for item in bag:
+	for carried in bag:
+		var item: Dictionary = carried.duplicate(true)
+		item.erase("bag_cell") # UI placement is not part of an item's identity.
+		item.erase("bag_rotated")
 		var covered: int = _gear_stashed.find(item)
 		if covered >= 0 and stash.has(item):
 			_gear_stashed.remove_at(covered)
@@ -403,9 +405,10 @@ static func _is_plain_starter(item: Dictionary) -> bool:
 	return int(item.get("rarity", 0)) == Items.Rarity.NORMAL
 
 static func stash_item(item: Dictionary) -> void:
-	stash.append(item)
-	while stash.size() > MAX_STASH:
-		stash.pop_front()
+	var stored: Dictionary = item.duplicate(true)
+	stored.erase("bag_cell")
+	stored.erase("bag_rotated")
+	stash.append(stored) # Never discard owned gear when a full backpack is deposited.
 
 ## What the vendor will pay for an item (and charge, before mood): by rarity, and more for a higher item level (CURSE CHOICE).
 static func item_price(item: Dictionary) -> int:
@@ -427,9 +430,17 @@ static func add_hero_xp(amount: int, save_now: bool = true, damage_by_class: Dic
 		return _progress_result(hero_xp, hero_xp)
 	var capped: int = mini(amount, HeroProgression.max_xp())   # nothing past the cap is kept: this also keeps the sum from overflowing
 	var shares: Dictionary = HeroAttributes.split(capped, damage_by_class, main_class())
+	var increased: Dictionary = {}
 	for id in shares:
+		var old_level: int = HeroAttributes.class_level(int(class_xp.get(id, 0)))
 		class_xp[id] = mini(int(class_xp.get(id, 0)) + int(shares[id]), HeroProgression.max_xp())
-	return _set_hero_xp(hero_xp + capped, save_now)
+		var new_level: int = HeroAttributes.class_level(int(class_xp[id]))
+		if new_level > old_level:
+			increased[id] = new_level
+	var result: Dictionary = _set_hero_xp(hero_xp + capped, save_now)
+	if not increased.is_empty():
+		events.class_skills_leveled.emit(increased)
+	return result
 
 ## The class skill the hero has the most XP in (Melee when he has none).
 static func main_class() -> String:

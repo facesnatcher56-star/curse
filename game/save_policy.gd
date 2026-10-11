@@ -11,6 +11,9 @@ extends RefCounted
 const PRODUCTION_PATH := "user://town.json"
 const DEV_PATH := "user://dev_session/town.json"
 const REAL_SAVE_FLAG := "--write-production-save"
+## Saving is switched off for now: every launch starts a fresh town and nothing is written (the existing production save is neither
+## read nor touched). Flip this to bring normal saving back.
+const SAVING_ENABLED := false
 
 ## Any user argument makes it a developer session (fail safe: a new debug flag is protected without anyone listing it here).
 static func is_dev_session(args: PackedStringArray) -> bool:
@@ -27,6 +30,8 @@ static func path_for(args: PackedStringArray) -> String:
 ## Whether the town saves at all unless something turns it off: normal play, or a developer session that opted in. (A developer session
 ## otherwise keeps everything in memory; a check that wants to exercise saving can switch `TownState.persist` on and gets DEV_PATH.)
 static func persists_by_default(args: PackedStringArray) -> bool:
+	if not SAVING_ENABLED:
+		return false
 	return not is_dev_session(args) or allows_production(args)
 
 ## The one gate every write, move, copy or delete of a save file goes through.

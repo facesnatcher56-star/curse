@@ -6,6 +6,10 @@ extends DevSuite
 func _test_monsters() -> void:
 	TownState.persist = false
 	TownState.reset()
+	# Named monsters are switched off (Monsters.ENABLED): a saved one stays inert, so nothing grows or spawns, whatever the save holds.
+	TownState.monsters = [{"uid": 99, "name": "Saved", "level": 3.4, "kills": 0, "nemesis": false, "plot": {}}]
+	expect("named monsters are off: none alive and no card, though one is saved", Monsters.alive().is_empty() and Monsters.cards().is_empty())
+	TownState.reset()
 	Monsters.in_tests = true
 	Monsters.rng.seed = 11
 	Monsters.gossip.clear()

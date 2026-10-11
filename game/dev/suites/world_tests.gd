@@ -188,6 +188,20 @@ func _test_world() -> void:
 	var crypt: CryptRoad = town.crypt
 	expect("the plaza and the road are both there from the start", town.npcs.size() == 5 and crypt != null and crypt.nests.size() == 3)
 	var monsters: Array = get_tree().get_nodes_in_group("enemies")
+	var gate_groups: Dictionary = {}
+	var gate_stats_ok: bool = true
+	var gate_max_damage: float = 0.0
+	for node in monsters:
+		var enemy := node as Enemy
+		if enemy.tutorial_fighter:
+			gate_groups[enemy.group_id] = int(gate_groups.get(enemy.group_id, 0)) + 1
+			gate_stats_ok = gate_stats_ok and enemy.variant == "zombie" and enemy.level == 0 and enemy.def.tier == "weak" \
+				and is_equal_approx(enemy.max_health, 12.0) and is_equal_approx(enemy.damage_min, 2.0) \
+				and is_equal_approx(enemy.damage_max, 3.0) and is_equal_approx(enemy.armor, 8.0)
+			gate_max_damage = maxf(gate_max_damage, float(Combat.resolve(enemy, town.player, enemy.damage_max, Combat.DamageType.PHYSICAL, false, 1.0, false, false)["damage"]))
+	expect("real near-gate filler spawns use DS2 tutorial fighter overrides", not gate_groups.is_empty() and gate_stats_ok)
+	expect("gate filler groups contain two or three zombies, never the old six or nine", gate_groups.values().all(func(n: int) -> bool: return n >= 2 and n <= 3))
+	expect("three maximum gate hits cannot kill the fresh hero", gate_max_damage <= 3.0 and town.player.health > gate_max_damage * 3.0)
 	var awake: int = 0
 	var beyond_gate: int = 0
 	for node in monsters:

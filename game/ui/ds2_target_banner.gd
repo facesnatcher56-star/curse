@@ -3,9 +3,7 @@ extends Control
 ## Dungeon Siege II-style ornate target banner at top-center.
 ## Shows target name, enemy tier, and health bar inside an ornate metal plaque.
 
-const BANNER_TEX := preload("res://assets/ui/ds2/target_banner.png")
-
-var _banner_rect: TextureRect
+var _banner_rect: Panel
 var _hp_fill: ColorRect
 var _name_label: Label
 var _health_label: Label
@@ -30,10 +28,8 @@ func _ready() -> void:
 	add_child(root)
 
 	# Ornate plaque frame
-	_banner_rect = TextureRect.new()
-	_banner_rect.texture = BANNER_TEX
-	_banner_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_banner_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_banner_rect = Panel.new()
+	_banner_rect.add_theme_stylebox_override("panel", UiTheme.framed("button", 0))
 	_banner_rect.custom_minimum_size = Vector2(400, 44)
 	_banner_rect.size = Vector2(400, 44)
 	_banner_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -33,9 +33,10 @@ func _ready() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.PANEL, UiTheme.BORDER, 2, 4, 22))
+	panel.add_theme_stylebox_override("panel", UiTheme.panel_box())
 	panel.custom_minimum_size = Vector2(760, 0)
 	center.add_child(panel)
+	UiTheme.responsive_window(panel)
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 10)
 	panel.add_child(outer)
@@ -82,6 +83,9 @@ func close() -> void:
 	closed.emit()
 
 func _show() -> void:
+	# Town conversations and character/skill screens are mutually exclusive.
+	if town != null and town.combat_hud.show_gear:
+		town.combat_hud.close_character()
 	_scroll.custom_minimum_size = Vector2(0, minf(get_viewport_rect().size.y * 0.74, 640.0))
 	visible = true
 	get_tree().paused = true

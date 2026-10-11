@@ -90,7 +90,7 @@ static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color
 	var top: float = from.body_height + 0.4 if from is Actor else 2.2
 	text_at(from, from.global_position + Vector3(randf_range(-0.3, 0.3), top, 0), text, color, style[2])
 
-static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size: int = 48) -> void:
+static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size: int = 48, duration: float = 0.9) -> void:
 	var label := Label3D.new()
 	label.text = text
 	label.modulate = color
@@ -102,8 +102,8 @@ static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size
 	from.get_tree().current_scene.add_child(label)
 	label.global_position = pos
 	var tween := label.create_tween().set_parallel(true)
-	tween.tween_property(label, "global_position:y", pos.y + 1.4, 0.9).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.5)
+	tween.tween_property(label, "global_position:y", pos.y + 1.4, duration).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 0.0, duration * 0.45).set_delay(duration * 0.55)
 	tween.chain().tween_callback(label.queue_free)
 
 static var _slow_scale: float = 1.0

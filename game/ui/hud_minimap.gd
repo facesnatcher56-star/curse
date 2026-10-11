@@ -70,11 +70,11 @@ func _paint_map_frame() -> void:
 	var radius: float = rect.size.x * 0.5
 	var f: Control = _map_frame
 	if hud.use_ds2_ui and hud.ds2_compass_ring != null:
-		var inner_radius: float = radius * 0.69
+		var inner_radius: float = radius * 0.66
 		# 1. Solid circular backing disc behind the map view
 		f.draw_circle(c, inner_radius + 2.0, Color(0.10, 0.09, 0.08, 0.98))
 		# 2. Draw compass ring matching the aperture exactly
-		var ring_span: float = (inner_radius / 0.6914) * 2.0
+		var ring_span: float = radius * 2.0
 		var ring_rect := Rect2(c - Vector2.ONE * (ring_span * 0.5), Vector2.ONE * ring_span)
 		f.draw_texture_rect(hud.ds2_compass_ring, ring_rect, false)
 		# 3. Zone name neatly positioned above the compass ring
@@ -97,7 +97,7 @@ func _paint_map_frame() -> void:
 func _paint_map_view() -> void:
 	if hud.player == null:
 		return
-	var radius: float = (_map_view.size.x * 0.5 * 0.69) if hud.use_ds2_ui else (_map_view.size.x * 0.5)
+	var radius: float = (_map_view.size.x * 0.5 * 0.66) if hud.use_ds2_ui else (_map_view.size.x * 0.5)
 	_map_view.draw_circle(_map_view.size * 0.5, radius, Color.WHITE)   # this item only clips the one under it to a circle (it is not shown)
 
 func _paint_map_content() -> void:
@@ -112,7 +112,7 @@ func map_view_params(size_px: Vector2) -> Dictionary:
 	var windowed: bool = hud.force_window or bounds.y > bounds.x * 1.6
 	var half: float = 45.0 if windowed else Arena.HALF
 	var origin: Vector3 = hud.player.global_position if windowed and hud.player != null else Vector3.ZERO
-	return {"windowed": windowed, "half": half, "origin": origin, "scale": Hud.minimap_rect(size_px, hud.use_ds2_ui).size.x / (half * 2.0)}
+	return {"windowed": windowed, "half": half, "origin": origin, "scale": Hud.minimap_rect(size_px, hud.use_ds2_ui).size.x * (0.66 if hud.use_ds2_ui else 1.0) / (half * 2.0)}
 
 ## Whole-arena minimap, upper right. It turns with the camera, so whatever is up the screen is up on the map.
 func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:

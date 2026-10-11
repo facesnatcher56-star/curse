@@ -66,44 +66,36 @@ func _ready() -> void:
 
 	# Utility buttons (Bag/Inventory 'I', Character 'C', Journal 'J')
 	for btn_info in [["I", "Inventory"], ["C", "Character"], ["J", "Journal"]]:
-		var u_box := Control.new()
+		var u_box := Button.new()
+		u_box.name = "utility_" + String(btn_info[1]).to_lower()
+		u_box.tooltip_text = btn_info[1]
+		u_box.pressed.connect(_open_utility.bind(String(btn_info[1])))
 		u_box.custom_minimum_size = Vector2(24, 24)
 		u_box.size = Vector2(24, 24)
 		u_box.mouse_filter = Control.MOUSE_FILTER_PASS
 		hbox.add_child(u_box)
 
-		var u_bg := ColorRect.new()
-		u_bg.size = Vector2(22, 22)
-		u_bg.position = Vector2(1, 1)
-		u_bg.color = Color(0.16, 0.14, 0.13, 0.95)
-		u_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		u_box.add_child(u_bg)
+		u_box.text = btn_info[0]
+		u_box.add_theme_font_size_override("font_size", 11)
+		UiTheme.style_button(u_box, Color.WHITE, true)
 
-		var u_border := ReferenceRect.new()
-		u_border.size = Vector2(22, 22)
-		u_border.position = Vector2(1, 1)
-		u_border.border_color = Color(0.48, 0.42, 0.32, 0.9)
-		u_border.border_width = 1.0
-		u_border.editor_only = false
-		u_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		u_box.add_child(u_border)
-
-		var u_lbl := Label.new()
-		u_lbl.text = btn_info[0]
-		u_lbl.size = Vector2(22, 22)
-		u_lbl.position = Vector2(1, 1)
-		u_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		u_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		u_lbl.add_theme_font_override("font", UiTheme.heading_font())
-		u_lbl.add_theme_font_size_override("font_size", 11)
-		u_lbl.add_theme_color_override("font_color", Color(0.85, 0.78, 0.65))
-		u_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		u_box.add_child(u_lbl)
+func _open_utility(page: String) -> void:
+	var hud := get_parent() as Hud
+	if hud == null: return
+	if get_tree().paused and not hud.show_gear: return
+	if page == "Journal":
+		if player != null and player.get_parent() is TownScene:
+			(player.get_parent() as TownScene).panel.open_chronicle()
+	elif hud.show_gear:
+		hud.close_character()
+	else:
+		hud._open_character()
 
 func update_dock(p: Player) -> void:
 	if p == null:
 		return
 	player = p
+	find_child("utility_journal", true, false).disabled = not p.get_parent() is TownScene
 	var screen: Vector2 = get_viewport_rect().size
 	var bar_height: float = 72.0
 	position = Vector2(28.0, screen.y - bar_height + (bar_height - 32.0) * 0.5)
@@ -113,6 +105,7 @@ func update_dock(p: Player) -> void:
 	_hp_flask.modulate = Color(1, 1, 1, 1.0 if potions > 0 else 0.45)
 
 func _on_hp_input(event: InputEvent) -> void:
+	if get_tree().paused: return
 	var mb := event as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		if player != null and player.skills != null:

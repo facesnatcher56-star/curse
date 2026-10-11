@@ -1,5 +1,12 @@
 # Combat reference and decision rule
 
+Gate filler correction (2026-10-11): the earliest all-zombie packs come from `_fill_gaps`, NOT the authored Waystation.
+Road In filler now spawns one body per member (two or three total), with DS2's `evil_dryad_npc_01_stats` tutorial
+fighter overrides: level 0, weak tier, 12 life, 2–3 damage, 8 defense. These are per-spawn overrides; the generic zombie
+definition and later encounters are unchanged. Previously these filler packs were six/nine normal level-2 zombies,
+44.64 life each and 9.9144–16.524 damage per hit. The zombie models/AI remain Curse's, not an exact animation/AI import.
+`world` verifies the actual populated gate filler, pack sizes and fresh-hero survival; `ds2combat` checks override isolation/refresh.
+
 Physics combat cleanup (2026-10-11, owner decision): removing the greatsword's arc
 was insufficient. A normal melee kill launched a corpse whose ragdoll bowling
 code dealt delayed `collision` damage to neighbours. The owner then requested
@@ -113,6 +120,8 @@ Curse choices where DS2's engine is not visible, or the owner chose differently 
   the Warden's special) puts the hero down. The Zombasite "crushing" and "deep wounds" outcomes are gone.
 
 ## DS2 items (2026-10, owner decision; locked by `--only=ds2items`)
+
+Hero backpack grid integration and its explicit remaining differences: [DS2_INVENTORY.md](DS2_INVENTORY.md).
 
 Full catalogue/one-for-one import progress: see [`DS2_ITEM_IMPORT_STATUS.md`](DS2_ITEM_IMPORT_STATUS.md).
 `data/reference/ds2_equipment_catalog.json` is reference data, **not** a completed live-loot import.

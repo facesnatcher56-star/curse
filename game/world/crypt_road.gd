@@ -367,12 +367,12 @@ func _exit_gate() -> void:
 ## zombies and ghouls; or [kind, x, z, monster_level] / [kind, x, z, monster_level, tier] for a DS2-sized group, one body each at exactly
 ## that level (and tier, when it is not the kind's own).
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
-		patrol: Array[Vector2] = []) -> void:
+		patrol: Array[Vector2] = [], tutorial: bool = false) -> void:
 	_homes.append(home)
 	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
 	for m in members:
 		var exact: bool = m.size() > 3
-		var copies: int = 1 if exact else (PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1)
+		var copies: int = 1 if exact or tutorial else (PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1)
 		var level_threat: float = WorldThreat.threat_for_level(int(m[3])) if exact else threat
 		var tier: String = String(m[4]) if m.size() > 4 else ""
 		for c in copies:
@@ -380,6 +380,8 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
 			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), level_threat, tier)
+			if tutorial and e.variant == "zombie":
+				e.use_tutorial_fighter_stats()
 			e.group_id = id
 			if exact:
 				e.set_meta("exact_level", true)   # authored at a DS2 level of its own, not its stretch's threat
@@ -467,7 +469,9 @@ func _fill_gaps() -> void:
 			for kind in _fill_kinds(zone):
 				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
 				members.append([kind, spot.x + offset.x, spot.y + offset.y])
-			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [])
+			# The near-gate filler is the FIRST fight, before the authored waystation.
+			# Match DS2's tutorial fighters, not generic normal monsters or multiplied hordes.
+			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [], zone.id == "road_in")
 		z -= FILL_CELL
 
 ## What a gap-filling group is made of in this stretch: one of the zone's group templates, picked by weight (the run's modifiers make some

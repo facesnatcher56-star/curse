@@ -93,7 +93,7 @@ func _test_loot() -> void:
 	expect("a rarer weapon is never swapped in on its own: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 2)
 	for i in 20:
 		stats.add_to_bag(Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1))
-	expect("the bag holds a dozen items", stats.bag.size() == PlayerStats.MAX_BAG)
+	expect("the sized backpack retains twenty rings plus both carried weapons", stats.bag.size() == 22)
 	# Walking over a drop does NOT pick it up: you click it (or its name), or press the use key.
 	stats.bag = []
 	player.global_position = Vector3(-30, 0, -30)   # well away, so the drop is not picked up as it lands

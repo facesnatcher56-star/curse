@@ -16,9 +16,12 @@ const UNMET_COLOR := Color(0.93, 0.30, 0.24)
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
-	add_theme_stylebox_override("panel", UiTheme.panel_box())
+	add_theme_stylebox_override("panel", UiTheme.parchment_box())
+	UiTheme.paper_detail(self)
+	UiTheme.crest(self)
+	UiTheme.responsive_window(self, Vector2(760, 640))
 	position = Vector2(260, 40) if get_viewport_rect().size.x >= 1100 else Vector2(20, 30)
-	size = Vector2(minf(760, get_viewport_rect().size.x - position.x - 20), minf(640, get_viewport_rect().size.y - 70))
+	size = Vector2(760, 640) # Responsive fitting keeps the chart usable instead of crushing its scroll area.
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 8)
 	add_child(_box)
@@ -27,7 +30,7 @@ func _ready() -> void:
 	_detail.top_level = true
 	_detail.z_index = 20
 	_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_detail.add_theme_stylebox_override("panel", UiTheme.panel_box())
+	_detail.add_theme_stylebox_override("panel", UiTheme.tooltip_box())
 	_detail_label = RichTextLabel.new()
 	_detail_label.bbcode_enabled = true
 	_detail_label.fit_content = true
@@ -46,15 +49,15 @@ func _build() -> void:
 	_detail.hide()
 	for child in _box.get_children(): child.free()
 	var left := TownState.skill_points_left(staged)
-	_box.add_child(ItemTile._label("Specialties", 24, UiTheme.TEXT))
+	_box.add_child(ItemTile._label("Specialties", 28, UiTheme.PAPER_INK))
 	var tabs := HBoxContainer.new()
 	tabs.name = "SpecializationTabs"
 	_box.add_child(tabs)
 	var levels := HeroAttributes.levels_from_xp(TownState.class_xp)
 	for tree in TREES:
 		_add_button(tabs, "tab_" + tree, "%s %d" % [HeroAttributes.CLASS_NAMES[tree], int(levels.get(tree, 0))], false, _switch_tree.bind(tree), 150)
-		(tabs.get_child(-1) as Button).modulate = UiTheme.ACCENT if tree == selected_tree else Color.WHITE
-	_box.add_child(ItemTile._label("Powers", 14, UiTheme.TEXT_DIM))
+		UiTheme.style_button(tabs.get_child(-1) as Button, Color(1.0, 0.42, 0.32) if tree == selected_tree else Color.WHITE)
+	_box.add_child(ItemTile._label("Powers", 14, UiTheme.PAPER_INK))
 	var powers := HBoxContainer.new()
 	powers.name = "PowerIcons"
 	powers.add_theme_constant_override("separation", 10)
@@ -80,10 +83,12 @@ func _build() -> void:
 	footer.add_theme_constant_override("separation", 12)
 	_box.add_child(footer)
 	_add_button(footer, "confirm", "Confirm", staged.is_empty(), _confirm)
-	footer.add_child(ItemTile._label("%d points" % left, 17, UiTheme.ACCENT))
+	UiTheme.style_button(footer.get_child(-1) as Button, Color(0.48, 0.75, 0.50))
+	footer.add_child(ItemTile._label("%d points" % left, 17, UiTheme.PAPER_INK))
 	_add_button(footer, "reset", "Reset", staged.is_empty(), func() -> void: staged = {}; _rebuild())
+	UiTheme.style_button(footer.get_child(-1) as Button, Color(1.0, 0.42, 0.32))
 	_add_button(footer, "back", "Back", false, func() -> void: (get_parent() as Hud)._open_character())
-	_box.add_child(ItemTile._label("Select an icon to add a rank.  - removes an unconfirmed rank.", 12, UiTheme.TEXT_DIM))
+	_box.add_child(ItemTile._label("Select an icon to add a rank.  - removes an unconfirmed rank.", 12, UiTheme.PAPER_DIM))
 	var focus := find_child(_focus_key, true, false) as Button
 	if focus == null or focus.disabled: focus = find_child("tab_" + selected_tree, true, false) as Button
 	focus.call_deferred("grab_focus")
@@ -144,9 +149,7 @@ Requirements (%s):" % ("unlocks the power" if rank == 0 else "next rank")
 				var have: int = int(ranks.get(required, 0))
 				var met: bool = have >= need
 				var where: String = "" if passive == null or passive.tree == selected_tree else "  [%s tree]" % HeroAttributes.CLASS_NAMES.get(passive.tree, passive.tree)
-				text += "
-[color=#%s]%s %d  (you have %d)%s[/color]" % [(MET_COLOR if met else UNMET_COLOR).to_html(false),
-					_plain(passive.display_name if passive != null else String(required).capitalize()), need, have, where]
+				text += requirement_line(passive.display_name if passive != null else String(required).capitalize(), need, have, where)
 				pulse[String(required)] = met
 		if def.needs != "": text += "
 Not implemented: " + _plain(def.needs)
@@ -158,9 +161,19 @@ Not implemented: " + _plain(def.needs)
 Current: " + _plain(def.describe(rank))
 		if rank < PassiveDef.MAX_RANK: text += "
 Next: " + _plain(def.describe(rank + 1))
-		var blocker := TownState.passive_blocker(id, staged)
-		if blocker != "": text += "
-" + _plain(blocker)
+		if rank < PassiveDef.MAX_RANK:
+			text += "\n\nRequirements (next rank):"
+			var levels := HeroAttributes.levels_from_xp(TownState.class_xp)
+			text += requirement_line(HeroAttributes.CLASS_NAMES[def.tree], def.class_level, int(levels.get(def.tree, 0)))
+			for required in def.prereqs:
+				var prerequisite := PassiveDb.get_def(String(required))
+				var have := TownState.passive_rank(String(required), staged)
+				var need := int(def.prereqs[required])
+				text += requirement_line(prerequisite.display_name, need, have)
+				pulse[String(required)] = have >= need
+			text += requirement_line("Skill points", 1, TownState.skill_points_left(staged))
+		else:
+			text += "\nMaximum rank reached."
 		if def.needs != "": text += "
 No effect yet: needs " + _plain(def.needs)
 	_detail_label.text = text
@@ -173,6 +186,11 @@ No effect yet: needs " + _plain(def.needs)
 ## Game text shown through BBCode: brackets would otherwise be read as tags.
 static func _plain(text: String) -> String:
 	return text.replace("[", "[lb]")
+
+## Powers and passives share requirement colors and explicit required/current values.
+static func requirement_line(title: String, need: int, have: int, suffix: String = "") -> String:
+	return "\n[color=#%s]%s %d  (you have %d)%s[/color]" % [
+		(MET_COLOR if have >= need else UNMET_COLOR).to_html(false), _plain(title), need, have, _plain(suffix)]
 
 func _place_detail(button: Button) -> void:
 	if not is_instance_valid(button): return

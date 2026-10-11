@@ -9,6 +9,9 @@ extends DevSuite
 
 ## Every file a check or tool may live in; a check or tool name is unique across them.
 const SUITES := [
+	preload("res://game/dev/suites/theme_tests.gd"),
+	preload("res://game/dev/suites/ui_audit_tests.gd"),
+	preload("res://game/dev/suites/inventory_tests.gd"),
 	preload("res://game/dev/suites/power_ui_tests.gd"),
 	preload("res://game/dev/suites/power_audio_tests.gd"),
 	preload("res://game/dev/suites/combat_detail_tests.gd"),
@@ -116,6 +119,11 @@ func _clip_arg() -> String:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
+"theme": "_test_ornate_theme",
+"uiaudit": "_test_ui_audit",
+"inventorygrid": "_test_inventory_grid",
+"inventoryrotate": "_test_inventory_rotation",
+"classnotice": "_test_class_notice",
 "powerui": "_test_power_ui",
 "skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack", "basicsingle": "_test_basic_single_target_physics", "armedfx": "_test_armed_power_fx", "hitinterrupt": "_test_hit_interruption_audit", "poweraudio": "_test_power_audio",
 "actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers",

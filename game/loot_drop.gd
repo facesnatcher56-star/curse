@@ -148,8 +148,8 @@ func in_reach(hero: Node3D) -> bool:
 
 ## The hero takes it: worn if the slot is empty, otherwise into the bag.
 func pick_up(hero: Player) -> void:
-	hero.stats.pickup(item)
-	queue_free()
+	if not hero.stats.pickup(item).is_empty():
+		queue_free() # no space: leave the item on the ground, never delete carried loot
 
 func _camera_scale() -> float:
 	var camera: Camera3D = get_viewport().get_camera_3d()

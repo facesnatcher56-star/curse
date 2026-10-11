@@ -4,35 +4,48 @@ var hero: Player
 var _equipping: bool = false
 var _bag_tiles: Array[ItemTile] = []
 var _bag_scroll: ScrollContainer
+const BagRules := preload("res://game/inventory_grid.gd")
+const BagView := preload("res://game/ui/inventory_grid_view.gd")
 var level_label: Label
 var xp_label: Label
 var xp_bar: Control
 var classes_label: Label    # the four DS2 class skills and their levels
 var attributes_label: Label  # STR, DEX, INT, life and mana
+var _portrait: TextureRect
+var _portrait_viewport: SubViewport
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
 	add_theme_stylebox_override("panel", UiTheme.panel_box())
-	position = Vector2(40, 70)
-	size = Vector2(minf(900, get_viewport_rect().size.x - 80), minf(590, get_viewport_rect().size.y - 180))
+	UiTheme.crest(self)
+	UiTheme.responsive_window(self, Vector2(640, 590))
+	position = Vector2(260, 40) if get_viewport_rect().size.x >= 1100 else Vector2(20, 30)
+	size = Vector2(640, 590) # Fit the completed window, not a prematurely shortened backpack.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 24)
 	add_child(row)
 	var left := VBoxContainer.new()
 	left.custom_minimum_size.x = 280
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(left)
 	left.add_child(ItemTile._label(hero.display_name + " — Character", 24, UiTheme.TEXT))
 	_add_progression(left)
-	var portrait := SubViewportContainer.new()
-	portrait.custom_minimum_size = Vector2(280, 160)
-	portrait.stretch = true
+	var portrait := TextureRect.new()
+	_portrait = portrait
+	portrait.name = "CharacterPortrait"
+	portrait.custom_minimum_size = Vector2(280, 120)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left.add_child(portrait)
 	var viewport := SubViewport.new()
+	_portrait_viewport = viewport
 	viewport.size = Vector2i(280, 160)
 	viewport.own_world_3d = true
 	viewport.transparent_bg = true
+	viewport.msaa_3d = Viewport.MSAA_2X
 	portrait.add_child(viewport)
+	portrait.texture = viewport.get_texture()
 	var model: Node3D = hero.visual.duplicate()
 	for animation in model.find_children("*", "AnimationPlayer", true, false):
 		(animation as AnimationPlayer).play("game/idle_alert")
@@ -40,10 +53,10 @@ func _ready() -> void:
 	model.position = Vector3.ZERO
 	model.rotation.y = 0.35
 	var camera := Camera3D.new()
-	var bounds: AABB = CharacterModel._bounds_of(hero.visual)
-	var centre: Vector3 = bounds.get_center()
+	# Bone-mounted weapons/fists have unreliable rest AABBs; frame the known actor body instead.
+	var centre := Vector3(0, hero.body_height * 0.5, 0)
 	camera.fov = 35
-	camera.position = centre + Vector3(0, 0, maxf(bounds.size.y, 1.0) * 2.0)
+	camera.position = centre + Vector3(0, 0, hero.body_height * 2.4)
 	viewport.add_child(camera)
 	camera.look_at(centre)
 	var light := DirectionalLight3D.new()
@@ -55,45 +68,54 @@ func _ready() -> void:
 	skills_button.name = "skills"
 	skills_button.pressed.connect(func() -> void: (get_parent() as Hud).open_skills())
 	left.add_child(skills_button)
-	left.add_child(ItemTile._label(gear_text(), 14, UiTheme.TEXT))
+	var gear_label := ItemTile._label(gear_text(), 14, UiTheme.TEXT)
+	gear_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	left.add_child(gear_label)
 	_add_paper_doll(left)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(right)
 	var bag_head := HBoxContainer.new()
 	right.add_child(bag_head)
-	var bag_title: Label = ItemTile._label("Bag — %d items" % hero.stats.bag.size(), 24, UiTheme.TEXT)
+	var used: int = 0
+	for item in hero.stats.bag: used += BagRules.footprint(item).x * BagRules.footprint(item).y
+	var bag_title: Label = ItemTile._label("Backpack — %d / 65" % used, 20, UiTheme.TEXT)
 	bag_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bag_head.add_child(bag_title)
-	right.add_child(ItemTile._label("Confirm to equip" if Gamepad.active else "Right-click or double-click to equip", 14, UiTheme.TEXT_DIM))
+	var hint := ItemTile._label(("Confirm: equip · Select: move" if Gamepad.active else "Right-click: equip · Drag: move")
+		+ " · %s: rotate" % GameSettings.short_binding_text("inventory_rotate"), 13, UiTheme.TEXT_DIM)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = 200
+	right.add_child(hint)
 	var scroll := ScrollContainer.new()
 	_bag_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(scroll)
-	var grid := GridContainer.new()
-	grid.columns = clampi(int((size.x - 350) / 110), 1, 4)
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	var grid := BagView.new()
+	grid.name = "BackpackGrid"
+	grid.stats = hero.stats
+	grid.cell_size = floorf(clampf((size.y - 200) / BagRules.HEIGHT, 20, 34))
+	grid.item_activated.connect(_equip_bag_index)
+	grid.equipment_dropped.connect(_take_off)
 	scroll.add_child(grid)
-	for i in hero.stats.bag.size():
-		var item: Dictionary = hero.stats.bag[i]
-		var column := VBoxContainer.new()
-		grid.add_child(column)
-		var tile := ItemTile.create(item, hero.stats.equipment.get(int(item["slot"])), 56)
-		tile.equip_hint = true   # (no Equip button under it: the card says how, "(R-click to equip)", and a pad confirms on it)
-		column.add_child(tile)
-		_bag_tiles.append(tile)
-		tile.gui_input.connect(_item_input.bind(item, tile))
-		var item_name := ItemTile.name_label(item, hero.stats.equipment.get(int(item["slot"])), true, true)
-		column.add_child(item_name)
-		item_name.gui_input.connect(_item_input.bind(item, item_name))
-	if hero.stats.bag.is_empty():
-		grid.add_child(ItemTile._label("Your bag is empty.", 16, UiTheme.TEXT))
+	_bag_tiles.assign(grid.tiles)
+	var sort_button := UiTheme.button("Sort backpack", 150)
+	sort_button.pressed.connect(_sort_bag)
+	right.add_child(sort_button)
 	var close := UiTheme.button("Close", 110)
 	right.add_child(close)
 	close.pressed.connect(func() -> void:
 		(get_parent() as Hud).close_character())
 	close.grab_focus()
+
+func _process(_delta: float) -> void:
+	if not is_visible_in_tree() or _portrait == null: return
+	# Render at displayed physical pixels, not a tiny fixed texture enlarged by
+	# canvas/interface scaling. Keep the camera aspect equal to the actual slot.
+	var transform := _portrait.get_screen_transform()
+	var pixels := Vector2i((_portrait.size * Vector2(transform.x.length(), transform.y.length())).ceil())
+	pixels = pixels.max(Vector2i(2, 2))
+	if _portrait_viewport.size != pixels: _portrait_viewport.size = pixels
 
 ## Where each worn place sits on the paper doll (DS2's full gear: weapon, shield, helm, body, gloves, boots, amulet and two rings).
 const DOLL: Array[int] = [Items.Slot.RING, Items.Slot.HELM, Items.Slot.AMULET, Items.Slot.WEAPON, Items.Slot.ARMOR, Items.Slot.SHIELD,
@@ -117,6 +139,7 @@ func _add_paper_doll(parent: Control) -> void:
 			tile = item_tile
 		else:
 			tile = _empty_place(Items.SLOT_NAMES[place])
+		tile.set_drag_forwarding(_drag_worn.bind(place), _can_drop_on_worn.bind(place), _drop_on_worn.bind(place))
 		_doll_tiles.append(tile)
 		grid.add_child(tile)
 
@@ -145,16 +168,9 @@ func _worn_input(event: InputEvent, place: int, control: Control) -> void:
 		control.accept_event()
 		_take_off(place)
 
-func _take_off(place: int) -> void:
-	if _equipping or hero.stats.bag.size() >= PlayerStats.MAX_BAG:
-		if hero.stats.bag.size() >= PlayerStats.MAX_BAG:
-			hero._say("Your bag is full")
-		return
-	var off: Variant = hero.stats.unequip(place)
-	if off == null:
-		return
+func _take_off(place: int, cell: Vector2i = BagRules.NONE) -> void:
+	if _equipping or not hero.stats.unequip_to_bag(place, cell): return
 	_equipping = true
-	hero.stats.bag.append(off)
 	if hero.get_parent() is TownScene:
 		TownState.take_gear(hero.stats.equipment)
 		TownState.save()
@@ -188,8 +204,10 @@ func _add_progression(parent: Control) -> void:
 		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(TownState.hero_xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
 	parent.add_child(xp_bar)
 	classes_label = ItemTile._label(classes_text(), 14, UiTheme.TEXT)
+	classes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(classes_label)
 	attributes_label = ItemTile._label(attributes_text(), 14, UiTheme.TEXT_DIM)
+	attributes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(attributes_label)
 
 ## "Melee 4   Ranged 1   Combat Magic 0   Nature Magic 0": the DS2 class skills, which rise with use.
@@ -219,24 +237,9 @@ func _exit_tree() -> void:
 	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
 
-func _item_input(event: InputEvent, item: Dictionary, control: Control) -> void:
-	var click := event as InputEventMouseButton
-	var activate: bool = click != null and click.pressed and (click.button_index == MOUSE_BUTTON_RIGHT or (click.button_index == MOUSE_BUTTON_LEFT and click.double_click))
-	if activate or (event.is_action_pressed("ui_accept") and not event.is_echo()):
-		control.accept_event()
-		_equip_item(item)
-
-func _equip_item(item: Dictionary) -> void:
-	var index: int = hero.stats.bag.find(item)
-	if _equipping or index < 0:
-		return
-	var off: Variant = hero.stats.equip(item)   # null: the weapon is out in the world, or he cannot wear it yet (he says why)
-	if off == null:
-		return
+func _equip_bag_index(index: int, place: int = -1) -> void:
+	if _equipping or not hero.stats.equip_from_bag(index, place): return
 	_equipping = true
-	hero.stats.bag.remove_at(index)
-	for old in off:
-		hero.stats.bag.append(old)
 	var town := hero.get_parent() as TownScene
 	if town != null:
 		TownState.take_gear(hero.stats.equipment)
@@ -244,6 +247,33 @@ func _equip_item(item: Dictionary) -> void:
 	(get_parent() as Hud)._open_character()
 	if Gamepad.active:
 		(get_parent() as Hud).character_panel.call_deferred("_focus_bag_item", index)
+
+func _sort_bag() -> void:
+	var sorted: Array = hero.stats.bag.duplicate()
+	sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var sa := BagRules.footprint(a)
+		var sb := BagRules.footprint(b)
+		return sa.x * sa.y > sb.x * sb.y)
+	if BagRules.NONE in BagRules.layout(sorted, false):
+		hero._say("Cannot sort without losing an item")
+		return
+	hero.stats.bag.assign(sorted)
+	BagRules.arrange(hero.stats.bag, false)
+	(get_parent() as Hud)._open_character()
+
+func _drag_worn(_at: Vector2, place: int) -> Variant:
+	if not hero.stats.equipment.has(place): return null
+	var item: Dictionary = hero.stats.equipment[place]
+	_doll_tiles[DOLL.find(place)].set_drag_preview(ItemTile.create(item, null, 48))
+	return {"stats": hero.stats, "place": place}
+
+func _can_drop_on_worn(_at: Vector2, data: Variant, place: int) -> bool:
+	if not data is Dictionary or data.get("stats") != hero.stats or not data.has("index"): return false
+	var index: int = int(data.index)
+	return index >= 0 and index < hero.stats.bag.size() and place in Items.places(int(hero.stats.bag[index]["slot"]))
+
+func _drop_on_worn(_at: Vector2, data: Variant, place: int) -> void:
+	_equip_bag_index(int(data.index), place)
 
 func _focus_bag_item(index: int) -> void:
 	if not _bag_tiles.is_empty():

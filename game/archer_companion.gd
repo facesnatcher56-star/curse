@@ -83,9 +83,13 @@ var _dexterity: float = 11.0
 
 ## One arrow: a DS2 bow of his level (`3.0 + 0.65 L` on average) plus 0.2 x DEX, 0.75 of that on the low roll and 1.25 on the high.
 func arrow_damage() -> float:
+	var damage := arrow_damage_range()
+	return randf_range(damage.x, damage.y)
+
+func arrow_damage_range() -> Vector2:
 	var bow: float = 3.0 + 0.65 * level
 	var bonus: float = 0.2 * maxf(_dexterity, 10.0)
-	return randf_range(bow * 0.75 + 0.75 * bonus, bow * 1.25 + 1.25 * bonus)
+	return Vector2(bow * 0.75 + 0.75 * bonus, bow * 1.25 + 1.25 * bonus)
 
 func _attach_gear() -> void:
 	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it

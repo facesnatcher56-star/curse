@@ -52,10 +52,7 @@ static func icon_for(id: String) -> Texture2D:
 
 static func style_icon_button(button: Button) -> void:
 	# Text-button padding otherwise squeezes 48px icon tiles to a tiny sliver.
-	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var style := UiTheme.get_theme().get_stylebox(state, "Button").duplicate() as StyleBox
-		style.set_content_margin_all(4)
-		button.add_theme_stylebox_override(state, style)
+	UiTheme.style_button(button, Color.WHITE, true)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.add_theme_constant_override("h_separation", 0)
 
@@ -125,11 +122,16 @@ func _draw() -> void:
 	for i in TIERS.size():
 		var y: float = 38 + i * 65
 		draw_line(Vector2(64, y), Vector2(size.x - 18, y), Color(0.34, 0.28, 0.20, 0.25))
-		UiTheme.text(self, UiTheme.heading_font(), Vector2(8, y + 5), "L%d" % TIERS[i], 13, UiTheme.TEXT_DIM)
+		var level: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get(tree, 0))
+		var diamond := PackedVector2Array([Vector2(26, y - 20), Vector2(46, y), Vector2(26, y + 20), Vector2(6, y), Vector2(26, y - 20)])
+		draw_colored_polygon(diamond, UiTheme.INK)
+		draw_polyline(diamond, UiTheme.BRONZE_LIGHT, 2, true)
+		UiTheme.text(self, UiTheme.heading_font(), Vector2(6, y + 5), "L%d" % TIERS[i], 12,
+			UiTheme.TEXT if level >= TIERS[i] else Color(0.93, 0.30, 0.24), HORIZONTAL_ALIGNMENT_CENTER, 40)
 	for link in links:
 		var a: Vector2 = points[link["from"]] + Vector2(0, 25)
 		var b: Vector2 = points[link["to"]] - Vector2(0, 25)
-		var color := Color(0.68, 0.51, 0.27, 0.9) if link["met"] else Color(0.31, 0.28, 0.23)
+		var color := Color(1.0, 0.72, 0.29) if link["met"] else Color(0.31, 0.24, 0.14, 0.7)
 		var middle := (a.y + b.y) * 0.5
 		var path := PackedVector2Array([a, Vector2(a.x, middle), Vector2(b.x, middle), b])
 		if b.y - a.y > 25:
@@ -137,7 +139,8 @@ func _draw() -> void:
 			var channel := a.x + (38.0 if a.x < size.x * 0.5 else -38.0)
 			path = PackedVector2Array([a, a + Vector2(0, 7), Vector2(channel, a.y + 7),
 				Vector2(channel, b.y - 7), Vector2(b.x, b.y - 7), b])
-		draw_polyline(path, color, 2, true)
+		draw_polyline(path, Color(0.16, 0.10, 0.04, 0.7), 5, true)
+		draw_polyline(path, color, 3 if link["met"] else 1.5, true)
 		draw_colored_polygon(PackedVector2Array([b, b + Vector2(-4, -6), b + Vector2(4, -6)]), color)
 	# A hovered power's requirements: a breathing ring round each needed passive.
 	for id in _pulse:

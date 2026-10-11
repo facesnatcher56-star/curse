@@ -9,6 +9,8 @@ var variant: String = "zombie"
 var level_scale: float = 1.0
 ## An authored encounter may use DS2's introductory tier without changing this kind elsewhere.
 var tier_override: String = ""
+## DS2 tutorial Dryad fighter overrides, used only by the gate's introductory zombies.
+var tutorial_fighter: bool = false
 ## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
 ## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
 var xp_eligible: bool = true
@@ -78,6 +80,19 @@ func _apply_level(threat: float) -> void:
 	damage_min = average * 0.75
 	damage_max = average * 1.25
 	armor = MonsterScaling.armor(level)
+	if tutorial_fighter:
+		level = 0
+		max_health = 12.0
+		damage_min = 2.0
+		damage_max = 3.0
+		armor = 8.0
+
+func use_tutorial_fighter_stats() -> void:
+	tutorial_fighter = true
+	def = def.duplicate() as EnemyDef
+	def.tier = "weak"
+	_apply_level(level_scale)
+	health = max_health
 
 func _ready() -> void:
 	add_to_group("enemies")

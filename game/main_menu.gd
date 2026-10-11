@@ -1,6 +1,8 @@
 extends Node3D
 ## Main menu: the knight standing in the ruins with zombies watching from the dark, plus Play / Settings / Quit.
 
+## The menu is skipped for now: a normal launch (no user arguments) goes straight to a fresh town.
+const SKIP_MENU := true
 const GAME_SCENE := "res://game/town.tscn"   # Play starts in the world: the town, with the Crypt Road already loaded beyond its gate
 const KNIGHT_DIR := "res://assets/models/knight2"
 const ZOMBIE_DIR := "res://assets/models/zombie"
@@ -14,6 +16,9 @@ var _settings_button: Button
 
 func _ready() -> void:
 	GameSettings.boot()
+	if SKIP_MENU and OS.get_cmdline_user_args().is_empty():
+		LoadingScreen.go.call_deferred(get_tree(), GAME_SCENE)
+		return
 	_build_backdrop()
 	_build_ui()
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -21,6 +26,8 @@ func _ready() -> void:
 		_capture(args)
 
 func _process(delta: float) -> void:
+	if _camera == null:
+		return
 	_angle += delta * 0.07
 	var radius: float = 6.2
 	_camera.position = Vector3(sin(_angle) * radius, 1.7, cos(_angle) * radius)
@@ -164,6 +171,7 @@ func _build_ui() -> void:
 	var quit := UiTheme.button("Quit", 320.0)
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_buttons.add_child(quit)
+	UiTheme.responsive_window(_buttons)
 	play.grab_focus()
 
 	var footer := Label.new()
@@ -220,6 +228,30 @@ func _close_settings() -> void:
 
 ## `-- --menushot[=settings:N]`: save a PNG of the menu (optionally with a settings tab open) and quit.
 func _capture(args: PackedStringArray) -> void:
+	if args.has("--matrix"):
+		var failed := false
+		for resolution in GameSettings.RESOLUTIONS:
+			for multiplier in [0.5, 1.0, 1.5]:
+				var screen := 0 if resolution.y > 1080 else mini(1, DisplayServer.get_screen_count() - 1)
+				get_window().current_screen = screen
+				get_window().borderless = true
+				get_window().size = resolution
+				get_window().position = DisplayServer.screen_get_position(screen) + (DisplayServer.screen_get_size(screen) - resolution) / 2
+				GameSettings.ui_size = multiplier
+				GameSettings.apply_ui_scale()
+				await get_tree().create_timer(0.3).timeout
+				var tag := "%dx%d_scale%s" % [resolution.x, resolution.y, str(multiplier)]
+				if not get_viewport().get_visible_rect().encloses(_buttons.get_global_rect()):
+					push_error("[FAIL] Main menu outside viewport: " + tag)
+					failed = true
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_menu_" + tag + ".png")
+				print("MENU_CASE ", tag)
+		get_tree().quit(1 if failed else 0)
+		return
+	if DisplayServer.get_screen_count() > 1:
+		DisplayServer.window_set_current_screen(1)
+		DisplayServer.window_set_position(DisplayServer.screen_get_position(1) + (DisplayServer.screen_get_size(1) - get_window().size).max(Vector2i.ZERO) / 2)
 	for arg in args:
 		if arg.begins_with("--tab="):
 			_open_settings()

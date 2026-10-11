@@ -8,6 +8,7 @@ var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
 var equip_hint: bool = false      # a bag item: its card ends with how to equip it ("(R-click to equip)")
 var tile_size: float = 52.0
+var hovered: bool = false
 
 static func create(for_item: Dictionary, worn: Variant, size: float = 52.0) -> ItemTile:
 	var tile := ItemTile.new()
@@ -20,15 +21,21 @@ static func create(for_item: Dictionary, worn: Variant, size: float = 52.0) -> I
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
+	mouse_entered.connect(func() -> void: hovered = true; queue_redraw())
+	mouse_exited.connect(func() -> void: hovered = false; queue_redraw())
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
 	focus_card(self, item, compare_to, show_compare, true, equip_hint)
 
 func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
+	if hovered or has_focus(): UiTheme.draw_hover(self, Rect2(Vector2.ZERO, size), has_focus())
 
 ## The details card for an item: name in its rarity colour, kind, stats and effect, then the comparison.
 static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false) -> Control:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiTheme.panel_box())
+	panel.theme = UiTheme.get_theme() # Native tooltip windows do not always inherit the opener's theme.
+	panel.add_theme_stylebox_override("panel", UiTheme.tooltip_box())
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	box.custom_minimum_size = Vector2(300, 0)
@@ -37,7 +44,7 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 	box.add_child(_label(String(it["name"]), 20, Items.RARITY_COLORS[rarity]))
 	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 13, Color(1, 1, 1, 0.55)))
 	for line in Items.lines(it):
-		var l := _label(line, 14, Color(0.9, 0.88, 0.82))
+		var l := _label(line, 14, stat_line_color(it, line))
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(300, 0)
 		box.add_child(l)
@@ -50,7 +57,15 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 			box.add_child(_label(("+ " if sign_value > 0 else ("- " if sign_value < 0 else "= ")) + String(entry["text"]), 14, color))
 	if with_equip_hint:
 		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 13, Color(0.7, 0.68, 0.62)))
+	for child in box.get_children():
+		if child is Label:
+			child.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			child.custom_minimum_size.x = 300
 	return panel
+
+## Shared by inventory/shop cards and ground-loot cards.
+static func stat_line_color(it: Dictionary, line: String) -> Color:
+	return Color(0.93, 0.30, 0.24) if line.contains("Requires ") and not Items.hero_can_wear(it) else Color(0.9, 0.88, 0.82)
 
 static func _label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -78,6 +93,7 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true, with
 ## item's picture shows its card at once, like the item on the ground does; its buttons do not).
 static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false) -> void:
 	var holder := Control.new()
+	holder.name = "ItemDetails"
 	holder.top_level = true
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.z_index = 100
@@ -89,6 +105,8 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		var detail := card(it, worn, compare, with_equip_hint)
 		holder.add_child(detail)
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for child in detail.find_children("*", "Control", true, false):
+			child.mouse_filter = Control.MOUSE_FILTER_IGNORE # tooltip contents must not intercept a drag destination
 		holder.visible = true
 		var screen: Vector2 = control.get_viewport_rect().size
 		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)

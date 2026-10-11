@@ -31,6 +31,7 @@ func _ready() -> void:
 	if not TownState.events.hero_leveled.is_connected(_on_hero_leveled):
 		TownState.events.hero_leveled.connect(_on_hero_leveled)
 		TownState.events.hero_xp_changed.connect(_on_xp_changed)
+		TownState.events.class_skills_leveled.connect(_on_class_skills_leveled)
 		_connected = true
 
 func _exit_tree() -> void:
@@ -39,7 +40,20 @@ func _exit_tree() -> void:
 			TownState.events.hero_leveled.disconnect(_on_hero_leveled)
 		if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 			TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
+		if TownState.events.class_skills_leveled.is_connected(_on_class_skills_leveled):
+			TownState.events.class_skills_leveled.disconnect(_on_class_skills_leveled)
 		_connected = false
+
+func _on_class_skills_leveled(levels: Dictionary) -> void:
+	if _hud == null or not is_instance_valid(_hud.player) or _hud.player.dead:
+		return
+	var lines: PackedStringArray = []
+	for id in HeroAttributes.CLASSES:
+		if levels.has(id):
+			lines.append("%s increased to %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
+	if not lines.is_empty():
+		var hero: Player = _hud.player
+		Fx.text_at(hero, hero.global_position + Vector3(0, hero.body_height + 0.6, 0), "\n".join(lines), UiTheme.BRONZE_LIGHT, 32, 2.0)
 
 func _on_xp_changed(old_xp: int, new_xp: int) -> void:
 	if new_xp > old_xp:

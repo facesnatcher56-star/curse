@@ -19,6 +19,111 @@ const EMBER := Color(0.95, 0.56, 0.22)
 const INK := Color(0.060, 0.042, 0.036)
 
 static var _cached: Theme
+static var _art: Dictionary = {}
+const ART_LOGICAL_SIZE := {
+	"metal": Vector2i(256, 256), "parchment": Vector2i(256, 192),
+	"button": Vector2i(144, 48), "icon": Vector2i(64, 64),
+}
+
+## Artwork is reusable nine-slice material, never baked labels or game state.
+static func art(id: String) -> Texture2D:
+	if not _art.has(id):
+		var imported := load("res://assets/ui/ornate/%s.png" % id) as Texture2D
+		if ART_LOGICAL_SIZE.has(id):
+			# Preserve nine-slice geometry without throwing away high-DPI pixels.
+			var texture := ImageTexture.create_from_image(imported.get_image())
+			texture.set_size_override(ART_LOGICAL_SIZE[id])
+			_art[id] = texture
+		else:
+			_art[id] = imported
+	return _art[id]
+
+static func framed(id: String = "metal", padding: float = 20.0, tint: Color = Color.WHITE) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = art(id)
+	style.set_texture_margin_all(32 if id != "button" else 16)
+	if id in ["button", "metal"]:
+		# Recessed material repeats instead of smearing into long stripes on
+		# tall tooltips or wide HUD plates. Corners remain separate nine-slices.
+		style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+	style.set_content_margin_all(padding)
+	style.modulate_color = tint
+	return style
+
+const PAPER_INK := Color(0.16, 0.105, 0.055)
+const PAPER_DIM := Color(0.30, 0.22, 0.13)
+
+static func parchment_box() -> StyleBoxTexture:
+	return framed("parchment", 30)
+
+## Preserve the designed layout at small resolutions / large interface settings.
+## Scale only when needed; leave a clear strip for the live hotbar underneath.
+static func responsive_window(window: Control, design_size: Vector2 = Vector2.ZERO) -> void:
+	var fit := func() -> void: _fit_window.call_deferred(window, design_size)
+	window.resized.connect(fit)
+	window.minimum_size_changed.connect(fit)
+	window.visibility_changed.connect(fit) # Containers reset child scale when a hidden page is shown.
+	var viewport := window.get_viewport()
+	viewport.size_changed.connect(fit)
+	var container := window.get_parent() as Container
+	if container != null: container.sort_children.connect(fit)
+	window.tree_exiting.connect(func() -> void:
+		if viewport.size_changed.is_connected(fit): viewport.size_changed.disconnect(fit)
+		if is_instance_valid(container) and container.sort_children.is_connected(fit): container.sort_children.disconnect(fit), CONNECT_ONE_SHOT)
+	fit.call()
+
+static func _fit_window(window, design_size: Vector2) -> void:
+	if not is_instance_valid(window) or not window.is_inside_tree(): return
+	var viewport: Vector2 = window.get_viewport_rect().size
+	# Wrapped labels can temporarily request a huge height before the first
+	# container pass. Recompute from the settled minimum, not that stale height.
+	window.size = design_size.max(window.get_combined_minimum_size())
+	var factor := minf(1, minf((viewport.x - 32) / maxf(window.size.x, 1), (viewport.y - 114) / maxf(window.size.y, 1)))
+	window.scale = Vector2.ONE * factor
+	if window.get_parent() is CenterContainer:
+		window.pivot_offset = Vector2.ZERO
+		window.position = Vector2((viewport.x - window.size.x * factor) * 0.5,
+			maxf(24, (viewport.y - 90 - window.size.y * factor) * 0.5))
+	else:
+		window.position.x = clampf(window.position.x, 16, maxf(16, viewport.x - window.size.x * factor - 16))
+		window.position.y = clampf(window.position.y, 24, maxf(24, viewport.y - window.size.y * factor - 90))
+
+static func paper_detail(parent: Control) -> void:
+	var surface := Control.new()
+	surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	surface.draw.connect(func() -> void:
+		surface.draw_texture_rect(art("paper_detail"), Rect2(Vector2.ZERO, surface.size), false))
+	parent.add_child(surface)
+
+## Buttons retain identical margins in every state, including tiny icon controls.
+static func style_button(button: Button, accent: Color = Color.WHITE, icon: bool = false) -> void:
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var tint := accent
+		if state == "hover": tint = accent * Color(1.10, 1.08, 1.04, 1)
+		if state == "pressed": tint = accent.darkened(0.20)
+		if state == "disabled": tint = Color(0.42, 0.40, 0.36)
+		var style := framed("icon" if icon else "button", 4 if icon else 10, tint)
+		if icon: style.set_texture_margin_all(12)
+		button.add_theme_stylebox_override(state, style)
+	button.add_theme_stylebox_override("focus", _focus_box())
+
+static func crest(parent: Control) -> void:
+	# Containers resize their direct children: keep the ornament inside a passive
+	# wrapper so a PanelContainer cannot stretch it across the entire window.
+	var overlay := Control.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(overlay)
+	var ornament := TextureRect.new()
+	ornament.name = "FrameCrest"
+	ornament.texture = art("crest")
+	ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ornament.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ornament.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	ornament.position = Vector2(-64, -45)
+	ornament.size = Vector2(128, 42)
+	overlay.add_child(ornament)
 
 static func get_theme() -> Theme:
 	if _cached == null:
@@ -34,21 +139,28 @@ static func box(color: Color, border: Color = BORDER, border_width: int = 1, rad
 	style.set_content_margin_all(pad)
 	return style
 
-## A worn-metal panel for menus: dark fill, a dark outer edge and a bronze inner one, a soft shadow.
-static func panel_box() -> StyleBoxFlat:
-	var style := box(Color(0.085, 0.08, 0.095, 0.97), BRONZE.darkened(0.2), 2, 3, 20)
-	style.shadow_color = Color(0, 0, 0, 0.5)
-	style.shadow_size = 12
+## One worn-gold material for menus and tooltip cards.
+static func panel_box() -> StyleBoxTexture:
+	return framed("metal", 24)
+
+## Compact, recessed worn-metal popup; enough inset to clear its carved trim.
+static func tooltip_box() -> StyleBoxTexture:
+	var style := framed("button", 18, Color(0.92, 0.92, 0.92))
+	style.set_texture_margin_all(16)
 	return style
 
-static func _button_box(fill: Color, edge: Color, glow: bool) -> StyleBoxFlat:
-	var style := box(fill, edge, 1, 1, 10)   # a thin engraved edge, like the reference
-	style.border_blend = false
+## Same restrained warm edge for item tiles and hand-drawn hotbar controls.
+static func draw_hover(ci: CanvasItem, rect: Rect2, focused: bool = false) -> void:
+	ci.draw_rect(rect.grow(-1), Color(ACCENT, 0.055))
+	ci.draw_rect(rect.grow(-1), Color(BRONZE_LIGHT, 0.8 if focused else 0.55), false, 2 if focused else 1)
+
+static func _button_box(fill: Color, edge: Color, glow: bool) -> StyleBoxTexture:
+	var value: float = clampf(fill.r / 0.149, 0.5, 1.35)
+	if edge.is_equal_approx(EMBER): value = 0.80
+	elif glow: value = 1.10
+	var style := framed("button", 10, Color(value, value, value))
 	style.content_margin_left = 16
 	style.content_margin_right = 16
-	if glow:
-		style.shadow_color = Color(EMBER.r, EMBER.g, EMBER.b, 0.18)
-		style.shadow_size = 6
 	return style
 
 static func _focus_box() -> StyleBoxFlat:
@@ -93,15 +205,9 @@ static func draw_stat(ci: CanvasItem, font: Font, at: Vector2, icon_id: String, 
 
 static func draw_panel(ci: CanvasItem, rect: Rect2, alpha: float = 0.9, rivets: bool = true) -> void:
 	ci.draw_rect(rect.grow(4.0), Color(0, 0, 0, 0.28))
-	ci.draw_rect(rect, Color(0.07, 0.066, 0.08, alpha))
-	ci.draw_rect(Rect2(rect.position, Vector2(rect.size.x, rect.size.y * 0.45)), Color(1, 0.95, 0.85, 0.028))
-	ci.draw_rect(rect, Color(0, 0, 0, 0.95), false, 2.0)
-	ci.draw_rect(rect.grow(-2.0), BRONZE.darkened(0.1), false, 1.0)
-	ci.draw_rect(rect.grow(-4.0), Color(1, 1, 1, 0.04), false, 1.0)
-	if rivets and rect.size.x > 40.0 and rect.size.y > 30.0:
-		for corner in [rect.position + Vector2(7, 7), Vector2(rect.end.x - 7, rect.position.y + 7), Vector2(rect.position.x + 7, rect.end.y - 7), rect.end - Vector2(7, 7)]:
-			ci.draw_circle(corner, 2.6, Color(0, 0, 0, 0.8))
-			ci.draw_circle(corner, 1.7, BRONZE_LIGHT.darkened(0.25))
+	var style := framed("metal" if rivets else "button", 0, Color(1, 1, 1, alpha))
+	style.set_texture_margin_all(minf(24, rect.size.y * 0.3))
+	ci.draw_style_box(style, rect)
 
 ## A resource bar: a recessed dark trough, a fill with a lit upper half, tick marks every tenth, a bronze frame and a shadowed label.
 static func draw_bar(ci: CanvasItem, rect: Rect2, fraction: float, color: Color, label: String, font: Font, size: int = 13) -> void:
@@ -177,10 +283,10 @@ static func _build() -> Theme:
 	theme.set_color("font_color", "Label", TEXT)
 
 	# Tabs
-	theme.set_stylebox("tab_selected", "TabContainer", box(PANEL, ACCENT, 1, 3, 10))
-	theme.set_stylebox("tab_unselected", "TabContainer", box(Color(0.115, 0.097, 0.082), BORDER, 1, 3, 10))
-	theme.set_stylebox("tab_hovered", "TabContainer", box(Color(0.184, 0.145, 0.122), ACCENT, 1, 3, 10))
-	theme.set_stylebox("panel", "TabContainer", box(Color(0.103, 0.087, 0.075), BORDER, 1, 3, 14))
+	theme.set_stylebox("tab_selected", "TabContainer", framed("button", 12, Color(1, 0.42, 0.32)))
+	theme.set_stylebox("tab_unselected", "TabContainer", framed("button", 12))
+	theme.set_stylebox("tab_hovered", "TabContainer", framed("button", 12, Color(1.2, 1.1, 0.9)))
+	theme.set_stylebox("panel", "TabContainer", framed("metal", 18))
 	theme.set_color("font_selected_color", "TabContainer", ACCENT)
 	theme.set_color("font_unselected_color", "TabContainer", TEXT_DIM)
 	theme.set_color("font_hovered_color", "TabContainer", TEXT)
@@ -194,11 +300,10 @@ static func _build() -> Theme:
 	theme.set_stylebox("grabber_area_highlight", "HSlider", box(ACCENT, ACCENT, 0, 3, 0))
 
 	# Dropdowns and checkboxes reuse button styling.
-	theme.set_stylebox("normal", "OptionButton", box(Color(0.172, 0.136, 0.116), BORDER, 1, 3, 10))
-	theme.set_stylebox("hover", "OptionButton", box(Color(0.22, 0.20, 0.22), ACCENT, 1, 3, 10))
-	theme.set_stylebox("pressed", "OptionButton", box(Color(0.30, 0.25, 0.18), ACCENT, 1, 3, 10))
+	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
+		theme.set_stylebox(state, "OptionButton", theme.get_stylebox(state, "Button"))
 	theme.set_color("font_color", "OptionButton", TEXT)
-	theme.set_stylebox("panel", "PopupMenu", box(PANEL, ACCENT, 1, 3, 6))
+	theme.set_stylebox("panel", "PopupMenu", framed("metal", 12))
 	theme.set_stylebox("hover", "PopupMenu", box(Color(0.3, 0.25, 0.18), Color(0, 0, 0, 0), 0, 2, 4))
 	theme.set_color("font_color", "PopupMenu", TEXT)
 	theme.set_color("font_color", "CheckBox", TEXT)
@@ -216,6 +321,9 @@ static func _build() -> Theme:
 	theme.set_color("font_focus_color", "CheckBox", Color(1, 0.95, 0.8))
 	theme.set_color("font_disabled_color", "CheckBox", TEXT_DIM)
 	theme.set_constant("h_separation", "CheckBox", 10)
+	theme.set_stylebox("panel", "TooltipPanel", tooltip_box())
+	theme.set_color("font_color", "TooltipLabel", TEXT)
+	theme.set_color("default_color", "RichTextLabel", TEXT)
 	return theme
 
 ## The checkbox row's look in one state: same margins always, only the fill and edge change.
