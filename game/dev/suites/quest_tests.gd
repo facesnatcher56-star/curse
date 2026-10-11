@@ -180,7 +180,7 @@ func _test_quest_world() -> void:
 	if named != null:
 		var def: EnemyDef = EnemyDb.get_def("brute")
 		var gate_distance: float = 174.0 - (named.global_position.z - crypt.arena.origin_offset.z)
-		expect("it is tougher than its kind and where the quest says (%.0f m from the gate)" % gate_distance, named.max_health >= def.health * 3.0
+		expect("it is tougher than its kind and where the quest says (%.0f m from the gate)" % gate_distance, named.max_health >= MonsterScaling.life(1, def.tier, def.role) * 3.0
 			and gate_distance >= 95.0 and gate_distance <= 225.0)
 		var loot_before: int = get_tree().get_nodes_in_group("loot").size()
 		named.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)

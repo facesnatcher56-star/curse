@@ -376,21 +376,37 @@ func _report_to_quests(actor: Actor) -> int:
 		quest_news.emit(line)
 	return 0
 
-## What a death pays the hero in XP, as ONE award (so several levels at once make one level-up): the enemy's own kill value at the threat it
-## was killed at, plus a named monster's bounty XP. Only a death the hero is credited with (Actor.hero_credited), of an enemy that is
-## worth XP (`xp_eligible`: no renewable summons), pays anything. The hero's level is never an input. Ordinary kills are saved lazily
-## (TownState.add_hero_xp); a named monster's bounty is saved at once.
+## What a death pays in XP, as ONE award (so several levels at once make one level-up): DS2's value for the monster's level and tier
+## (HeroProgression.monster_xp) plus a named monster's bounty, times the level gap to the hero. Cutter is a party member: while he is
+## alive the kill is shared with DS2's group bonus (each gets 90%), his share going to his own level. The hero's share is divided over
+## his class skills by the damage each did (Actor.hero_damage). Only a death the hero is credited with (Actor.hero_credited), of an
+## enemy worth XP (`xp_eligible`: no renewable summons), pays anything. CURSE CHOICE (owner): paid on the kill, not hit by hit as DS2 does.
+## Ordinary kills are saved lazily (TownState.add_hero_xp); a named monster's bounty is saved at once.
 func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null or not enemy.xp_eligible or not enemy.hero_credited():
 		return
-	var kill_xp: int = HeroProgression.kill_xp(enemy.def.xp_reward, enemy.level_scale)
-	var total: int = kill_xp + bounty_xp
+	var kill: int = HeroProgression.monster_xp(enemy.level, enemy.def.tier)
+	var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, enemy.level)
+	var total: int = int(round(float(kill + bounty_xp) * gap))
 	if total <= 0:
 		return
-	HeroProgression.log_xp("kill: %s base=%d threat=%.2f kill=%d%s final=%d" % [enemy.display_name, enemy.def.xp_reward, enemy.level_scale, kill_xp,
-		(" named bounty=%d" % bounty_xp) if bounty_xp > 0 else "", total])
-	TownState.add_hero_xp(total, bounty_xp > 0)
+	var cutter := _living_cutter()
+	var members: int = 2 if cutter != null else 1
+	var share: int = HeroProgression.party_share(total, members)
+	HeroProgression.log_xp("kill: %s L%d %s kill=%d%s gap=x%.2f party=%d share=%d" % [enemy.display_name, enemy.level, enemy.def.tier, kill,
+		(" named bounty=%d" % bounty_xp) if bounty_xp > 0 else "", gap, members, share])
+	if cutter != null:
+		TownState.add_cutter_xp(share)
+		cutter.refresh_level()
+	TownState.add_hero_xp(share, bounty_xp > 0, enemy.hero_damage)
+
+func _living_cutter() -> ArcherCompanion:
+	for node in get_tree().get_nodes_in_group("companions"):
+		var c := node as ArcherCompanion
+		if c != null and not c.dead:
+			return c
+	return null
 
 ## What the road as it stands now could pay in XP if all of it were cleared (developer diagnostic, `--xpreport`; changes nothing):
 ## {kills (ordinary, per kind too), kill_xp, nests, nest_xp, quest_xp (the standing quest), named (count), named_xp (their bounties and
@@ -403,7 +419,7 @@ func xp_report() -> Dictionary:
 		var e := node as Enemy
 		if e == null or e.dead or e.def == null or not e.xp_eligible or e.has_meta("monster_uid"):
 			continue
-		var xp: int = HeroProgression.kill_xp(e.def.xp_reward, e.level_scale)
+		var xp: int = HeroProgression.monster_xp(e.level, e.def.tier)
 		kills_n += 1
 		kill_total += xp
 		by_kind[e.variant] = int(by_kind.get(e.variant, 0)) + 1
@@ -417,9 +433,10 @@ func xp_report() -> Dictionary:
 	var named_total: int = 0
 	for mon in Monsters.alive():
 		named_n += 1
-		named_total += HeroProgression.named_xp(float(mon["level"]), int(mon.get("kills", 0)), not (mon["plot"] as Dictionary).is_empty())
-	return {"kills": kills_n, "by_kind": by_kind, "kill_xp": kill_total, "nests": nests, "nest_xp": nests * HeroProgression.NEST_XP, "quest_xp": quest_xp,
-		"named": named_n, "named_xp": named_total, "total": kill_total + nests * HeroProgression.NEST_XP + quest_xp}
+		named_total += HeroProgression.named_xp(WorldThreat.monster_level(float(mon["level"])), int(mon.get("kills", 0)), not (mon["plot"] as Dictionary).is_empty())
+	var nest_xp: int = nests * HeroProgression.nest_xp(WorldThreat.monster_level(WorldThreat.for_distance(CryptRoad.EXIT_Z)))
+	return {"kills": kills_n, "by_kind": by_kind, "kill_xp": kill_total, "nests": nests, "nest_xp": nest_xp, "quest_xp": quest_xp,
+		"named": named_n, "named_xp": named_total, "total": kill_total + nest_xp + quest_xp}
 
 ## A dead monster may drop an item (see EnemyDef.drop_chance): it lands near the body and waits to be walked over.
 func _drop_loot(actor: Actor) -> void:

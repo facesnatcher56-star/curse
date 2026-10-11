@@ -221,7 +221,7 @@ static func killed(uid: int) -> Dictionary:
 		return {}
 	var gold: int = 30 + int(20.0 * float(mon["level"])) + (40 if bool(mon["nemesis"]) else 0)
 	var plot: Dictionary = mon["plot"]
-	var xp: int = HeroProgression.named_xp(float(mon["level"]), int(mon.get("kills", 0)), not plot.is_empty())   # its own level and history, never the hero's
+	var xp: int = HeroProgression.named_xp(WorldThreat.monster_level(float(mon["level"])), int(mon.get("kills", 0)), not plot.is_empty())   # its own level and history, never the hero's
 	var kept: Array = []
 	var broke: bool = false
 	for mod in TownState.world_mods:

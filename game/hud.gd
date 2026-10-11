@@ -216,7 +216,7 @@ func _draw() -> void:
 			target = player.skills.queued_target
 		if target != null and not target.dead:
 			var w: float = 340.0
-			var color: Color = Color(0.55, 0.1, 0.1) if target.max_health < 150.0 else Color(0.62, 0.3, 0.08)
+			var color: Color = Color(0.62, 0.3, 0.08) if target.is_big() else Color(0.55, 0.1, 0.1)
 			_bar(Vector2((size_px.x - w) * 0.5, 24), Vector2(w, 18), target.health / target.max_health, color,
 				"%s   %d / %d" % [target.display_name, ceili(target.health), int(target.max_health)], font)
 
@@ -553,7 +553,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	if recall:
 		remaining = 0.0
 		fraction = 0.0
-	var affordable: bool = player.stats.mana >= float(skill["mana"])
+	var affordable: bool = player.stats.mana >= player.stats.mana_cost(id)
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
@@ -606,8 +606,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	var key_text: String = GameSettings.short_binding_text(action)
 	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
 	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
-	if float(skill["mana"]) > 0.0:
-		draw_string(font, pos + Vector2(5, size_px - 5), str(int(skill["mana"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
+	if player.stats.mana_cost(id) > 0.0:
+		draw_string(font, pos + Vector2(5, size_px - 5), str(int(player.stats.mana_cost(id))), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.
 func _draw_tooltip(font: Font, size_px: Vector2) -> void:
@@ -624,8 +624,8 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		var pad: float = 14.0
 		var inner: float = width - pad * 2.0
 		var stats: Array[String] = []
-		if float(skill["mana"]) > 0.0:
-			stats.append("Mana %d" % int(skill["mana"]))
+		if player.stats.mana_cost(id) > 0.0:
+			stats.append("Mana %d" % int(player.stats.mana_cost(id)))
 		if float(skill["cd"]) > 0.0:
 			stats.append("Cooldown %.1f s" % float(skill["cd"]))
 		if float(skill["range"]) > 0.0:

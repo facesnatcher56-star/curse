@@ -45,7 +45,7 @@ func start_skewer(cursor: Vector3) -> void:
 	if dir.length() < 0.4:
 		dir = Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
 	skewer_dir = dir.normalized()
-	p.stats.mana -= float(skill["mana"])
+	p.stats.mana -= p.stats.mana_cost("skewer")
 	p.stats.cooldowns["skewer"] = float(skill["cd"])
 	p.skills.clear_aim()
 	p.skills.busy = true

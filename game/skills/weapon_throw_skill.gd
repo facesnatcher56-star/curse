@@ -393,7 +393,7 @@ func _hit_enemy(e: Actor, dir: Vector3, outgoing: bool) -> void:
 	var c: float = _throw_charge
 	var heft: float = _heft(e)
 	var strength: float = (0.4 + 0.6 * c) * float(prof["damage"]) * (1.0 if outgoing else float(prof["recall_damage"]))
-	var damage: float = p.stats.weapon_damage(strength)
+	var damage: float = p.stats.weapon_damage(strength, true)
 	var flat: Vector3 = Vector3(dir.x, 0.0, dir.z).normalized()
 	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 1.0 + 1.2 * c * mass)
 	result["skill_id"] = SKILL_ID

@@ -84,7 +84,7 @@ func handle_hotkeys(cursor: Vector3) -> void:
 func interrupt_for(id: String, cursor: Vector3) -> void:
 	if busy and not p.movement.rolling and p.stun_time <= 0.0 and not bool(busy_def.get("weapon_throw", false)):
 		if not p.stats.can_use(id):
-			if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+			if p.stats.mana < p.stats.mana_cost(id):
 				p._say("Not enough mana")
 			else:
 				p._say("%s is on cooldown" % SkillDb.all()[id]["name"])
@@ -132,10 +132,13 @@ func cancel_action() -> void:
 	busy_t = 0.0
 	_release_started = false
 
+## What the skill under way cost (Fireball's cost grows with INT, so the refund is what was taken, not the data's number).
+var _mana_spent: float = 0.0
+
 ## The charged cast reserves its cost at start; every abort path settles the same reservation.
 func _refund_unreleased_cast() -> void:
 	if busy and bool(busy_def.get("charged", false)) and not busy_hit_done:
-		p.stats.mana = minf(p.stats.mana + float(busy_def["mana"]), p.stats.max_mana)
+		p.stats.mana = minf(p.stats.mana + _mana_spent, p.stats.max_mana)
 		p.stats.cooldowns[busy_skill] = 0.0
 
 ## Death/revive cleanup without changing the actor's animation or transition.
@@ -309,7 +312,7 @@ func try_directional(id: String, cursor: Vector3) -> void:
 	if not p.stats.can_use(id):
 		if p.stats.ult_charge < p.stats.ult_cost(id):
 			p._say("%s is %d%% charged" % [SkillDb.all()[id]["name"], int(p.stats.ult_fraction(id) * 100.0)])
-		elif p.stats.mana < float(SkillDb.all()[id]["mana"]):
+		elif p.stats.mana < p.stats.mana_cost(id):
 			p._say("Not enough mana")
 		return
 	if bool(SkillDb.all()[id].get("earthshatter", false)):
@@ -367,7 +370,7 @@ func _release_aim(cursor: Vector3) -> void:
 	var point: Vector3 = aim_point_for(id, cursor)
 	if not p.stats.can_use(id):
 		clear_aim()
-		if p.stats.mana < float(SkillDb.all()[id]["mana"]):
+		if p.stats.mana < p.stats.mana_cost(id):
 			p._say("Not enough mana")
 		return
 	clear_aim(true)
@@ -588,7 +591,8 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		skill = _next_basic()
 	busy_def = skill
 	busy_time = float(skill["time"]) / p.stats.attack_speed()
-	p.stats.mana -= float(skill["mana"])
+	_mana_spent = p.stats.mana_cost(id)
+	p.stats.mana -= _mana_spent
 	p.stats.cooldowns[id] = float(skill["cd"])
 	busy = true
 	busy_skill = id
@@ -883,7 +887,7 @@ func _apply_skill(skill: Dictionary) -> void:
 			var dir: Vector3 = busy_aim - p.global_position
 			dir.y = 0.0
 			ball.direction = dir.normalized()
-			ball.damage = (14.0 + p.stats.strength * 0.4)
+			ball.damage = p.stats.spell_damage()   # a DS2 spell: grows with INT
 			ball.destination = busy_aim + Vector3(0, 0.8, 0)
 			p.get_tree().current_scene.add_child(ball)
 			var origin: Vector3 = p.global_position + Vector3(0, 1.2, 0) + ball.direction * 0.8

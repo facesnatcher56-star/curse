@@ -3,52 +3,48 @@ extends RefCounted
 ## The rules of the hero's permanent level, and nothing else: no state, no saving, no UI. `TownState` owns the hero's total XP and
 ## asks this class what level that is; the character screen asks it what to show. The one place the curve lives.
 
-## The level cap. Everything that needs it reads this; nothing else spells the number out.
-const MAX_LEVEL := 30
+## The level cap (DS2's `Uber`, max 100). Everything that needs it reads this; nothing else spells the number out.
+const MAX_LEVEL := 100
 
-## Total lifetime XP needed to BE each level, level 1 first (index 0). An explicit table, not a formula, so one level that plays too
-## slowly can be moved without shifting every later one. Provisional: to be tuned with real playtime. Early levels take 100-300 XP,
-## the later ones 900-1400; no level is a wall.
-const XP_FOR_LEVEL: Array[int] = [
-	0,      # 1
-	100,    # 2
-	250,    # 3
-	450,    # 4
-	700,    # 5
-	1000,   # 6
-	1350,   # 7
-	1750,   # 8
-	2200,   # 9
-	2700,   # 10
-	3250,   # 11
-	3850,   # 12
-	4500,   # 13
-	5200,   # 14
-	5950,   # 15
-	6750,   # 16
-	7600,   # 17
-	8500,   # 18
-	9450,   # 19
-	10450,  # 20
-	11500,  # 21
-	12600,  # 22
-	13750,  # 23
-	14950,  # 24
-	16200,  # 25
-	17500,  # 26
-	18850,  # 27
-	20250,  # 28
-	21650,  # 29
-	23050,  # 30
-]
+## DS2's `experience_table` (XP needed to REACH each level), as far as it is documented (docs/ds2-combat-and-loot.md section 5). The
+## levels between these points are filled in geometrically (CURSE CHOICE: the full table is not in the reference); every listed level
+## is exact.
+const DS2_SAMPLES := {1: 0, 2: 300, 5: 4000, 10: 34200, 20: 196000, 30: 663000, 40: 1990000, 50: 5740000, 60: 16400000,
+	70: 46700000, 80: 133000000, 90: 377000000, 100: 1070000000}
+
+static var _table: PackedInt64Array = PackedInt64Array()
+
+## Total lifetime XP needed to BE each level, level 1 first (index 0).
+static func table() -> PackedInt64Array:
+	if _table.is_empty():
+		var points: Array = DS2_SAMPLES.keys()
+		points.sort()
+		_table.resize(MAX_LEVEL)
+		for level in range(1, MAX_LEVEL + 1):
+			if DS2_SAMPLES.has(level):
+				_table[level - 1] = int(DS2_SAMPLES[level])
+				continue
+			var below: int = 1
+			var above: int = MAX_LEVEL
+			for p in points:
+				if int(p) < level:
+					below = int(p)
+				elif int(p) > level:
+					above = int(p)
+					break
+			var lo: float = float(DS2_SAMPLES[below])
+			var hi: float = float(DS2_SAMPLES[above])
+			var t: float = float(level - below) / float(above - below)
+			_table[level - 1] = int(round(lo * pow(hi / lo, t)))
+	return _table
 
 ## The most XP a hero can hold: exactly what level MAX_LEVEL takes. XP earned past it is not kept.
 static func max_xp() -> int:
-	return XP_FOR_LEVEL[MAX_LEVEL - 1]
+	return table()[MAX_LEVEL - 1]
 
 ## Total XP needed to be this level (the level is clamped to 1..MAX_LEVEL).
 static func xp_for_level(level: int) -> int:
-	return XP_FOR_LEVEL[clampi(level, 1, MAX_LEVEL) - 1]
+	return table()[clampi(level, 1, MAX_LEVEL) - 1]
 
 ## A saved or typed XP value made safe: whole, never negative, never past the cap. Anything that is not a number (a malformed save)
 ## is 0. JSON hands integers back as floats, so floats are accepted.
@@ -64,7 +60,8 @@ static func sanitize_xp(value: Variant) -> int:
 static func level_for_xp(total_xp: int) -> int:
 	var xp: int = sanitize_xp(total_xp)
 	var level: int = 1
-	while level < MAX_LEVEL and xp >= XP_FOR_LEVEL[level]:
+	var t: PackedInt64Array = table()
+	while level < MAX_LEVEL and xp >= t[level]:
 		level += 1
 	return level
 
@@ -100,35 +97,55 @@ static func progress_text(total_xp: int) -> String:
 		return "MAX LEVEL"
 	return "%d / %d XP" % [xp_into_level(total_xp), xp_span_of_level(total_xp)]
 
-# --- What the world pays in XP --------------------------------------------------------------------------------------------------------
-# One place for every reward rule and number, so the economy can be tuned in one file. None of these read the hero's level: the same source
-# is worth the same XP to a level 1 hero and a level 20 one (the rising level requirements are what make early content inefficient).
-# Priority: world accomplishments (quests, named monsters, nests) are worth far more than trash.
+# --- What the world pays in XP (DS2, section 5) ------------------------------------------------------------------------------------
+# A kill pays the monster's DS2 XP value for its level and tier, times the level-gap multiplier, split over the party (the hero and Cutter)
+# with DS2's group bonus. CURSE CHOICE (owner): it is paid when the monster dies, not hit by hit as DS2 does; the hero's share is divided
+# over his class skills by the damage each did to it.
 
-## A nest destroyed (paid once, when it breaks, not when the quest is handed in).
-const NEST_XP := 18
-## The standing Crypt Road quest, paid on hand-in (the offer carries it as "xp"; see TownState.crypt_road_offer).
-const STANDING_QUEST_XP := 120
-## A named monster killed: NAMED_BASE_XP + NAMED_PER_LEVEL x its own level, + NEMESIS_PER_KILL for every time it has killed the hero,
-## + PLOT_BONUS_XP if it had a plot under way (the player stopped a live threat).
-const NAMED_BASE_XP := 40
-const NAMED_PER_LEVEL := 20
-const NEMESIS_PER_KILL := 25
-const PLOT_BONUS_XP := 25
+## DS2 monster tiers and what their XP is multiplied by.
+const TIER_XP := {"trivial": 0.42, "weak": 0.80, "normal": 1.0, "strong": 1.25, "miniboss": 3.33}
+
+## DS2 party bonus by the number of members who level; each gets bonus / members of what a lone hero would.
+const PARTY_BONUS := [1.0, 1.0, 1.80, 2.43, 2.92]
+
+## A nest destroyed pays a miniboss of its level; the standing quest a fixed sum. Named monsters pay a miniboss of their level, plus
+## NEMESIS_PER_KILL for every time one has killed the hero and PLOT_BONUS_XP if it had a plot under way. (Curse choices, DS2 scale.)
+const STANDING_QUEST_XP := 3000
+const NEMESIS_PER_KILL := 400
+const PLOT_BONUS_XP := 400
 
 ## `--xplog`: print why XP was paid (developer only).
 static var logging: bool = false
 
-## XP for one kill: the enemy's own base value times the threat it was killed at (a stronger version is worth more), at least 1 for any
-## enemy that is worth something at all. An enemy worth 0 stays worth 0.
-static func kill_xp(base_xp: int, source_threat: float) -> int:
-	if base_xp <= 0:
-		return 0
-	return maxi(int(round(float(base_xp) * maxf(source_threat, 0.0))), 1)
+## DS2's XP value of a monster: `L < 12: 48 + 12L`, otherwise `6480 x 1.11^L / (5.4 (L + 10))`, times its tier.
+static func monster_xp(level: int, tier: String = "normal") -> int:
+	var l: int = maxi(level, 0)
+	var base: float = 48.0 + 12.0 * l if l < 12 else 6480.0 * pow(1.11, l) / (5.4 * (l + 10))
+	return maxi(int(round(base * float(TIER_XP.get(tier, 1.0)))), 1)
 
-## The extra XP for killing a named monster of this level, which has killed the hero `hero_kills` times, with or without a plot going.
-static func named_xp(level: float, hero_kills: int, has_plot: bool) -> int:
-	return NAMED_BASE_XP + int(round(NAMED_PER_LEVEL * level)) + NEMESIS_PER_KILL * maxi(hero_kills, 0) + (PLOT_BONUS_XP if has_plot else 0)
+## DS2's level-gap multiplier (hero level - monster level): more than 4 above, -20% a level; more than 4 below, -20% a level too
+## (DS2 penalises both, so neither farming nor carrying pays); never under 5%.
+static func level_gap_mult(hero_level: int, monster_level: int) -> float:
+	var gap: int = hero_level - monster_level
+	var mult: float = 1.0
+	if gap > 4:
+		mult = 1.0 - 0.2 * (gap - 4)
+	elif gap < -4:
+		mult = 1.0 + 0.2 * (gap + 4)
+	return maxf(mult, 0.05)
+
+## What each member of a party of `members` gets of a kill worth `xp` to a lone hero.
+static func party_share(xp: int, members: int) -> int:
+	var n: int = clampi(members, 1, PARTY_BONUS.size() - 1)
+	return int(round(float(xp) * float(PARTY_BONUS[n]) / float(n)))
+
+## A nest of this monster level.
+static func nest_xp(level: int) -> int:
+	return monster_xp(level, "miniboss")
+
+## A named monster of this monster level, which has killed the hero `hero_kills` times, with or without a plot going.
+static func named_xp(level: int, hero_kills: int, has_plot: bool) -> int:
+	return monster_xp(level, "miniboss") + NEMESIS_PER_KILL * maxi(hero_kills, 0) + (PLOT_BONUS_XP if has_plot else 0)
 
 static func log_xp(text: String) -> void:
 	if logging:

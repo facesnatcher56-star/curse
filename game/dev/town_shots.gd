@@ -52,9 +52,8 @@ func _xp_demo() -> void:
 		if node.has_meta("monster_uid") and int(node.get_meta("monster_uid")) == int(mon["uid"]):
 			named = node
 	before = TownState.hero_xp
-	var expected: int = HeroProgression.kill_xp(2, 3.4) + HeroProgression.named_xp(3.4, 1, false)
 	await hit_dead.call(named)
-	step.call("named monster lvl 3.4, 1 hero kill (expect %d)" % expected, before)
+	step.call("named monster threat 3.4 (level %d), 1 hero kill" % WorldThreat.monster_level(3.4), before)
 	before = TownState.hero_xp
 	TownState.board[0]["ready"] = true
 	town.claim_rewards()

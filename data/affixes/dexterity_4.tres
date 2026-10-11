@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dexterity_4"
+family = "dexterity"
+stat = "dex"
+title = "of Nimbleness"
+position = "suffix"
+tier = 4
+level = 31
+value = 38.0
+percent = false
+slots = Array[String](["weapon", "body", "gloves", "boots", "ring", "amulet"])

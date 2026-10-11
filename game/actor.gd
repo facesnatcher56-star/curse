@@ -10,14 +10,14 @@ const LAYER_ENEMY := 4
 
 var max_health: float = 100.0
 var health: float = 100.0
-var attack_rating: float = 20.0
-var defense: float = 20.0
-var armor: float = 20.0
+## Dungeon Siege II's combat numbers (see Combat): the level (the hero's character level, Cutter's, a monster's from its threat), armour,
+## fire resistance as a fraction, the chance to dodge a blow, to block one (a shield's), and to land a critical.
+var level: int = 1
+var armor: float = 0.0
 var fire_resist: float = 0.0
+var dodge_chance: float = 0.0
 var block_chance: float = 0.0
-var crit_chance: float = 0.05
-var crushing_chance: float = 0.03
-var deep_wounds_chance: float = 0.04
+var crit_chance: float = 0.0
 var body_radius: float = 0.4
 var dead: bool = false
 
@@ -37,6 +37,21 @@ var _burn_by_hero: bool = false
 
 func credit_hero() -> void:
 	_hero_credit_ms = Time.get_ticks_msec()
+
+## What the hero's party did to this actor, for the XP when it dies (DS2 pays the class skill of the weapon or spell used): the hero's
+## damage by class skill ({melee, ranged, combat, nature}) and Cutter's. Only damage that took life counts.
+var hero_damage: Dictionary = {}
+var cutter_damage: float = 0.0
+
+func _tally_damage(source: Actor, skill_id: String, amount: float) -> void:
+	var dealt: float = minf(amount, maxf(health, 0.0))
+	if dealt <= 0.0:
+		return
+	if source is Player:
+		var id: String = HeroAttributes.class_of_skill(skill_id)
+		hero_damage[id] = float(hero_damage.get(id, 0.0)) + dealt
+	elif source is ArcherCompanion:
+		cutter_damage += dealt
 
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
@@ -58,6 +73,9 @@ var bar_timer: float = 0.0     # >0 while a floating health bar should be shown 
 var flinch_chance: float = 0.0
 const SMALL_STUN_RESIST := 0.2   # monsters with no more stun resistance than this flinch from every blow
 const MIN_FLINCH := 0.2          # s: the shortest interruption a blow causes
+## A blow at least this heavy (strike weight) staggers the hero, which on him is the knockdown: a Brute's heavy swing (2.7), the Warden's
+## special (2.0); a zombie's heavy lunge (1.5) is not.
+const HEAVY_BLOW_WEIGHT := 2.0
 var flinch_serial: int = 0       # counts the blows that landed on a living body, so the hit pose can restart for each one
 var hitpause: float = 0.0
 var invulnerable_time: float = 0.0
@@ -66,6 +84,11 @@ var ragdoll: Ragdoll
 var impaled: bool = false   # skewered on the player's sword (Skewer); the player carries it, its AI is paused
 var _saved_collision: Vector2i = Vector2i.ZERO
 var is_boss: bool = false  # bosses ignore shoves and forced interrupts (see interrupt())
+
+## A big body (a boss; an Enemy also by its DS2 tier, see Enemy.is_big).
+func is_big() -> bool:
+	return is_boss
+
 var slow_time: float = 0.0
 var slow_amount: float = 0.0   # fraction of speed removed while slowed
 
@@ -166,7 +189,7 @@ func _knock_impact() -> void:
 			return
 
 func _impact_hit(amount: float) -> Dictionary:
-	return {"outcome": Combat.Outcome.HIT, "damage": amount, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 0.5, "source": knocked_by,
+	return {"outcome": Combat.Outcome.HIT, "damage": amount, "weight": 0.5, "source": knocked_by,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "impact", "secondary": true}
 
 func _knock_into_wall(speed: float, point: Vector3) -> void:
@@ -273,20 +296,21 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		and String(result.get("skill_id", "")) in SWORD_SKILLS
 	bar_timer = 4.0
 	last_result = result
-	# Brutal Attack always bursts a victim it kills. Otherwise a crit/crushing killing blow bursts the body, while
+	# Brutal Attack always bursts a victim it kills. Otherwise a critical killing blow bursts the body, while
 	# a direct fire kill (a fireball, not a secondary proc) bursts it into burning pieces.
 	if health - damage <= 0.0 and not is_in_group("player"):
 		if fire and not result.get("secondary", false):
 			_pending_gib = "fire"
 		elif String(result.get("skill_id", "")) in GIBBING_POWERS \
-				or (not calm and (outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING)):
+				or (not calm and outcome == Combat.Outcome.CRITICAL):
 			_pending_gib = "gore"
 		_gib_from = source_pos
+	_tally_damage(source, String(result.get("skill_id", "")), damage)
 	_apply_damage(damage)
 
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
 	var killed: bool = dead
-	var big: bool = outcome == Combat.Outcome.CRUSHING or outcome == Combat.Outcome.CRITICAL
+	var big: bool = outcome == Combat.Outcome.CRITICAL
 	var profile: Dictionary = Fx.impact_profile(outcome, weight)
 	if sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
@@ -305,7 +329,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		_squash(away, 0.08 * weight + (0.1 if big else 0.0))
 		flinch_serial += 1
 		if not is_in_group("player") and not is_ragdolled() and model != null:   # the body takes the blow: chest tips away, shoulders turn, head follows
-			var scale_up: float = 2.2 if outcome == Combat.Outcome.CRUSHING else (1.5 if outcome == Combat.Outcome.CRITICAL else 1.0)
+			var scale_up: float = 1.5 if outcome == Combat.Outcome.CRITICAL else 1.0
 			model.react(away, BodyRecoil.peak_for(weight, scale_up, knock_resist))
 
 	if not calm:
@@ -323,9 +347,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		if source != null and source != self:
 			source.add_hitpause(pause)
 		var charging: bool = source is Player and (source as Player).is_charging()   # no stutter in the middle of a charge
-		if outcome == Combat.Outcome.CRUSHING and not charging:
-			Fx.hitstop(self, 0.07)
-		elif outcome == Combat.Outcome.CRITICAL and not charging:
+		if outcome == Combat.Outcome.CRITICAL and not charging:
 			Fx.hitstop(self, 0.045)
 
 	# Equipment reacts to every landed hit (including the one that killed).
@@ -335,10 +357,12 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	var push: float = 2.5
 	var hero: bool = is_in_group("player")
+	if hero and weight >= HEAVY_BLOW_WEIGHT:
+		# A heavy blow (a Brute's or the Warden's big swing, a blast) staggers the hero: on him that is the knockdown (Player._gain_stun).
+		# DS2 has no such outcome; this keeps Curse's physical knockdown now that the Zombasite "crushing" roll is gone.
+		push = 9.0
+		_gain_stun(0.5 * (1.0 - stun_resist), result)
 	match outcome:
-		Combat.Outcome.CRUSHING:
-			push = 9.0
-			_gain_stun((0.5 if hero else 0.8) * (1.0 - stun_resist), result)
 		Combat.Outcome.CRITICAL:
 			push = 5.5
 			if not hero:
@@ -352,9 +376,6 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if hero:
 		shove *= 0.2 if is_acting() else 0.5   # mid-skill the hero is planted
 	knock += away * shove
-	if outcome == Combat.Outcome.DEEP_WOUNDS:
-		bleed_dps = result["bleed_dps"]
-		bleed_time = result["bleed_time"]
 	_on_hurt(result, source_pos)
 
 ## Staggered by a blow. The hero overrides this (his passives can shrug a light one off, see Player._gain_stun).
@@ -652,6 +673,7 @@ func _tick_burn(delta: float) -> void:
 	burn_time -= delta
 	if _burn_by_hero:
 		credit_hero()   # fire the hero lit keeps the credit while it burns
+		hero_damage["combat"] = float(hero_damage.get("combat", 0.0)) + minf(burn_dps * delta, maxf(health, 0.0))
 	_apply_damage(burn_dps * delta)
 	# The burning shows in ticks: every half second a fiery number for what it took, a puff of embers and a flare of the flames.
 	_burn_owed += burn_dps * delta

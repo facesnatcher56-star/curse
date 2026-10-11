@@ -129,7 +129,7 @@ func _test_hero_knockdown() -> void:
 	var hit_hero: Callable = func(damage: float, weight: float) -> void:
 		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
 		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
-		result["outcome"] = Combat.Outcome.CRUSHING
+		result["outcome"] = Combat.Outcome.HIT
 		result["damage"] = damage
 		result["weight"] = weight
 		player.invulnerable_time = 0.0
@@ -151,9 +151,9 @@ func _test_hero_knockdown() -> void:
 	var ring: Array[Enemy] = []
 	for angle in [0.0, 2.1, 4.2]:
 		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
-	# An ordinary (light) stagger: no knockdown.
+	# An ordinary (light) blow: no knockdown, and (DS2 has no stagger roll) no stun either.
 	hit_hero.call(4.0, 1.0)
-	expect("a light stagger does not knock him down", not kd.active() and kd.knockdowns == 0 and player.stun_time > 0.0)
+	expect("a light blow neither knocks him down nor stuns him", not kd.active() and kd.knockdowns == 0 and player.stun_time <= 0.0)
 	await get_tree().create_timer(1.0).timeout
 	await calm.call()
 	for i in ring.size():
@@ -206,7 +206,8 @@ func _test_hero_knockdown() -> void:
 	var cooldowns_ok: bool = true
 	for id in player.stats.cooldowns.keys():
 		cooldowns_ok = cooldowns_ok and float(player.stats.cooldowns[id]) <= float(cooldowns_before.get(id, 0.0)) + 0.001
-	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + 2.0 and player.health >= health_after_blow - 0.01 and cooldowns_ok)
+	var regen_allowance: float = player.max_health * HeroAttributes.REGEN_PER_SECOND * (Knockdown.TOTAL_TIME + 1.5)   # DS2 regenerates 1% a second meanwhile
+	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + regen_allowance and player.health >= health_after_blow - 0.01 and cooldowns_ok)
 	await get_tree().create_timer(0.8).timeout
 	expect("he still has his weapon afterwards", wt.has_weapon())
 	# A second heavy blow while already down neither restarts nor stretches the fall.

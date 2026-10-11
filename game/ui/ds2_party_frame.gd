@@ -61,7 +61,7 @@ func update_frame(p: Player) -> void:
 		companion_card.visible = true
 		var c_hp_pct: float = float(cutter.get("health")) / maxf(float(cutter.get("max_health")), 0.001)
 		var c_mana_pct: float = 1.0
-		var c_xp_pct: float = xp_pct
+		var c_xp_pct: float = HeroProgression.level_fraction(TownState.cutter_xp)   # his own level (a DS2 party member)
 		var take_aim_charge: float = 1.0
 		var reload_req: float = float(cutter.get("take_aim_reload_required"))
 		var reload_rem: float = float(cutter.get("take_aim_reload_remaining"))

@@ -22,7 +22,7 @@ unique_level = 1.5
 item_name = ""
 reward = {
 "gold": 90,
-"xp": 110,
+"xp": 2750,
 "happy": {
 "all": 3
 }

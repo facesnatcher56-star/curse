@@ -58,18 +58,24 @@ var _orbit_flip: float = 2.0
 static var max_tokens: int = 2
 static var _token_holders: Dictionary = {}   # instance id -> [weight, expiry (ms)]
 
-## Sets how dangerous the body is (a world threat, see WorldThreat: the same scale as `level_scale`) on one that already exists: health and
-## damage follow, the share of health left stays. A named monster calls this as it grows; spawning it with its threat does the same job.
+## Sets how dangerous the body is (a world threat, see WorldThreat: the same scale as `level_scale`) on one that already exists: its DS2
+## level, life, damage and armour follow, the share of health left stays. A named monster calls this as it grows; spawning it with its
+## threat does the same job.
 func set_threat(threat: float) -> void:
-	threat = maxf(threat, 0.1)
 	var fraction: float = health / maxf(max_health, 1.0)
-	var old_damage: float = 1.0 + 0.4 * (level_scale - 1.0)
-	var new_damage: float = 1.0 + 0.4 * (threat - 1.0)
-	max_health *= threat / maxf(level_scale, 0.1)
+	_apply_level(maxf(threat, 0.1))
 	health = max_health * fraction
-	damage_min *= new_damage / old_damage
-	damage_max *= new_damage / old_damage
+
+## Dungeon Siege II's numbers for this kind at the level its threat makes it (MonsterScaling): life, a blow of 0.75 to 1.25 of the
+## average damage, and armour.
+func _apply_level(threat: float) -> void:
 	level_scale = threat
+	level = WorldThreat.monster_level(threat)
+	max_health = MonsterScaling.life(level, def.tier, def.role)
+	var average: float = MonsterScaling.damage(level, def.tier, def.role)
+	damage_min = average * 0.75
+	damage_max = average * 1.25
+	armor = MonsterScaling.armor(level)
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -77,17 +83,11 @@ func _ready() -> void:
 	collision_mask = LAYER_WORLD | LAYER_PLAYER | LAYER_ENEMY
 	def = EnemyDb.get_def(variant)
 	display_name = def.display_name
-	max_health = def.health * level_scale
+	_apply_level(level_scale)
 	health = max_health
-	var damage_scale: float = 1.0 + 0.4 * (level_scale - 1.0)
-	damage_min = def.damage_min * damage_scale
-	damage_max = def.damage_max * damage_scale
 	move_speed = def.speed * randf_range(0.9, 1.1)
 	attack_range = def.attack_range
 	attack_time = def.attack_time
-	armor = def.armor
-	defense = def.defense
-	attack_rating = def.attack_rating
 	flinch_chance = def.flinch
 	knock_resist = def.knock_resist
 	stun_resist = def.stun_resist
@@ -460,6 +460,14 @@ func _refresh_overlay() -> void:
 		model.set_overlay(_tele_mat)
 		return
 	model.set_overlay(get_highlight_material() if highlighted else null)
+
+## A big monster (orange on the map and the target bar, and a sure healing drop): a boss, or DS2's strong or miniboss tier.
+func is_big() -> bool:
+	return is_boss or def.tier in ["strong", "miniboss"]
+
+## The middle of its blow (its DS2 damage per hit): what its blasts and puddles are worked out from.
+func average_hit() -> float:
+	return (damage_min + damage_max) * 0.5
 
 ## One melee blow at the target. `power` scales the damage roll, `weight` the knock-back and stagger.
 func strike_target(power: float, weight: float) -> void:

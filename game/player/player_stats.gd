@@ -8,41 +8,85 @@ func _init(player: Player) -> void:
 	p = player
 	ult_charge = ult_cost("earthshatter")   # a run starts with the ultimate ready
 
-## One-line damage summary for tooltips.
+## One-line damage summary for tooltips (the blow before the target's armour).
 func skill_damage_text(id: String) -> String:
 	var skill: Dictionary = SkillDb.all()[id]
 	match String(skill["kind"]):
 		"melee":
-			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * float(skill["mult"])
-			if id == "basic":
-				return "Damage %d-%d per hit" % [int(weapon_min * factor), int(weapon_max * factor)]
-			return "Damage %d-%d" % [int(weapon_min * factor), int(weapon_max * factor)]
+			var r: Vector2 = weapon_range(float(skill["mult"]))
+			return ("Damage %d-%d per hit" if id == "basic" else "Damage %d-%d") % [int(r.x), int(r.y)]
 		"projectile":
-			return "Fire damage ~%d" % int(14.0 + strength * 0.4)
+			var spell: Vector2 = spell_range()
+			return "Fire damage %d-%d" % [int(spell.x), int(spell.y)]
+		"throw":
+			var thrown: Vector2 = weapon_range(float(skill["mult"]), true)
+			return "Damage up to %d-%d" % [int(thrown.x), int(thrown.y)]
 		"charge":
-			var base: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0)
-			return "Impale %d-%d, then %d-%d per kick" % [int(weapon_min * base * 1.5), int(weapon_max * base * 1.5),
-				int(weapon_min * base * 1.8), int(weapon_max * base * 1.8)]
+			var impale: Vector2 = weapon_range(1.5)
+			var kick: Vector2 = weapon_range(1.8)
+			return "Impale %d-%d, then %d-%d per kick" % [int(impale.x), int(impale.y), int(kick.x), int(kick.y)]
 		"leap":
-			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0)
-			return "Chop %d-%d, slam %d-%d (crit)" % [int(weapon_min * factor * p.leap.LEAP_CHOP_MULT), int(weapon_max * factor * p.leap.LEAP_CHOP_MULT),
-				int(weapon_min * factor * p.leap.LEAP_SLAM_MULT), int(weapon_max * factor * p.leap.LEAP_SLAM_MULT)]
+			var chop: Vector2 = weapon_range(p.leap.LEAP_CHOP_MULT)
+			var slam: Vector2 = weapon_range(p.leap.LEAP_SLAM_MULT)
+			return "Chop %d-%d, slam %d-%d (crit)" % [int(chop.x), int(chop.y), int(slam.x), int(slam.y)]
 		"earthshatter":
-			var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * p.earthshatter.MULT
-			return "Damage %d-%d, thrown %d m up" % [int(weapon_min * factor * p.earthshatter.MIN_FALLOFF), int(weapon_max * factor),
+			var shatter: Vector2 = weapon_range(p.earthshatter.MULT)
+			return "Damage %d-%d, thrown %d m up" % [int(shatter.x * p.earthshatter.MIN_FALLOFF), int(shatter.y),
 				int(pow(p.earthshatter.LAUNCH_LIFT, 2.0) / 40.0)]
 		"buff":
 			if id == "brutal_attack":
-				var factor: float = (1.0 + strength * 0.02) * weapon_stat("damage", 1.0) * SkillController.BRUTAL_MULT
-				return "Empowered hit %d-%d" % [int(weapon_min * factor), int(weapon_max * factor)]
+				var brutal: Vector2 = weapon_range(SkillController.BRUTAL_MULT)
+				return "Empowered hit %d-%d" % [int(brutal.x), int(brutal.y)]
 			elif id == "take_aim":
-				return "Cutter's arrow deals ~%d" % int(ArcherCompanion.DAMAGE * ArcherCompanion.TAKE_AIM_MULT)
+				var cutter := _cutter()
+				return "Cutter's arrow deals ~%d" % int((cutter.arrow_damage() if cutter != null else 10.0) * ArcherCompanion.TAKE_AIM_MULT)
 		"potion":
 			return "Heals 60"
 	return ""
 
-var max_mana: float = 80.0
-var mana: float = 80.0
+# --- Attributes, life and mana (Dungeon Siege II, see HeroAttributes) ---------------------------------------------------------------
+## STR, DEX, INT from the hero's class skill levels (TownState.class_xp). Refreshed whenever his XP changes (`refresh`).
+var attributes: Vector3 = HeroAttributes.START
+var strength: float:
+	get: return attributes.x
+var dexterity: float:
+	get: return attributes.y
+var intelligence: float:
+	get: return attributes.z
+
+## Works STR / DEX / INT out again from the saved class XP, and with them the hero's maximum life and mana (keeping the share he has
+## left of each). His character level becomes his combat level.
+func refresh() -> void:
+	attributes = HeroAttributes.attributes(HeroAttributes.levels_from_xp(TownState.class_xp))
+	var life_share: float = p.health / maxf(p.max_health, 1.0)
+	var mana_share: float = mana / maxf(max_mana, 1.0)
+	p.max_health = HeroAttributes.max_life(attributes)
+	max_mana = HeroAttributes.max_mana(attributes)
+	p.health = clampf(p.max_health * life_share, 0.0, p.max_health) if not p.dead else p.health
+	mana = max_mana * mana_share
+	p.level = TownState.hero_level
+
+## A skill's mana: its data's, except Fireball, a DS2 spell whose cost grows with INT (82 at INT 100, 164 at 200: 0.82 x INT).
+func mana_cost(id: String) -> float:
+	if id == "fireball":
+		return roundf(SPELL_MANA_PER_INT * intelligence)
+	return float(SkillDb.all()[id]["mana"])
+
+## DS2's Fireball (the reference's table): about 53 at INT 100 and 105 at INT 200, fitted as `1 + 0.52 x INT`, rolled 0.75 to 1.25.
+const SPELL_BASE := 1.0
+const SPELL_PER_INT := 0.52
+const SPELL_MANA_PER_INT := 0.82
+
+func spell_range() -> Vector2:
+	var average: float = SPELL_BASE + SPELL_PER_INT * intelligence
+	return Vector2(average * 0.75, average * 1.25)
+
+func spell_damage() -> float:
+	var r: Vector2 = spell_range()
+	return randf_range(r.x, r.y)
+
+var max_mana: float = 55.0
+var mana: float = 55.0
 ## Stamina is OFF as a resource (owner's first playtest: it served no purpose yet and only felt bad). With this false nothing spends it, nothing is
 ## gated on it, and the HUD shows no bar. The numbers below stay so turning it back on is this one line.
 const STAMINA_ON := false
@@ -51,9 +95,6 @@ var stamina: float = 100.0
 const MAX_POTIONS := 6
 var potions: int = 3
 var run_speed: float = 5.0
-var strength: float = 15.0
-var weapon_min: float = 6.0
-var weapon_max: float = 11.0
 var cooldowns: Dictionary = {}
 ## True while the weapon is out of his hand (Weapon Throw): the weapon slot cannot be changed until it is back, so he never owns two.
 var weapon_locked: bool = false
@@ -61,7 +102,7 @@ var weapon_locked: bool = false
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
 var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
 const MAX_BAG := 12
-var base_armor: float = 15.0
+var base_armor: float = 0.0   # DS2: a hero's armour is all his gear's
 ## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
 var ult_charge: float = 0.0   # starts full (set in _init)
 const BRUTAL_COMBAT_SECONDS := 21.0
@@ -133,7 +174,7 @@ func can_use(id: String) -> bool:
 		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0
 	if ult_cost(id) > 0.0 and ult_fraction(id) < 1.0:
 		return false
-	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
+	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= mana_cost(id)
 
 func use_potion() -> bool:
 	if potions <= 0:
@@ -151,8 +192,24 @@ func use_potion() -> bool:
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 
-func weapon_damage(mult: float) -> float:
-	return randf_range(weapon_min, weapon_max) * (1.0 + strength * 0.02) * mult * weapon_stat("damage", 1.0)
+## The wielded weapon's own blow (DS2 one-handed: `3.4 + 0.74 x item level` on average, rolled 0.75 to 1.25), scaled by its base's damage.
+## CURSE CHOICE until DS2 item levels arrive: the item's tier stands in for its item level.
+func weapon_base_range() -> Vector2:
+	var item: Variant = equipment.get(Items.Slot.WEAPON)
+	var item_level: float = float((item as Dictionary).get("tier", 1)) if item != null else 1.0
+	var average: float = (3.4 + 0.74 * item_level) * weapon_stat("damage", 1.0)
+	return Vector2(average * 0.75, average * 1.25)
+
+## DS2's hero blow: the weapon plus 0.2 x STR (DEX for a thrown weapon), 0.75 of that on the low roll and 1.25 on the high, times `mult`
+## (the skill's multiplier, DS2's power damage multiplier).
+func weapon_range(mult: float, thrown: bool = false) -> Vector2:
+	var base: Vector2 = weapon_base_range()
+	var bonus: float = 0.2 * maxf(dexterity if thrown else strength, 10.0)
+	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * mult
+
+func weapon_damage(mult: float, thrown: bool = false) -> float:
+	var r: Vector2 = weapon_range(mult, thrown)
+	return randf_range(r.x, r.y)
 
 # --- Equipment -----------------------------------------------------------------
 
@@ -238,10 +295,11 @@ func collect_orbs() -> void:
 ## Seconds left in which stamina recovers at its normal rate whatever the fight is doing (Bloody Recovery, after a physical kill).
 var stamina_free_time: float = 0.0
 
+## DS2 regeneration: about 1% of the maximum a second, life and mana alike.
 func regen(delta: float) -> void:
 	var in_combat: bool = p.combat_timer > 0.0
-	p.health = minf(p.health + 1.5 * (0.3 if in_combat else 1.0) * delta, p.max_health)
-	mana = minf(mana + 3.0 * delta, max_mana)
+	p.health = minf(p.health + p.max_health * HeroAttributes.REGEN_PER_SECOND * delta, p.max_health)
+	mana = minf(mana + max_mana * HeroAttributes.REGEN_PER_SECOND * delta, max_mana)
 	stamina_free_time = maxf(stamina_free_time - delta, 0.0)
 	if not in_combat or p.velocity.length() < 0.5 or stamina_free_time > 0.0:
 		stamina = minf(stamina + 14.0 * delta, max_stamina)

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "life_3"
+family = "life"
+stat = "life"
+title = "of the Fox"
+position = "suffix"
+tier = 3
+level = 14
+value = 46.0
+percent = false
+slots = Array[String](["weapon", "body", "helm", "gloves", "boots", "shield", "ring", "amulet"])

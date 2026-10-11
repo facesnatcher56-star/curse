@@ -87,7 +87,7 @@ func _spit() -> void:
 	glob.damage = randf_range(e.damage_min, e.damage_max)
 	glob.puddle_radius = float(e.def.param("puddle_radius", 1.6))
 	glob.puddle_time = float(e.def.param("puddle_time", 3.5))
-	glob.puddle_dps = float(e.def.param("puddle_dps", 5.0))
+	glob.puddle_dps = e.average_hit() * float(e.def.param("puddle_mult", 0.67))
 	glob.puddle_slow = float(e.def.param("puddle_slow", 0.3))
 	e.get_tree().current_scene.add_child(glob)
 	Fx.burst(e, glob.from_pos, (_aim - e.global_position).normalized(), Color(0.5, 0.9, 0.2), 12, 4.0, 0.03, true)

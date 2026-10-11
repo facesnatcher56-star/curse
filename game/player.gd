@@ -65,12 +65,11 @@ func _ready() -> void:
 	display_name = "Knight"
 	collision_layer = LAYER_PLAYER
 	collision_mask = LAYER_WORLD | LAYER_ENEMY
-	max_health = 120.0
+	stats.refresh()   # DS2: life and mana from his attributes, which come from his class skills; his level is his character level
 	health = max_health
-	attack_rating = 40.0
-	defense = 30.0
+	stats.mana = stats.max_mana
 	armor = stats.base_armor
-	block_chance = 0.1
+	block_chance = 0.0   # DS2: blocking needs a shield
 	_build_model(MODEL_DIR, CLIPS, 1.8, 0.4)
 	model.loop("idle_alert")
 	if ResourceLoader.exists(SWORD_PATH):
@@ -121,13 +120,9 @@ func add_hitpause(duration: float) -> void:
 		return
 	super.add_hitpause(duration)
 
-## A hit is HEAVY when one blow takes this share of max health, or it is an enemy's heavy attack (strike weight); otherwise it is LIGHT.
-const HEAVY_HIT_FRACTION := 0.10
-const HEAVY_HIT_WEIGHT := 2.0
-
-## One blow is HEAVY at a tenth of max health or an enemy's heavy attack; a heavy one puts him on the ground (see Knockdown).
+## A HEAVY blow is an enemy's heavy attack (its strike weight, Actor.HEAVY_BLOW_WEIGHT); it puts him on the ground (see Knockdown).
 func is_heavy_hit(result: Dictionary) -> bool:
-	return float(result.get("damage", 0.0)) >= max_health * HEAVY_HIT_FRACTION or float(result.get("weight", 1.0)) >= HEAVY_HIT_WEIGHT
+	return float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT
 
 ## A stagger that would stop him. A HEAVY one always lands and puts him on the ground (see Knockdown); a light one is an ordinary flinch.
 func _gain_stun(duration: float, result: Dictionary = {}) -> void:
@@ -550,7 +545,33 @@ func _manage_dormancy() -> void:
 		var d: float = here.distance_to(Vector2(e.global_position.x, e.global_position.z))
 		e.set_dormant(d > (Enemy.WAKE_RANGE if e.dormant else Enemy.SLEEP_RANGE))
 
+func _enter_tree() -> void:
+	if not TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
+		TownState.events.hero_xp_changed.connect(_on_xp_changed)
+		TownState.events.hero_leveled.connect(_on_leveled)
+
+func _on_xp_changed(_old_xp: int, _new_xp: int) -> void:
+	stats.refresh()
+
+## DS2's level-up: full life and mana, and every power and skill ready again (Brutal Attack, Earthshatter, Cutter's Take Aim, cooldowns).
+func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
+	stats.refresh()
+	if dead:
+		return
+	health = max_health
+	stats.mana = stats.max_mana
+	stats.cooldowns.clear()
+	stats.brutal_reload_remaining = 0.0
+	stats.ult_charge = PlayerStats.MAX_ULT_CHARGE
+	var cutter := stats._cutter()
+	if cutter != null:
+		cutter.take_aim_reload_remaining = 0.0
+
 func _exit_tree() -> void:
+	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
+		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
+	if TownState.events.hero_leveled.is_connected(_on_leveled):
+		TownState.events.hero_leveled.disconnect(_on_leveled)
 	if weapon_throw != null:
 		weapon_throw.reset()
 
@@ -632,7 +653,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 			if stats.can_use(skill_id):
 				skills.start_skill(skill_id, target)
 				return
-			if stats.mana < float(skill["mana"]):
+			if stats.mana < stats.mana_cost(skill_id):
 				_say("Not enough mana")
 			skills.clear_queue()
 			move_with(Vector3.ZERO)
@@ -654,7 +675,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	var outcome: int = result.get("outcome", 0)
-	if outcome == Combat.Outcome.CRITICAL or outcome == Combat.Outcome.CRUSHING:
+	if outcome == Combat.Outcome.CRITICAL or float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)

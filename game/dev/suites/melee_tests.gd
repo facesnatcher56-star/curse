@@ -499,7 +499,7 @@ func _test_weapon_styles() -> void:
 			e.alert_delay = 999.0
 			e.max_health = 5000.0
 			e.health = 5000.0
-			e.defense = 0.0   # a swing can still miss (5%) or be blocked, so each is tried a few times
+			e.dodge_chance = 0.0   # (DS2: a blow lands unless dodged or blocked)
 			e.block_chance = 0.0
 		skills.busy_skill = "basic"
 		skills.busy_target = target
@@ -588,20 +588,20 @@ func _test_body_recoil() -> void:
 	target.max_health = 5000.0
 	target.health = 5000.0
 	await get_tree().create_timer(0.4).timeout
-	var blow: Dictionary = {"outcome": Combat.Outcome.CRUSHING, "damage": 5.0, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 1.5, "source": player,
+	var blow: Dictionary = {"outcome": Combat.Outcome.CRITICAL, "damage": 5.0, "weight": 2.2, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
 	target.receive(blow, target.global_position + Vector3(0, 0, 3.0))
 	var seen: float = 0.0
 	for i in 40:
 		await get_tree().physics_frame
 		seen = maxf(seen, target.model.reaction.lean.length())
-	expect("a crushing blow on a standing zombie tips its spine (peak %.2f rad)" % seen, seen > 0.15)
+	expect("a heavy critical blow on a standing zombie tips its spine (peak %.2f rad)" % seen, seen > 0.15)
 	expect("and the zombie has thighs to step with", target.model._thighs.size() == 2 and target.model._thighs[0] > 0 and target.model._thighs[1] > 0)
 	await get_tree().create_timer(1.8).timeout
 	expect("and it recovers", not target.model.reaction.active())
 	# Every blow interrupts a small monster, even a light one, and a blow while it is still reeling restarts the reaction.
 	target.stun_time = 0.0
-	var light_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "bleed_dps": 0.0, "bleed_time": 0.0, "weight": 0.5, "source": player,
+	var light_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 0.5, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
 	var every_time: bool = true
 	for i in 4:

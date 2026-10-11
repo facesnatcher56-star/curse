@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "melee_min_2"
+family = "melee_min"
+stat = "melee_min"
+title = "of Suffering"
+position = "suffix"
+tier = 2
+level = 12
+value = 6.0
+percent = false
+slots = Array[String](["weapon"])

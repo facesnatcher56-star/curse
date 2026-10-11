@@ -117,7 +117,7 @@ func _test_monster_scene() -> void:
 		if node.has_meta("monster_uid"):
 			body = node
 	expect("a named monster is put on the road with its name and strength", body != null and body.display_name == String(mon["name"])
-		and body.max_health > EnemyDb.get_def("ghoul").health * 1.4 and body.get_child_count() > 3)
+		and body.max_health > MonsterScaling.life(1, EnemyDb.get_def("ghoul").tier, EnemyDb.get_def("ghoul").role) * 1.4 and body.get_child_count() > 3)
 	expect("it is marked: a diamond and its name over its head", body.find_children("*", "Label3D", false, false).size() == 1 and body.find_children("*", "Sprite3D", false, false).size() == 1)
 	expect("its plot has a sign on the road", get_tree().get_nodes_in_group("plot_signs").size() == 1)
 	var strength: float = body.max_health
@@ -204,7 +204,7 @@ func _test_archer_companion() -> void:
 		and archer.last_hit_target.flinch_serial > 0 and archer.last_hit_target.hero_credited())
 	var expected_take_aim_reload: float = player.stats.power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
 	expect("Cutter's first Ranged power is a 1500% non-crit Take Aim shot with DS2's fast recharge",
-		hit_threat and archer.last_hit_target.max_health - archer.last_hit_target.health > ArcherCompanion.DAMAGE * 5.0
+		hit_threat and archer.last_hit_target.max_health - archer.last_hit_target.health > (3.0 + 0.65 * archer.level) * 5.0
 		and not archer.take_aim_armed and is_equal_approx(archer.take_aim_reload_required, expected_take_aim_reload)
 		and is_equal_approx(archer.take_aim_reload_remaining, expected_take_aim_reload))
 	var take_aim_before_party_hit: float = archer.take_aim_reload_remaining
@@ -278,7 +278,10 @@ func _test_warden() -> void:
 	var definition: EnemyDef = EnemyDb.get_def("warden")
 	expect("Warden definition and mapping load", definition.display_name == "Crypt Warden" and EnemyBehaviors.create(definition.behavior) is WardenBehavior)
 	expect("Warden is authored-only at every wave", EnemyDb.count_for(definition, 9999) == 0 and not EnemyDb.spawnable(9999).has(definition))
-	expect("elite health exceeds Brute without immunity", definition.health == 300.0 and definition.health > EnemyDb.get_def("brute").health and definition.knock_resist < 1.0 and definition.stun_resist < 1.0)
+	var brute_def: EnemyDef = EnemyDb.get_def("brute")
+	expect("the Warden is a DS2 miniboss, outliving a Brute of its level, without immunity", definition.tier == "miniboss"
+		and MonsterScaling.life(5, definition.tier, definition.role) > MonsterScaling.life(5, brute_def.tier, brute_def.role)
+		and definition.knock_resist < 1.0 and definition.stun_resist < 1.0)
 	var enemy: Enemy = _warden_fixture()
 	enemy.global_position = player.global_position + Vector3(0, 0, -8)
 	var start: float = enemy.flat_distance_to(player)

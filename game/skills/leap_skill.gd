@@ -82,7 +82,7 @@ func start_leap(cursor: Vector3) -> void:
 	flat.y = 0.0
 	leap_dir = flat.normalized() if flat.length() > 0.2 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
 	leap_air_time = clampf(0.36 + flat.length() * 0.035, 0.4, 0.75)
-	p.stats.mana -= float(skill["mana"])
+	p.stats.mana -= p.stats.mana_cost("leap")
 	p.stats.cooldowns["leap"] = float(skill["cd"])
 	p.skills.clear_aim()
 	p.skills.busy = true

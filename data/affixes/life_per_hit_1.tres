@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "life_per_hit_1"
+family = "life_per_hit"
+stat = "life_per_hit"
+title = "of Consumption"
+position = "suffix"
+tier = 1
+level = 12
+value = 2.0
+percent = false
+slots = Array[String](["weapon", "gloves"])

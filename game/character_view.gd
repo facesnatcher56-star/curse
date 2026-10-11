@@ -7,6 +7,8 @@ var _bag_scroll: ScrollContainer
 var level_label: Label
 var xp_label: Label
 var xp_bar: Control
+var classes_label: Label    # the four DS2 class skills and their levels
+var attributes_label: Label  # STR, DEX, INT, life and mana
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
@@ -119,6 +121,24 @@ func _add_progression(parent: Control) -> void:
 	xp_bar.draw.connect(func() -> void:
 		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(TownState.hero_xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
 	parent.add_child(xp_bar)
+	classes_label = ItemTile._label(classes_text(), 14, UiTheme.TEXT)
+	parent.add_child(classes_label)
+	attributes_label = ItemTile._label(attributes_text(), 14, UiTheme.TEXT_DIM)
+	parent.add_child(attributes_label)
+
+## "Melee 4   Ranged 1   Combat Magic 0   Nature Magic 0": the DS2 class skills, which rise with use.
+static func classes_text() -> String:
+	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
+	var parts: PackedStringArray = []
+	for id in HeroAttributes.CLASSES:
+		parts.append("%s %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
+	return "   ".join(parts)
+
+## "STR 24  DEX 15  INT 15    Life 118  Mana 76".
+func attributes_text() -> String:
+	var a: Vector3 = hero.stats.attributes if hero != null else HeroAttributes.START
+	return "STR %d  DEX %d  INT %d    Life %d  Mana %d" % [int(a.x), int(a.y), int(a.z), int(hero.max_health if hero != null else 0.0),
+		int(hero.stats.max_mana if hero != null else 0.0)]
 
 func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	if level_label == null:
@@ -126,6 +146,8 @@ func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	level_label.text = "Level %d" % HeroProgression.level_for_xp(new_xp)
 	xp_label.text = HeroProgression.progress_text(new_xp)
 	xp_bar.queue_redraw()
+	classes_label.text = classes_text()
+	attributes_label.text = attributes_text()
 
 func _exit_tree() -> void:
 	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):

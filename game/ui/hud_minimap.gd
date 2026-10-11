@@ -152,7 +152,7 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 				named = Color(0.95, 0.2, 0.14)
 			t.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -8), at + Vector2(8, 0), at + Vector2(0, 8), at + Vector2(-8, 0)]), Color(0, 0, 0, 0.9))
 			t.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -6), at + Vector2(6, 0), at + Vector2(0, 6), at + Vector2(-6, 0)]), named)
-		elif enemy.is_boss or enemy.max_health >= 150.0:
+		elif enemy.is_big():
 			t.draw_circle(at, 5.0, Color(0, 0, 0, 0.8))
 			t.draw_circle(at, 3.8, Color(1.0, 0.55, 0.12))
 		else:

@@ -8,7 +8,7 @@ extends RefCounted
 const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 6
+const SAVE_VERSION := 7
 const MAX_STASH := 12
 const LOW_FOOD := 3
 
@@ -56,6 +56,11 @@ static var chronicle: Array = []          # what has happened: {day, kind, text}
 ## always derived from it (here and on load), kept as a field so everything can simply read `TownState.hero_level`. Nothing else holds a level.
 static var hero_xp: int = 0
 static var hero_level: int = 1
+## The hero's Dungeon Siege II class skills: XP in Melee, Ranged, Combat Magic and Nature Magic. Every award to his character XP is split
+## over these too (by the damage each skill did, see `add_hero_xp`), and they decide his STR / DEX / INT (HeroAttributes).
+static var class_xp: Dictionary = {"melee": 0, "ranged": 0, "combat": 0, "nature": 0}
+## Cutter levels as the hero's party member (DS2's group XP): his character XP, which is all Ranged.
+static var cutter_xp: int = 0
 ## Announces XP and level changes (see ProgressionEvents); the HUD listens, this never knows about any scene.
 static var events := ProgressionEvents.new()
 
@@ -98,6 +103,8 @@ static func reset() -> void:
 	chronicle = []
 	hero_xp = 0
 	hero_level = 1
+	class_xp = {"melee": 0, "ranged": 0, "combat": 0, "nature": 0}
+	cutter_xp = 0
 	ensure_npcs()
 	roll_board()
 
@@ -398,17 +405,35 @@ static func item_price(item: Dictionary) -> int:
 # --- Hero progression ----------------------------------------------------------------------------------------------------
 
 ## Gives the hero XP and announces it; the one door every XP reward goes through. Zero and negative amounts do nothing. XP past the level
-## cap is not kept (there is no level 31). One award can cross several levels: that is one `hero_leveled` event, old level to new level.
+## cap is not kept (there is no level 101). One award can cross several levels: that is one `hero_leveled` event, old level to new level.
 ## XP is in memory (and announced) at once. It is written to disk at once when `save_now` (quests, named monsters, nests, a level-up
 ## always), but the many small awards of ordinary kills pass false: they are written within XP_SAVE_DELAY_MS (see `flush_progression`)
 ## or at the next save, so a road full of zombies is not hundreds of file rewrites. A save writes the whole town (about a millisecond or
 ## two), which is fine now and then and wasteful per kill.
+## The same XP goes to his class skills, split by `damage_by_class` ({class id: damage}, from the kill); with none (a quest, a nest) it all
+## goes to the class skill he has used most (Melee for a new hero). CURSE CHOICE: DS2 pays only for hits.
 ## Returns {xp_gained (what was actually kept), old_xp, new_xp, old_level, new_level, levels_gained}.
-static func add_hero_xp(amount: int, save_now: bool = true) -> Dictionary:
+static func add_hero_xp(amount: int, save_now: bool = true, damage_by_class: Dictionary = {}) -> Dictionary:
 	if amount <= 0:
 		return _progress_result(hero_xp, hero_xp)
 	var capped: int = mini(amount, HeroProgression.max_xp())   # nothing past the cap is kept: this also keeps the sum from overflowing
+	var shares: Dictionary = HeroAttributes.split(capped, damage_by_class, main_class())
+	for id in shares:
+		class_xp[id] = mini(int(class_xp.get(id, 0)) + int(shares[id]), HeroProgression.max_xp())
 	return _set_hero_xp(hero_xp + capped, save_now)
+
+## The class skill the hero has the most XP in (Melee when he has none).
+static func main_class() -> String:
+	var best: String = "melee"
+	for id in HeroAttributes.CLASSES:
+		if int(class_xp.get(id, 0)) > int(class_xp.get(best, 0)):
+			best = id
+	return best
+
+## Cutter's share of a kill (see RunDirector._pay_kill_xp). Saved with the hero's.
+static func add_cutter_xp(amount: int) -> void:
+	if amount > 0:
+		cutter_xp = mini(cutter_xp + amount, HeroProgression.max_xp())
 
 const XP_SAVE_DELAY_MS := 8000
 static var _xp_unsaved_ms: int = 0   # when the oldest XP not yet on disk was earned (0: all of it is saved)
@@ -422,9 +447,11 @@ static func flush_progression(force: bool = false) -> void:
 static func has_unsaved_xp() -> bool:
 	return _xp_unsaved_ms != 0
 
-## For `--level=N` and tests: puts the hero exactly at the start of a level (down as well as up).
+## For `--level=N` and tests: puts the hero exactly at the start of a level (down as well as up), all of it Melee (a pure fighter).
 static func dev_set_hero_level(level: int) -> Dictionary:
-	return _set_hero_xp(HeroProgression.xp_for_level(level))
+	var xp: int = HeroProgression.xp_for_level(level)
+	class_xp = {"melee": xp, "ranged": 0, "combat": 0, "nature": 0}
+	return _set_hero_xp(xp)
 
 ## Developer command line: `--level=N` puts the hero at the start of level N, then `--xp=N` grants N XP (so both together mean "level N plus
 ## N XP"). Not part of the game's own UI. Returns what was applied (tests read it).
@@ -470,7 +497,8 @@ static func to_dict() -> Dictionary:
 		"vendor_gold": vendor_gold, "smith_gold": smith_gold, "smith_stock": _stock_to_save(smith_stock), "gear": _gear_to_save(),
 		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
 		"quests": quests, "road_seed": road_seed, "quest_uid": quest_uid, "day": day, "world_mods": world_mods, "quest_clock": quest_clock, "quest_history": quest_history,
-		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp}
+		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp,
+		"class_xp": class_xp.duplicate(), "cutter_xp": cutter_xp}
 
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
@@ -508,9 +536,30 @@ static func migrate(data: Dictionary) -> Dictionary:
 				data["stash"] = _items_to_save(_items_from_save(data.get("stash", [])))
 				data["stock"] = _stock_to_save(_stock_from_save(data.get("stock", [])))
 				data["smith_stock"] = _stock_to_save(_stock_from_save(data.get("smith_stock", [])))
+			6:   # Dungeon Siege II's levels (1-100) and class skills: the hero keeps his level number, now on DS2's XP table, and everything he
+				# earned counts as Melee (he fought with a sword); Cutter starts level with him; quest XP on the board moves to DS2's scale
+				var level: int = _old_level(int(data.get("hero_xp", 0)))
+				var xp: int = HeroProgression.xp_for_level(level)
+				data["hero_xp"] = xp
+				data["hero_level"] = level
+				data["class_xp"] = {"melee": xp, "ranged": 0, "combat": 0, "nature": 0}
+				data["cutter_xp"] = xp
+				for offer in data.get("board", []):
+					if (offer as Dictionary).has("xp"):
+						offer["xp"] = HeroProgression.STANDING_QUEST_XP
 		version += 1
 		data["save_version"] = version
 	return data
+
+## The level a save from before Dungeon Siege II's table was (its own 30-level table), for the version 6 step.
+const OLD_XP_TABLE: Array[int] = [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 3250, 3850, 4500, 5200, 5950, 6750, 7600, 8500, 9450,
+	10450, 11500, 12600, 13750, 14950, 16200, 17500, 18850, 20250, 21650, 23050]
+
+static func _old_level(old_xp: int) -> int:
+	var level: int = 1
+	while level < OLD_XP_TABLE.size() and old_xp >= OLD_XP_TABLE[level]:
+		level += 1
+	return level
 
 ## Takes migrated data (see `migrate`); anything missing falls back to a starting value.
 static func from_dict(data: Dictionary) -> void:
@@ -580,6 +629,12 @@ static func from_dict(data: Dictionary) -> void:
 		chronicle.append(entry)
 	hero_xp = HeroProgression.sanitize_xp(data.get("hero_xp", 0))   # the XP decides; a saved level that disagrees with it is repaired
 	hero_level = HeroProgression.level_for_xp(hero_xp)
+	class_xp = {"melee": 0, "ranged": 0, "combat": 0, "nature": 0}
+	var saved_classes: Variant = data.get("class_xp", {})
+	if saved_classes is Dictionary:
+		for id in HeroAttributes.CLASSES:
+			class_xp[id] = HeroProgression.sanitize_xp((saved_classes as Dictionary).get(id, 0))
+	cutter_xp = HeroProgression.sanitize_xp(data.get("cutter_xp", 0))
 	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
 	job =(board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mana_regen_1"
+family = "mana_regen"
+stat = "mana_regen"
+title = "of Brightening"
+position = "suffix"
+tier = 1
+level = 5
+value = 4.0
+percent = true
+slots = Array[String](["helm", "ring", "amulet"])

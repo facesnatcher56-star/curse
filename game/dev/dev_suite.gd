@@ -103,7 +103,6 @@ func _throw_dummy(pos: Vector3, variant: String = "zombie") -> Enemy:
 	e.aggro_range = 0.0
 	e.max_health = 4000.0
 	e.health = 4000.0
-	e.defense = 0.0
 	e.block_chance = 0.0
 	return e
 

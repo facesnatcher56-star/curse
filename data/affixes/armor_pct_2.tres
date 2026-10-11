@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "armor_pct_2"
+family = "armor_pct"
+stat = "armor_pct"
+title = "Stalwart"
+position = "prefix"
+tier = 2
+level = 12
+value = 39.0
+percent = true
+slots = Array[String](["body", "helm", "gloves", "boots", "shield"])

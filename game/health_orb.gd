@@ -11,7 +11,7 @@ var is_potion: bool = false
 ## Healing is scarce but fair: orbs drop more often the more hurt the hero is, potions drop rarely, and a big monster always pays out.
 static func drop_for_kill(player: Player, enemy: Actor) -> void:
 	var missing: float = 1.0 - clampf(player.health / player.max_health, 0.0, 1.0)
-	var big: bool = enemy.is_boss or enemy.max_health >= 150.0
+	var big: bool = enemy.is_big()
 	var orbs: int = 0
 	var potions: int = 0
 	if big:

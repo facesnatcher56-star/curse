@@ -92,6 +92,7 @@ func _hit(enemy: Enemy, center: Vector3) -> void:
 	var dist: float = enemy.flat_distance_to(self)
 	var closeness: float = clampf(1.0 - dist / blast_radius, 0.0, 1.0)   # 1 at the centre, 0 at the rim
 	var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4)
+	result["skill_id"] = "fireball"
 	enemy.receive(result, center)
 	if not is_instance_valid(enemy):
 		return

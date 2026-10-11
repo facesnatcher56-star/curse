@@ -196,7 +196,7 @@ func _run() -> void:
 		footprints.append(peak)
 		await create_timer(0.8).timeout
 	_sheet(rows, 3, "critical_vs_crushing.png")
-	check("critical and crushing profiles differ", Fx.impact_profile(Combat.Outcome.CRITICAL, 1.0).tier != Fx.impact_profile(Combat.Outcome.CRUSHING, 1.0).tier)
+	check("critical and heavy-blow profiles differ", Fx.impact_profile(Combat.Outcome.CRITICAL, 1.0).tier != Fx.impact_profile(Combat.Outcome.HIT, 2.5).tier)
 	print("changed-pixel footprint at normal camera (160px window around the chest): critical %d, crushing %d" % [footprints[0], footprints[1]])
 
 	# 4. Settings toggles.
@@ -218,7 +218,7 @@ func _run() -> void:
 	for n in main.get_children():
 		if n is Label3D:
 			labels_before += 1
-	Fx.popup(dummy, Combat.Outcome.CRUSHING, 99.0)
+	Fx.popup(dummy, Combat.Outcome.CRITICAL, 99.0)
 	var labels_after: int = 0
 	for n in main.get_children():
 		if n is Label3D:
