@@ -359,3 +359,88 @@ func _test_powers() -> void:
 	expect("Provoke's ranks need Barricade (DS2's aegis)", PowerDb.get_def("provoke").ranks[0].has("barricade"))
 	TownState.reset()
 	await get_tree().process_frame
+
+## The DS2 powers that play: each opens with its passives and the right weapon, does what DS2's does, and recharges from damage dealt.
+func _test_live_powers() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	TownState.dev_set_hero_level(30)
+	var powers: PowerController = player.powers
+	powers.reset()
+	player.global_position = Vector3(30, 0, 30)
+	player.reset_physics_interpolation()
+	expect("a power that is not open says so and does nothing", powers.blocker("whirling_strike") == "Whirling Strike is not open yet"
+		and not powers.activate("whirling_strike", player.global_position))
+	TownState.passive_ranks = {"critical_strike": 8, "fortitude": 8, "smite": 1, "overbear": 1, "barricade": 1, "dodge": 5, "survival": 3,
+		"devastation": 2, "searing_flames": 8, "ignite": 1}
+	player.stats.refresh()
+	var spawn: Callable = func(offset: Vector3) -> Enemy:
+		var e: Enemy = _spawn_enemy(player.global_position + offset)
+		e.aggro_range = 0.0
+		e.max_health = 50000.0
+		e.health = e.max_health
+		e.dodge_chance = 0.0
+		e.block_chance = 0.0
+		return e
+	# Whirling Strike.
+	var ring: Array[Enemy] = [spawn.call(Vector3(1.5, 0, 0)), spawn.call(Vector3(-1.5, 0, 0)), spawn.call(Vector3(0, 0, 1.8))]
+	var far: Enemy = spawn.call(Vector3(0, 0, 9))
+	await get_tree().process_frame
+	expect("Whirling Strike goes off with a melee weapon", powers.activate("whirling_strike", player.global_position))
+	expect("it hits and stuns everything within reach, nothing beyond", ring.all(func(e: Enemy) -> bool: return e.health < e.max_health and e.stun_time > 0.0)
+		and is_equal_approx(far.health, far.max_health))
+	expect("then it must recharge from damage dealt", not powers.ready("whirling_strike") and powers.fraction("whirling_strike") < 0.05)
+	powers.gain(powers.required("whirling_strike"))
+	expect("dealing its recharge's worth of damage readies it again", powers.ready("whirling_strike"))
+	# War Cry.
+	for e in ring:
+		e.stun_time = 0.0
+	var ahead: Enemy = ring[2]
+	var behind: Enemy = spawn.call(Vector3(0, 0, -2.0))
+	expect("War Cry goes off", powers.activate("war_cry", player.global_position + Vector3(0, 0, 5)))
+	expect("enemies in front lose 35% armour and run, those behind do not", is_equal_approx(ahead.armor_shred, 0.35) and ahead.fear_time > 0.0
+		and is_equal_approx(behind.armor_shred, 0.0) and is_equal_approx(behind.fear_time, 0.0))
+	expect("and the hero's next 8 blows are critical", player.forced_crits == 8
+		and int(Combat.resolve(player, ahead, 10.0)["outcome"]) == Combat.Outcome.CRITICAL and player.forced_crits == 7)
+	player.forced_crits = 0
+	# Provoke needs a shield.
+	expect("Provoke needs a shield", powers.blocker("provoke") == "Provoke needs a shield")
+	player.stats.wear(Items.Slot.SHIELD, Items.build(ItemDb.get_def("buckler"), 6, Items.Rarity.NORMAL))
+	var armor_before: float = player.armor
+	expect("with one it goes off and his armour rises 25%%", powers.activate("provoke", player.global_position) and absf(player.armor - armor_before * 1.25) < 0.5)
+	player.stats.unequip(Items.Slot.SHIELD)
+	# Staggering Blow needs two hands and rides the next blow.
+	expect("Staggering Blow needs a two-handed weapon", powers.blocker("staggering_blow") == "Staggering Blow needs a two-handed weapon")
+	var saved_weapon: Variant = player.stats.equipment.get(Items.Slot.WEAPON)
+	player.stats.wear(Items.Slot.WEAPON, Items.build(ItemDb.get_def("greatsword"), 6, Items.Rarity.NORMAL))
+	expect("it arms, and is not spent until a blow lands", powers.activate("staggering_blow", player.global_position) and powers.staggering_armed and powers.ready("staggering_blow"))
+	for e in ring:
+		e.stun_time = 0.0
+	powers.release_staggering(ring[0])
+	expect("the blow's shockwave stuns those around for 6 s", ring[0].stun_time >= 5.5 and not powers.staggering_armed and not powers.ready("staggering_blow"))
+	if saved_weapon != null:
+		player.stats.wear(Items.Slot.WEAPON, saved_weapon)
+	# Repulse.
+	expect("Repulse goes off", powers.activate("repulse", player.global_position))
+	var intruder: Enemy = spawn.call(Vector3(1.0, 0, -1.0))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("an enemy that comes close is thrown back and stunned", intruder.knock.length() > 3.0 and intruder.stun_time > 0.0)
+	# Silence.
+	expect("Silence goes off on the area under the cursor", powers.activate("silence", far.global_position) and far.silence_time >= 15.0)
+	# Fire.
+	for e in [ring[0], ring[1]]:
+		e.stop_burning()
+	var hp: float = ring[0].health
+	expect("Flame Nexus burns everything around", powers.activate("flame_nexus", player.global_position) and ring[0].health < hp and ring[0].burn_time > 0.0)
+	hp = far.health
+	expect("Detonation blasts the target area", powers.activate("detonation", far.global_position) and far.health < hp and far.burn_time > 0.0)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	TownState.reset()
+	powers.reset()
+	player.stats.refresh()
+	await get_tree().process_frame

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/skill_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "detonation"
+display_name = "Detonation"
+description = "A great blast of fire at the cursor throws enemies back and sets them alight. Grows with Combat Magic and Searing Flames. A DS2 Combat Magic power (Ignite)."
+mana = 0.0
+cooldown = 0.0
+time = 1.0
+clip = ""
+clip_start = 0.0
+clip_strike = 0.0
+clip_end = 0.0
+kind = "power"
+range = 0.0
+mult = 1.0
+weight = 1.0
+lunge = 0.0
+directional = false
+aimed = false
+extra = {}

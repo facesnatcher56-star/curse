@@ -21,6 +21,14 @@ var crit_chance: float = 0.0
 ## How much a critical deals (DS2: 200%, Deadly Strike up to 350%), and the share of physical damage this actor shrugs off (Toughness).
 var crit_mult: float = 2.0
 var toughness: float = 0.0
+## Blows that will crit whatever the roll (DS2's War Cry), and a share of armour stripped for a while (War Cry on its victims).
+var forced_crits: int = 0
+var armor_shred: float = 0.0
+var armor_shred_time: float = 0.0
+
+func shred_armor(share: float, seconds: float) -> void:
+	armor_shred = maxf(armor_shred, clampf(share, 0.0, 0.95))
+	armor_shred_time = maxf(armor_shred_time, seconds)
 ## Fire added to every physical blow (DS2's added elemental damage, from gear): it meets the target's fire resistance, then armour with the rest.
 var added_fire: float = 0.0
 var body_radius: float = 0.4
@@ -134,6 +142,10 @@ func _actor_tick(delta: float) -> bool:
 			model.anim.speed_scale = _saved_speed
 		return true
 	stun_time = maxf(stun_time - delta, 0.0)
+	if armor_shred_time > 0.0:
+		armor_shred_time -= delta
+		if armor_shred_time <= 0.0:
+			armor_shred = 0.0
 	invulnerable_time = maxf(invulnerable_time - delta, 0.0)
 	bar_timer = maxf(bar_timer - delta, 0.0)
 	slow_time = maxf(slow_time - delta, 0.0)

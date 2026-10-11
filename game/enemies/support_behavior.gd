@@ -45,11 +45,12 @@ func tick(delta: float, dist: float) -> void:
 	if dist <= e.attack_range and e.tokens_available():
 		super.tick(delta, dist)   # cornered: swat with the staff
 		return
-	if _ward_cd <= 0.0 and not allies.is_empty() and dist > flee * 0.7:
+	var silenced: bool = e.silence_time > 0.0   # DS2's Silence: no wards, no raisings
+	if _ward_cd <= 0.0 and not silenced and not allies.is_empty() and dist > flee * 0.7:
 		_begin_cast("ward")
 		return
 	_summoned = _summoned.filter(func(z) -> bool: return is_instance_valid(z) and not z.dead)   # untyped: a freed zombie must not break the call
-	if _summon_cd <= 0.0 and summons_left() > 0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
+	if _summon_cd <= 0.0 and not silenced and summons_left() > 0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
 		_begin_cast("summon")
 		return
 	var keep_min: float = float(e.def.param("keep_min", 6.5))

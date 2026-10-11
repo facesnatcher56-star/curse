@@ -45,7 +45,10 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		return _done(result, Outcome.BLOCK)
 	var dmg: float = base_damage
 	var outcome: int = Outcome.HIT
-	if force_crit or (allow_crit and randf() < attacker.crit_chance):
+	var forced: bool = allow_crit and attacker.forced_crits > 0
+	if forced:
+		attacker.forced_crits -= 1   # DS2's War Cry: the next blows crit
+	if force_crit or forced or (allow_crit and randf() < attacker.crit_chance):
 		# DS2 adds a second, separately rolled hit; CURSE CHOICE: the second roll is taken equal to the first (200%), since the blow
 		# arrives here already rolled.
 		outcome = Outcome.CRITICAL
@@ -54,7 +57,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)   # DS2's Toughness: the victim's physical damage cut
 		if attacker.added_fire > 0.0:   # DS2: added elemental damage, less the victim's resistance, before armour
 			dmg += attacker.added_fire * (1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0))
-		dmg *= armor_factor(attacker.level, defender.armor)
+		dmg *= armor_factor(attacker.level, defender.armor * (1.0 - defender.armor_shred))
 	else:
 		dmg *= 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0)
 	dmg *= level_gap_factor(attacker.level, defender.level)

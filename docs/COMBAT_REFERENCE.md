@@ -113,5 +113,13 @@ Curse choices (labelled in `tools/write_passive_defs.py`):
 * Owner decision: Power Strike, Skewer, Leap, Earthshatter and Weapon Throw retire once their DS2 replacements play (Whirling Strike,
   Staggering Blow, War Cry, Provoke, Repulse, Silence, Flame Nexus, Detonation). Fireball stays: in DS2 it is a spell, not a power.
 
+**Playable now** (`PowerController`, `--only=livepowers`): Whirling Strike (spin, every enemy within 3-4 m, 1.5 s stun), Staggering Blow
+(two-handed; armed, released by the next blow that lands: a shockwave of 2.75-4 m that stuns 6-10 s), War Cry (a cone in front: armour
+-35 to -60% for 20 s and the enemies flee; the next 8-15 blows crit), Provoke (shield; the enemies within 6-8 m turn on the hero, armour
++25-50% for 5-10 s), Repulse (12-20 s: an enemy that comes within 3-4 m is thrown 3-7 m and stunned 1.5 s), Silence (an area of 4-6 m:
+no spells, so no priest wards or raisings, for 15-25 s), Flame Nexus and Detonation (fire around the hero / at the target, never dodged,
+grown by Searing Flames, setting victims alight 4 s at 0.1 x INT as DS2's fire powers do). They go on the hotbar like any skill.
+
 Curse choices: rank 2 and 3 values the extract did not carry are estimated (listed per power in `estimated`); DS2's `desperate_frenzy`
-is taken to be Deadly Strike (to confirm); Cutter buys no passives, so his Take Aim stays at rank 1 and grows with his Ranged level.
+is taken to be Deadly Strike (to confirm); War Cry's cone (8 m, 70 degrees), its fear (4 s), Flame Nexus's radius (4 m) and the reach of
+targeted powers (14 m) are Curse's (DS2's file gives only dummy radii); Cutter buys no passives, so his Take Aim stays at rank 1 and grows with his Ranged level.

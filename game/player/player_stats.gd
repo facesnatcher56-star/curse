@@ -118,7 +118,8 @@ func total_armor() -> float:
 		if place == Items.Slot.SHIELD and barricade > 0:
 			piece *= 1.0 + (20.0 + 100.0 * float(barricade - 1) / 19.0) / 100.0
 		armor += piece
-	return (armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) * (1.0 + gear_stat("armor_pct") / 100.0)
+	var provoke: float = p.powers.provoke_armor_pct if p.powers != null else 0.0   # DS2's Provoke, while it holds
+	return (armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)
 
 ## A skill's mana: its data's, except Fireball, a DS2 spell whose cost grows with INT (82 at INT 100, 164 at 200: 0.82 x INT).
 func mana_cost(id: String) -> float:
@@ -197,6 +198,8 @@ func _cutter() -> ArcherCompanion:
 	return null
 
 func ult_cost(id: String) -> float:
+	if PowerController.LIVE.has(id):
+		return p.powers.required(id) if p.powers != null else 1.0
 	if id == "brutal_attack":
 		return brutal_reload_required if brutal_reload_required > 0.0 else brutal_recharge_damage()
 	if id == "take_aim":
@@ -207,6 +210,8 @@ func ult_cost(id: String) -> float:
 	return float(SkillDb.all()[id].get("charge", 0.0))
 
 func ult_fraction(id: String) -> float:
+	if PowerController.LIVE.has(id):
+		return p.powers.fraction(id) if p.powers != null else 1.0
 	var cost: float = ult_cost(id)
 	if id == "brutal_attack":
 		return 1.0 if brutal_reload_remaining <= 0.0 else clampf(1.0 - brutal_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
@@ -226,6 +231,8 @@ func gain_ult_charge(damage: float) -> void:
 const MAX_ULT_CHARGE := 650.0
 
 func can_use(id: String) -> bool:
+	if PowerController.LIVE.has(id):
+		return p.powers != null and p.powers.ready(id)
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "brutal_attack":
 		return brutal_reload_remaining <= 0.0 and PowerDb.hero_rank("brutal_attack") > 0

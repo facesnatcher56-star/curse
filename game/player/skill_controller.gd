@@ -76,6 +76,8 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			activate_brutal_attack()
 		elif id == "take_aim":
 			activate_take_aim()
+		elif PowerController.LIVE.has(id):
+			p.powers.activate(id, cursor)
 		else:
 			interrupt_for(id, cursor)
 
@@ -875,6 +877,9 @@ func _apply_skill(skill: Dictionary) -> void:
 					p.stats.spend_brutal_attack()
 					_clear_brutal_visual()
 				busy_target.receive(result, p.global_position)
+				if p.powers.staggering_armed and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] \
+						and is_instance_valid(busy_target):
+					p.powers.release_staggering(busy_target)   # DS2's Staggering Blow rides the next blow that lands
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
 			if busy_skill == "basic":

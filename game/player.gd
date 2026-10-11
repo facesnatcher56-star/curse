@@ -42,6 +42,7 @@ var earthshatter: EarthshatterSkill
 var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
+var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
 var weapon_throw: WeaponThrowSkill
 var knockdown: Knockdown
 var hit_reaction: HitReaction
@@ -53,6 +54,7 @@ func _init() -> void:
 	movement = PlayerMovement.new(self)
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
+	powers = PowerController.new(self)
 	weapon_throw = WeaponThrowSkill.new(self)
 	knockdown = Knockdown.new(self)
 	hit_reaction = HitReaction.new(self)
@@ -146,6 +148,7 @@ func _play_flinch() -> void:
 
 func _physics_process(delta: float) -> void:
 	weapon_throw.tick(delta)
+	powers.tick(delta)   # (power timers and Repulse's field run through a hit-pause too)
 	_dormancy_timer -= delta
 	if _dormancy_timer <= 0.0:
 		_dormancy_timer = 0.5
@@ -475,8 +478,8 @@ func _read_input(cursor: Vector3) -> void:
 	for i in skills.hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
 		var slot_id: String = skills.hotbar[i]
-		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim":
-			continue
+		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim" or PowerController.LIVE.has(slot_id):
+			continue   # (powers go off from SkillController.handle_hotkeys)
 		if SkillDb.all()[slot_id].get("directional", false):
 			if Input.is_action_just_pressed(action):
 				skills.try_directional(skills.hotbar[i], cursor)
@@ -498,6 +501,9 @@ func _read_input(cursor: Vector3) -> void:
 	elif alt_id == "take_aim":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
 			skills.activate_take_aim()
+	elif PowerController.LIVE.has(alt_id):
+		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
+			powers.activate(alt_id, cursor)
 	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
 		if Input.is_action_just_pressed("alt_skill") and alt_id != "basic":
 			skills.interrupt_for(alt_id, cursor)   # a skill on the right button cancels the swing in progress, like a numbered key
@@ -564,6 +570,7 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.cooldowns.clear()
 	stats.brutal_reload_remaining = 0.0
 	stats.ult_charge = PlayerStats.MAX_ULT_CHARGE
+	powers.reset()
 	var cutter := stats._cutter()
 	if cutter != null:
 		cutter.take_aim_reload_remaining = 0.0
@@ -686,6 +693,7 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 		stats.gain_ult_charge(float(result.get("damage", 0.0)))   # the ultimate does not charge itself
 	if result.get("skill_id", "") != "brutal_attack":
 		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
+	powers.gain(float(result.get("damage", 0.0)), String(result.get("skill_id", "")))
 	_steal_life(result)
 	_passive_on_hit(target, result)
 	for companion in get_tree().get_nodes_in_group("companions"):

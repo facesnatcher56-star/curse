@@ -226,6 +226,8 @@ func _test_swarm() -> void:
 	await get_tree().process_frame
 	player.global_position = Vector3(-30, 0, -30)
 	player.reset_physics_interpolation()
+	var saved_max: float = player.max_health
+	player.max_health = 10000.0   # (the check is how many swing at once, not whether a level 1 hero survives eight zombies: on DS2's numbers he does not)
 	player.health = player.max_health
 	player.attack_target = null
 	player.skills.queued_skill = ""
@@ -244,8 +246,11 @@ func _test_swarm() -> void:
 	var frames: int = 0
 	var autos: Array[String] = []
 	var elapsed: float = 0.0
+	var taken: float = 0.0   # the blows themselves, frame by frame (his regeneration on 10000 life would hide them)
 	while elapsed < 8.0:
+		var before_frame: float = player.health
 		await get_tree().physics_frame
+		taken += maxf(before_frame - player.health, 0.0)
 		elapsed += 1.0 / 60.0
 		frames += 1
 		var swinging: int = 0
@@ -263,9 +268,10 @@ func _test_swarm() -> void:
 		if player.stun_time > 0.0 and autos.size() < 12:
 			autos.append("t=%.2f player stunned %.2f" % [elapsed, player.stun_time])
 	expect("at most max_tokens enemies swing at once", max_swinging <= Enemy.max_tokens)
-	expect("swarm damage stays under 8/s", (start_health - player.health) / 8.0 < 8.0)
+	var cap: float = Enemy.max_tokens * zs[0].average_hit() / maxf(zs[0].attack_time, 0.1)
+	expect("swarm damage is no more than max_tokens attackers' DS2 blows (%.1f/s, cap %.1f/s)" % [taken / 8.0, cap], taken > 0.0 and taken / 8.0 <= cap)
 	expect("hero never acts or animates by itself in a swarm", not autos.any(func(l: String) -> bool: return "busy skill" in l or "-> walk" in l or "-> run" in l))
-	print("  swarm: hero health ", int(start_health), " -> ", int(player.health), " in 8 s (", snappedf((start_health - player.health) / 8.0, 0.1),
+	print("  swarm: hero took ", int(taken), " in 8 s (", snappedf(taken / 8.0, 0.1),
 		" dmg/s); attackers swinging at once: max ", max_swinging, ", average ", snappedf(swinging_total / frames, 0.1))
 	for line in autos:
 		print("    ", line)
@@ -281,6 +287,8 @@ func _test_swarm() -> void:
 		cast += 1.0 / 60.0
 	expect("a Power Strike in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
 	print("  Power Strike inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
+	player.max_health = saved_max
+	player.health = saved_max
 	for z in zs:
 		if is_instance_valid(z):
 			z.queue_free()

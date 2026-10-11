@@ -118,7 +118,16 @@ func ragdoll_launch(launch_velocity: Vector3, lift: float, spin: Vector3) -> voi
 		behavior.on_interrupted()
 	super.ragdoll_launch(launch_velocity, lift, spin)
 
+## DS2 power effects on a monster: running in fear (War Cry) and unable to cast (Silence), for this many seconds.
+var fear_time: float = 0.0
+var silence_time: float = 0.0
+
+func frighten(seconds: float) -> void:
+	if not is_boss:
+		fear_time = maxf(fear_time, seconds)
+
 func _physics_process(delta: float) -> void:
+	silence_time = maxf(silence_time - delta, 0.0)
 	var frozen: bool = _actor_tick(delta)
 	_update_telegraph(delta)
 	if is_ragdolled() or impaled:
@@ -156,6 +165,11 @@ func _physics_process(delta: float) -> void:
 				wake()
 	if not _aggro:
 		_idle_tick(delta)
+		return
+	if fear_time > 0.0:   # DS2's War Cry: it runs from the hero until its nerve comes back
+		fear_time -= delta
+		release_token()
+		back_away_from(target.global_position, 1.3)
 		return
 	_orbit_flip -= delta
 	if _orbit_flip <= 0.0:
