@@ -674,7 +674,7 @@ func _steal_life(result: Dictionary) -> void:
 		health = minf(health + gain, max_health)
 
 ## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Ignite sets a
-## fire hit alight (chance `ignite chance % x damage / (1.2 + 0.6 INT)`, its chance from DS2's 5-30 table,
+## fire hit alight (DS2's rules.skrit: `increased_ignite_chance x damage / (1.2 + 0.6 INT)` against a 0-100 roll, the chance from its 5-30 table,
 ## 0.08-0.5 x INT a second for 3 s).
 func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	if target == null or target.dead or result.get("secondary", false):

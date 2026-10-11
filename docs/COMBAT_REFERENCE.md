@@ -96,8 +96,8 @@ Curse choices (labelled in code):
   fire +8-60%, Quickened Casting +4-25%, Ignite chance `rank x damage / (1.2 + 0.6 INT)`, 0.08-0.5 x INT a second for 3 s.
 
 Every passive follows DS2's own 20-rank table (`docs/ds2_passives_reference.md`; the curve flattens toward rank 20), and so do the
-second values: Barricade's shield armour, Smite's and Rebuke's stun (1 / 1.25 / 1.5 / 2 s), Bleed's damage, Ignite's chance (5-30, the
-`skill` in DS2's ignite chance `skill % x damage / (1.2 + 0.6 INT)`).
+second values: Barricade's shield armour, Smite's and Rebuke's stun (1 / 1.25 / 1.5 / 2 s), Bleed's damage, Ignite's chance (5-30: DS2's `rules.skrit` rolls
+`increased_ignite_chance x damage / (1.2 + 0.6 INT)` against a random 0-100, so the table value is a percentage).
 
 Curse choices (labelled in `tools/write_passive_defs.py`):
 
