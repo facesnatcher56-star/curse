@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "summon_provoke"
+display_name = "Summon Provoke"
+tree = "nature"
+recharge = 12.0
+stance = "any"
+ranks = Array[Dictionary]([{"summon_fortitude": 3, "summon_might": 1}, {"summon_fortitude": 7, "summon_might": 4}, {"summon_fortitude": 12, "summon_might": 6, "summon_bond": 6}])
+values = {
+"radius": ["6", "7", "8"]
+}
+estimated = Array[String]([])
+summary = "Your summon draws the enemies around it."
+order = 23
+needs = "summons"

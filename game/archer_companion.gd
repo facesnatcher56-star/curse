@@ -17,7 +17,10 @@ const MIN_COMBAT_RANGE := 8.0
 const PREFERRED_COMBAT_RANGE := 12.0
 const DRAW_TIME := 0.62
 const SHOT_COOLDOWN := 1.05
-const TAKE_AIM_MULT := 15.0
+## Take Aim's arrow multiplier (DS2: 1500 + 25 x Ranged %). CURSE CHOICE: Cutter buys no passives, so his Take Aim stays at rank 1, its
+## damage growing with his own Ranged level.
+static func take_aim_mult() -> float:
+	return PowerDb.get_def("take_aim").value("damage_pct", 1, {"ranged": HeroAttributes.class_level(TownState.cutter_xp)}) / 100.0
 const TAKE_AIM_COMBAT_SECONDS := 21.0
 const TAKE_AIM_DRAW_TIME := 0.92
 
@@ -218,7 +221,7 @@ func _loose() -> void:
 	# A small physical lead keeps the arrow honest against moving enemies without homing after release.
 	aim += target.velocity * clampf(from.distance_to(aim) / CompanionArrow.SPEED, 0.0, 0.45)
 	var arrow: CompanionArrow = CompanionArrow.fire(get_parent(), self, from, aim,
-		arrow_damage() * (TAKE_AIM_MULT if take_aim_armed else 1.0), take_aim_armed)
+		arrow_damage() * (take_aim_mult() if take_aim_armed else 1.0), take_aim_armed)
 	arrow.tree_exiting.connect(func() -> void:
 		if arrow.struck is Enemy:
 			last_hit_target = arrow.struck as Enemy)

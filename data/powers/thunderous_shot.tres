@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "thunderous_shot"
+display_name = "Thunderous Shot"
+tree = "ranged"
+recharge = 35.0
+stance = "bow"
+ranks = Array[Dictionary]([{"biting_arrow": 1}, {"biting_arrow": 8, "far_shot": 1}, {"biting_arrow": 12, "far_shot": 8, "mortal_wound": 5}])
+values = {
+"damage_pct": ["530 + 9 * ranged", "877.5 + 15 * ranged", "1225 + 21 * ranged"],
+"stun": ["6", "8", "10"]
+}
+estimated = Array[String](["damage_pct"])
+summary = "A piercing shot that stuns everything it passes through."
+order = 8
+needs = "bows"

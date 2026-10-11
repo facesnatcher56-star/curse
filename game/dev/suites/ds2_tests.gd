@@ -323,3 +323,39 @@ func _test_skill_tree() -> void:
 	TownState.reset()
 	stats.refresh()
 	await get_tree().process_frame
+
+## DS2's powers as data: all of them load and every number evaluates; a power's rank comes from passive ranks (nothing spent); Brutal
+## Attack needs Critical Strike and grows with its rank and Melee; Cutter's Take Aim grows with his Ranged.
+func _test_powers() -> void:
+	TownState.persist = false
+	TownState.reset()
+	await get_tree().process_frame
+	expect("all 27 of DS2's hero powers are data (%d)" % PowerDb.all().size(), PowerDb.all().size() == 27)
+	var numbers_ok: bool = true
+	var shaped: bool = true
+	for def in PowerDb.all().values():
+		var power := def as PowerDef
+		shaped = shaped and power.ranks.size() == 3 and power.recharge in [12.0, 21.0, 35.0, 60.0]
+		for key in power.values:
+			for rank in [1, 2, 3]:
+				var v: float = power.value(String(key), rank, {"melee": 20, "ranged": 20, "combat": 20, "nature": 20})
+				numbers_ok = numbers_ok and v > 0.0 and is_finite(v)
+	expect("each has three ranks and DS2's 12 / 21 / 35 / 60 second recharge", shaped)
+	expect("every value of every rank evaluates", numbers_ok)
+	expect("the ones Curse cannot do yet say what they need", PowerDb.get_def("waves_of_force").needs == "dual wielding"
+		and PowerDb.get_def("brutal_attack").needs == "")
+	expect("no rank without its passives: Brutal Attack needs Critical Strike 1", PowerDb.hero_rank("brutal_attack") == 0
+		and not player.stats.can_use("brutal_attack"))
+	TownState.dev_set_hero_level(20)
+	TownState.passive_ranks["critical_strike"] = 1
+	var melee: float = float(HeroAttributes.levels_from_xp(TownState.class_xp)["melee"])
+	expect("with Critical Strike 1 it is rank 1: 1500 + 25 x Melee %% (%.1fx)" % player.stats.brutal_mult(), PowerDb.hero_rank("brutal_attack") == 1
+		and is_equal_approx(player.stats.brutal_mult(), (1500.0 + 25.0 * melee) / 100.0))
+	TownState.passive_ranks["critical_strike"] = 8
+	expect("Critical Strike 8 opens rank 3: 2000 + 60 x Melee %", PowerDb.hero_rank("brutal_attack") == 3
+		and is_equal_approx(player.stats.brutal_mult(), (2000.0 + 60.0 * melee) / 100.0))
+	TownState.cutter_xp = HeroProgression.xp_for_level(11)
+	expect("Cutter's Take Aim grows with his Ranged level (rank 1)", is_equal_approx(ArcherCompanion.take_aim_mult(), (1500.0 + 25.0 * 10.0) / 100.0))
+	expect("Provoke's ranks need Barricade (DS2's aegis)", PowerDb.get_def("provoke").ranks[0].has("barricade"))
+	TownState.reset()
+	await get_tree().process_frame

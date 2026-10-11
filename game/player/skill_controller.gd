@@ -37,7 +37,6 @@ var blade_blood: float = 0.0    # 0..1 how bloody the sword is; fades slowly
 var _blood_mat: ShaderMaterial
 var _brutal_aura: Node3D
 var brutal_armed: bool = false
-const BRUTAL_MULT := 15.0
 var fire_orb: FireOrb
 var _release_started: bool = false
 var aiming_id: String = ""
@@ -177,6 +176,9 @@ func reset() -> void:
 func activate_brutal_attack() -> void:
 	if brutal_armed:
 		p._say("Brutal Attack is armed")
+		return
+	if PowerDb.hero_rank("brutal_attack") <= 0:   # DS2: a power opens with passive ranks (Critical Strike 1)
+		p._say("Brutal Attack needs Critical Strike")
 		return
 	if not p.stats.can_use("brutal_attack"):
 		p._say("Brutal Attack is %d%% charged" % int(p.stats.ult_fraction("brutal_attack") * 100.0))
@@ -860,7 +862,7 @@ func _apply_skill(skill: Dictionary) -> void:
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
 				var brutal: bool = busy_skill == "basic" and brutal_armed
-				var damage: float = p.stats.weapon_damage(mult * (BRUTAL_MULT if brutal else 1.0))
+				var damage: float = p.stats.weapon_damage(mult * (p.stats.brutal_mult() if brutal else 1.0))
 				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight)
 				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)

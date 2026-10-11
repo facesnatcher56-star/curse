@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "repulse"
+display_name = "Repulse"
+tree = "ranged"
+recharge = 60.0
+stance = "any"
+ranks = Array[Dictionary]([{"dodge": 4, "survival": 3}, {"dodge": 10, "survival": 6, "ricochet": 1}, {"dodge": 14, "survival": 10, "ricochet": 12}])
+values = {
+"radius": ["3", "3.5", "4"],
+"knockback": ["3", "5", "7"],
+"stun": ["1.5", "1.5", "1.5"],
+"duration": ["12", "16", "20"]
+}
+estimated = Array[String]([])
+summary = "A field around you that throws back and stuns enemies who come close."
+order = 11
+needs = "not built yet"

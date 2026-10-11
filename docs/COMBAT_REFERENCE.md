@@ -101,3 +101,17 @@ Curse choices (labelled in `tools/write_passive_defs.py`):
 * **Left out** until Curse has the mechanic: Dual Wield, the bow and crossbow passives, summons, ice, lightning, death, curses and the Nature
   Magic tree. Cunning Renewal waits for a hero ranged power.
 * **Deadly Strike** also raises the hero's thrown crits (DS2 gives bows Mortal Wound; Curse's thrown blade is his sword).
+
+## DS2 powers (2026-10, owner decision; locked by `--only=powers`)
+
+* All 27 of DS2's hero powers are data (`PowerDef`, `tools/write_power_defs.py`, from `ds2_powers_reference.md`): three ranks, each
+  opened by passive ranks (nothing is spent on a power), no mana, no cooldown, recharged by damage dealt (12 / 21 / 35 / 60 seconds of
+  DS2's combat formula), a stance, and the numbers per rank as expressions in the class levels.
+* A power whose `needs` is set is shown on the skill screen but cannot be used until Curse has the system (dual wielding, bows,
+  throwing weapons, ice, lightning, death damage, summons, the Nature tree). Brutal Attack and Take Aim are live: Brutal Attack opens with
+  Critical Strike 1 and its damage follows its rank (rank 3 at Critical Strike 8).
+* Owner decision: Power Strike, Skewer, Leap, Earthshatter and Weapon Throw retire once their DS2 replacements play (Whirling Strike,
+  Staggering Blow, War Cry, Provoke, Repulse, Silence, Flame Nexus, Detonation). Fireball stays: in DS2 it is a spell, not a power.
+
+Curse choices: rank 2 and 3 values the extract did not carry are estimated (listed per power in `estimated`); DS2's `desperate_frenzy`
+is taken to be Deadly Strike (to confirm); Cutter buys no passives, so his Take Aim stays at rank 1 and grows with his Ranged level.

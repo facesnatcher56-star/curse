@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "energy_orb"
+display_name = "Energy Orb"
+tree = "combat"
+recharge = 21.0
+stance = "any"
+ranks = Array[Dictionary]([{"brilliance": 1}, {"brilliance": 4, "devastation": 2}, {"brilliance": 8, "devastation": 4}])
+values = {
+"damage_min": ["(20 + 5 * combat) * (0.82 + 0.015 * combat)", "(20 + 5 * combat) * (1.0 + 0.029 * combat)", "(20 + 5 * combat) * (1.2 + 0.036 * combat)"],
+"damage_max": ["(30 + 7.5 * combat) * (0.82 + 0.015 * combat)", "(30 + 7.5 * combat) * (1.0 + 0.029 * combat)", "(30 + 7.5 * combat) * (1.2 + 0.036 * combat)"],
+"duration": ["20", "20", "20"]
+}
+estimated = Array[String]([])
+summary = "An orb of energy that circles you and strikes nearby enemies."
+order = 13
+needs = "magic damage"

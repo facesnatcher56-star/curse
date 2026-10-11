@@ -64,6 +64,7 @@ func _brutal_shot() -> void:
 	game.companion.testing_disabled = true
 	player.global_position = Vector3.ZERO
 	player.stats.brutal_reload_remaining = 0.0
+	TownState.passive_ranks["critical_strike"] = 1   # (Brutal Attack opens with Critical Strike 1)
 	player.skills.activate_brutal_attack()
 	for i in 10:
 		await get_tree().create_timer(0.1).timeout

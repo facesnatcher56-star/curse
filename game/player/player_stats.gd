@@ -35,11 +35,11 @@ func skill_damage_text(id: String) -> String:
 				int(pow(p.earthshatter.LAUNCH_LIFT, 2.0) / 40.0)]
 		"buff":
 			if id == "brutal_attack":
-				var brutal: Vector2 = weapon_range(SkillController.BRUTAL_MULT)
+				var brutal: Vector2 = weapon_range(brutal_mult())
 				return "Empowered hit %d-%d" % [int(brutal.x), int(brutal.y)]
 			elif id == "take_aim":
 				var cutter := _cutter()
-				return "Cutter's arrow deals ~%d" % int((cutter.arrow_damage() if cutter != null else 10.0) * ArcherCompanion.TAKE_AIM_MULT)
+				return "Cutter's arrow deals ~%d" % int((cutter.arrow_damage() if cutter != null else 10.0) * ArcherCompanion.take_aim_mult())
 		"potion":
 			return "Heals 60"
 	return ""
@@ -181,6 +181,10 @@ func power_recharge_damage(seconds_of_combat: float) -> float:
 func brutal_recharge_damage() -> float:
 	return power_recharge_damage(BRUTAL_COMBAT_SECONDS) / (1.0 + passive("fierce_renewal") / 100.0)
 
+## Brutal Attack's weapon-damage multiplier at the hero's rank (DS2: 1500 + 25 x Melee % at rank 1, to 2000 + 60 x Melee % at rank 3).
+func brutal_mult() -> float:
+	return maxf(PowerDb.hero_value("brutal_attack", "damage_pct"), 1500.0) / 100.0
+
 func spend_brutal_attack() -> void:
 	brutal_reload_required = brutal_recharge_damage()
 	brutal_reload_remaining = brutal_reload_required
@@ -224,7 +228,7 @@ const MAX_ULT_CHARGE := 650.0
 func can_use(id: String) -> bool:
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "brutal_attack":
-		return brutal_reload_remaining <= 0.0
+		return brutal_reload_remaining <= 0.0 and PowerDb.hero_rank("brutal_attack") > 0
 	if id == "take_aim":
 		var cutter := _cutter()
 		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "staggering_blow"
+display_name = "Staggering Blow"
+tree = "melee"
+recharge = 35.0
+stance = "two_handed"
+ranks = Array[Dictionary]([{"overbear": 1}, {"overbear": 5, "toughness": 4}, {"overbear": 12, "toughness": 10, "smite": 8}])
+values = {
+"damage_pct": ["400 + 7 * melee", "600 + 9.5 * melee", "800 + 12 * melee"],
+"stun": ["6", "8", "10"],
+"radius": ["2.75", "3.25", "4"]
+}
+estimated = Array[String](["damage_pct"])
+summary = "Your next two-handed blow sends out a shockwave that stuns everything caught in it."
+order = 3
+needs = "not built yet"

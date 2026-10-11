@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PowerDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/power_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "silence"
+display_name = "Silence"
+tree = "ranged"
+recharge = 21.0
+stance = "any"
+ranks = Array[Dictionary]([{"dodge": 5, "survival": 3}, {"dodge": 10, "survival": 6, "mortal_wound": 1}, {"dodge": 14, "survival": 10, "mortal_wound": 12}])
+values = {
+"radius": ["4", "5", "6"],
+"duration": ["15", "20", "25"]
+}
+estimated = Array[String]([])
+summary = "Monsters in an area cannot cast spells for a while."
+order = 9
+needs = "not built yet"

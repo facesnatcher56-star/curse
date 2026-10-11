@@ -45,6 +45,9 @@ func _build() -> void:
 		column.add_child(ItemTile._label("%s %d" % [HeroAttributes.CLASS_NAMES[tree], int(levels.get(tree, 0))], 19, UiTheme.BRONZE_LIGHT.lightened(0.2)))
 		for def in PassiveDb.of_tree(tree):
 			_add_row(column, def)
+		column.add_child(ItemTile._label("Powers", 16, UiTheme.BRONZE_LIGHT.lightened(0.2)))
+		for power in PowerDb.of_tree(tree):
+			_add_power_row(column, power)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 14)
 	_box.add_child(buttons)
@@ -77,6 +80,39 @@ func _add_row(parent: Control, def: PassiveDef) -> void:
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.custom_minimum_size.x = 280
 	parent.add_child(detail)
+
+## A power: its rank (opened by passive ranks, nothing to spend) and what the next rank needs, counting the ranks chosen here.
+func _add_power_row(parent: Control, def: PowerDef) -> void:
+	var ranks: Dictionary = TownState.passive_ranks.duplicate()
+	for id in staged:
+		ranks[id] = int(ranks.get(id, 0)) + int(staged[id])
+	var rank: int = def.rank_for(ranks)
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var name_label: Label = ItemTile._label(def.display_name, 14, UiTheme.TEXT if rank > 0 and def.needs == "" else UiTheme.TEXT_DIM)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.tooltip_text = def.summary
+	name_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.add_child(name_label)
+	row.add_child(ItemTile._label("" if def.id == "take_aim" else "Rank %d/3" % rank, 14, UiTheme.TEXT if rank > 0 else UiTheme.TEXT_DIM))
+	var line: String = ""
+	if def.id == "take_aim":
+		line = "Cutter's power: his next arrow, always at hand"
+	elif def.needs == "not built yet":
+		line = "Coming soon"
+	elif def.needs != "":
+		line = "Not in the game yet (needs %s)" % def.needs
+	elif rank < 3:
+		var parts: PackedStringArray = []
+		for passive in def.ranks[rank]:
+			var passive_def: PassiveDef = PassiveDb.get_def(String(passive))
+			parts.append("%s %d" % [passive_def.display_name if passive_def != null else String(passive).capitalize(), int(def.ranks[rank][passive])])
+		line = "Rank %d: %s" % [rank + 1, ", ".join(parts)]
+	if line != "":
+		var detail: Label = ItemTile._label(line, 11, UiTheme.TEXT_DIM)
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		detail.custom_minimum_size.x = 280
+		parent.add_child(detail)
 
 func _add_button(parent: Control, key: String, text: String, disabled: bool, action: Callable, width: float = 120.0, small: bool = false) -> void:
 	var button: Button = UiTheme.button(text, width)
