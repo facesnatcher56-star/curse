@@ -1,0 +1,64 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from extract_power_stats import powers
+
+doc = []
+doc.append('# Dungeon Siege II: Powers (Active Skills) Reference\n')
+doc.append('Extracted directly from installed game data (`active_skills.gas`, `Logic.ds2res`).\n')
+doc.append('Baseline data for Phase 6 combat powers, weapon stances, recharge formulas, area radii, and numerical scaling per rank.\n\n---\n')
+
+doc.append('## 1. Power Recharge Mechanics\n')
+doc.append('Active skills in DS2 do not cost mana and do not have timed cooldowns. Instead, they recharge via **Damage Dealt in Combat** by the active party.\n')
+doc.append('```text')
+doc.append('reload_damage = SECONDS * (6 + 1.5 * character_level) * (1 + 0.022 * character_level) * active_party_members')
+doc.append('```\n')
+doc.append('Recharge durations by tier:\n')
+doc.append('* **Very Fast Recharge**: 12 seconds of party combat damage\n')
+doc.append('* **Fast Recharge**: 21 seconds of party combat damage\n')
+doc.append('* **Medium Recharge**: 35 seconds of party combat damage\n')
+doc.append('* **Long Recharge**: 60 seconds of party combat damage\n\n---\n')
+
+type_map = {
+    'melee': 'Melee (Fighter)',
+    'ranged': 'Ranged (Archer)',
+    'combat': 'Combat Magic',
+    'nature': 'Nature Magic'
+}
+
+for t_key, t_title in type_map.items():
+    doc.append(f'## {t_title} Powers\n')
+    t_powers = [p for p in powers if p['type'] == t_key and not p['id'].endswith('_power')]
+    for p in t_powers:
+        doc.append(f"### {p['screen_name']} (`{p['id']}`)")
+        doc.append(f"* **Summary**: {p['summary'].replace(chr(10), ' ')}")
+        doc.append(f"* **Stances Required**: `{p['stances']}`")
+        doc.append(f"* **Target Type**: `{p['target']}`")
+        doc.append(f"* **Cast / Charge Time**: {p['charge_time']}s")
+        doc.append(f"* **Recharge Formula**: `{p['reload_formula']}`")
+        doc.append("* **Unlock Requirements**:")
+        for rk, rv in p['requirements'].items():
+            req_str = ', '.join([f"{k}: {v}" for k, v in rv.items()])
+            doc.append(f"  * **{rk}**: {req_str}")
+        doc.append("* **Rank Scaling (Skill Values)**:")
+        for vk, vv in p['skill_values'].items():
+            doc.append(f"  * `{vk}`:")
+            for lk, lv in vv.items():
+                clean_lv = ' '.join(lv.split())
+                doc.append(f"    * **{lk}**: `{clean_lv}`")
+        doc.append('\n')
+    doc.append('---\n')
+
+full_text = '\n'.join(doc)
+
+out1 = r'c:\Users\lloyd\OneDrive\Documents\curse\docs\ds2_powers_reference.md'
+out2 = r'C:\Users\lloyd\OneDrive\Documents\curse-claude\docs\ds2_powers_reference.md'
+
+with open(out1, 'w', encoding='utf-8') as f:
+    f.write(full_text)
+print('Wrote to', out1, f'({len(full_text):,} bytes)')
+
+with open(out2, 'w', encoding='utf-8') as f:
+    f.write(full_text)
+print('Wrote to', out2, f'({len(full_text):,} bytes)')

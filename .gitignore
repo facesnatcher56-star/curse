@@ -7,3 +7,7 @@
 
 # AgentBridge local runtime state / inbox / logs
 .agentbridge/
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
