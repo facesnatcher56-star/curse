@@ -133,7 +133,8 @@ func _test_town_state() -> void:
 	var v5: Dictionary = TownState.migrate({"save_version": 5, "hero_xp": 900, "purchased_passives": ["unbowed"], "skill_evolutions": {"throw": "ricochet"},
 		"gear": {"0": {"def": "falchion", "tier": 2, "rarity": 1, "affix": "chain"}}, "stash": [{"def": "signet", "tier": 1, "rarity": 2, "affix": "ember", "unique": "Ember Signet"}]})
 	expect("a version 5 save loses its bought passives and evolutions and its items lose their affixes", not v5.has("purchased_passives")
-		and not v5.has("skill_evolutions") and not v5["gear"]["0"].has("affix") and not v5["stash"][0].has("affix") and int(v5["hero_xp"]) == 900)
+		and not v5.has("skill_evolutions") and not v5["gear"]["0"].has("affix") and not v5["stash"][0].has("affix")
+		and int(v5["hero_xp"]) == HeroProgression.xp_for_level(TownState._old_level(900)))
 	var v1: Dictionary = TownState.migrate({"save_version": 1, "gear": {"0": old_form}, "stash": [old_form], "stock": [{"item": old_form, "price": 80}]})
 	expect("a version 1 save has its items rewritten as definitions", v1["gear"]["0"].has("def") and not v1["gear"]["0"].has("stats")
 		and v1["stash"][0]["def"] == "greatsword" and v1["stock"][0]["item"]["tier"] == 3)
