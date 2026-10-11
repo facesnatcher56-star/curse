@@ -79,8 +79,8 @@ func _test_hotbar() -> void:
 	alt = HotbarLayout.assign(slots, alt, HotbarLayout.ALT, "war_cry")
 	expect("the mouse button swaps like any other slot", alt == "war_cry" and slots[2] == "basic" and HotbarLayout.is_valid(slots, alt))
 	var benched: Array[String] = full_layout.duplicate()
-	var bench_alt: String = HotbarLayout.assign(benched, HotbarLayout.DEFAULT_ALT, 3, "war_cry")
-	expect("a skill from the bench takes a key and the one it replaces goes to the bench", benched[3] == "war_cry" and not benched.has("provoke") and bench_alt == "basic" and HotbarLayout.is_valid(benched, bench_alt))
+	var bench_alt: String = HotbarLayout.assign(benched, HotbarLayout.DEFAULT_ALT, 3, "brutal_attack")
+	expect("a skill from the bench takes a key and the one it replaces goes to the bench", benched[3] == "brutal_attack" and not benched.has("provoke") and bench_alt == "basic" and HotbarLayout.is_valid(benched, bench_alt))
 	expect("a layout has six slots, permits empty keys, excludes potions, and never duplicates assigned skills", not HotbarLayout.is_valid(["whirling_strike", "whirling_strike", "war_cry", "provoke", "repulse", "silence"], "basic")
 		and not HotbarLayout.is_valid(["whirling_strike", "fireball", "potion", "provoke", "repulse", "silence"], "basic")
 		and not HotbarLayout.is_valid(["whirling_strike", "fireball", "war_cry", "provoke", "repulse"], "basic") and HotbarLayout.is_valid(HotbarLayout.DEFAULT_SLOTS, "basic"))
@@ -124,6 +124,7 @@ func _test_hotbar() -> void:
 	expect("a right click closes it with nothing changed", not hud.picker.is_open() and skills.right_click_skill == "basic")
 	press.call((mouse_slot["rect"] as Rect2).get_center())
 	expect("the dedicated potion is absent from the skill picker", not HotbarLayout.ASSIGNABLE.has("potion"))
+	hud.picker.close() # An open picker consumes an outside click to close; test the dodge from the normal closed state.
 	var dodge_rect: Rect2 = Rect2()
 	for hit in hud._slot_hits:
 		if hit["action"] == "dodge":

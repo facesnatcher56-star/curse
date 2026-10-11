@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "mana_12"
 family = "mana"
+tier = 12
 stat = "mana"
 title = "of the Dragon"
 position = "suffix"
-tier = 12
 level = 67
 value = 274.0
+max_value = 274.0
+value_ceiling = 274.0
 percent = false
-slots = Array[String](["body", "helm", "ring", "amulet"])
+slots = Array[String](["amulet", "body", "boots", "gloves", "helm", "ring", "weapon"])
+classes = Array[String](["nmage", "cmage"])

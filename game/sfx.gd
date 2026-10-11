@@ -1,5 +1,6 @@
 class_name Sfx
 extends RefCounted
+const POWER_AUDIO := preload("res://game/skills/power_audio.gd")
 ## Sound effects: recorded files in res://assets/audio (nothing is synthesised). Sounds are grouped in families; one recording
 ## of a family is picked at random each time.
 
@@ -77,6 +78,18 @@ static func sample(from: Node, family: String, volume_db: float = 0.0, pitch: fl
 ## The blade cutting empty air: one of the four swing recordings.
 static func sword_miss(from: Node) -> void:
 	sample(from, "sword_miss", -2.0, randf_range(0.95, 1.1))
+
+static func power(from: Node3D, event: String) -> void:
+	if not enabled:
+		return
+	var now: int = Time.get_ticks_msec()
+	if now - int(_last_played.get(event, -1000)) < SAMPLE_GAP_MS:
+		return
+	if POWER_AUDIO.play(from, event):
+		_last_played[event] = now
+		last_name = event
+		played_log.append(event)
+		samples_played += 1
 
 ## The sword connecting with a body: a heavier hit sounds lower and louder. Never called for misses or blocks.
 static func sword_hit(from: Node, outcome: int, weight: float) -> void:

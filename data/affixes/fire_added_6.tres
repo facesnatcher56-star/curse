@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "fire_added_6"
 family = "fire_added"
-stat = "fire_added"
-title = "Infernal"
-position = "prefix"
 tier = 6
+stat = "fire_added"
+title = "Cremating"
+position = "prefix"
 level = 80
 value = 36.0
+max_value = 46.0
+value_ceiling = 36.0
 percent = false
 slots = Array[String](["weapon"])
+classes = Array[String](["fighter"])

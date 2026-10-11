@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "block_ranged_2"
+family = "block_ranged"
+tier = 2
+stat = "block_ranged"
+title = "of Interception"
+position = "suffix"
+level = 26
+value = 12.0
+max_value = 12.0
+value_ceiling = 12.0
+percent = true
+slots = Array[String](["shield"])
+classes = Array[String](["fighter"])

@@ -36,7 +36,7 @@ $allArgs = @("--path", ".") + $godotArgs
 Write-Host "WATCHDOG: Launching Godot (Timeout: ${TimeoutSeconds}s)..."
 Write-Host "WATCHDOG: Command: $GodotBin $($allArgs -join ' ')"
 
-$proc = Start-Process -FilePath $GodotBin -ArgumentList $allArgs -RedirectStandardOutput $LogFile -RedirectStandardError "$LogFile.err" -PassThru -NoNewWindow
+$proc = Start-Process -FilePath $GodotBin -ArgumentList $allArgs -RedirectStandardOutput $LogFile -RedirectStandardError "$LogFile.err" -PassThru -NoNewWindow -ErrorAction Stop
 
 $ErrorPatterns = @(
     "SCRIPT ERROR",
@@ -44,7 +44,10 @@ $ErrorPatterns = @(
     "Compile Error",
     "Failed to load script",
     "Invalid access to property",
-    "Invalid call\. Nonexistent"
+    "Invalid call\. Nonexistent",
+    "\[FAIL\]",
+    "SELFTEST.*FAILED",
+    "CrashHandler|Program crashed|signal 11|EXCEPTION_ACCESS_VIOLATION"
 )
 $ErrorRegex = ($ErrorPatterns -join "|")
 
@@ -57,7 +60,7 @@ while (-not $proc.HasExited) {
     
     # Check log for errors
     if (Test-Path $LogFile) {
-        $logContent = Get-Content -Path $LogFile -Tail 30 -ErrorAction SilentlyContinue
+        $logContent = Get-Content -Path $LogFile,"$LogFile.err" -ErrorAction SilentlyContinue
         if ($logContent -match $ErrorRegex) {
             Start-Sleep -Milliseconds 200
             $stoppedReason = "ERROR_DETECTED"
@@ -96,9 +99,16 @@ if ($stoppedReason -ne "") {
 
 $proc.WaitForExit()
 $exitCode = $proc.ExitCode
+$finalLog = Get-Content -Path $LogFile,"$LogFile.err" -ErrorAction SilentlyContinue
+if ($finalLog -match $ErrorRegex) { $exitCode = 2 }
+if ($null -eq $exitCode) { $exitCode = 0 }
+if ($godotArgs -contains '--selftest' -and -not ($finalLog -match 'SELFTEST.*(done|passed|PASS)|Self-test.*(done|passed)')) {
+    Write-Host 'WATCHDOG: Self-test did not report completion.'
+    $exitCode = 2
+}
 
 if (Test-Path $LogFile) {
-    $results = Select-String -Path $LogFile -Pattern "\[(PASS|FAIL)\]|Self-test|SELFTEST|SCREENSHOT_SAVED" -SimpleMatch
+    $results = Select-String -Path $LogFile -Pattern "\[(PASS|FAIL)\]|Self-test|SELFTEST|SCREENSHOT_SAVED"
     if ($results) {
         $results | Select-Object -Last 20 | ForEach-Object { $_.Line }
     }

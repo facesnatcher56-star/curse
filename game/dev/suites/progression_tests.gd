@@ -349,11 +349,12 @@ func _test_xp() -> void:
 	var thrown: Enemy = director.spawn_enemy(spot, "zombie", 1.25)
 	var struck: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
 	await get_tree().process_frame
-	thrown.knocked_by = hero   # the hero's blow sent it into the other
 	xp_before = TownState.hero_xp
-	struck.receive(thrown._impact_hit(struck.max_health + 50.0), thrown.global_position)
-	await get_tree().process_frame
-	expect("a monster killed by one the hero knocked into it is the hero's kill", struck.dead and TownState.hero_xp - xp_before == brute_near)
+	thrown.credit_hero()
+	thrown.ragdoll_launch(Vector3(12, 0, 0), 2.0, Vector3(0, 0, 4))
+	await get_tree().create_timer(0.5).timeout
+	expect("a credited flying body cannot damage a bystander or award collision XP", not struck.dead and struck.health == struck.max_health
+		and TownState.hero_xp == xp_before)
 	var biter: Enemy = director.spawn_enemy(spot, "brute", 1.25)
 	var bitten: Enemy = director.spawn_enemy(spot + Vector3(2, 0, 0), "brute", 1.25)
 	await get_tree().process_frame

@@ -6,6 +6,13 @@ extends DevSuite
 func _test_class_skills() -> void:
 	TownState.persist = false
 	TownState.reset()
+	expect("the extracted XP table includes exact intermediate levels", HeroProgression.xp_for_level(3) == 900 and HeroProgression.xp_for_level(4) == 2000 and HeroProgression.xp_for_level(6) == 7600)
+	var old_table: PackedInt64Array = HeroProgression.legacy_table()
+	var old_mid: int = old_table[2] + (old_table[3] - old_table[2]) / 2
+	var v9: Dictionary = TownState.migrate({"save_version": 9, "hero_xp": old_mid, "cutter_xp": old_mid, "class_xp": {"melee": old_mid, "ranged": 0}})
+	expect("version 9 XP migration preserves level and half-level progress for hero, class and Cutter",
+		HeroProgression.level_for_xp(int(v9["hero_xp"])) == 3 and absf(HeroProgression.level_fraction(int(v9["hero_xp"])) - 0.5) < 0.002
+		and int(v9["hero_xp"]) == int(v9["cutter_xp"]) and int(v9["class_xp"]["melee"]) == int(v9["hero_xp"]) and int(v9["class_xp"]["ranged"]) == 0)
 	expect("a class skill is 0 untrained and 1 at the XP of character level 2", HeroAttributes.class_level(0) == 0
 		and HeroAttributes.class_level(299) == 0 and HeroAttributes.class_level(300) == 1 and HeroAttributes.class_level(HeroProgression.xp_for_level(30)) == 29)
 	var fighter: Vector3 = HeroAttributes.attributes({"melee": 29})
@@ -17,6 +24,9 @@ func _test_class_skills() -> void:
 	var fresh: Vector3 = HeroAttributes.START
 	expect("a new hero starts as DS2's human: 12 / 11 / 11, about 64 life and 55 mana", fresh == Vector3(12, 11, 11)
 		and absf(HeroAttributes.max_life(fresh) - 64.1) < 0.05 and absf(HeroAttributes.max_mana(fresh) - 55.05) < 0.5)
+	expect("the human's DS2 racial magic find is added to gear in actual loot rolls",
+		is_equal_approx(player.stats.magic_find(), 10.0 + player.stats.gear_stat("magic_find"))
+		and is_equal_approx(game.director.magic_find(), player.stats.magic_find()))
 	# The split.
 	TownState.add_hero_xp(1000, false, {"melee": 300.0, "combat": 100.0})
 	expect("XP is split over the class skills by the damage each did (750 Melee, 250 Combat Magic)", int(TownState.class_xp["melee"]) == 750
@@ -77,8 +87,49 @@ func _test_ds2_combat() -> void:
 	await get_tree().process_frame
 	expect("a level 1 zombie has DS2's life, damage and armour (%.1f life, %.1f armour)" % [target.max_health, target.armor], target.level == 1
 		and absf(target.max_health - 30.24) < 0.01 and absf(target.armor - MonsterScaling.armor(1)) < 0.01 and absf(target.average_hit() - 10.5248) < 0.01)
+	# The opening encounter uses DS2's introductory Bracken tier, not the normal template above.
+	expect("level-one road fodder uses the introductory tier, later and elite encounters do not",
+		CryptRoad.encounter_tier("zombie", 1.25) == "trivial" and CryptRoad.encounter_tier("ghoul", 1.25) == "trivial"
+		and CryptRoad.encounter_tier("spitter", 1.25) == "trivial" and CryptRoad.encounter_tier("zombie", 1.3).is_empty()
+		and CryptRoad.encounter_tier("brute", 1.25).is_empty())
+	var intro: Enemy = game.director.spawn_enemy(Vector3(28, 0, 30), "zombie", 1.25, CryptRoad.encounter_tier("zombie", 1.25))
+	intro.set_physics_process(false)
+	target.set_physics_process(false)
+	expect("an opening zombie matches DS2's level-one Bracken: 7.56 life and 3.9-6.5 damage",
+		is_equal_approx(intro.max_health, 7.56) and is_equal_approx(intro.damage_min, 3.9) and is_equal_approx(intro.damage_max, 6.5)
+		and is_equal_approx(intro.armor, MonsterScaling.armor(1)) and intro.def.tier == "trivial" and is_equal_approx(intro.move_speed, 2.7))
+	expect("introductory XP and loot tier is local, never mutates the shared zombie definition",
+		EnemyDb.get_def("zombie").tier == "normal" and target.def.tier == "normal"
+		and HeroProgression.monster_xp(intro.level, intro.def.tier) == HeroProgression.monster_xp(1, "trivial"))
+	intro.target = target
+	intro.damage_min = 5.2
+	intro.damage_max = 5.2
+	intro.crit_chance = 0.0
+	target.armor = 0.0
+	target.dodge_chance = 0.0
+	target.block_chance = 0.0
+	var melee: MeleeBehavior = intro.behavior as MeleeBehavior
+	for heavy in [false, true]:
+		melee._begin()
+		melee._heavy = heavy
+		var before: float = target.health
+		melee._tick_attack(intro.attack_time * melee._scale * (melee._hit_frac() + 0.01), 1.0)
+		expect("%s melee contact uses the DS2 per-hit stat without an extra multiplier" % ("heavy" if heavy else "ordinary"),
+			is_equal_approx(before - target.health, 5.2))
+	intro.queue_free()
+	target.health = target.max_health
+	target.armor = MonsterScaling.armor(1)
 	expect("DS2's level 30 normal monster: about 1325 life, 157 a hit, 101 armour", absf(MonsterScaling.life(30, "normal") - 1324.8) < 0.1
 		and absf(MonsterScaling.damage(30, "normal") - 157.52) < 0.1 and absf(MonsterScaling.armor(30) - 101.54) < 0.1)
+	expect("tier life uses the original GAS coefficients rather than rounded multipliers",
+		is_equal_approx(MonsterScaling.life(1, "weak"), 20.16) and is_equal_approx(MonsterScaling.life(1, "strong"), 50.4)
+		and is_equal_approx(MonsterScaling.life(1, "miniboss"), 110.88))
+	expect("ranged, magic, rogue and tank hits use their own literal DS2 coefficients",
+		is_equal_approx(MonsterScaling.damage(1, "trivial", "ranged"), 4.212)
+		and is_equal_approx(MonsterScaling.damage(1, "normal", "ranged"), 8.424)
+		and is_equal_approx(MonsterScaling.damage(1, "normal", "magic"), 10.504)
+		and is_equal_approx(MonsterScaling.damage(1, "normal", "rogue"), 8.8088)
+		and is_equal_approx(MonsterScaling.damage(1, "strong", "tank"), 17.992))
 	expect("tiers and roles: a miniboss outlives a strong one, a tank a normal one, a mage is frail", MonsterScaling.life(5, "miniboss") > MonsterScaling.life(5, "strong")
 		and MonsterScaling.life(5, "normal", "tank") > MonsterScaling.life(5, "normal") and MonsterScaling.life(5, "normal", "magic") < MonsterScaling.life(5, "normal"))
 	expect("the road opens at level 1 and deepens (threat 1.25 -> 1, 1.5 -> 4)", WorldThreat.monster_level(1.25) == 1 and WorldThreat.monster_level(1.5) == 4)
@@ -104,6 +155,36 @@ func _test_ds2_combat() -> void:
 	var burned: Dictionary = Combat.resolve(target, player, 100.0, Combat.DamageType.FIRE, false)
 	expect("a hero's resistance is capped at 80%", absf(float(burned["damage"]) - 20.0) < 0.01)
 	player.fire_resist = 0.0
+	target.level = player.level
+	target.armor = 20.0
+	var fire_hit: Dictionary = Combat.resolve(player, target, 100.0, Combat.DamageType.FIRE, false, 1.0, false, false)
+	expect("fire spells and powers pass through armour", is_equal_approx(float(fire_hit["damage"]), 50.0))
+	target.fire_resist = 1.0
+	expect("full fire immunity is zero, not the minimum damage floor", is_zero_approx(float(Combat.resolve(player, target, 100.0, Combat.DamageType.FIRE, false)["damage"])))
+	target.fire_resist = 1.5
+	var before_heal: float = target.max_health * 0.5
+	target.health = before_heal
+	target.receive(Combat.resolve(player, target, 10.0, Combat.DamageType.FIRE, false, 1.0, false, false), player.global_position)
+	expect("fire absorption heals without hit recoil", target.health > before_heal and target.health <= target.max_health)
+	target.fire_resist = 0.0
+	target.armor = 0.0
+	player.added_fire = 10.0
+	player.added_fire_max = 10.0
+	expect("power damage includes amplified added fire, without criticals", is_equal_approx(float(Combat.resolve(player, target, 20.0, Combat.DamageType.PHYSICAL, false, 1.0, true, false, 15.0)["damage"]), 450.0))
+	player.added_fire = 0.0
+	player.added_fire_max = 0.0
+	player.powers.reload_remaining = {"whirling_strike": 100.0, "detonation": 100.0}
+	player.stats.brutal_reload_remaining = 100.0
+	player.on_party_damage(25.0, "detonation")
+	expect("party damage recharges other powers but cannot recharge itself", is_equal_approx(float(player.powers.reload_remaining["whirling_strike"]), 75.0)
+		and is_equal_approx(float(player.powers.reload_remaining["detonation"]), 100.0) and is_equal_approx(player.stats.brutal_reload_remaining, 75.0))
+	target.apply_burn(10.0, 2.0, true, player, "detonation")
+	target._tick_burn(0.5)
+	expect("power burns recharge other powers, not their source", is_equal_approx(float(player.powers.reload_remaining["whirling_strike"]), 70.0)
+		and is_equal_approx(float(player.powers.reload_remaining["detonation"]), 100.0))
+	target.stop_burning()
+	player.powers.reset()
+	player.stats.brutal_reload_remaining = 0.0
 	# The hero's numbers.
 	var base: Vector2 = player.stats.weapon_base_range()
 	var longsword: Vector2 = player.stats.weapon_range(1.0)
@@ -148,11 +229,24 @@ func _test_ds2_items() -> void:
 	expect("every base has five item levels, lowest first", levels_ok)
 	# Modifier tiers (the reference's first and last of a family).
 	var first: AffixDef = AffixDb.get_def("strength_1")
+	var fortunate: Dictionary = Items.build(ItemDb.get_def("signet"), 20, Items.Rarity.MAGIC, ["magic_find_1"])
+	var found: float = float(Items.mods_of(fortunate)["magic_find"])
+	expect("Fortunate rolls DS2's 4–6 range and retains its roll through save/load", found >= 4.0 and found <= 6.0
+		and is_equal_approx(float(Items.mods_of(Items.from_save(Items.to_save(fortunate)))["magic_find"]), found))
+	expect("source affix middle tiers are not interpolated", AffixDb.get_def("strength_2").level == 10 and is_equal_approx(AffixDb.get_def("strength_2").value, 3.0))
+	expect("Scorching is the original +2–4 fire damage range at level 15", AffixDb.get_def("fire_added_1").title == "Scorching" and AffixDb.get_def("fire_added_1").level == 15
+		and is_equal_approx(AffixDb.get_def("fire_added_1").value, 2.0) and is_equal_approx(AffixDb.get_def("fire_added_1").max_value, 4.0))
+	expect("DS2 mana affixes have their original tiers and weapon-only restriction",
+		AffixDb.get_def("mana_steal_1").level == 6 and is_equal_approx(AffixDb.get_def("mana_steal_1").value, 3.0)
+		and AffixDb.get_def("mana_per_hit_1").level == 12 and is_equal_approx(AffixDb.get_def("mana_per_hit_1").value, 2.0)
+		and AffixDb.get_def("mana_steal_1").slots == ["weapon"] and AffixDb.is_percent("mana_steal") and not AffixDb.is_percent("mana_per_hit"))
+	var mana_weapon: Dictionary = Items.build(ItemDb.get_def("longsword"), 30, Items.Rarity.MAGIC, ["mana_steal_1", "mana_per_hit_1"])
+	expect("mana modifiers survive an item save/load", Items.mods_of(Items.from_save(Items.to_save(mana_weapon))) == {"mana_steal": 3.0, "mana_per_hit": 2.0})
 	var last: AffixDef = AffixDb.get_def("strength_9")
 	expect("of Hardiness is +1 STR at modifier level 2, of the Colossus +72 at 82", first.title == "of Hardiness" and first.level == 2 and is_equal_approx(first.value, 1.0)
-		and last.title == "of the Colossus" and last.level == 82 and is_equal_approx(last.value, 72.0))
+		and last.title == "of Colossus" and last.level == 82 and is_equal_approx(last.value, 72.0))
 	expect("of the Lion is +237 life at 75; Excruciating +56% melee damage at 53", is_equal_approx(AffixDb.get_def("life_12").value, 237.0) and AffixDb.get_def("life_12").level == 75
-		and AffixDb.get_def("melee_pct_8").title == "Excruciating" and is_equal_approx(AffixDb.get_def("melee_pct_8").value, 56.0))
+		and AffixDb.get_def("melee_pct_8").title == "Excrutiating" and is_equal_approx(AffixDb.get_def("melee_pct_8").value, 56.0))
 	var counts_ok: bool = true
 	var families_ok: bool = true
 	var names_ok: bool = true
@@ -245,10 +339,23 @@ func _test_ds2_items() -> void:
 	player.added_fire = 10.0
 	expect("added fire lands on a physical blow (DS2: before armour)", is_equal_approx(float(Combat.resolve(player, target, 20.0)["damage"]), 30.0))
 	player.added_fire = 0.0
-	stats.gear = {"life_steal": 5.0, "life_per_hit": 2.0}
+	stats.gear = {"life_steal": 5.0, "life_per_hit": 2.0, "mana_steal": 3.0, "mana_per_hit": 2.0}
 	player.health = 10.0
-	player._steal_life({"type": Combat.DamageType.PHYSICAL, "damage": 100.0})
+	stats.mana = 0.0
+	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "damage": 100.0})
 	expect("life steal and life per hit heal on a blow (10 + 2 + 5% of 100)", is_equal_approx(player.health, 17.0))
+	expect("mana steal and mana per hit restore mana (2 + 3% of 100)", is_equal_approx(stats.mana, 5.0))
+	for invalid_hit in [{"type": Combat.DamageType.FIRE, "damage": 100.0},
+			{"type": Combat.DamageType.PHYSICAL, "damage": 0.0},
+			{"type": Combat.DamageType.PHYSICAL, "damage": 100.0, "skill_id": "reflect"},
+			{"type": Combat.DamageType.PHYSICAL, "damage": 100.0, "outcome": Combat.Outcome.BLOCK}]:
+		player._steal_resources(invalid_hit)
+	expect("spells, zero-damage hits, reflection and blocks do not steal resources", is_equal_approx(stats.mana, 5.0) and is_equal_approx(player.health, 17.0))
+	player._steal_resources({"type": Combat.DamageType.RANGED, "damage": 100.0})
+	expect("ranged weapon hits also return resources", is_equal_approx(stats.mana, 10.0) and is_equal_approx(player.health, 24.0))
+	stats.mana = stats.max_mana - 1.0
+	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "damage": 100.0})
+	expect("mana steal cannot exceed maximum mana", is_equal_approx(stats.mana, stats.max_mana))
 	target.queue_free()
 	stats.equipment = saved_equipment
 	stats.bag = saved_bag
@@ -350,6 +457,19 @@ func _test_powers() -> void:
 		and PowerDb.get_def("brutal_attack").needs == "")
 	expect("no rank without its passives: Brutal Attack needs Critical Strike 1", PowerDb.hero_rank("brutal_attack") == 0
 		and not player.stats.can_use("brutal_attack"))
+	var paths_present: bool = true
+	for id in PowerController.LIVE:
+		for rank in PowerDb.get_def(id).ranks:
+			for required_passive in rank:
+				paths_present = paths_present and PassiveDb.get_def(String(required_passive)) != null
+	expect("every implemented power rank has its prerequisite passives available", paths_present)
+	var recharge: float = player.stats.power_recharge_damage(21.0)
+	TownState.passive_ranks["fierce_renewal"] = 20
+	TownState.passive_ranks["cunning_renewal"] = 20
+	expect("renewal affects every power of its own tree", is_equal_approx(player.stats.power_recharge_damage(21.0, "melee"), recharge / 1.3)
+		and is_equal_approx(player.stats.power_recharge_damage(21.0, "ranged"), recharge / 1.3) and is_equal_approx(player.stats.power_recharge_damage(21.0, "combat"), recharge))
+	TownState.passive_ranks.erase("fierce_renewal")
+	TownState.passive_ranks.erase("cunning_renewal")
 	TownState.dev_set_hero_level(20)
 	TownState.passive_ranks["critical_strike"] = 1
 	var melee: float = float(HeroAttributes.levels_from_xp(TownState.class_xp)["melee"])

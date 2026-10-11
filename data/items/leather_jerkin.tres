@@ -13,7 +13,4 @@ icon_path = "res://assets/icons/items/leather_jerkin.png"
 item_type = "body"
 armor_class = "ranger"
 levels = Array[int]([2, 9, 18, 27, 36])
-stats = {
-"roll_cost": 0.8,
-"roll_speed": 1.1
-}
+stats = {}

@@ -7,6 +7,8 @@ extends Actor
 ## Set before adding to the tree. `variant` is the EnemyDef id.
 var variant: String = "zombie"
 var level_scale: float = 1.0
+## An authored encounter may use DS2's introductory tier without changing this kind elsewhere.
+var tier_override: String = ""
 ## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
 ## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
 var xp_eligible: bool = true
@@ -82,10 +84,16 @@ func _ready() -> void:
 	collision_layer = LAYER_ENEMY
 	collision_mask = LAYER_WORLD | LAYER_PLAYER | LAYER_ENEMY
 	def = EnemyDb.get_def(variant)
+	if not tier_override.is_empty() and MonsterScaling.TIERS.has(tier_override):
+		def = def.duplicate() as EnemyDef
+		def.tier = tier_override   # XP and loot must use the same tier as life and damage.
+		if tier_override == "trivial":
+			# DS2 actor_evil_* trivial-template movement speeds (opening fodder).
+			def.speed = 3.7 if def.role == "magic" else (3.2 if def.role == "ranged" else 2.7)
 	display_name = def.display_name
 	_apply_level(level_scale)
 	health = max_health
-	move_speed = def.speed * randf_range(0.9, 1.1)
+	move_speed = def.speed
 	attack_range = def.attack_range
 	attack_time = def.attack_time
 	flinch_chance = def.flinch
@@ -265,8 +273,8 @@ func pace() -> float:
 ## Slow enemies shamble with the walk clip at a readable cadence instead of playing a run in slow motion. Fast enemies (notably the
 ## Ghoul leaper) still run. The cutoff lives beside the reference speeds so movement balance and animation selection cannot drift apart.
 const RUN_REF_SPEED := 4.0
-const WALK_REF_SPEED := 1.3
-const SHAMBLE_MAX_SPEED := 1.5
+const WALK_REF_SPEED := 2.5
+const SHAMBLE_MAX_SPEED := 3.0
 
 func locomotion_clip() -> String:
 	if def != null and def.speed <= SHAMBLE_MAX_SPEED and has_clip("walk"):
@@ -277,7 +285,7 @@ func locomotion_rate(speed: float, clip: String = "") -> float:
 	var chosen: String = clip if clip != "" else locomotion_clip()
 	if chosen == "walk":
 		# Short, committed shuffle steps: keep the body alive while world speed remains slow.
-		return clampf(speed / WALK_REF_SPEED, 0.78, 1.08)
+		return clampf(speed / WALK_REF_SPEED, 0.78, 1.2)
 	return clampf(speed / RUN_REF_SPEED, 0.75, 1.8)
 
 ## Runs toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.

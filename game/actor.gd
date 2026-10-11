@@ -31,18 +31,18 @@ func shred_armor(share: float, seconds: float) -> void:
 	armor_shred_time = maxf(armor_shred_time, seconds)
 ## Fire added to every physical blow (DS2's added elemental damage, from gear): it meets the target's fire resistance, then armour with the rest.
 var added_fire: float = 0.0
+var added_fire_max: float = 0.0
+var ranged_block_chance: float = 0.0
 var body_radius: float = 0.4
 var dead: bool = false
 
 var stun_time: float = 0.0
 var knock: Vector3 = Vector3.ZERO
-## The hero who last hit this actor: credit for what a knock-back does when it ends against something (see _knock_impact).
-var knocked_by: Actor
 ## Whoever last landed a blow on this actor (for the hero: who to hold responsible for a death, see Monsters.hero_fell).
 var last_hit_by: Actor
 ## KILL CREDIT. The hero gets credit for a death when they were, in the last CREDIT_MS, the cause of any harm to this actor: they hit it
-## (any skill, Fireball, Weapon Throw, the recalled weapon), it was knocked into something by a blow of theirs (`knocked_by`: a wall, a
-## prop or another monster, both ways), or it is burning from fire they lit. Monsters hurting each other, or an enemy dying of nothing
+## with a direct attack or a power, or it is burning from fire they lit. Cosmetic body collisions cannot harm or credit anyone.
+## Monsters hurting each other, or an enemy dying of nothing
 ## the hero did, earns nothing. Only XP reads this (quests count kills regardless).
 const CREDIT_MS := 15000
 var _hero_credit_ms: int = -1000000
@@ -68,7 +68,6 @@ func _tally_damage(source: Actor, skill_id: String, amount: float) -> void:
 
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
-var _impact_cooldown: float = 0.0
 ## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
 var snare_time: float = 0.0
 var snare_amount: float = 0.0
@@ -76,6 +75,8 @@ var bleed_time: float = 0.0
 var bleed_dps: float = 0.0
 var burn_time: float = 0.0
 var burn_dps: float = 0.0
+var burn_source: Actor
+var burn_skill_id: String = ""
 var _flames: Node3D
 
 var display_name: String = "Hero"
@@ -150,7 +151,6 @@ func _actor_tick(delta: float) -> bool:
 	bar_timer = maxf(bar_timer - delta, 0.0)
 	slow_time = maxf(slow_time - delta, 0.0)
 	snare_time = maxf(snare_time - delta, 0.0)
-	_impact_cooldown = maxf(_impact_cooldown - delta, 0.0)
 	knock = knock.move_toward(Vector3.ZERO, 22.0 * delta)
 	if bleed_time > 0.0 and not dead:
 		bleed_time -= delta
@@ -173,70 +173,7 @@ func move_with(desired: Vector3) -> void:
 	velocity.y = 0.0
 	move_and_slide()
 	global_position.y = 0.0
-	if knock.length() >= IMPACT_SPEED and _impact_cooldown <= 0.0 and not dead:
-		_knock_impact()
 
-# --- Knock-back that ends against something ----------------------------------------------------------------------------------
-
-## A knock faster than this (m/s) hurts when it ends against a wall, a prop or another monster. A normal blow pushes about 2-5 m/s, a
-## crushing one 9, Power Strike about 14, so only the heavy blows do it.
-const IMPACT_SPEED := 6.0
-
-## After moving with a knock on: was this body driven into something? A wall or a prop (anything solid that is not the floor): a little
-## damage and a stun. Another monster: both take damage, and the one that was hit falls down (unless it is too big to). Called from
-## move_with, so it only matters for what is being thrown about.
-func _knock_impact() -> void:
-	if not is_in_group("enemies"):
-		return
-	var speed: float = knock.length()
-	for i in get_slide_collision_count():
-		var hit: KinematicCollision3D = get_slide_collision(i)
-		var normal: Vector3 = hit.get_normal()
-		if absf(normal.y) > 0.7:
-			continue   # the ground
-		var other: Object = hit.get_collider()
-		if other is Actor:
-			var victim := other as Actor
-			if victim == self or victim.dead or victim.is_in_group("player") or victim.impaled:
-				continue
-			_knock_into_actor(victim, speed)
-			return
-		elif other is PhysicsBody3D:
-			_knock_into_wall(speed, hit.get_position())
-			return
-
-func _impact_hit(amount: float) -> Dictionary:
-	return {"outcome": Combat.Outcome.HIT, "damage": amount, "weight": 0.5, "source": knocked_by,
-		"type": Combat.DamageType.PHYSICAL, "skill_id": "impact", "secondary": true}
-
-func _knock_into_wall(speed: float, point: Vector3) -> void:
-	_impact_cooldown = 0.5
-	var amount: float = minf(maxf(3.0, max_health * 0.06), 40.0) * clampf(speed / 10.0, 0.6, 1.6)
-	var back: Vector3 = -knock.normalized()
-	knock = Vector3.ZERO
-	receive(_impact_hit(amount), point)
-	if dead:
-		return
-	stun_time = maxf(stun_time, 0.9 * (1.0 - stun_resist))
-	Fx.burst(self, point + Vector3(0, 0.9, 0), back + Vector3.UP * 0.5, Color(0.42, 0.38, 0.32), 8, 3.0, 0.03)
-	Fx.shake(self, 0.05)
-
-func _knock_into_actor(victim: Actor, speed: float) -> void:
-	_impact_cooldown = 0.5
-	var dir: Vector3 = victim.global_position - global_position
-	dir.y = 0.0
-	dir = dir.normalized() if dir.length() > 0.05 else knock.normalized()
-	victim.receive(_impact_hit(8.0 + speed * 0.9), global_position)
-	if is_instance_valid(victim) and not victim.dead:
-		if victim.can_be_impaled():   # the ones too big to knock over are only stunned, for a bit longer
-			victim.ragdoll_launch(dir * (3.5 + speed * 0.3), 2.8, dir.cross(Vector3.UP) * randf_range(4.0, 7.0))
-		victim.interrupt(1.0 if victim.can_be_impaled() else 1.5)
-	knock *= 0.25   # most of the momentum went into the other one
-	receive(_impact_hit(4.0 + speed * 0.5), victim.global_position)
-	if not dead:
-		stun_time = maxf(stun_time, 0.8 * (1.0 - stun_resist))
-	Fx.burst(self, victim.global_position + Vector3(0, 1.0, 0), dir + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 10, 4.0)
-	Fx.shake(self, 0.07)
 
 func face(pos: Vector3, weight: float = 1.0) -> void:
 	var dir: Vector3 = pos - global_position
@@ -266,13 +203,15 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	_last_hit_from = source_pos
 	_last_hit_ms = Time.get_ticks_msec()
 	if result.get("source") is Player:
-		knocked_by = result["source"]
 		credit_hero()
 	if result.get("source") is Actor:
 		last_hit_by = result["source"]
 	if invulnerable_time > 0.0:
 		Fx.text_at(self, global_position + Vector3(0, 2.2, 0), "Dodge", Color(0.6, 0.95, 1.0), 40)
 		return
+	if float(result.get("damage", 0.0)) <= 0.0 and int(result.get("outcome", 0)) >= Combat.Outcome.HIT:
+		health = minf(max_health, health - float(result.get("damage", 0.0)))
+		return   # Immunity/absorption causes no hit recoil, leech, or recharge.
 	result = _filter_incoming(result)
 	if result.get("quiet", false):
 		# Damage-over-time style tick: apply it, show the health bar, nothing else.
@@ -323,20 +262,26 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 			_pending_gib = "gore"
 		_gib_from = source_pos
 	_tally_damage(source, String(result.get("skill_id", "")), damage)
+	result["damage"] = minf(damage, maxf(health, 0.0))   # Recharge/leech count actual life removed, not overkill.
 	_apply_damage(damage)
 
 	# Layered impact feedback: sound, spray, light, squash, camera, pause, push.
 	var killed: bool = dead
 	var big: bool = outcome == Combat.Outcome.CRITICAL
 	var profile: Dictionary = Fx.impact_profile(outcome, weight)
-	if sword_contact:
+	var power_sound: String = String(result.get("skill_id", ""))
+	if not result.get("secondary", false) and power_sound in ["brutal_attack", "take_aim"]:
+		Sfx.power(self, "brutal_hit" if power_sound == "brutal_attack" else "take_aim_hit")
+	elif sword_contact:
 		Sfx.sword_hit(self, outcome, weight)
 	if not calm:
 		var amount: int = int(clampf(6.0 + damage * 0.5 + weight * 4.0, 6.0, 40.0)) * (2 if big else 1)
 		Fx.burst(self, chest, away + Vector3.UP * 0.6, _blood_color(), amount, 4.0 + weight * 2.5 + (3.0 if big else 0.0))
 		if big or randf() < 0.3:
 			Fx.blood_decal(self, global_position + away * 0.5, randf_range(0.5, 0.9) * (1.3 if big else 1.0), _blood_color().darkened(0.4))
-		if sword_contact:   # light and heavy blows read differently: a few sparks, or sparks with dust and a flash
+		# Brutal Attack already supplies its directional DS2 impact. Do not stack
+		# the ordinary heavy-hit sparks/ground circle over that presentation.
+		if sword_contact and String(result.get("skill_id", "")) != "brutal_attack":
 			Fx.melee_impact(self, chest, away, int(profile.tier), get_instance_id())
 		elif big:
 			Fx.light_flash(self, chest, Color(1.0, 0.85, 0.6), 1.8, 0.07)
@@ -656,20 +601,14 @@ func _make_daze() -> Node3D:
 		root.add_child(tail)
 	return root
 
-## Passes burn, bleed and slow on to another actor (e.g. a burning body thrown into a crowd).
-func spread_debuffs_to(other: Actor) -> void:
-	if burn_time > 0.0:
-		other.apply_burn(burn_dps, burn_time, _burn_by_hero)
-	if bleed_time > 0.0:
-		other.bleed_dps = maxf(other.bleed_dps, bleed_dps)
-		other.bleed_time = maxf(other.bleed_time, bleed_time)
-	if slow_time > 0.0:
-		other.apply_slow(slow_amount, slow_time)
 
 ## Sets the actor alight: fire damage over time with visible flames until it burns out or dies.
-func apply_burn(dps: float, seconds: float, by_hero: bool = false) -> void:
+func apply_burn(dps: float, seconds: float, by_hero: bool = false, source: Actor = null, skill_id: String = "") -> void:
 	if dead:
 		return
+	if dps >= burn_dps:
+		burn_source = source
+		burn_skill_id = skill_id
 	if by_hero:
 		_burn_by_hero = true
 		credit_hero()
@@ -687,12 +626,22 @@ func _tick_burn(delta: float) -> void:
 	if burn_time <= 0.0:
 		return
 	burn_time -= delta
+	var damage: float = burn_dps * delta * Combat.fire_multiplier(self)
+	var dealt: float = minf(maxf(damage, 0.0), maxf(health, 0.0))
 	if _burn_by_hero:
 		credit_hero()   # fire the hero lit keeps the credit while it burns
-		hero_damage["combat"] = float(hero_damage.get("combat", 0.0)) + minf(burn_dps * delta, maxf(health, 0.0))
-	_apply_damage(burn_dps * delta)
+		hero_damage["combat"] = float(hero_damage.get("combat", 0.0)) + dealt
+		if is_instance_valid(burn_source) and burn_source is Player:
+			(burn_source as Player).on_party_damage(dealt, burn_skill_id)
+	if damage >= health and burn_skill_id in GIBBING_POWERS and not is_in_group("player"):
+		_pending_gib = "fire"
+		_gib_from = burn_source.global_position if is_instance_valid(burn_source) else global_position
+	if damage > 0.0:
+		_apply_damage(damage)
+	elif damage < 0.0:
+		health = minf(max_health, health - damage)
 	# The burning shows in ticks: every half second a fiery number for what it took, a puff of embers and a flare of the flames.
-	_burn_owed += burn_dps * delta
+	_burn_owed += dealt
 	_burn_clock += delta
 	if _burn_clock >= BURN_TICK:
 		_burn_clock = 0.0
@@ -710,6 +659,8 @@ func _tick_burn(delta: float) -> void:
 		stop_burning()
 
 func stop_burning() -> void:
+	burn_source = null
+	burn_skill_id = ""
 	_burn_by_hero = false
 	burn_time = 0.0
 	burn_dps = 0.0

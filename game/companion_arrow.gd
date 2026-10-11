@@ -4,7 +4,7 @@ extends Node3D
 ## and remains lodged for a moment. Geometry decides the hit; Combat supplies armour, damage and the body's normal impact response.
 
 const MODEL := "res://assets/models/archer/arrow/model.glb"
-const SPEED := 23.0
+const SPEED := 30.0   # DS2 bow velocity; Take Aim doubles it.
 const GRAVITY := 2.8
 const LIFE := 3.0
 const STICK_TIME := 4.0
@@ -22,15 +22,18 @@ static func fire(parent: Node, archer: ArcherCompanion, from: Vector3, toward: V
 	arrow.shooter = archer
 	arrow.damage = hit_damage
 	arrow.take_aim = empowered
+	arrow.velocity = (toward - from).normalized() * SPEED * (2.0 if empowered else 1.0)
 	parent.add_child(arrow)
 	arrow.global_position = from
-	arrow.velocity = (toward - from).normalized() * SPEED
 	return arrow
 
 func _ready() -> void:
 	var model: Node3D = (load(MODEL) as PackedScene).instantiate()
 	LootDrop._use_vertex_colours(model)
 	add_child(model)
+	# Root is the collision tip, not the centre of a shaft protruding past it.
+	var bounds: AABB = CharacterModel._bounds_of(model)
+	model.position.y -= bounds.end.y
 	if take_aim:
 		SkillFx.take_aim_trail(self)
 	_orient()
@@ -69,7 +72,7 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 		return
 	# Cutter serves the hero: his kills count as the hero's for XP and physical-kill bookkeeping.
 	enemy.credit_hero()
-	var result: Dictionary = Combat.resolve(shooter, enemy, damage, Combat.DamageType.PHYSICAL, false,
+	var result: Dictionary = Combat.resolve(shooter, enemy, damage, Combat.DamageType.RANGED, not take_aim,
 		1.6 if take_aim else 0.9, false, not take_aim)
 	result["skill_id"] = "take_aim" if take_aim else "companion_arrow"
 	if take_aim and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
@@ -78,16 +81,17 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 	if shooter != null:
 		shooter.last_hit_target = enemy
 	if result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] and shooter != null and shooter.player != null:
-		if take_aim:
-			shooter.spend_take_aim()
-		shooter.player.stats.gain_brutal_charge(float(result.get("damage", 0.0)))
-		if not take_aim:
-			shooter.gain_take_aim_charge(float(result.get("damage", 0.0)))
+		shooter.player.on_party_damage(float(result.get("damage", 0.0)), String(result["skill_id"]))
 	struck = enemy
 	_stick(enemy)
 
 func _stick(body: Actor) -> void:
 	set_physics_process(false)
+	for child in get_children():
+		if child is CPUParticles3D:
+			(child as CPUParticles3D).emitting = false
+		if child.name == "TakeAimCore":
+			(child as Node3D).visible = false
 	if body != null and is_instance_valid(body) and not body.dead:
 		reparent(body, true)
 	var timer := get_tree().create_timer(STICK_TIME)

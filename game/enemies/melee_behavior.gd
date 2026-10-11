@@ -1,7 +1,7 @@
 class_name MeleeBehavior
 extends EnemyBehavior
 ## The shambler: closes in, waits its turn (only a few enemies may swing at once; the rest circle), then throws either a
-## quick swipe or, now and then, a slow telegraphed heavy blow that lunges and hits much harder.
+## quick swipe or, now and then, a slow telegraphed heavy blow with a lunge and greater physical weight (not bonus damage).
 
 var _t: float = 0.0
 var _hit_done: bool = false
@@ -67,7 +67,9 @@ func _tick_attack(delta: float, dist: float) -> void:
 		var reach: float = e.attack_range + (1.0 if _heavy else 0.6)
 		if dist <= reach:
 			var weight: float = (1.0 if e.def.token_weight <= 1 else 1.8) * (1.5 if _heavy else 1.0)
-			e.strike_target((1.6 if _heavy else 0.85), weight)
+			# MonsterScaling already supplies DS2's damage per hit. Keep the heavy windup/weight,
+			# but do not silently multiply the copied stat (or weaken the ordinary swipe).
+			e.strike_target(1.0, weight)
 	if t >= 1.0:
 		_active = false
 		e._attacking = false

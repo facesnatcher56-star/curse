@@ -182,13 +182,13 @@ func _test_enemies() -> void:
 	player.health = saved_health
 	await get_tree().process_frame
 
-## The ground cast keeps 30% of its former movement speed; the Ghoul is the leaper and remains fast.
+## DS2's average movement velocity, by monster role and tier.
 func _test_enemy_speed() -> void:
-	var expected := {"zombie": 1.08, "brute": 0.87, "spitter": 0.96, "bloater": 0.99, "priest": 0.66, "ghoul": 4.8}
+	var expected := {"zombie": 2.5, "brute": 2.3, "spitter": 3.0, "bloater": 2.5, "priest": 3.5, "ghoul": 2.7, "warden": 2.7}
 	for id: String in expected:
 		var actual: float = EnemyDb.get_def(id).speed
 		expect("%s base movement speed is %.2f m/s" % [id, float(expected[id])], is_equal_approx(actual, float(expected[id])))
-	expect("the leaper remains faster than every ground enemy", EnemyDb.get_def("ghoul").speed > EnemyDb.get_def("zombie").speed * 4.0)
+	expect("hero and archer use DS2's 4.5 movement speed", is_equal_approx(player.stats.run_speed, 4.5) and is_equal_approx(ArcherCompanion.MOVE_SPEED, 4.5))
 
 ## The first wave must not put anyone on top of the hero. Runs right at start-up (before the navigation map has caught up),
 ## once with a navmesh that answers every snap with the origin (the real-game failure), once normally.
@@ -399,7 +399,7 @@ func _test_balance() -> void:
 	target.queue_free()
 	await get_tree().process_frame
 
-## Reduced-speed monsters shamble at a living cadence; the fast Ghoul leaper still runs.
+## Walk/run selection follows the DS2 movement band without slow-motion running.
 func _test_enemy_run() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()

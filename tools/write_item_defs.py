@@ -5,7 +5,7 @@ Slots (Items.Slot): 0 weapon, 1 body armour, 2 ring, 3 shield, 4 helm, 5 gloves,
 Every base has five item levels (DS2's base and var1-var4): the same sword turns up again, stronger, deeper in the world. Its numbers come
 from DS2's curves at that level (ItemDef.stats_at): weapons by type, armour by class and slot. `stats` holds only what is not a curve:
 a weapon's swing speed and the share of its type's damage it deals per hit (a faster blade hits for less, as DS2's swing time does), and
-a body armour's roll numbers. Models and icons come from tools/blender/make_items.py (assets/models/items/<id>/model.glb,
+no additional body-armour movement modifiers. Models and icons come from tools/blender/make_items.py (assets/models/items/<id>/model.glb,
 assets/icons/items/<id>.png).
 """
 from pathlib import Path
@@ -20,9 +20,9 @@ ITEMS = [
     ("falchion", "Falchion", 0, "1h", "", [1, 13, 31, 50, 72], {"damage": 0.85, "speed": 1.18}),
     ("longsword", "Longsword", 0, "1h", "", [2, 17, 38, 60, 84], {"damage": 1.0, "speed": 1.0}),
     ("greatsword", "Greatsword", 0, "2h", "", [6, 26, 47, 68, 92], {"damage": 1.0, "speed": 0.82}),
-    ("leather_jerkin", "Leather Jerkin", 1, "body", "ranger", [2, 9, 18, 27, 36], {"roll_cost": 0.8, "roll_speed": 1.1}),
-    ("mail_hauberk", "Mail Hauberk", 1, "body", "fighter", [5, 14, 30, 46, 62], {"roll_cost": 1.0, "roll_speed": 1.0}),
-    ("plate_cuirass", "Plate Cuirass", 1, "body", "fighter", [22, 40, 58, 77, 95], {"roll_cost": 1.4, "roll_speed": 0.9}),
+    ("leather_jerkin", "Leather Jerkin", 1, "body", "ranger", [2, 9, 18, 27, 36], {}),
+    ("mail_hauberk", "Mail Hauberk", 1, "body", "fighter", [5, 14, 30, 46, 62], {}),
+    ("plate_cuirass", "Plate Cuirass", 1, "body", "fighter", [22, 40, 58, 77, 95], {}),
     ("signet", "Signet", 2, "ring", "", [1, 16, 34, 55, 78], {}),
     ("band", "Iron Band", 2, "ring", "", [8, 25, 45, 66, 92], {}),
     ("buckler", "Buckler", 3, "shield", "fighter", [6, 11, 17, 28, 39], {}),
@@ -48,8 +48,8 @@ PROFILES = {
                                       "atk_thrust": {"clip": "atk2_thrust", "start": 0.0, "strike": 0.57, "end": 1.1},
                                       "atk_slash_l": {"clip": "atk2_slash_l", "start": 0.0, "strike": 0.67, "end": 1.15},
                                       "atk_slash": {"clip": "atk2_slash", "start": 0.0, "strike": 0.57, "end": 0.95},
-                                      "atk_finisher": {"clip": "atk2_finisher", "start": 0.0, "strike": 0.77, "end": 1.6}}, "recovery": 0.55, "weight": 1.5, "arc": 130.0, "arc_damage": 0.6, "finisher": "slam",
-                   "style": "Wide arc, heavy stagger and knockback, slam finisher"},
+                                      "atk_finisher": {"clip": "atk2_finisher", "start": 0.0, "strike": 0.77, "end": 1.6}}, "recovery": 0.55, "weight": 1.5,
+                   "style": "Single target, heavy stagger and knockback"},
 }
 
 

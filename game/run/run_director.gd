@@ -154,9 +154,9 @@ func drop_level_at(point: Vector3) -> int:
 		return WorldThreat.monster_level(arena_level(wave))
 	return WorldThreat.monster_level(location.threat_at(point) if location != null else WorldThreat.for_distance(0.0))
 
-## The hero's magic find (gear), for the drop tables.
+## The human racial bonus plus gear, for the drop tables.
 func magic_find() -> float:
-	return player.stats.gear_stat("magic_find") if player != null else 0.0
+	return player.stats.magic_find() if player != null else 0.0
 
 ## Starts the job in an authored location: every group is already there, doing its own thing, so there is no wave and no timer.
 func start_location(place: CryptRoad) -> void:
@@ -304,10 +304,11 @@ func _spawn_point(min_dist: float, max_dist: float, used: Array[Vector3], spacin
 			roomiest = pos
 	return roomiest if roomiest_gap >= 0.0 else farthest
 
-func spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -> Enemy:
+func spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0, tier: String = "") -> Enemy:
 	var enemy := Enemy.new()
 	enemy.variant = variant
 	enemy.level_scale = level
+	enemy.tier_override = tier
 	enemy.target = player
 	enemy.died.connect(_on_enemy_died)
 	add_child(enemy)

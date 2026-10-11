@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "armor_pct_3"
 family = "armor_pct"
+tier = 3
 stat = "armor_pct"
 title = "Resolute"
 position = "prefix"
-tier = 3
 level = 20
-value = 51.0
+value = 52.0
+max_value = 52.0
+value_ceiling = 52.0
 percent = true
-slots = Array[String](["body", "helm", "gloves", "boots", "shield"])
+slots = Array[String](["body", "boots", "gloves", "helm", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

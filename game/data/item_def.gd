@@ -25,12 +25,12 @@ const ARMOR_SLOT := {"body": 0.5, "helm": 0.2, "shield": 0.2, "gloves": 0.15, "b
 @export var armor_class: String = ""
 ## The item levels this base comes in (DS2's base and var1-var4), lowest first.
 @export var levels: Array[int] = []
-## What is not a curve: a weapon's {damage (its share of its type's damage per hit), speed}; a body armour's {roll_cost, roll_speed}.
+## What is not a curve: a weapon's {damage (its share of its type's damage per hit), speed}.
 @export var stats: Dictionary = {}
 ## How a weapon fights beyond its damage and speed (read through PlayerStats.weapon_profile; empty means the baseline longsword style):
 ## (swing speed itself is the weapon's "speed" stat) "recovery" speeds (or slows) the tail after each blow, "weight" scales the stagger and
-## knockback of the basic combo, "arc" is the width in degrees in which a basic swing also hits other enemies (for "arc_damage" of the damage),
-## "finisher_time" scales the combo finisher's length, "finisher" = "slam" makes it shake the ground, "style" is the tooltip line.
+## knockback of the basic combo; "finisher_time" scales the combo finisher's length, "style" is the tooltip line.
+## Basic attacks always resolve against one engaged enemy (DS2); area damage belongs to explicit powers.
 ## "two_handed" true: it needs both hands (no shield).
 @export var profile: Dictionary = {}
 
@@ -43,7 +43,7 @@ func is_armor() -> bool:
 func is_jewelry() -> bool:
 	return item_type == "ring" or item_type == "amulet"
 
-## Its numbers at item level `level`: a weapon {min, max, speed}, an armour piece {armor} (and a body's roll numbers), jewellery {}.
+## Its numbers at item level `level`: a weapon {min, max, speed}, an armour piece {armor}, jewellery {}.
 func stats_at(level: int) -> Dictionary:
 	var out: Dictionary = {}
 	for key in stats:

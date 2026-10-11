@@ -29,7 +29,7 @@ func _enemy_fight() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_fight_%d.png" % i)
 	get_tree().quit()
 
-## `-- --archershot`: Cutter follows, draws and shoots a small pack; frames in %TEMP%/curse_archer_N.png.
+## `-- --archershot`: frozen draw stages and Take Aim flight; frames in %TEMP%/curse_archer_pose_*.png and curse_archer_power_*.png.
 func _archer_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -44,16 +44,54 @@ func _archer_shot() -> void:
 	game.companion.global_position = Vector3(0.0, 0.0, -1.0)
 	for pos in [Vector3(-4.0, 0, -10.0), Vector3(0.0, 0, -12.0), Vector3(4.0, 0, -10.5)]:
 		var enemy: Enemy = _spawn_enemy(pos)
+		enemy.set_physics_process(false)
 		enemy.target = player
 		enemy.aggro_range = 50.0
 		enemy.wake()
-	var draw_saved: bool = false
-	for i in 48:
-		await get_tree().create_timer(0.11).timeout
-		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_archer_%d.png" % i)
-		if not draw_saved and game.companion._draw > 0.72:
-			draw_saved = true
-			get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_archer_draw.png")
+	var archer: ArcherCompanion = game.companion
+	archer.set_physics_process(false)
+	archer.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	archer.visual.rotation.y = 0.0
+	rig.global_position = archer.global_position
+	rig.set_process(false)
+	rig.camera.position = Vector3(2.4, 2.3, 3.2)
+	rig.camera.look_at(archer.global_position + Vector3.UP * 1.1)
+	print("ARCHER screens=", DisplayServer.get_screen_count(), " root mode=", get_tree().root.mode)
+	for clip in ["walk", "run"]:
+		archer._draw = 0.0
+		archer._release = 0.0
+		archer.model.manual(clip)
+		for phase in [0.0, 0.25, 0.50, 0.75]:
+			archer.model.scrub(phase)
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var carry_image: Image = get_viewport().get_texture().get_image()
+			carry_image.resize(1280, 720)
+			carry_image.save_png(OS.get_environment("TEMP") + "/curse_archer_carry_%s_%d.png" % [clip, int(phase * 100)])
+	for progress in [0.20, 0.50, 0.92]:
+		archer._draw = progress
+		archer._draw_arrow.visible = true
+		archer.model.manual("idle")
+		archer.model.scrub(0.0)
+		print("ARCHER pose=", progress, " left=", archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["LeftHand"])).origin), " right=", archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["RightHand"])).origin))
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var image: Image = get_viewport().get_texture().get_image()
+		image.resize(1280, 720)
+		image.save_png(OS.get_environment("TEMP") + "/curse_archer_pose_%d.png" % int(progress * 100))
+	archer.target = get_tree().get_nodes_in_group("enemies")[0] as Enemy
+	archer.target.global_position = archer.global_position + Vector3(0.0, 0.0, 10.0)
+	archer.take_aim_armed = true
+	archer._draw = 1.0
+	archer.model.scrub(0.0)
+	archer._loose()
+	for i in 5:
+		await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		var image: Image = get_viewport().get_texture().get_image()
+		image.resize(1280, 720)
+		image.save_png(OS.get_environment("TEMP") + "/curse_archer_power_%d.png" % i)
+	print("ARCHERSHOT done: draw stages and Take Aim flight captured")
 	get_tree().quit()
 
 ## `-- --brutalshot`: arms Brutal Attack, whiffs once without spending it, then lands it; frames in %TEMP%/curse_brutal_N.png.

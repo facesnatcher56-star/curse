@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "melee_min_6"
 family = "melee_min"
+tier = 6
 stat = "melee_min"
 title = "of Desolation"
 position = "suffix"
-tier = 6
 level = 48
 value = 18.0
+max_value = 18.0
+value_ceiling = 18.0
 percent = false
 slots = Array[String](["weapon"])
+classes = Array[String](["fighter"])

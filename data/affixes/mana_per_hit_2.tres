@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mana_per_hit_2"
+family = "mana_per_hit"
+tier = 2
+stat = "mana_per_hit"
+title = "of Moonlight"
+position = "suffix"
+level = 34
+value = 6.0
+max_value = 6.0
+value_ceiling = 6.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter", "ranger", "mage"])

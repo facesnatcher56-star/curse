@@ -42,6 +42,13 @@ func _test_character_ui() -> void:
 	expect("opening the character view pauses gameplay", get_tree().paused)
 	expect("character view blocks world clicks", view_hud.covers(Vector2(100, 100)))
 	expect("character portrait is a separate viewport", view_hud.character_panel.find_children("*", "SubViewport", true, false).size() == 1)
+	var sheet: Control = view_hud.character_panel
+	expect("character sheet shows the DS2 human starting attributes, life and mana",
+		sheet.attributes_label.text.contains("STR 12  DEX 11  INT 11") and sheet.attributes_label.text.contains("Life 64  Mana 55"))
+	expect("character sheet exposes all four class levels, defences and nine equipment slots",
+		sheet.classes_label.text.contains("Melee 0") and sheet.classes_label.text.contains("Ranged 0")
+		and sheet.classes_label.text.contains("Combat Magic 0") and sheet.classes_label.text.contains("Nature Magic 0")
+		and sheet.gear_text().contains("Armor") and sheet.gear_text().contains("Magic find 10%") and sheet._doll_tiles.size() == 9)
 	var labels: Array[Node] = view_hud.character_panel.find_children("*", "Label", true, false)
 	var name_hover: bool = false
 	for label in labels:

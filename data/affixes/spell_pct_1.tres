@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "spell_pct_1"
 family = "spell_pct"
+tier = 1
 stat = "spell_pct"
 title = "Destructive"
 position = "prefix"
-tier = 1
 level = 2
 value = 4.0
+max_value = 4.0
+value_ceiling = 4.0
 percent = true
-slots = Array[String](["ring", "amulet"])
+slots = Array[String](["weapon"])
+classes = Array[String](["mage"])

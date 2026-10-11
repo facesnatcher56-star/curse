@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "block_1"
 family = "block"
+tier = 1
 stat = "block"
 title = "of Repulsion"
 position = "suffix"
-tier = 1
-level = 8
-value = 4.0
+level = 6
+value = 5.0
+max_value = 5.0
+value_ceiling = 5.0
 percent = true
 slots = Array[String](["shield"])
+classes = Array[String](["fighter"])

@@ -362,6 +362,12 @@ func _exit_gate() -> void:
 
 # --- The monsters -------------------------------------------------------------------------------------------------------------
 
+## The DS2 introductory tier applies to ordinary fodder in the opening stretch only.
+static func encounter_tier(kind: String, threat: float) -> String:
+	# DS2's level-one Bracken Defender inherits melee_trivial, not melee_normal.
+	# Map the opening fodder to that tier; retain their roles and the later roster's tiers.
+	return "trivial" if WorldThreat.monster_level(threat) == 1 and kind in ["zombie", "ghoul", "spitter"] else ""
+
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
 ## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples.
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
@@ -374,7 +380,7 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 			var spot: Vector2 = Vector2(float(m[1]), float(m[2]))
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
-			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), threat)
+			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), threat, encounter_tier(String(m[0]), threat))
 			e.group_id = id
 			e.idle_mode = mode
 			e.home = at(home.x, home.y)

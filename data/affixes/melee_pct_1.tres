@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "melee_pct_1"
 family = "melee_pct"
+tier = 1
 stat = "melee_pct"
 title = "Cruel"
 position = "prefix"
-tier = 1
 level = 2
 value = 10.0
+max_value = 10.0
+value_ceiling = 10.0
 percent = true
-slots = Array[String](["weapon", "gloves"])
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter"])

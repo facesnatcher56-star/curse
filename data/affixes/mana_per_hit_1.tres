@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mana_per_hit_1"
+family = "mana_per_hit"
+tier = 1
+stat = "mana_per_hit"
+title = "of Candlelight"
+position = "suffix"
+level = 12
+value = 2.0
+max_value = 2.0
+value_ceiling = 2.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter", "ranger", "mage"])

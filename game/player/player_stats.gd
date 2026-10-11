@@ -57,6 +57,8 @@ func refresh() -> void:
 	p.fire_resist = (gear_stat("fire_resist") + passive("survival")) / 100.0
 	p.block_chance = (gear_stat("block") + passive("barricade")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.added_fire = gear_stat("fire_added")
+	p.added_fire_max = gear_stat("fire_added_max")
+	p.ranged_block_chance = (passive("barricade") + gear_stat("block_ranged")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.crit_chance = passive("critical_strike") / 100.0
 	p.crit_mult = passive("deadly_strike") / 100.0 if TownState.passive_rank("deadly_strike") > 0 else 2.0
 	p.toughness = passive("toughness") / 100.0
@@ -66,6 +68,9 @@ func refresh() -> void:
 func passive(id: String) -> float:
 	var def: PassiveDef = PassiveDb.get_def(id)
 	return def.value(TownState.passive_rank(id)) if def != null else 0.0
+
+func magic_find() -> float:
+	return HeroAttributes.HUMAN_MAGIC_FIND + gear_stat("magic_find")
 
 # --- What the gear adds (DS2 modifiers, uniques and set bonuses) ------------------------------------------------------------------------
 ## Everything worn adds up to this: stat (AffixDb.STAT_NAMES) -> value. Worked out by `refresh`.
@@ -98,13 +103,14 @@ func gear_totals() -> Dictionary:
 ## Barricade raises the shield's own armour (its table: +20 to +120%), Reinforced Armor all of it (DS2 section 3).
 func total_armor() -> float:
 	var armor: float = base_armor
+	var shield_bonus: float = 0.0
 	for place in equipment:
 		var piece: float = float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
 		if place == Items.Slot.SHIELD:
-			piece *= 1.0 + PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade")) / 100.0
+			shield_bonus = piece * PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade")) / 100.0
 		armor += piece
 	var provoke: float = p.powers.provoke_armor_pct if p.powers != null else 0.0   # DS2's Provoke, while it holds
-	return (armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)
+	return ((armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) + shield_bonus) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)
 
 ## A skill's mana: its data's, except Fireball, a DS2 spell whose cost grows with INT (82 at INT 100, 164 at 200: 0.82 x INT).
 func mana_cost(id: String) -> float:
@@ -135,7 +141,7 @@ var max_stamina: float = 100.0
 var stamina: float = 100.0
 const MAX_POTIONS := 6
 var potions: int = 3
-var run_speed: float = 5.0
+var run_speed: float = 4.5   # DS2 heroes_ds2.gas avg_move_velocity
 var cooldowns: Dictionary = {}
 # Equipment (see items.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
@@ -155,13 +161,16 @@ func brutal_active_members() -> int:
 	return members
 
 ## Dungeon Siege II's fast-power baseline, copied directly: secondsOfCombat × (6 + 1.5L) × (1 + .022L) × active group members.
-func power_recharge_damage(seconds_of_combat: float) -> float:
-	var level: float = maxf(float(TownState.hero_level), 1.0)
-	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members() / (1.0 + gear_stat("recharge") / 100.0)
+func power_recharge_damage(seconds_of_combat: float, tree: String = "", caster: Actor = null) -> float:
+	var level: float = maxf(float(caster.level if caster != null else TownState.hero_level), 1.0)
+	var hero: bool = caster == null or caster == p
+	var renewal: float = (passive("fierce_renewal") if tree == "melee" else passive("cunning_renewal") if tree == "ranged" else 0.0) if hero else 0.0
+	var gear_bonus: float = gear_stat("recharge") if hero else 0.0
+	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members() / ((1.0 + gear_bonus / 100.0) * (1.0 + renewal / 100.0))
 
 ## Brutal Attack is a melee power: Fierce Renewal speeds its recharge.
 func brutal_recharge_damage() -> float:
-	return power_recharge_damage(BRUTAL_COMBAT_SECONDS) / (1.0 + passive("fierce_renewal") / 100.0)
+	return power_recharge_damage(BRUTAL_COMBAT_SECONDS, "melee")
 
 ## Brutal Attack's weapon-damage multiplier at the hero's rank (DS2: 1500 + 25 x Melee % at rank 1, to 2000 + 60 x Melee % at rank 3).
 func brutal_mult() -> float:

@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "dexterity_9"
 family = "dexterity"
+tier = 9
 stat = "dex"
 title = "of Effortlessness"
 position = "suffix"
-tier = 9
 level = 81
 value = 100.0
+max_value = 100.0
+value_ceiling = 100.0
 percent = false
-slots = Array[String](["weapon", "body", "gloves", "boots", "ring", "amulet"])
+slots = Array[String](["amulet", "body", "boots", "gloves", "helm", "ring", "weapon"])
+classes = Array[String](["fighter", "ranger", "mage", "nmage", "cmage"])

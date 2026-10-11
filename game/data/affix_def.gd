@@ -14,6 +14,9 @@ extends Resource
 ## Its modifier level: it rolls only on an item whose drop allows that level.
 @export var level: int = 1
 @export var value: float = 0.0
+@export var max_value: float = 0.0
+@export var value_ceiling: float = 0.0
+@export var classes: Array[String] = []
 ## True when `value` is a percentage.
 @export var percent: bool = false
 ## The item kinds it may roll on (weapon, body, helm, gloves, boots, shield, ring, amulet).
@@ -21,4 +24,6 @@ extends Resource
 
 ## "+12 Strength", "+18% Melee damage": the line on an item card.
 func describe() -> String:
+	if stat == "fire_added" and max_value > value:
+		return "+%d–%d Fire damage" % [int(value), int(max_value)]
 	return AffixDb.describe_stat(stat, value)

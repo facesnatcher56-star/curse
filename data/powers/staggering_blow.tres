@@ -18,4 +18,4 @@ values = {
 estimated = Array[String]([])
 summary = "Your next two-handed blow sends out a shockwave that stuns everything caught in it."
 order = 3
-needs = "not built yet"
+needs = ""

@@ -1,6 +1,53 @@
 extends DevSuite
 ## Self-test: melee feel (auto-attack, impacts, sword sounds, roll and dodge, fists, weapon styles, recoil, brutal attacks).
 
+## Direct-hit checks miss the delayed damage from a shoved enemy or flying corpse.
+func _test_basic_single_target_physics() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var origin: Vector3 = _free_lane_start(12.0, 4.0)
+	player.set_physics_process(false)
+	player.global_position = origin
+	player.reset_physics_interpolation()
+	if DisplayServer.get_name() != "headless":
+		rig.set_process(false)
+		rig.camera.global_position = origin + Vector3(4.0, 4.0, 6.0)
+		rig.camera.look_at(origin + Vector3(1.8, 0.8, 0.0))
+	for lethal in [false, true]:
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Greatsword" if not lethal else "Longsword"), false)
+		var target: Enemy = _spawn_enemy(origin + Vector3(1.6, 0, 0))
+		var bystander: Enemy = _spawn_enemy(origin + Vector3(2.5, 0, 0))
+		for e in [target, bystander]:
+			e.alert_delay = 999.0
+			e.aggro_range = 0.0
+			e.max_health = 5000.0
+			e.health = 5000.0
+			e.dodge_chance = 0.0
+			e.block_chance = 0.0
+		target.health = 1.0 if lethal else 5000.0
+		await get_tree().physics_frame
+		player.skills.busy_skill = "basic"
+		player.skills.busy_target = target
+		player.skills.busy_aim = target.global_position
+		player.forced_crits = 0 if lethal else 1
+		var old_crit: float = player.crit_chance
+		player.crit_chance = 0.0
+		player.skills._apply_skill(SkillDb.all()["basic"])
+		player.crit_chance = old_crit
+		await get_tree().create_timer(1.2).timeout
+		print("  basic physics lethal=", lethal, " target health=", target.health, " bystander health=", bystander.health, " result=", bystander.last_result)
+		expect("basic %s leaves the adjacent enemy unharmed after physics" % ("kill/corpse" if lethal else "critical knockback"), bystander.health == 5000.0)
+		expect("fixture actually lands the requested basic blow", target.dead if lethal else target.health < 5000.0)
+		if DisplayServer.get_name() != "headless":
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_basic_single_%s.png" % ("corpse" if lethal else "critical"))
+		for e in [target, bystander]:
+			e.queue_free()
+		await get_tree().physics_frame
+	player.set_physics_process(true)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"), false)
+
 ## A click attacks once; nothing keeps attacking afterwards, and skills drop the attack order.
 func _test_auto_attack() -> void:
 	player.global_position = Vector3.ZERO
@@ -49,7 +96,7 @@ func _test_auto_attack() -> void:
 	dummy.queue_free()
 	await get_tree().process_frame
 
-## Thrown bodies spread burn to enemies they hit and slam into props.
+## Thrown bodies and wall bounces are presentation, never an extra attack.
 func _test_impact() -> void:
 	player.global_position = Vector3(-25, 0, -25)
 	player.reset_physics_interpolation()
@@ -65,7 +112,8 @@ func _test_impact() -> void:
 	burner.apply_slow(0.4, 5.0)
 	burner.ragdoll_launch(Vector3(0, 0, 12), 6.5, Vector3(4, 0, 0))   # same throw as the Skewer kick
 	await get_tree().create_timer(1.0).timeout
-	expect("a thrown burning body passes burn and slow on", bystander.is_burning() and bystander.slow_time > 0.0 and bystander.health < 500.0)
+	expect("a thrown body cannot damage, spread statuses or knock down a bystander", not bystander.is_burning() and bystander.slow_time == 0.0
+		and bystander.health == 500.0 and not bystander.is_ragdolled() and bystander.stun_time == 0.0)
 	print("  bowled: bystander burning=", bystander.is_burning(), " slowed=", bystander.slow_time > 0.0, " health=", snappedf(bystander.health, 0.1), "/500")
 	bystander.queue_free()
 	burner.queue_free()
@@ -88,7 +136,7 @@ func _test_impact() -> void:
 	await get_tree().process_frame
 	flier.ragdoll_launch(Vector3(0, 0, 13), 2.0, Vector3(5, 0, 0))
 	await get_tree().create_timer(1.0).timeout
-	expect("slamming into a wall hurts and stuns", flier.health < 500.0 and flier.stun_time > 2.0)
+	expect("a ragdoll wall bounce adds no damage or stun", flier.health == 500.0 and flier.stun_time == 0.0)
 	print("  wall slam: health=", snappedf(flier.health, 0.1), "/500 stun left=", snappedf(flier.stun_time, 0.1))
 	for e in [bystander, burner, flier]:
 		if is_instance_valid(e):
@@ -301,6 +349,21 @@ func _test_brutal_attack() -> void:
 	expect("Brutal Attack interrupts the ordinary swing and begins its powered blow immediately",
 		skills.brutal_armed and skills._brutal_aura != null and skills.busy and skills.busy_skill == "basic"
 		and bool(skills.busy_def.get("brutal_animation", false)) and skills.busy_t < 0.08)
+	var aura := skills._brutal_aura as BrutalAttackFx
+	expect("Brutal Attack wisps track the animated skeleton instead of fixed body offsets", aura != null and aura.emitters.size() >= 12)
+	var bone: int = aura.skeleton.find_bone("RightForeArm")
+	player.model.manual("power")
+	player.model.scrub(0.78)
+	var before_wisp: Vector3 = (aura.emitters[bone] as CPUParticles3D).global_position
+	player.model.scrub(1.23)
+	var after_wisp: Vector3 = (aura.emitters[bone] as CPUParticles3D).global_position
+	var after_bone: Vector3 = aura.skeleton.to_global(aura.skeleton.get_bone_global_pose(bone).origin)
+	expect("the arm's steam moves with the attack pose and stays just outside the bone", before_wisp.distance_to(after_wisp) > 0.05
+		and after_wisp.distance_to(after_bone) < 0.07)
+	expect("Brutal Attack starts its brief inward visual charge without delaying the attack", aura.get_node_or_null("ChargeGather") != null and skills.busy_t < 0.08)
+	expect("Brutal Attack uses DS2's three impact colours and rank scaling", BrutalAttackFx.rank_color(1) == Color("9e5d33")
+		and BrutalAttackFx.rank_color(2) == Color("bc5900") and BrutalAttackFx.rank_color(3) == Color("8f2808")
+		and is_equal_approx(BrutalAttackFx.rank_scale(1), 1.0) and is_equal_approx(BrutalAttackFx.rank_scale(3), 1.8))
 	skills.cancel_action()
 	priority_target.queue_free()
 	player.attack_target = null
@@ -321,12 +384,15 @@ func _test_brutal_attack() -> void:
 	victim.armor = 0.0
 	var before: float = victim.health
 	skills.busy_target = victim
+	Fx._recent_impacts.clear()
 	skills._apply_skill(SkillDb.all()["basic"])
 	# Use the production helper so the test observes the same minimum level guard as a fresh new-game save.
 	var expected_reload: float = player.stats.brutal_recharge_damage()
 	expect("the next successful basic hit spends Brutal Attack and deals its amplified weapon damage",
 		not skills.brutal_armed and is_equal_approx(player.stats.brutal_reload_remaining, expected_reload)
 		and is_equal_approx(player.stats.brutal_reload_required, expected_reload) and before - victim.health > player.stats.weapon_range(1.0).y * 5.0)
+	expect("spending Brutal Attack removes its persistent aura", skills._brutal_aura == null)
+	expect("Brutal Attack's directional impact does not also spawn the generic heavy-hit ground ring", not Fx._recent_impacts.has("crush_ring"))
 	player.on_dealt_hit(victim, {"outcome": Combat.Outcome.HIT, "damage": 90.0, "skill_id": "basic"})
 	expect("ordinary combat damage subtracts from DS2's reload-damage budget",
 		is_equal_approx(player.stats.brutal_reload_remaining, expected_reload - 90.0))
@@ -472,6 +538,15 @@ func _test_weapon_styles() -> void:
 		finisher.merge(SkillDb.basic_combo()[2][0], true)
 		skills._apply_skill(finisher)
 		slammed[base] = int(left.stun_time > 0.0) + int(right.stun_time > 0.0) + int(behind.stun_time > 0.0)
+		skills.brutal_armed = true
+		skills._apply_skill(plain)
+		expect("%s Brutal Attack never cleaves adjacent enemies" % base, left.health == 5000.0 and right.health == 5000.0 and behind.health == 5000.0)
+		target.global_position = Vector3(0, 0, 14)
+		skills.brutal_armed = true
+		skills._apply_skill(finisher)
+		expect("%s out-of-reach swing cannot hit bystanders or spend Brutal Attack" % base,
+			skills.brutal_armed and left.health == 5000.0 and right.health == 5000.0 and behind.health == 5000.0)
+		skills.brutal_armed = false
 		for e in group:
 			e.queue_free()
 		await get_tree().process_frame
@@ -482,10 +557,10 @@ func _test_weapon_styles() -> void:
 	expect("a falchion's finisher really takes about 0.8 s (longsword 1.3 s), readable from wind-up to finish", actual_finisher["Falchion"] > 0.7
 		and actual_finisher["Falchion"] < 0.9 and absf(actual_finisher["Longsword"] - base_time) < 0.05 and actual_finisher["Greatsword"] > actual_finisher["Longsword"])
 	expect("stagger weight rises falchion < longsword < greatsword", weights["Falchion"] < weights["Longsword"] - 0.15 and weights["Greatsword"] > weights["Longsword"] + 0.3)
-	expect("only the greatsword's swing reaches the others in an arc in front (not behind)", swept["Falchion"] == 0 and swept["Longsword"] == 0 and swept["Greatsword"] == 2)
-	expect("only the greatsword's finisher slams the ground in front", slammed["Falchion"] == 0 and slammed["Longsword"] == 0 and slammed["Greatsword"] >= 2)
+	expect("DS2 basic swings hit only the engaged target with every weapon", swept["Falchion"] == 0 and swept["Longsword"] == 0 and swept["Greatsword"] == 0)
+	expect("basic finishers never add a free area slam", slammed["Falchion"] == 0 and slammed["Longsword"] == 0 and slammed["Greatsword"] == 0)
 	expect("the tooltip says how the weapon fights", Items.lines(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Greatsword")).any(
-		func(line: String) -> bool: return line.contains("slam")))
+		func(line: String) -> bool: return line.contains("Single target")))
 	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"), false)
 
 ## Standing monsters take a blow in the body: the chest tips away from it, overshoots and settles (BodyRecoil + CharacterModel._apply_hit_reaction).

@@ -17,6 +17,8 @@ const INFLUENCE := {
 
 ## DS2's human start (STR, DEX, INT).
 const START := Vector3(12, 11, 11)
+## heroes_ds2.gas: human magic_find_chance = 0.1 (percent units used by our loot rules).
+const HUMAN_MAGIC_FIND := 10.0
 
 ## The skill each hit is counted under. Anything not listed (collisions, impacts, splash) is Melee: the hero's own body and blade.
 const SKILL_CLASS := {

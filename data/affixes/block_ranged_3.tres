@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "block_ranged_3"
+family = "block_ranged"
+tier = 3
+stat = "block_ranged"
+title = "of Defense"
+position = "suffix"
+level = 46
+value = 20.0
+max_value = 20.0
+value_ceiling = 20.0
+percent = true
+slots = Array[String](["shield"])
+classes = Array[String](["fighter"])

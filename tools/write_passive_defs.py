@@ -76,6 +76,26 @@ EXTRA = {
 
 NEEDS = {"critical_shot": "a ranged attack", "quick_draw": "throwing weapons", "bleed": "throwing weapons"}
 
+# Source prerequisite paths needed to reach every rank of the implemented powers.
+PASSIVES += [
+    ("biting_arrow", "Biting Arrow", "ranged", 5, {"critical_shot": 1}, 8, 50, "Bow and crossbow damage +%s%%"),
+    ("far_shot", "Far Shot", "ranged", 12, {"biting_arrow": 1}, 6, 60, "Bow and crossbow range +%s%%"),
+    ("penetrate", "Penetrate", "ranged", 24, {}, 12, 75, "Projectile penetration chance %s%%"),
+    ("cunning_renewal", "Cunning Renewal", "ranged", 24, {"bleed": 1}, 3, 30, "Ranged power recharge +%s%%"),
+    ("mortal_wound", "Mortal Wound", "ranged", 36, {"far_shot": 1, "penetrate": 1}, 224, 350, "Bow and crossbow critical damage %s%%"),
+    ("ricochet", "Ricochet", "ranged", 36, {"bleed": 1, "penetrate": 1}, 66, 150, "Thrown critical ricochet damage %s%%"),
+    ("arcane_fury", "Arcane Fury", "combat", 36, {"quickened_casting": 1}, 3, 30, "Magic power damage +%s%%"),
+]
+TABLES.update({
+    "biting_arrow": TABLES["critical_shot"], "mortal_wound": TABLES["deadly_strike"],
+    "cunning_renewal": TABLES["fierce_renewal"], "arcane_fury": TABLES["fierce_renewal"],
+    "far_shot": [6, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43, 46, 48, 50, 52, 54, 56, 58, 60],
+    "penetrate": [12, 22, 30, 36, 41, 46, 50, 54, 57, 60, 63, 65, 67, 69, 70.5, 72, 73, 74, 74.5, 75],
+    "ricochet": [66, 78, 86, 94, 101, 107, 112, 117, 122, 126, 130, 133, 136, 139, 142, 144, 146, 148, 149, 150],
+})
+NEEDS.update({"biting_arrow": "a hero bow or crossbow", "far_shot": "a hero bow or crossbow", "penetrate": "a hero ranged attack",
+              "mortal_wound": "a hero bow or crossbow", "ricochet": "hero throwing weapons"})
+
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)

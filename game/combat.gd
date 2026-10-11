@@ -5,7 +5,7 @@ extends RefCounted
 ## the attacker's level, resistance for fire, the level-gap penalty, and a floor of 1.
 
 enum Outcome { MISS, BLOCK, HIT, CRITICAL }
-enum DamageType { PHYSICAL, FIRE }
+enum DamageType { PHYSICAL, FIRE, RANGED }
 
 ## The most a hero's resistance can be (DS2 caps it at 80%).
 const RESIST_CAP := 0.8
@@ -37,32 +37,39 @@ static func level_gap_factor(attacker_level: int, defender_level: int) -> float:
 ## `allow_crit` false for powers (DS2: powers never crit).
 static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false,
-		allow_crit: bool = true) -> Dictionary:
+		allow_crit: bool = true, damage_multiplier: float = 1.0) -> Dictionary:
 	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "weight": weight, "source": attacker, "type": damage_type}
 	if can_miss and randf() < defender.dodge_chance:
 		return _done(result, Outcome.MISS)
-	if damage_type == DamageType.PHYSICAL and can_miss and randf() < defender.block_chance:
+	var physical: bool = damage_type in [DamageType.PHYSICAL, DamageType.RANGED]
+	var block: float = defender.ranged_block_chance if damage_type == DamageType.RANGED else defender.block_chance
+	if physical and can_miss and randf() < block:
 		return _done(result, Outcome.BLOCK)
 	var dmg: float = base_damage
+	if physical:
+		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)
+	if physical and attacker.added_fire > 0.0:
+		dmg += maxf(randf_range(attacker.added_fire, maxf(attacker.added_fire, attacker.added_fire_max)) * fire_multiplier(defender), 0.0)
 	var outcome: int = Outcome.HIT
 	var forced: bool = allow_crit and attacker.forced_crits > 0
 	if forced:
 		attacker.forced_crits -= 1   # DS2's War Cry: the next blows crit
-	if force_crit or forced or (allow_crit and randf() < attacker.crit_chance):
+	if allow_crit and (force_crit or forced or randf() < attacker.crit_chance):
 		# DS2 adds a second, separately rolled hit; CURSE CHOICE: the second roll is taken equal to the first (200%), since the blow
 		# arrives here already rolled.
 		outcome = Outcome.CRITICAL
 		dmg *= attacker.crit_mult
-	if damage_type == DamageType.PHYSICAL:
-		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)   # DS2's Toughness: the victim's physical damage cut
-		if attacker.added_fire > 0.0:   # DS2: added elemental damage, less the victim's resistance, before armour
-			dmg += attacker.added_fire * (1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0))
-		dmg *= armor_factor(attacker.level, defender.armor * (1.0 - defender.armor_shred))
-	else:
-		dmg *= 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0)
+	# DS2 applies armour to spell and power damage too, before final elemental resistance.
+	dmg *= armor_factor(attacker.level, defender.armor * (1.0 - defender.armor_shred))
 	dmg *= level_gap_factor(attacker.level, defender.level)
-	result["damage"] = maxf(dmg, 1.0)
+	dmg = maxf(dmg, 1.0) * damage_multiplier   # DS2 multiplies the complete resolved blow, including custom damage.
+	if damage_type == DamageType.FIRE:
+		dmg *= fire_multiplier(defender)
+	result["damage"] = dmg
 	return _done(result, outcome)
+
+static func fire_multiplier(defender: Actor) -> float:
+	return 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") or defender.is_in_group("companions") else 2.0)
 
 static func _done(result: Dictionary, outcome: int) -> Dictionary:
 	result["outcome"] = outcome

@@ -171,6 +171,7 @@ func _test_archer_companion() -> void:
 	archer.global_position = Vector3(2.0, 0.0, 2.0)
 	player.global_position = Vector3.ZERO
 	player.reset_physics_interpolation()
+	_test_archer_draw(archer)
 	var quiet: Enemy = _spawn_enemy(Vector3(-4.0, 0.0, -8.0))
 	quiet.aggro_range = 0.0
 	quiet.max_health = 500.0
@@ -178,6 +179,7 @@ func _test_archer_companion() -> void:
 	var threats: Array[Enemy] = []
 	for pos in [Vector3(0.0, 0.0, -8.0), Vector3(4.0, 0.0, -9.0)]:
 		var enemy: Enemy = _spawn_enemy(pos)
+		enemy.set_physics_process(false)   # Test draw/impact separately from chase/retreat below.
 		enemy.max_health = 500.0
 		enemy.health = enemy.max_health
 		enemy.target = player
@@ -196,13 +198,15 @@ func _test_archer_companion() -> void:
 		elapsed += 1.0 / 60.0
 		saw_draw = saw_draw or archer._draw > 0.25
 	var hit_threat: bool = archer.last_hit_target in threats
+	if not hit_threat:
+		print("  archer shot fixture: pos=", archer.global_position, " draw=", archer._draw, " target=", archer.target, " shots=", archer.shots_fired)
 	expect("Cutter carries Blender-authored bow, quiver and draw arrow", archer._draw_arrow != null and ResourceLoader.exists(ArcherCompanion.BOW_MODEL)
 		and ResourceLoader.exists(ArcherCompanion.QUIVER_MODEL) and ResourceLoader.exists(ArcherCompanion.ARROW_MODEL))
 	expect("Cutter draws before loosing a visible physical arrow", saw_draw and archer.shots_fired >= 1)
 	expect("Cutter attacks only an enemy aggroed onto the hero", hit_threat and quiet.health == quiet.max_health)
 	expect("the arrow uses the normal hit/reaction path", hit_threat and archer.last_hit_target.health < archer.last_hit_target.max_health
 		and archer.last_hit_target.flinch_serial > 0 and archer.last_hit_target.hero_credited())
-	var expected_take_aim_reload: float = player.stats.power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
+	var expected_take_aim_reload: float = player.stats.power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS, "ranged", archer)
 	expect("Cutter's first Ranged power is a 1500% non-crit Take Aim shot with DS2's fast recharge",
 		hit_threat and archer.last_hit_target.max_health - archer.last_hit_target.health > (3.0 + 0.65 * archer.level) * 5.0
 		and not archer.take_aim_armed and is_equal_approx(archer.take_aim_reload_required, expected_take_aim_reload)
@@ -213,6 +217,13 @@ func _test_archer_companion() -> void:
 	expect("active-party damage recharges Cutter's Take Aim",
 		is_equal_approx(archer.take_aim_reload_remaining, take_aim_before_party_hit - 25.0))
 	var spacing_target: Enemy = threats[0]
+	# Isolate retreat from random threat selection, chasing bodies and kills.
+	for threat_enemy in threats:
+		threat_enemy.set_physics_process(false)
+		threat_enemy.health = threat_enemy.max_health
+		if threat_enemy != spacing_target:
+			threat_enemy.target = null
+			threat_enemy.global_position += Vector3(60, 0, 60)
 	spacing_target.move_speed = 0.0
 	archer.target = spacing_target
 	# Start inside bow distance but outside the two bodies' collision overlap, so this measures AI retreat rather than depenetration.
@@ -243,6 +254,52 @@ func _test_archer_companion() -> void:
 	expect("Cutter automatically follows the moving hero", archer.flat_distance_to(player) < displaced_gap - 1.0)
 	archer.testing_disabled = true
 	archer.target = null
+
+## Geometry checks catch detached props, a fixed string hand and reversed projectile axes.
+func _test_archer_draw(archer: ArcherCompanion) -> void:
+	archer.visual.rotation.y = 0.0
+	var carry_attached: bool = true
+	var carry_upright: bool = true
+	var carry_clear: bool = true
+	for clip in ["walk", "run"]:
+		archer.model.manual(clip)
+		archer._draw = 0.0
+		archer._release = 0.0
+		for phase in [0.0, 0.25, 0.50, 0.75]:
+			archer.model.scrub(phase)
+			var left_hand: Vector3 = archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["LeftHand"])).origin)
+			carry_attached = carry_attached and archer._bow_holder.to_global(Vector3(-0.065, 0.0, 0.0)).distance_to(left_hand) < 0.01
+			carry_upright = carry_upright and archer._bow_holder.global_basis.y.normalized().dot(Vector3.UP) > 0.95
+			carry_clear = carry_clear and archer._bow_holder.to_global(Vector3(0.065, -0.78, 0.0)).y > archer.global_position.y + 0.10
+	expect("walk/run keep the bow grip attached to the left hand", carry_attached)
+	expect("walk/run carry the bow upright without dragging a limb or showing a nocked arrow", carry_upright and carry_clear and not archer._draw_arrow.visible)
+	archer.model.manual("idle")
+	archer._draw = 0.20
+	archer.model.scrub(0.0)
+	var hand: int = int(archer._pose_bones["RightHand"])
+	var start: Vector3 = archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(hand).origin)
+	archer._draw = 0.92
+	archer.model.scrub(0.0)
+	var drawn: Vector3 = archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(hand).origin)
+	var box: AABB = archer._draw_arrow.get_meta("mesh_bounds")
+	var nock: Vector3 = archer._draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0))
+	var left: Vector3 = archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["LeftHand"])).origin)
+	var grip: Vector3 = archer._bow_holder.to_global(Vector3(-0.065, 0.0, 0.0))
+	expect("bow draw pulls the string hand backward before release", start.z - drawn.z > 0.15)
+	expect("bow grip and arrow nock stay attached to solved hands", grip.distance_to(left) < 0.01 and nock.distance_to(drawn) < 0.01)
+	expect("nocked arrow points along the character's facing, not across the bow", archer._draw_arrow.global_basis.y.normalized().dot(archer.visual.global_basis.z.normalized()) > 0.95)
+	var from: Vector3 = archer.global_position + Vector3.UP * 5.0
+	var normal: CompanionArrow = CompanionArrow.fire(game, archer, from, from + Vector3.FORWARD, 1.0)
+	var power: CompanionArrow = CompanionArrow.fire(game, archer, from, from + Vector3.FORWARD, 1.0, true)
+	expect("only Take Aim carries the enhanced flight streak", normal.get_node_or_null("TakeAimCore") == null and power.get_node_or_null("TakeAimCore") != null)
+	expect("arrows face their flight path immediately and Take Aim keeps double velocity", power.basis.y.dot(power.velocity.normalized()) > 0.99
+		and is_equal_approx(normal.velocity.length(), 30.0) and is_equal_approx(power.velocity.length(), 60.0))
+	power._stick(null)
+	expect("Take Aim's streak stops on impact", not (power.get_node("TakeAimCore") as Node3D).visible)
+	normal.queue_free()
+	power.queue_free()
+	archer._cancel_draw(true)
+	archer.model.loop("idle")
 
 ## Deterministic Warden state/geometry coverage; no random combat outcomes inferred.
 func _warden_fixture() -> Enemy:

@@ -18,4 +18,4 @@ values = {
 estimated = Array[String]([])
 summary = "A deafening cry in a cone: enemies flee with their armour stripped, and your next hits are critical."
 order = 4
-needs = "not built yet"
+needs = ""

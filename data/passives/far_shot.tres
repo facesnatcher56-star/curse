@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "far_shot"
+display_name = "Far Shot"
+tree = "ranged"
+class_level = 12
+prereqs = {
+"biting_arrow": 1
+}
+first = 6.0
+last = 60.0
+text = "Bow and crossbow range +%s%%"
+order = 22
+table = Array[float]([6.0, 10.0, 14.0, 18.0, 22.0, 25.0, 28.0, 31.0, 34.0, 37.0, 40.0, 43.0, 46.0, 48.0, 50.0, 52.0, 54.0, 56.0, 58.0, 60.0])
+extra = {}
+needs = "a hero bow or crossbow"

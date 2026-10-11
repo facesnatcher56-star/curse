@@ -8,7 +8,7 @@ extends RefCounted
 const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 9
+const SAVE_VERSION := 10
 const MAX_STASH := 12
 const LOW_FOOD := 3
 
@@ -561,10 +561,18 @@ static func to_dict() -> Dictionary:
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
 	var version: int = int(data.get("save_version", 0))
+	var original_version: int = version
 	if version > SAVE_VERSION:
 		return {}
 	while version < SAVE_VERSION:
 		match version:
+			9:   # Replace the interpolated XP curve without taking away earned levels or level progress.
+				if original_version >= 7:
+					data["hero_xp"] = HeroProgression.migrate_interpolated_xp(int(data.get("hero_xp", 0)))
+					data["cutter_xp"] = HeroProgression.migrate_interpolated_xp(int(data.get("cutter_xp", 0)))
+					var classes: Dictionary = data.get("class_xp", {})
+					for tree in classes:
+						classes[tree] = HeroProgression.migrate_interpolated_xp(int(classes[tree]))
 			0:   # before versions: boards held {waves}, no job or last run was saved
 				var offers: Array = []
 				for offer in data.get("board", []):

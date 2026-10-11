@@ -1,0 +1,41 @@
+{
+  "sources": {
+    "fireball_impact.wav": "1291ad001a289f91fee9a77f5bb649261533609a53553dc6c4aaec72d73e4789",
+    "leap_land.wav": "cdfe0335bfa8ed0a62d6fb690184d5a55113abd28353e2098a307ca3ec808b05",
+    "sword_hit_2.wav": "d665e78d62b5b33e5851a77d7877f2b5d6aff46f929903f994b7a0fe5ccce507",
+    "sword_miss_2.wav": "54508710c447a5f2659b5d453d2d2c687e8c64dc120adef35528cfdae94f1cad"
+  },
+  "cues": {
+    "brutal_hit": {
+      "duration_s": 2.42,
+      "oversampled_peak_dbfs": -6.000151911971628,
+      "rms_dbfs": -23.276805289735734,
+      "energy90_s": 0.6667120181405896
+    },
+    "take_aim_charge": {
+      "duration_s": 1.06,
+      "oversampled_peak_dbfs": -5.999898821009059,
+      "rms_dbfs": -23.99075650000107,
+      "energy90_s": 0.4192743764172336
+    },
+    "take_aim_fire": {
+      "duration_s": 1.29,
+      "oversampled_peak_dbfs": -5.999887866262503,
+      "rms_dbfs": -22.510989682100217,
+      "energy90_s": 0.42913832199546487
+    },
+    "take_aim_hit": {
+      "duration_s": 2.17,
+      "oversampled_peak_dbfs": -6.000241158265789,
+      "rms_dbfs": -19.027203466604384,
+      "energy90_s": 1.0513832199546485
+    }
+  },
+  "preview_order": [
+    "brutal_hit",
+    "take_aim_charge",
+    "take_aim_fire",
+    "take_aim_hit"
+  ],
+  "note": "Derived only from existing project recordings. Source provenance/licences remain in assets/audio/CREDITS.md. No DS2 sample content."
+}

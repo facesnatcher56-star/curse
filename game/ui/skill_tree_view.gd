@@ -1,126 +1,155 @@
 extends PanelContainer
-## The skill screen: DS2's passive trees (Melee, Ranged, Combat Magic). Skill points are chosen with + and - (staged, nothing is bought
-## yet), then Confirm buys them for good (DS2 has no respec) or Reset clears the choice. Opened from the character screen; mouse and
-## controller alike (every control is a focusable button). Lives in Hud.character_panel, so the HUD's pause and close handling apply.
-
+## DS2-style icon chart. Purchases still use the existing staged/confirm rules.
 const TREES: Array[String] = ["melee", "ranged", "combat"]
-
+const Chart := preload("res://game/ui/skill_tree_chart.gd")
 var hero: Player
-var staged: Dictionary = {}   # passive id -> ranks chosen but not confirmed
-var _focus_key: String = ""   # the button that had focus, to give it back after a rebuild
+var staged: Dictionary = {}
+var selected_tree: String = "melee"
+var _focus_key: String = "tab_melee"
 var _box: VBoxContainer
+var _detail: PanelContainer
+var _detail_label: Label
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
 	add_theme_stylebox_override("panel", UiTheme.panel_box())
-	position = Vector2(40, 60)
-	size = Vector2(minf(1080, get_viewport_rect().size.x - 80), minf(640, get_viewport_rect().size.y - 160))
+	position = Vector2(260, 40) if get_viewport_rect().size.x >= 1100 else Vector2(20, 30)
+	size = Vector2(minf(760, get_viewport_rect().size.x - position.x - 20), minf(640, get_viewport_rect().size.y - 70))
 	_box = VBoxContainer.new()
-	_box.add_theme_constant_override("separation", 10)
+	_box.add_theme_constant_override("separation", 8)
 	add_child(_box)
+	_detail = PanelContainer.new()
+	_detail.name = "NodeDetails"
+	_detail.top_level = true
+	_detail.z_index = 20
+	_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_detail.add_theme_stylebox_override("panel", UiTheme.panel_box())
+	_detail_label = ItemTile._label("", 14, UiTheme.TEXT)
+	_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_label.custom_minimum_size.x = 270
+	_detail_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_detail.add_child(_detail_label)
+	add_child(_detail)
+	_detail.hide()
 	_build()
 
 func _build() -> void:
-	for child in _box.get_children():
-		child.free()
-	var left: int = TownState.skill_points_left(staged)
-	_box.add_child(ItemTile._label("Skills — %d point%s to spend" % [left, "" if left == 1 else "s"], 24, UiTheme.TEXT))
-	_box.add_child(ItemTile._label("One point a level. Choose with + and -, then Confirm: what is bought is kept for good.", 14, UiTheme.TEXT_DIM))
+	_detail.hide()
+	for child in _box.get_children(): child.free()
+	var left := TownState.skill_points_left(staged)
+	_box.add_child(ItemTile._label("Specialties", 24, UiTheme.TEXT))
+	var tabs := HBoxContainer.new()
+	tabs.name = "SpecializationTabs"
+	_box.add_child(tabs)
+	var levels := HeroAttributes.levels_from_xp(TownState.class_xp)
+	for tree in TREES:
+		_add_button(tabs, "tab_" + tree, "%s %d" % [HeroAttributes.CLASS_NAMES[tree], int(levels.get(tree, 0))], false, _switch_tree.bind(tree), 150)
+		(tabs.get_child(-1) as Button).modulate = UiTheme.ACCENT if tree == selected_tree else Color.WHITE
+	_box.add_child(ItemTile._label("Powers", 14, UiTheme.TEXT_DIM))
+	var powers := HBoxContainer.new()
+	powers.name = "PowerIcons"
+	powers.add_theme_constant_override("separation", 10)
+	_box.add_child(powers)
+	for def in PowerDb.of_tree(selected_tree): _add_power(powers, def)
 	var scroll := ScrollContainer.new()
 	scroll.name = "scroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.follow_focus = true   # a controller moving down a tree brings the row into view
+	scroll.follow_focus = true
 	_box.add_child(scroll)
-	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 22)
-	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(columns)
-	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
-	for tree in TREES:
-		var column := VBoxContainer.new()
-		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		column.add_theme_constant_override("separation", 2)
-		columns.add_child(column)
-		column.add_child(ItemTile._label("%s %d" % [HeroAttributes.CLASS_NAMES[tree], int(levels.get(tree, 0))], 19, UiTheme.BRONZE_LIGHT.lightened(0.2)))
-		for def in PassiveDb.of_tree(tree):
-			_add_row(column, def)
-		column.add_child(ItemTile._label("Powers", 16, UiTheme.BRONZE_LIGHT.lightened(0.2)))
-		for power in PowerDb.of_tree(tree):
-			_add_power_row(column, power)
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 14)
-	_box.add_child(buttons)
-	_add_button(buttons, "confirm", "Confirm", staged.is_empty(), _confirm)
-	_add_button(buttons, "reset", "Reset", staged.is_empty(), func() -> void: staged = {}; _rebuild())
-	_add_button(buttons, "back", "Back", false, func() -> void: (get_parent() as Hud)._open_character())
-	var focus: Control = find_child(_focus_key, true, false) as Control if _focus_key != "" else null
-	if focus == null or (focus as Button).disabled:
-		focus = find_child("back", true, false) as Control
+	var chart := Chart.new()
+	chart.name = "SkillChart"
+	chart.tree = selected_tree
+	chart.staged = staged.duplicate()
+	chart.raise_rank.connect(_raise)
+	chart.lower_rank.connect(_lower)
+	chart.inspect_node.connect(_inspect)
+	chart.leave_node.connect(_hide_detail)
+	scroll.add_child(chart)
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	_box.add_child(footer)
+	_add_button(footer, "confirm", "Confirm", staged.is_empty(), _confirm)
+	footer.add_child(ItemTile._label("%d points" % left, 17, UiTheme.ACCENT))
+	_add_button(footer, "reset", "Reset", staged.is_empty(), func() -> void: staged = {}; _rebuild())
+	_add_button(footer, "back", "Back", false, func() -> void: (get_parent() as Hud)._open_character())
+	_box.add_child(ItemTile._label("Select an icon to add a rank.  - removes an unconfirmed rank.", 12, UiTheme.TEXT_DIM))
+	var focus := find_child(_focus_key, true, false) as Button
+	if focus == null or focus.disabled: focus = find_child("tab_" + selected_tree, true, false) as Button
 	focus.call_deferred("grab_focus")
 
-func _add_row(parent: Control, def: PassiveDef) -> void:
-	var rank: int = TownState.passive_rank(def.id, staged)
-	var blocker: String = TownState.passive_blocker(def.id, staged)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	parent.add_child(row)
-	var name_label: Label = ItemTile._label(def.display_name, 15, UiTheme.TEXT if rank > 0 or blocker == "" else UiTheme.TEXT_DIM)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_label)
-	var rank_color: Color = Color(0.95, 0.8, 0.5) if int(staged.get(def.id, 0)) > 0 else UiTheme.TEXT
-	row.add_child(ItemTile._label("%d/%d" % [rank, PassiveDef.MAX_RANK], 15, rank_color))
-	_add_button(row, def.id + "_minus", "-", int(staged.get(def.id, 0)) <= 0, _lower.bind(def.id), 30, true)
-	_add_button(row, def.id + "_plus", "+", blocker != "", _raise.bind(def.id), 30, true)
-	var line: String = (def.describe(rank) if rank > 0 else "") + ("" if rank >= PassiveDef.MAX_RANK else
-		("   next: " if rank > 0 else "Rank 1: ") + def.describe(rank + 1))
-	if blocker != "" and blocker != "No skill points left" and rank < PassiveDef.MAX_RANK:
-		line += "   (%s)" % blocker
-	if def.needs != "":
-		line += "   No effect yet: needs %s" % def.needs
-	var detail: Label = ItemTile._label(line, 11, Color(0.85, 0.5, 0.42) if blocker != "" and blocker != "No skill points left" else UiTheme.TEXT_DIM)
-	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail.custom_minimum_size.x = 280
-	parent.add_child(detail)
+func _switch_tree(tree: String) -> void:
+	selected_tree = tree
+	_focus_key = "tab_" + tree
+	_rebuild()
 
-## A power: its rank (opened by passive ranks, nothing to spend) and what the next rank needs, counting the ranks chosen here.
-func _add_power_row(parent: Control, def: PowerDef) -> void:
-	var ranks: Dictionary = TownState.passive_ranks.duplicate()
-	for id in staged:
-		ranks[id] = int(ranks.get(id, 0)) + int(staged[id])
-	var rank: int = def.rank_for(ranks)
-	var row := HBoxContainer.new()
-	parent.add_child(row)
-	var name_label: Label = ItemTile._label(def.display_name, 14, UiTheme.TEXT if rank > 0 and def.needs == "" else UiTheme.TEXT_DIM)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.tooltip_text = def.summary
-	name_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	row.add_child(name_label)
-	row.add_child(ItemTile._label("" if def.id == "take_aim" else "Rank %d/3" % rank, 14, UiTheme.TEXT if rank > 0 else UiTheme.TEXT_DIM))
-	var line: String = ""
-	if def.id == "take_aim":
-		line = "Cutter's power: his next arrow, always at hand"
-	elif def.needs == "not built yet":
-		line = "Coming soon"
-	elif def.needs != "":
-		line = "Not in the game yet (needs %s)" % def.needs
-	elif rank < 3:
-		var parts: PackedStringArray = []
-		for passive in def.ranks[rank]:
-			var passive_def: PassiveDef = PassiveDb.get_def(String(passive))
-			parts.append("%s %d" % [passive_def.display_name if passive_def != null else String(passive).capitalize(), int(def.ranks[rank][passive])])
-		line = "Rank %d: %s" % [rank + 1, ", ".join(parts)]
-	if line != "":
-		var detail: Label = ItemTile._label(line, 11, UiTheme.TEXT_DIM)
-		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		detail.custom_minimum_size.x = 280
-		parent.add_child(detail)
+func _ranks() -> Dictionary:
+	var ranks := TownState.passive_ranks.duplicate()
+	for id in staged: ranks[id] = int(ranks.get(id, 0)) + int(staged[id])
+	return ranks
 
-func _add_button(parent: Control, key: String, text: String, disabled: bool, action: Callable, width: float = 120.0, small: bool = false) -> void:
-	var button: Button = UiTheme.button(text, width)
-	if small:
-		button.custom_minimum_size = Vector2(width, 26)
-		button.add_theme_font_size_override("font_size", 15)
+func _add_power(parent: Control, def: PowerDef) -> void:
+	var rank := def.rank_for(_ranks())
+	var button := UiTheme.button("", 48)
+	button.name = "power_" + def.id
+	button.custom_minimum_size = Vector2(48, 48)
+	button.icon = Chart.icon_for(def.id)
+	button.expand_icon = true
+	Chart.style_icon_button(button)
+	button.self_modulate = Color.WHITE if (rank > 0 and def.needs == "") or def.id == "take_aim" else Color(0.60, 0.57, 0.53)
+	parent.add_child(button)
+	var badge := ItemTile._label("C" if def.id == "take_aim" else str(rank), 13, UiTheme.TEXT)
+	badge.position = Vector2(35, 32)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_constant_override("outline_size", 4)
+	badge.add_theme_color_override("font_outline_color", Color.BLACK)
+	button.add_child(badge)
+	button.mouse_entered.connect(func() -> void: _inspect(def.id, true, button))
+	button.focus_entered.connect(func() -> void: _inspect(def.id, true, button))
+	button.pressed.connect(func() -> void: _inspect(def.id, true, button))
+	button.mouse_exited.connect(_hide_detail)
+	button.focus_exited.connect(_hide_detail)
+
+func _inspect(id: String, power: bool, button: Button) -> void:
+	var text: String
+	if power:
+		var def := PowerDb.get_def(id)
+		var rank := def.rank_for(_ranks())
+		text = "%s  %d/3\n%s" % [def.display_name, rank, def.summary]
+		if def.id == "take_aim":
+			text = "%s — Cutter\n%s\nCutter's power; always available to him." % [def.display_name, def.summary]
+		elif rank < 3:
+			var requirements: PackedStringArray = []
+			for required in def.ranks[rank]:
+				var passive := PassiveDb.get_def(String(required))
+				requirements.append("%s %d" % [passive.display_name if passive != null else String(required).capitalize(), int(def.ranks[rank][required])])
+			text += "\nNext rank: " + ", ".join(requirements)
+		if def.needs != "": text += "\nNot implemented: " + def.needs
+	else:
+		var def := PassiveDb.get_def(id)
+		var rank := TownState.passive_rank(id, staged)
+		text = "%s  %d/%d" % [def.display_name, rank, PassiveDef.MAX_RANK]
+		if rank > 0: text += "\nCurrent: " + def.describe(rank)
+		if rank < PassiveDef.MAX_RANK: text += "\nNext: " + def.describe(rank + 1)
+		var blocker := TownState.passive_blocker(id, staged)
+		if blocker != "": text += "\n" + blocker
+		if def.needs != "": text += "\nNo effect yet: needs " + def.needs
+	_detail_label.text = text
+	_detail.size = Vector2(296, 0)
+	_detail.show()
+	_place_detail.call_deferred(button)
+
+func _place_detail(button: Button) -> void:
+	if not is_instance_valid(button): return
+	var viewport_size := get_viewport_rect().size
+	var at := button.global_position + Vector2(button.size.x + 12, 4)
+	_detail.global_position = Vector2(clampf(at.x, 8, viewport_size.x - _detail.size.x - 8), clampf(at.y, 8, viewport_size.y - _detail.size.y - 8))
+
+func _hide_detail() -> void:
+	_detail.hide()
+
+func _add_button(parent: Control, key: String, text: String, disabled: bool, action: Callable, width: float = 100.0) -> void:
+	var button := UiTheme.button(text, width)
 	button.name = key
 	button.disabled = disabled
 	button.focus_mode = Control.FOCUS_ALL
@@ -130,42 +159,37 @@ func _add_button(parent: Control, key: String, text: String, disabled: bool, act
 	parent.add_child(button)
 
 func _raise(id: String) -> void:
-	if TownState.passive_blocker(id, staged) == "":
-		staged[id] = int(staged.get(id, 0)) + 1
+	_focus_key = id + "_plus"
+	if TownState.passive_blocker(id, staged) == "": staged[id] = int(staged.get(id, 0)) + 1
 	_rebuild()
 
-## Takes a chosen rank back, unless another chosen rank needs it.
 func _lower(id: String) -> void:
-	if int(staged.get(id, 0)) <= 0:
-		return
-	var trial: Dictionary = staged.duplicate()
+	_focus_key = id + "_plus"
+	if int(staged.get(id, 0)) <= 0: return
+	var trial := staged.duplicate()
 	trial[id] = int(trial[id]) - 1
-	if int(trial[id]) == 0:
-		trial.erase(id)
-	if _valid(trial):
-		staged = trial
+	if int(trial[id]) == 0: trial.erase(id)
+	if _valid(trial): staged = trial
 	_rebuild()
 
-## Whether every chosen rank could be bought, one at a time, in some order (the order they were chosen in does not matter).
 static func _valid(choice: Dictionary) -> bool:
-	var left: Dictionary = choice.duplicate()
+	var left := choice.duplicate()
 	var done: Dictionary = {}
-	var progress: bool = true
+	var progress := true
 	while progress and not left.is_empty():
 		progress = false
 		for id in left.keys():
 			if TownState.passive_blocker(String(id), done) == "":
 				done[id] = int(done.get(id, 0)) + 1
 				left[id] = int(left[id]) - 1
-				if int(left[id]) == 0:
-					left.erase(id)
+				if int(left[id]) == 0: left.erase(id)
 				progress = true
 	return left.is_empty()
 
 func _confirm() -> void:
 	if TownState.buy_passives(staged):
 		staged = {}
-		_focus_key = "back"
+		_focus_key = "confirm"
 	_rebuild()
 
 func _rebuild() -> void:

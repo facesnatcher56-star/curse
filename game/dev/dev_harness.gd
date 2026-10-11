@@ -9,6 +9,9 @@ extends DevSuite
 
 ## Every file a check or tool may live in; a check or tool name is unique across them.
 const SUITES := [
+	preload("res://game/dev/suites/power_ui_tests.gd"),
+	preload("res://game/dev/suites/power_audio_tests.gd"),
+	preload("res://game/dev/suites/combat_detail_tests.gd"),
 	preload("res://game/dev/shots.gd"), preload("res://game/dev/perf.gd"),
 	preload("res://game/dev/suites/skill_tests.gd"),
 	preload("res://game/dev/suites/fireball_tests.gd"),
@@ -48,6 +51,14 @@ func _run(method: String, args: Array = []) -> Variant:
 
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
+	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
+		if DisplayServer.get_screen_count() > 1:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+			DisplayServer.window_set_current_screen(1)
+			DisplayServer.window_set_size(Vector2i(1280, 720))
+			DisplayServer.window_set_position(DisplayServer.screen_get_position(1) + Vector2i(120, 100))
+		print("DEV_WINDOW screen=", DisplayServer.window_get_current_screen(), " position=", DisplayServer.window_get_position())
 	if OS.get_cmdline_user_args().has("--wardenshot"):
 		_run("_warden_shots")
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
@@ -105,7 +116,8 @@ func _clip_arg() -> String:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
-"skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack",
+"powerui": "_test_power_ui",
+"skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack", "basicsingle": "_test_basic_single_target_physics", "armedfx": "_test_armed_power_fx", "hitinterrupt": "_test_hit_interruption_audit", "poweraudio": "_test_power_audio",
 "actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers",
 "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",

@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "life_steal_1"
 family = "life_steal"
+tier = 1
 stat = "life_steal"
 title = "of the Parasite"
 position = "suffix"
-tier = 1
 level = 6
 value = 3.0
+max_value = 3.0
+value_ceiling = 3.0
 percent = true
-slots = Array[String](["weapon", "ring"])
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter", "ranger", "mage"])

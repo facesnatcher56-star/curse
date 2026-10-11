@@ -8,6 +8,7 @@ Geometry carries vertex colour so it shares Curse's weathered material language 
 """
 import math
 import os
+import sys
 
 import bmesh
 import bpy
@@ -104,7 +105,8 @@ def make_bow():
     objs = [
         curve_tube("SplitYew", [(0, 0, -0.78), (-0.10, 0, -0.42), (-0.13, 0, 0), (-0.10, 0, 0.42), (0, 0, 0.78)], 0.025, "wood"),
         cylinder("LeatherGrip", 0.035, 0.22, (-0.13, 0, 0), material="leather"),
-        curve_tube("BowString", [(0, 0, -0.78), (-0.03, 0, 0), (0, 0, 0.78)], 0.004, "string"),
+        # The runtime cord follows the string hand. A baked cord would remain
+        # straight across the bow while the animated cord is drawn back.
         cylinder("TopBinding", 0.031, 0.10, (-0.075, 0, 0.54), material="leather"),
         cylinder("BottomBinding", 0.031, 0.10, (-0.075, 0, -0.54), material="leather"),
     ]
@@ -139,7 +141,10 @@ def make_quiver():
 
 
 os.makedirs(ROOT, exist_ok=True)
-make_bow()
-make_arrow()
-make_quiver()
+if "--only-bow" in sys.argv:
+    make_bow()
+else:
+    make_bow()
+    make_arrow()
+    make_quiver()
 print("Wrote Cutter archer gear to", ROOT)

@@ -19,4 +19,4 @@ values = {
 estimated = Array[String]([])
 summary = "A field around you that throws back and stuns enemies who come close."
 order = 11
-needs = "not built yet"
+needs = ""

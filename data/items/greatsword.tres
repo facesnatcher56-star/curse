@@ -53,8 +53,5 @@ profile = {
 },
 "recovery": 0.55,
 "weight": 1.5,
-"arc": 130.0,
-"arc_damage": 0.6,
-"finisher": "slam",
-"style": "Wide arc, heavy stagger and knockback, slam finisher"
+"style": "Single target, heavy stagger and knockback"
 }

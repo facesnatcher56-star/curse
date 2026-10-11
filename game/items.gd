@@ -72,11 +72,17 @@ static func make(slot: int, rarity: int, level: int, base_name: String = "") -> 
 	return build(def, level, rarity, roll_mods(def, level, rarity))
 
 ## An item instance from its definition. Everything but def, level, rarity, mods and unique is derived.
-static func build(def: ItemDef, level: int, rarity: int, mods: Array = [], unique_id: String = "") -> Dictionary:
+static func build(def: ItemDef, level: int, rarity: int, mods: Array = [], unique_id: String = "", saved_values: Dictionary = {}) -> Dictionary:
 	if rarity == Rarity.NORMAL and not mods.is_empty():
 		rarity = Rarity.MAGIC   # jewellery (see roll_mods)
 	var item: Dictionary = {"def": def.id, "level": maxi(level, 1), "slot": def.slot, "rarity": rarity, "mods": mods.duplicate(),
 		"unique": unique_id, "base": def.display_name, "stats": def.stats_at(level)}
+	var values: Dictionary = {}
+	for id in mods:
+		var affix: AffixDef = AffixDb.get_def(String(id))
+		if affix != null and affix.value_ceiling > affix.value:
+			values[id] = clampf(float(saved_values[id]), affix.value, affix.value_ceiling) if saved_values.has(id) else float(randi_range(int(affix.value), int(affix.value_ceiling)))
+	item["mod_values"] = values
 	item["name"] = _name(def, item)
 	return item
 
@@ -122,19 +128,21 @@ static func roll_mods(def: ItemDef, level: int, rarity: int, count: int = -1) ->
 	var out: Array = []
 	var families: Array[String] = []
 	for position in positions:
-		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families)
+		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
 		if pick == null:
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families)
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
 		if pick == null and position != "":
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families)
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
 		if pick != null:
 			out.append(pick.id)
 			families.append(pick.family)
 	return out
 
-static func _pick_affix(kind: String, low: int, high: int, position: String, taken: Array[String]) -> AffixDef:
+static func _pick_affix(kind: String, low: int, high: int, position: String, taken: Array[String], item_class: String = "") -> AffixDef:
 	var pool: Array[AffixDef] = []
 	for a in AffixDb.eligible(kind, low, high, position):
+		if item_class != "" and not a.classes.is_empty() and not a.classes.has(item_class) and not (item_class == "mage" and (a.classes.has("cmage") or a.classes.has("nmage"))):
+			continue
 		if not taken.has(a.family):
 			pool.append(a)
 	return pool[randi() % pool.size()] if not pool.is_empty() else null
@@ -145,7 +153,9 @@ static func mods_of(item: Dictionary) -> Dictionary:
 	for id in item.get("mods", []):
 		var a: AffixDef = AffixDb.get_def(String(id))
 		if a != null:
-			out[a.stat] = float(out.get(a.stat, 0.0)) + a.value
+			out[a.stat] = float(out.get(a.stat, 0.0)) + float((item.get("mod_values", {}) as Dictionary).get(id, a.value))
+			if a.stat == "fire_added":
+				out["fire_added_max"] = float(out.get("fire_added_max", 0.0)) + maxf(a.max_value, a.value)
 	var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
 	if u != null:
 		for stat in u.mods:
@@ -203,7 +213,7 @@ static func requirement_text(item: Dictionary) -> String:
 ## What is written to a save: just enough to build the item again.
 static func to_save(item: Dictionary) -> Dictionary:
 	return {"def": item["def"], "level": int(item["level"]), "rarity": int(item["rarity"]), "mods": (item.get("mods", []) as Array).duplicate(),
-		"unique": String(item.get("unique", ""))}
+		"unique": String(item.get("unique", "")), "mod_values": (item.get("mod_values", {}) as Dictionary).duplicate()}
 
 ## Builds an item from a saved one. Reads the current form and the older ones: {def, tier, rarity} from before DS2 items (its tier becomes
 ## its item level, as a Normal item: whatever made it rare is gone) and the whole dictionary from before definitions (found by base name).
@@ -224,7 +234,12 @@ static func from_save(saved: Dictionary) -> Dictionary:
 		if AffixDb.get_def(String(id)) != null:
 			mods.append(String(id))
 	var rarity: int = clampi(int(saved.get("rarity", Rarity.NORMAL)), Rarity.NORMAL, Rarity.RARE)
-	return build(def, int(saved["level"]), rarity, mods)
+	var values: Dictionary = saved.get("mod_values", {})
+	# Older items had fixed values: keep those, rather than rerolling on each load.
+	for id in mods:
+		if not values.has(id):
+			values[id] = AffixDb.get_def(String(id)).value
+	return build(def, int(saved["level"]), rarity, mods, "", values)
 
 # --- Loot (DS2 section 11) --------------------------------------------------------------------------------------------------------------
 
@@ -404,6 +419,11 @@ static func lines(item: Dictionary) -> Array[String]:
 		out.append("Armor %d" % int(stats["armor"]))
 	var mods: Dictionary = mods_of(item)
 	for stat in mods:
+		if stat == "fire_added_max":
+			continue
+		if stat == "fire_added" and float(mods.get("fire_added_max", 0.0)) > float(mods[stat]):
+			out.append("+%d–%d Fire damage" % [int(mods[stat]), int(mods["fire_added_max"])])
+			continue
 		out.append(AffixDb.describe_stat(String(stat), float(mods[stat])))
 	var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
 	if u != null and u.set_id != "":

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ricochet"
+display_name = "Ricochet"
+tree = "ranged"
+class_level = 36
+prereqs = {
+"bleed": 1,
+"penetrate": 1
+}
+first = 66.0
+last = 150.0
+text = "Thrown critical ricochet damage %s%%"
+order = 26
+table = Array[float]([66.0, 78.0, 86.0, 94.0, 101.0, 107.0, 112.0, 117.0, 122.0, 126.0, 130.0, 133.0, 136.0, 139.0, 142.0, 144.0, 146.0, 148.0, 149.0, 150.0])
+extra = {}
+needs = "hero throwing weapons"

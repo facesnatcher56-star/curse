@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "life_per_hit_6"
 family = "life_per_hit"
+tier = 6
 stat = "life_per_hit"
 title = "of Devouring"
 position = "suffix"
-tier = 6
 level = 78
 value = 23.0
+max_value = 23.0
+value_ceiling = 23.0
 percent = false
-slots = Array[String](["weapon", "gloves"])
+slots = Array[String]([])
+classes = Array[String]([])

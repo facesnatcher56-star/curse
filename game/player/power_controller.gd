@@ -35,7 +35,7 @@ func _init(player: Player) -> void:
 
 func required(id: String) -> float:
 	var def: PowerDef = PowerDb.get_def(id)
-	return p.stats.power_recharge_damage(def.recharge) if def != null else 0.0
+	return p.stats.power_recharge_damage(def.recharge, def.tree) if def != null else 0.0
 
 func fraction(id: String) -> float:
 	var left: float = float(reload_remaining.get(id, 0.0))
@@ -105,12 +105,17 @@ func activate(id: String, cursor: Vector3) -> bool:
 		p._say(why)
 		return false
 	p.combat_timer = 5.0
+	var immediate_target: Actor = p.skills.busy_target if is_instance_valid(p.skills.busy_target) else p.attack_target
+	p.skills.cancel_action()   # Powers interrupt an ordinary attack instead of queuing.
 	match id:
 		"whirling_strike":
 			_whirling_strike()
 		"staggering_blow":
 			staggering_armed = true   # the next landed blow releases it, and only then is it spent (DS2: preserved by a miss)
 			Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "Staggering Blow", Color(0.95, 0.7, 0.4), 36)
+			if is_instance_valid(immediate_target) and not immediate_target.dead:
+				p.movement.has_goal = false
+				p.skills.start_skill("basic", immediate_target)
 			return true
 		"war_cry":
 			_war_cry(cursor)
@@ -132,7 +137,7 @@ func _whirling_strike() -> void:
 	var mult: float = value("whirling_strike", "damage_pct") / 100.0
 	var stun: float = value("whirling_strike", "stun")
 	for e in enemies_within(p.global_position, value("whirling_strike", "radius")):
-		_strike(e, p.stats.weapon_damage(mult), "whirling_strike", 2.0, p.global_position)
+		_strike(e, p.stats.weapon_damage(1.0), "whirling_strike", 2.0, p.global_position, mult)
 		if is_instance_valid(e) and not e.dead:
 			e._gain_stun(stun * (1.0 - e.stun_resist))
 	var spin: Tween = p.create_tween()
@@ -151,7 +156,7 @@ func release_staggering(target: Actor) -> void:
 	var mult: float = value("staggering_blow", "damage_pct") / 100.0
 	var stun: float = value("staggering_blow", "stun")
 	for e in enemies_within(centre, value("staggering_blow", "radius")):
-		_strike(e, p.stats.weapon_damage(mult), "staggering_blow", 3.0, centre)
+		_strike(e, p.stats.weapon_damage(1.0), "staggering_blow", 3.0, centre, mult)
 		if is_instance_valid(e) and not e.dead:
 			e._gain_stun(stun * (1.0 - e.stun_resist))
 	Fx.ring(p, centre, value("staggering_blow", "radius"), Color(0.75, 0.6, 0.4))
@@ -209,17 +214,16 @@ func _silence(point: Vector3) -> void:
 ## Flame Nexus (around the hero) and Detonation (at the target): DS2 fire powers, their damage grown by Searing Flames, cannot be dodged,
 ## and set what they hit alight (DS2: fire powers always ignite).
 func _fire_blast(centre: Vector3, radius: float, id: String, knock: bool) -> void:
-	var damage: float = value(id, "damage") * (1.0 + p.stats.passive("searing_flames") / 100.0)
+	var damage: float = value(id, "damage") * (1.0 + p.stats.passive("searing_flames") / 100.0) * (1.0 + p.stats.passive("arcane_fury") / 100.0)
 	for e in enemies_within(centre, radius):
 		var result: Dictionary = Combat.resolve(p, e, damage * randf_range(0.75, 1.25), Combat.DamageType.FIRE, false, 2.0, false, false)
 		result["skill_id"] = id
 		e.receive(result, centre)
 		if is_instance_valid(e) and not e.dead:
-			e.apply_burn(FIRE_POWER_BURN * p.stats.intelligence, 4.0, true)
+			e.apply_burn(FIRE_POWER_BURN * p.stats.intelligence, 4.0, true, p, id)
 			if knock:
 				var out: Vector3 = e.global_position - centre
 				out.y = 0.0
-				e.knocked_by = p
 				e.knock += (out.normalized() if out.length() > 0.1 else Vector3.FORWARD) * 7.0 * (1.0 - e.knock_resist)
 	Fx.ring(p, centre, radius, Color(1.0, 0.5, 0.15))
 	Fx.burst(p, centre + Vector3(0, 0.4, 0), Vector3.UP, Color(1.0, 0.45, 0.1), 28, 6.0, 0.05, true)
@@ -247,7 +251,6 @@ func tick(delta: float) -> void:
 			var out: Vector3 = e.global_position - p.global_position
 			out.y = 0.0
 			# knock decays at 22 m/s2 (Actor), so a push of v travels v^2 / 44 m: v = sqrt(44 d) throws it `knockback` metres.
-			e.knocked_by = p
 			e.knock += (out.normalized() if out.length() > 0.1 else Vector3.FORWARD) * sqrt(44.0 * _repulse_push) * (1.0 - e.knock_resist)
 			e._gain_stun(_repulse_stun * (1.0 - e.stun_resist))
 			Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), out.normalized(), Color(0.6, 0.7, 0.75), 6, 4.0, 0.03)
@@ -272,7 +275,7 @@ func _target_point(cursor: Vector3) -> Vector3:
 	return p.global_position + to.limit_length(CAST_RANGE)
 
 ## A physical power blow: it can be dodged and blocked, never crits (DS2: powers never crit).
-func _strike(e: Enemy, damage: float, id: String, weight: float, from: Vector3) -> void:
-	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, true, weight, false, false)
+func _strike(e: Enemy, damage: float, id: String, weight: float, from: Vector3, mult: float = 1.0) -> void:
+	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, true, weight, false, false, mult)
 	result["skill_id"] = id
 	e.receive(result, from)

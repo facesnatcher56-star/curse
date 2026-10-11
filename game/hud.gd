@@ -552,7 +552,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
-	# An ultimate has no cooldown: it fills from the bottom as damage is dealt and glows when it is ready to use.
+	# Powers recharge from dealt damage, independently of ordinary cooldowns.
 	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_fraction(id) < 1.0
 	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
@@ -573,16 +573,9 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 
 	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if remaining <= 0.0 and affordable else Color(0.4, 0.4, 0.45, 0.9)
 	if ult_cost > 0.0:
-		var filled: float = player.stats.ult_fraction(id)
-		if ult_filling:
-			draw_rect(Rect2(pos, Vector2(size_px, size_px * (1.0 - filled))), Color(0, 0, 0, 0.62))   # the unfilled part stays dark
-			draw_rect(Rect2(pos + Vector2(0, size_px * (1.0 - filled)), Vector2(size_px, size_px * filled)), Color(1.0, 0.55, 0.15, 0.22))
-			draw_string(font, Vector2(pos.x, pos.y + size_px * 0.62), "%d%%" % int(filled * 100.0), HORIZONTAL_ALIGNMENT_CENTER, size_px, 22, Color(1, 0.95, 0.85))
-			border = Color(0.55, 0.4, 0.25, 0.9)
-		else:
-			var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
-			draw_rect(rect.grow(2.0 + 2.0 * beat), Color(1.0, 0.6, 0.2, 0.35 + 0.35 * beat), false, 3.0)
-			border = Color(1.0, 0.8, 0.4, 1.0)
+		var visual := preload("res://game/ui/power_button_visual.gd")
+		visual.draw_on(self, rect, player.stats.ult_fraction(id), visual.armed(player, id), player.stats.can_use(id))
+		border = Color(0.55, 0.4, 0.25, 0.9) if ult_filling else Color(0.85, 0.72, 0.45)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
 	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel

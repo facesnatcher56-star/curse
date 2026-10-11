@@ -157,33 +157,61 @@ static func debris(from: Node, pos: Vector3, amount: int, speed: float) -> void:
 
 ## Brutal Attack is a compact directional wound in the air, not another area explosion. Dark iron-orange
 ## streaks continue through the victim while grit and blood carry the weight of the contact.
-static func brutal_impact(from: Node, point: Vector3, direction: Vector3) -> void:
-	if not Fx.claim_impact("brutal_attack", point):
-		return
-	var dir := direction.normalized() if direction.length_squared() > 0.01 else Vector3.FORWARD
-	Fx.light_flash(from, point + Vector3(0, 0.9, 0), Color(0.88, 0.30, 0.06), 2.5, 0.11)
-	Fx.burst(from, point + Vector3(0, 0.8, 0), dir + Vector3.UP * 0.12,
-		Color(0.82, 0.25, 0.045), 22, 9.0, 0.028, true)
-	Fx.burst(from, point + Vector3(0, 0.65, 0), dir + Vector3.UP * 0.3,
-		Color(0.16, 0.10, 0.07), 16, 6.0, 0.045)
-	dust(from, point, 0.65, 7, Color(0.24, 0.17, 0.12, 0.32), 0.55, 0.45)
-	slash_arc(from, point - dir * 0.2, atan2(dir.x, dir.z), 0.25, 1.65, 1.05,
-		Color(0.82, 0.23, 0.04, 0.62), 0.14, 0.28, 0.95)
-	Fx.shake(from, 0.22)
-	Fx.punch(from, 3.2)
-	Fx.kick(from, dir, 0.7)
+static func brutal_impact(from: Node, point: Vector3, direction: Vector3, rank: int = 1) -> void:
+	BrutalAttackFx.impact(from, point, direction, rank)
 
-## A restrained flash at Cutter's bow says that Take Aim has finished charging without painting a target
-## circle on the floor or surrounding him with permanent magic.
-static func take_aim_ready(from: Node, point: Vector3) -> void:
-	Fx.light_flash(from, point, Color(0.88, 0.56, 0.22), 1.8, 0.18)
-	Fx.burst(from, point, Vector3.UP, Color(0.78, 0.48, 0.17), 9, 1.7, 0.018, true)
+## efct_take_aim_charge: white motes converge on the bow hand over ~0.4 s.
+## The separate orange body pre-launch aura lasts until the stored shot is spent.
+static func take_aim_charge(bow: Node3D) -> void:
+	var gather := CPUParticles3D.new()
+	gather.name = "TakeAimCharge"
+	gather.amount = 30
+	gather.one_shot = true
+	gather.explosiveness = 1.0
+	gather.lifetime = 0.4
+	gather.local_coords = true
+	gather.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	gather.emission_sphere_radius = 1.3
+	gather.radial_accel_min = -20.0
+	gather.radial_accel_max = -20.0
+	gather.initial_velocity_min = 0.0
+	gather.initial_velocity_max = 0.0
+	gather.gravity = Vector3.ZERO
+	gather.mesh = BrutalAttackFx._soft_quad(Vector2(0.045, 0.045), Color.WHITE)
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 0.96, 0.8, 0.0))
+	ramp.add_point(0.2, Color(1.0, 0.96, 0.8, 0.65))
+	ramp.set_color(1, Color(1.0, 0.96, 0.8, 0.0))
+	gather.color_ramp = ramp
+	bow.add_child(gather)
+	gather.scale = Vector3.ONE / maxf(bow.global_basis.get_scale().x, 0.001)
+	gather.finished.connect(gather.queue_free)
+	Fx.light_flash(bow, bow.global_position, Color(1.0, 0.96, 0.78), 1.1, 0.4)
 
 ## The empowered arrow keeps a narrow dirty-white wake. It is intentionally much thinner than a spell projectile.
 static func take_aim_trail(arrow: Node3D) -> void:
+	# A narrow, warm pressure streak reads at gameplay zoom without becoming a fireball.
+	var core := MeshInstance3D.new()
+	core.name = "TakeAimCore"
+	var streak := CylinderMesh.new()
+	streak.top_radius = 0.018
+	streak.bottom_radius = 0.002
+	streak.height = 1.4
+	streak.radial_segments = 8
+	var core_mat := StandardMaterial3D.new()
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	core_mat.albedo_color = Color(0.95, 0.72, 0.38)
+	core_mat.emission_enabled = true
+	core_mat.emission = Color(1.0, 0.56, 0.18)
+	core_mat.emission_energy_multiplier = 1.8
+	streak.material = core_mat
+	core.mesh = streak
+	core.position.y = -0.7
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	arrow.add_child(core)
 	var trail := CPUParticles3D.new()
-	trail.amount = 18
-	trail.lifetime = 0.32
+	trail.amount = 28
+	trail.lifetime = 0.12
 	trail.randomness = 0.25
 	trail.local_coords = false
 	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
@@ -194,7 +222,7 @@ static func take_aim_trail(arrow: Node3D) -> void:
 	trail.initial_velocity_max = 0.12
 	trail.gravity = Vector3(0, -0.25, 0)
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.035, 0.13)
+	quad.size = Vector2(0.065, 0.20)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

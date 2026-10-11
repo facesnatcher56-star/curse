@@ -6,23 +6,27 @@ extends RefCounted
 ## The level cap (DS2's `Uber`, max 100). Everything that needs it reads this; nothing else spells the number out.
 const MAX_LEVEL := 100
 
-## DS2's `experience_table` (XP needed to REACH each level), as far as it is documented (docs/ds2-combat-and-loot.md section 5). The
-## levels between these points are filled in geometrically (CURSE CHOICE: the full table is not in the reference); every listed level
-## is exact.
+## Previous interpolated curve, retained ONLY to preserve progress while migrating version 7-9 saves.
 const DS2_SAMPLES := {1: 0, 2: 300, 5: 4000, 10: 34200, 20: 196000, 30: 663000, 40: 1990000, 50: 5740000, 60: 16400000,
 	70: 46700000, 80: 133000000, 90: 377000000, 100: 1070000000}
 
 static var _table: PackedInt64Array = PackedInt64Array()
+static var _legacy_table: PackedInt64Array = PackedInt64Array()
 
 ## Total lifetime XP needed to BE each level, level 1 first (index 0).
 static func table() -> PackedInt64Array:
 	if _table.is_empty():
+		_table = PackedInt64Array(JSON.parse_string(FileAccess.get_file_as_string("res://data/reference/ds2_xp.json")))
+	return _table
+
+static func legacy_table() -> PackedInt64Array:
+	if _legacy_table.is_empty():
 		var points: Array = DS2_SAMPLES.keys()
 		points.sort()
-		_table.resize(MAX_LEVEL)
+		_legacy_table.resize(MAX_LEVEL)
 		for level in range(1, MAX_LEVEL + 1):
 			if DS2_SAMPLES.has(level):
-				_table[level - 1] = int(DS2_SAMPLES[level])
+				_legacy_table[level - 1] = int(DS2_SAMPLES[level])
 				continue
 			var below: int = 1
 			var above: int = MAX_LEVEL
@@ -35,8 +39,19 @@ static func table() -> PackedInt64Array:
 			var lo: float = float(DS2_SAMPLES[below])
 			var hi: float = float(DS2_SAMPLES[above])
 			var t: float = float(level - below) / float(above - below)
-			_table[level - 1] = int(round(lo * pow(hi / lo, t)))
-	return _table
+			_legacy_table[level - 1] = int(round(lo * pow(hi / lo, t)))
+	return _legacy_table
+
+## Keep the level and fraction earned when replacing the approximate curve with the extracted table.
+static func migrate_interpolated_xp(xp: int) -> int:
+	var old: PackedInt64Array = legacy_table()
+	var index: int = 0
+	while index < MAX_LEVEL - 1 and xp >= old[index + 1]:
+		index += 1
+	if index == MAX_LEVEL - 1:
+		return max_xp()
+	var fraction: float = clampf(float(xp - old[index]) / float(old[index + 1] - old[index]), 0.0, 1.0)
+	return table()[index] + int(fraction * float(table()[index + 1] - table()[index]))
 
 ## The most XP a hero can hold: exactly what level MAX_LEVEL takes. XP earned past it is not kept.
 static func max_xp() -> int:

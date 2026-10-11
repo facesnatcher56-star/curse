@@ -1,0 +1,3492 @@
+{
+  "strength": [
+    {
+      "source": "ofhardiness",
+      "title": "of Hardiness",
+      "level": 2,
+      "value": 1.0,
+      "max_value": 1.0,
+      "value_ceiling": 1.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofsturdiness",
+      "title": "of Sturdiness",
+      "level": 10,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofvigor",
+      "title": "of Vigor",
+      "level": 19,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftenacity",
+      "title": "of Tenacity",
+      "level": 28,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "offorce",
+      "title": "of Force",
+      "level": 38,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofvirulence",
+      "title": "of Virulence",
+      "level": 48,
+      "value": 30.0,
+      "max_value": 30.0,
+      "value_ceiling": 30.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofmight",
+      "title": "of Might",
+      "level": 59,
+      "value": 42.0,
+      "max_value": 42.0,
+      "value_ceiling": 42.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofprominence",
+      "title": "of Prominence",
+      "level": 70,
+      "value": 56.0,
+      "max_value": 56.0,
+      "value_ceiling": 56.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofcolossus",
+      "title": "of Colossus",
+      "level": 82,
+      "value": 72.0,
+      "max_value": 72.0,
+      "value_ceiling": 72.0,
+      "stat": "str",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "dexterity": [
+    {
+      "source": "oftheswift",
+      "title": "of the Swift",
+      "level": 1,
+      "value": 1.0,
+      "max_value": 1.0,
+      "value_ceiling": 1.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthespry",
+      "title": "of the Spry",
+      "level": 9,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthenimble",
+      "title": "of the Nimble",
+      "level": 18,
+      "value": 9.0,
+      "max_value": 9.0,
+      "value_ceiling": 9.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofproficiency",
+      "title": "of Proficiency",
+      "level": 27,
+      "value": 16.0,
+      "max_value": 16.0,
+      "value_ceiling": 16.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofexpertise",
+      "title": "of Expertise",
+      "level": 37,
+      "value": 27.0,
+      "max_value": 27.0,
+      "value_ceiling": 27.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "offinesse",
+      "title": "of Finesse",
+      "level": 47,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofdeftness",
+      "title": "of Deftness",
+      "level": 58,
+      "value": 57.0,
+      "max_value": 57.0,
+      "value_ceiling": 57.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofadroitness",
+      "title": "of Adroitness",
+      "level": 69,
+      "value": 76.0,
+      "max_value": 76.0,
+      "value_ceiling": 76.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofeffortlessness",
+      "title": "of Effortlessness",
+      "level": 81,
+      "value": 100.0,
+      "max_value": 100.0,
+      "value_ceiling": 100.0,
+      "stat": "dex",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "intelligence": [
+    {
+      "source": "ofawareness",
+      "title": "of Awareness",
+      "level": 3,
+      "value": 1.0,
+      "max_value": 1.0,
+      "value_ceiling": 1.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofinsight",
+      "title": "of Insight",
+      "level": 11,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofjudgment",
+      "title": "of Judgment",
+      "level": 20,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "offoresight",
+      "title": "of Foresight",
+      "level": 29,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofacumen",
+      "title": "of Acumen",
+      "level": 39,
+      "value": 16.0,
+      "max_value": 16.0,
+      "value_ceiling": 16.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofknowledge",
+      "title": "of Knowledge",
+      "level": 49,
+      "value": 24.0,
+      "max_value": 24.0,
+      "value_ceiling": 24.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofbrilliance",
+      "title": "of Brilliance",
+      "level": 60,
+      "value": 33.0,
+      "max_value": 33.0,
+      "value_ceiling": 33.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofenlightenment",
+      "title": "of Enlightenment",
+      "level": 71,
+      "value": 45.0,
+      "max_value": 45.0,
+      "value_ceiling": 45.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofomniscience",
+      "title": "of Omniscience",
+      "level": 83,
+      "value": 60.0,
+      "max_value": 60.0,
+      "value_ceiling": 60.0,
+      "stat": "int",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "life": [
+    {
+      "source": "oftherat",
+      "title": "of the Rat",
+      "level": 1,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheweasel",
+      "title": "of the Weasel",
+      "level": 8,
+      "value": 9.0,
+      "max_value": 9.0,
+      "value_ceiling": 9.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthefox",
+      "title": "of the Fox",
+      "level": 13,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthebadger",
+      "title": "of the Badger",
+      "level": 18,
+      "value": 24.0,
+      "max_value": 24.0,
+      "value_ceiling": 24.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthepanther",
+      "title": "of the Panther",
+      "level": 24,
+      "value": 36.0,
+      "max_value": 36.0,
+      "value_ceiling": 36.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheram",
+      "title": "of the Ram",
+      "level": 30,
+      "value": 50.0,
+      "max_value": 50.0,
+      "value_ceiling": 50.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheboar",
+      "title": "of the Boar",
+      "level": 36,
+      "value": 67.0,
+      "max_value": 67.0,
+      "value_ceiling": 67.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthewolf",
+      "title": "of the Wolf",
+      "level": 43,
+      "value": 90.0,
+      "max_value": 90.0,
+      "value_ceiling": 90.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthetiger",
+      "title": "of the Tiger",
+      "level": 50,
+      "value": 116.0,
+      "max_value": 116.0,
+      "value_ceiling": 116.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthehorse",
+      "title": "of the Horse",
+      "level": 58,
+      "value": 150.0,
+      "max_value": 150.0,
+      "value_ceiling": 150.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthebear",
+      "title": "of the Bear",
+      "level": 66,
+      "value": 188.0,
+      "max_value": 188.0,
+      "value_ceiling": 188.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthelion",
+      "title": "of the Lion",
+      "level": 75,
+      "value": 237.0,
+      "max_value": 237.0,
+      "value_ceiling": 237.0,
+      "stat": "life",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "mana": [
+    {
+      "source": "ofthetoad",
+      "title": "of the Toad",
+      "level": 1,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthehawk",
+      "title": "of the Hawk",
+      "level": 9,
+      "value": 13.0,
+      "max_value": 13.0,
+      "value_ceiling": 13.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthelizard",
+      "title": "of the Lizard",
+      "level": 13,
+      "value": 21.0,
+      "max_value": 21.0,
+      "value_ceiling": 21.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheeagle",
+      "title": "of the Eagle",
+      "level": 17,
+      "value": 30.0,
+      "max_value": 30.0,
+      "value_ceiling": 30.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheserpent",
+      "title": "of the Serpent",
+      "level": 22,
+      "value": 43.0,
+      "max_value": 43.0,
+      "value_ceiling": 43.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthefalcon",
+      "title": "of the Falcon",
+      "level": 27,
+      "value": 59.0,
+      "max_value": 59.0,
+      "value_ceiling": 59.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheraven",
+      "title": "of the Raven",
+      "level": 33,
+      "value": 81.0,
+      "max_value": 81.0,
+      "value_ceiling": 81.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "oftheowl",
+      "title": "of the Owl",
+      "level": 39,
+      "value": 107.0,
+      "max_value": 107.0,
+      "value_ceiling": 107.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthegriffon",
+      "title": "of the Griffon",
+      "level": 45,
+      "value": 136.0,
+      "max_value": 136.0,
+      "value_ceiling": 136.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthehydra",
+      "title": "of the Hydra",
+      "level": 52,
+      "value": 175.0,
+      "max_value": 175.0,
+      "value_ceiling": 175.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthephoenix",
+      "title": "of the Phoenix",
+      "level": 59,
+      "value": 218.0,
+      "max_value": 218.0,
+      "value_ceiling": 218.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofthedragon",
+      "title": "of the Dragon",
+      "level": 67,
+      "value": 274.0,
+      "max_value": 274.0,
+      "value_ceiling": 274.0,
+      "stat": "mana",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "weapon"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "melee_max": [
+    {
+      "source": "ofwounding",
+      "title": "of Wounding",
+      "level": 1,
+      "value": 1.0,
+      "max_value": 1.0,
+      "value_ceiling": 1.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofpain",
+      "title": "of Pain",
+      "level": 11,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "oftorment",
+      "title": "of Torment",
+      "level": 24,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofinjury",
+      "title": "of Injury",
+      "level": 40,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofmutilation",
+      "title": "of Mutilation",
+      "level": 56,
+      "value": 45.0,
+      "max_value": 45.0,
+      "value_ceiling": 45.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "oftorture",
+      "title": "of Torture",
+      "level": 74,
+      "value": 72.0,
+      "max_value": 72.0,
+      "value_ceiling": 72.0,
+      "stat": "melee_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "melee_min": [
+    {
+      "source": "ofaffliction",
+      "title": "of Affliction",
+      "level": 3,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofdisaster",
+      "title": "of Disaster",
+      "level": 7,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofgrief",
+      "title": "of Grief",
+      "level": 13,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofmisery",
+      "title": "of Misery",
+      "level": 21,
+      "value": 9.0,
+      "max_value": 9.0,
+      "value_ceiling": 9.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofcalamity",
+      "title": "of Calamity",
+      "level": 33,
+      "value": 13.0,
+      "max_value": 13.0,
+      "value_ceiling": 13.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofdesolation",
+      "title": "of Desolation",
+      "level": 48,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "melee_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "melee_pct": [
+    {
+      "source": "cruel",
+      "title": "Cruel",
+      "level": 2,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "wicked",
+      "title": "Wicked",
+      "level": 8,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "callous",
+      "title": "Callous",
+      "level": 14,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "heartless",
+      "title": "Heartless",
+      "level": 21,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "vicious",
+      "title": "Vicious",
+      "level": 28,
+      "value": 32.0,
+      "max_value": 32.0,
+      "value_ceiling": 32.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ruthless",
+      "title": "Ruthless",
+      "level": 36,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "rancorous",
+      "title": "Rancorous",
+      "level": 44,
+      "value": 48.0,
+      "max_value": 48.0,
+      "value_ceiling": 48.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "excrutiating",
+      "title": "Excrutiating",
+      "level": 53,
+      "value": 56.0,
+      "max_value": 56.0,
+      "value_ceiling": 56.0,
+      "stat": "melee_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "spell_pct": [
+    {
+      "source": "destructive",
+      "title": "Destructive",
+      "level": 2,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "eradicating",
+      "title": "Eradicating",
+      "level": 9,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "ruinous",
+      "title": "Ruinous",
+      "level": 17,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "devastating",
+      "title": "Devastating",
+      "level": 27,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "annihilating",
+      "title": "Annihilating",
+      "level": 37,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "demolishing",
+      "title": "Demolishing",
+      "level": 48,
+      "value": 24.0,
+      "max_value": 24.0,
+      "value_ceiling": 24.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "obliterating",
+      "title": "Obliterating",
+      "level": 59,
+      "value": 28.0,
+      "max_value": 28.0,
+      "value_ceiling": 28.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    },
+    {
+      "source": "tragic",
+      "title": "Tragic",
+      "level": 72,
+      "value": 32.0,
+      "max_value": 32.0,
+      "value_ceiling": 32.0,
+      "stat": "spell_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "mage"
+      ]
+    }
+  ],
+  "fire_added": [
+    {
+      "source": "scorching",
+      "title": "Scorching",
+      "level": 15,
+      "value": 2.0,
+      "max_value": 4.0,
+      "value_ceiling": 2.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "burning",
+      "title": "Burning",
+      "level": 25,
+      "value": 4.0,
+      "max_value": 6.0,
+      "value_ceiling": 4.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "searing",
+      "title": "Searing",
+      "level": 37,
+      "value": 10.0,
+      "max_value": 12.0,
+      "value_ceiling": 10.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "flaming",
+      "title": "Flaming",
+      "level": 50,
+      "value": 16.0,
+      "max_value": 20.0,
+      "value_ceiling": 16.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "blistering",
+      "title": "Blistering",
+      "level": 64,
+      "value": 25.0,
+      "max_value": 30.0,
+      "value_ceiling": 25.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "cremating",
+      "title": "Cremating",
+      "level": 80,
+      "value": 36.0,
+      "max_value": 46.0,
+      "value_ceiling": 36.0,
+      "stat": "fire_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "life_steal": [
+    {
+      "source": "oftheparasite",
+      "title": "of the Parasite",
+      "level": 6,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "life_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofthepredator",
+      "title": "of the Predator",
+      "level": 24,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "life_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofthevampire",
+      "title": "of the Vampire",
+      "level": 42,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "life_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofblood",
+      "title": "of Blood",
+      "level": 60,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "life_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    }
+  ],
+  "mana_steal": [
+    {
+      "source": "ofthephantom",
+      "title": "of the Phantom",
+      "level": 6,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "mana_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "oftheghost",
+      "title": "of the Ghost",
+      "level": 24,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "mana_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofthespecter",
+      "title": "of the Specter",
+      "level": 42,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "mana_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofthewraith",
+      "title": "of the Wraith",
+      "level": 60,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "mana_steal",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    }
+  ],
+  "mana_per_hit": [
+    {
+      "source": "ofcandlelight",
+      "title": "of Candlelight",
+      "level": 12,
+      "value": 2.0,
+      "max_value": 2.0,
+      "value_ceiling": 2.0,
+      "stat": "mana_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofmoonlight",
+      "title": "of Moonlight",
+      "level": 34,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "mana_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofdaylight",
+      "title": "of Daylight",
+      "level": 56,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "mana_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofstarlight",
+      "title": "of Starlight",
+      "level": 78,
+      "value": 23.0,
+      "max_value": 23.0,
+      "value_ceiling": 23.0,
+      "stat": "mana_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    }
+  ],
+  "life_per_hit": [
+    {
+      "source": "ofconsumption",
+      "title": "of Consumption",
+      "level": 12,
+      "value": 2.0,
+      "max_value": 2.0,
+      "value_ceiling": 2.0,
+      "stat": "life_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofgorging",
+      "title": "of Gorging",
+      "level": 34,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "life_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "offeasting",
+      "title": "of Feasting",
+      "level": 56,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "life_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    },
+    {
+      "source": "ofdevouring",
+      "title": "of Devouring",
+      "level": 78,
+      "value": 23.0,
+      "max_value": 23.0,
+      "value_ceiling": 23.0,
+      "stat": "life_per_hit",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "mage"
+      ]
+    }
+  ],
+  "armor": [
+    {
+      "source": "stout",
+      "title": "Stout",
+      "level": 1,
+      "value": 2.0,
+      "max_value": 2.0,
+      "value_ceiling": 2.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "repellant",
+      "title": "Repellant",
+      "level": 6,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "stable",
+      "title": "Stable",
+      "level": 12,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "enforced",
+      "title": "Enforced",
+      "level": 18,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "tough",
+      "title": "Tough",
+      "level": 25,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "hardened",
+      "title": "Hardened",
+      "level": 32,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "durable",
+      "title": "Durable",
+      "level": 40,
+      "value": 22.0,
+      "max_value": 22.0,
+      "value_ceiling": 22.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "rugged",
+      "title": "Rugged",
+      "level": 48,
+      "value": 30.0,
+      "max_value": 30.0,
+      "value_ceiling": 30.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "fortified",
+      "title": "Fortified",
+      "level": 57,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "impenetrable",
+      "title": "Impenetrable",
+      "level": 66,
+      "value": 52.0,
+      "max_value": 52.0,
+      "value_ceiling": 52.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "masterwork",
+      "title": "Masterwork",
+      "level": 76,
+      "value": 68.0,
+      "max_value": 68.0,
+      "value_ceiling": 68.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "adamantine",
+      "title": "Adamantine",
+      "level": 86,
+      "value": 85.0,
+      "max_value": 85.0,
+      "value_ceiling": 85.0,
+      "stat": "armor",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "armor_pct": [
+    {
+      "source": "steadfast",
+      "title": "Steadfast",
+      "level": 4,
+      "value": 26.0,
+      "max_value": 26.0,
+      "value_ceiling": 26.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "vigilant",
+      "title": "Vigilant",
+      "level": 12,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "resolute",
+      "title": "Resolute",
+      "level": 20,
+      "value": 52.0,
+      "max_value": 52.0,
+      "value_ceiling": 52.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "persistent",
+      "title": "Persistent",
+      "level": 28,
+      "value": 65.0,
+      "max_value": 65.0,
+      "value_ceiling": 65.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "unremitting",
+      "title": "Unremitting",
+      "level": 36,
+      "value": 78.0,
+      "max_value": 78.0,
+      "value_ceiling": 78.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "relentless",
+      "title": "Relentless",
+      "level": 44,
+      "value": 90.0,
+      "max_value": 90.0,
+      "value_ceiling": 90.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "abiding",
+      "title": "Abiding",
+      "level": 52,
+      "value": 100.0,
+      "max_value": 100.0,
+      "value_ceiling": 100.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "eternal",
+      "title": "eternal",
+      "level": 60,
+      "value": 115.0,
+      "max_value": 115.0,
+      "value_ceiling": 115.0,
+      "stat": "armor_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "fire_resist": [
+    {
+      "source": "crimson",
+      "title": "Crimson",
+      "level": 6,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "fire_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "scarlet",
+      "title": "Scarlet",
+      "level": 17,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "fire_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "red",
+      "title": "Red",
+      "level": 28,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "fire_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "bloodshot",
+      "title": "Bloodshot",
+      "level": 39,
+      "value": 22.0,
+      "max_value": 22.0,
+      "value_ceiling": 22.0,
+      "stat": "fire_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ruby",
+      "title": "Ruby",
+      "level": 50,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "fire_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "reflect": [
+    {
+      "source": "ofreversal",
+      "title": "of Reversal",
+      "level": 10,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "reflect",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofpunishment",
+      "title": "of Punishment",
+      "level": 24,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "reflect",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofvengeance",
+      "title": "of Vengeance",
+      "level": 38,
+      "value": 30.0,
+      "max_value": 30.0,
+      "value_ceiling": 30.0,
+      "stat": "reflect",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofretribution",
+      "title": "of Retribution",
+      "level": 52,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "reflect",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "life_regen": [
+    {
+      "source": "ofmending",
+      "title": "of Mending",
+      "level": 10,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "life_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofreconstruction",
+      "title": "of Reconstruction",
+      "level": 25,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "life_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofsuturing",
+      "title": "of Suturing",
+      "level": 40,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "life_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofregeneration",
+      "title": "of Regeneration",
+      "level": 55,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "life_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger"
+      ]
+    }
+  ],
+  "mana_regen": [
+    {
+      "source": "ofbrightening",
+      "title": "of Brightening",
+      "level": 8,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "mana_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofillumination",
+      "title": "of Illumination",
+      "level": 20,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "mana_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofawakening",
+      "title": "of Awakening",
+      "level": 32,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "mana_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ofvisions",
+      "title": "of Visions",
+      "level": 46,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "mana_regen",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "block": [
+    {
+      "source": "ofrepulsion",
+      "title": "of Repulsion",
+      "level": 6,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "block",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofprevention",
+      "title": "of Prevention",
+      "level": 22,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "block",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofobstruction",
+      "title": "of Obstruction",
+      "level": 38,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "block",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "block_ranged": [
+    {
+      "source": "ofdeflection",
+      "title": "of Deflection",
+      "level": 6,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "block_ranged",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofinterception",
+      "title": "of Interception",
+      "level": 26,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "block_ranged",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "ofdefense",
+      "title": "of Defense",
+      "level": 46,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "block_ranged",
+      "percent": true,
+      "position": "suffix",
+      "slots": [
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "recharge": [
+    {
+      "source": "rousing",
+      "title": "Rousing",
+      "level": 20,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "recharge",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "weapon"
+      ],
+      "classes": []
+    },
+    {
+      "source": "energizing",
+      "title": "Energizing",
+      "level": 32,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "recharge",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "weapon"
+      ],
+      "classes": []
+    },
+    {
+      "source": "invigorating",
+      "title": "Invigorating",
+      "level": 50,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "recharge",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "weapon"
+      ],
+      "classes": []
+    }
+  ],
+  "magic_find": [
+    {
+      "source": "fortunate",
+      "title": "Fortunate",
+      "level": 20,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 6.0,
+      "stat": "magic_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring"
+      ],
+      "classes": []
+    },
+    {
+      "source": "charmed",
+      "title": "Charmed",
+      "level": 30,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 12.0,
+      "stat": "magic_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring"
+      ],
+      "classes": []
+    },
+    {
+      "source": "lucky",
+      "title": "Lucky",
+      "level": 40,
+      "value": 16.0,
+      "max_value": 16.0,
+      "value_ceiling": 24.0,
+      "stat": "magic_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring"
+      ],
+      "classes": []
+    },
+    {
+      "source": "fated",
+      "title": "Fated",
+      "level": 50,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 34.0,
+      "stat": "magic_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring"
+      ],
+      "classes": []
+    },
+    {
+      "source": "serendipitous",
+      "title": "Serendipitous",
+      "level": 60,
+      "value": 35.0,
+      "max_value": 35.0,
+      "value_ceiling": 45.0,
+      "stat": "magic_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring"
+      ],
+      "classes": []
+    }
+  ],
+  "gold_find": [
+    {
+      "source": "glittering",
+      "title": "Glittering",
+      "level": 20,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "gold_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring",
+        "weapon"
+      ],
+      "classes": []
+    },
+    {
+      "source": "wealthy",
+      "title": "Wealthy",
+      "level": 25,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "gold_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring",
+        "weapon"
+      ],
+      "classes": []
+    },
+    {
+      "source": "opulent",
+      "title": "Opulent",
+      "level": 35,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "gold_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring",
+        "weapon"
+      ],
+      "classes": []
+    },
+    {
+      "source": "affluent",
+      "title": "Affluent",
+      "level": 45,
+      "value": 70.0,
+      "max_value": 70.0,
+      "value_ceiling": 70.0,
+      "stat": "gold_find",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "ring",
+        "weapon"
+      ],
+      "classes": []
+    }
+  ]
+}

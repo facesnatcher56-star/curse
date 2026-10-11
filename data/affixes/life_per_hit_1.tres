@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "life_per_hit_1"
 family = "life_per_hit"
+tier = 1
 stat = "life_per_hit"
 title = "of Consumption"
 position = "suffix"
-tier = 1
 level = 12
 value = 2.0
+max_value = 2.0
+value_ceiling = 2.0
 percent = false
-slots = Array[String](["weapon", "gloves"])
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter", "ranger", "mage"])

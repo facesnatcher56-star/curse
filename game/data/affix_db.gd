@@ -6,16 +6,17 @@ const DIR := "res://data/affixes"
 
 ## How each stat reads on an item card.
 const STAT_NAMES := {
+	"mana_steal": "Mana stolen per hit", "mana_per_hit": "Mana per hit",
 	"str": "Strength", "dex": "Dexterity", "int": "Intelligence", "life": "Life", "mana": "Mana",
 	"melee_max": "Maximum melee damage", "melee_min": "Minimum melee damage", "melee_pct": "Melee damage", "spell_pct": "Combat magic damage",
-	"fire_added": "Fire damage", "life_steal": "Life stolen per hit", "life_per_hit": "Life per hit", "armor": "Armor", "armor_pct": "Armor",
+	"fire_added": "Fire damage", "fire_added_max": "Maximum fire damage", "life_steal": "Life stolen per hit", "life_per_hit": "Life per hit", "armor": "Armor", "armor_pct": "Armor",
 	"fire_resist": "Fire resistance", "reflect": "Melee damage reflected", "life_regen": "Life recovery", "mana_regen": "Mana recovery",
-	"block": "Chance to block", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
+	"block": "Chance to block melee", "block_ranged": "Chance to block ranged", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
 }
 
 ## The stats that are percentages.
-const PERCENT_STATS: Array[String] = ["melee_pct", "spell_pct", "life_steal", "armor_pct", "fire_resist", "reflect", "life_regen", "mana_regen",
-	"block", "recharge", "magic_find", "gold_find"]
+const PERCENT_STATS: Array[String] = ["melee_pct", "spell_pct", "life_steal", "mana_steal", "armor_pct", "fire_resist", "reflect", "life_regen", "mana_regen",
+	"block", "block_ranged", "recharge", "magic_find", "gold_find"]
 
 static func is_percent(stat: String) -> bool:
 	return PERCENT_STATS.has(stat)

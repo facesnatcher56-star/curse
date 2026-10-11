@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mortal_wound"
+display_name = "Mortal Wound"
+tree = "ranged"
+class_level = 36
+prereqs = {
+"far_shot": 1,
+"penetrate": 1
+}
+first = 224.0
+last = 350.0
+text = "Bow and crossbow critical damage %s%%"
+order = 25
+table = Array[float]([224.0, 242.0, 256.0, 268.0, 279.0, 288.0, 296.0, 303.0, 310.0, 316.0, 322.0, 327.0, 332.0, 336.0, 340.0, 343.0, 346.0, 348.0, 349.0, 350.0])
+extra = {}
+needs = "a hero bow or crossbow"

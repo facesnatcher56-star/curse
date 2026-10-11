@@ -236,8 +236,8 @@ func _test_hero_knockdown() -> void:
 	foe.queue_free()
 	player.stats.cooldowns.clear()
 
-## Heavy blows have consequences: a thrown monster that hits a wall takes a little damage and is stunned, and one that hits another
-## monster hurts it and knocks it down; and a ranged monster that is hit while backing away is snared.
+## Physics stays cosmetic: walls and other bodies add no damage/stun. A direct
+## hit on a ranged monster backing away still has its explicit snare reaction.
 func _test_knockdown() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -245,20 +245,17 @@ func _test_knockdown() -> void:
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
 	var skills: SkillController = player.skills
-	# 1-2. Thrown into a wall: extra damage and a stun (the knock itself, not a particular skill).
+	# 1-2. A living body shoved into a wall has no bonus combat effect.
 	# Exercise actual movement/collision without a random combat roll.
 	var impact_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
 	impact_victim.alert_delay = 999.0
 	impact_victim.max_health = 5000.0
 	impact_victim.health = 5000.0
 	impact_victim.knock = Vector3(9, 0, 0)
-	impact_victim.knocked_by = player
 	await get_tree().create_timer(0.6).timeout
 	var impact_damage: float = 5000.0 - impact_victim.health
-	expect("a qualifying wall collision deals exactly one impact and leaves a living stunned enemy",
-		String(impact_victim.last_result.get("skill_id", "")) == "impact" and impact_damage > 0.0
-		and is_equal_approx(impact_damage, float(impact_victim.last_result.get("damage", 0.0)))
-		and not impact_victim.dead and not impact_victim.is_ragdolled() and impact_victim.stun_time > 0.0)
+	expect("a living wall collision adds no damage or stun", impact_damage == 0.0
+		and impact_victim.last_result.is_empty() and not impact_victim.dead and impact_victim.stun_time == 0.0)
 	await get_tree().create_timer(0.7).timeout
 	expect("remaining against the wall does not deal another impact after cooldown", is_equal_approx(5000.0 - impact_victim.health, impact_damage))
 	impact_victim.queue_free()
@@ -271,7 +268,7 @@ func _test_knockdown() -> void:
 	await get_tree().create_timer(0.6).timeout
 	expect("a shove in clear ground causes no false wall impact", is_equal_approx(no_impact.health, 5000.0))
 	no_impact.queue_free()
-	# 3. Thrown into another monster: both are hurt and the one it hits falls down.
+	# 3. Body contact must not become a second attack on either participant.
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
 	var front: Enemy = _spawn_enemy(Vector3(0, 0, 1.8))
@@ -280,15 +277,11 @@ func _test_knockdown() -> void:
 		e.alert_delay = 999.0
 		e.max_health = 5000.0
 		e.health = 5000.0
-	# Power Strike's shove is covered above. Here isolate the actual body contact:
-	# its random splash could shove the rear target faster than the front one
-	# (9 m/s on a miss versus 10.25 normally, or 20 on a crushing splash).
-	# The minimum Power Strike shove closes this 0.66 m capsule gap above IMPACT_SPEED.
-	front.knocked_by = player
+	# Isolate body contact independently of direct attacks and their reactions.
 	front.knock = Vector3(0, 0, 9.0)
 	var saw_down: bool = false
 	var t: float = 0.0
-	# Observe the first settled body-impact event, before ragdoll follow-up contacts.
+	# Observe the whole contact interval, including any delayed effects.
 	while t < 1.0:
 		await get_tree().physics_frame
 		t += 1.0 / float(Engine.physics_ticks_per_second)
@@ -298,10 +291,9 @@ func _test_knockdown() -> void:
 	print("  knockdown collision: front_damage=", 5000.0 - front.health,
 		" behind_damage=", 5000.0 - behind.health, " down=", saw_down,
 		" last=", behind.last_result.get("skill_id", ""))
-	expect("the monster that gets hit by the thrown one is hurt and falls down", behind.health < 5000.0 and saw_down
-		and String(behind.last_result.get("skill_id", "")) == "impact")
-	expect("the thrown monster also takes body-impact damage", front.health < 5000.0
-		and String(front.last_result.get("skill_id", "")) == "impact")
+	expect("a body contact cannot damage or knock down the bystander", behind.health == 5000.0 and not saw_down
+		and behind.last_result.is_empty() and behind.stun_time == 0.0)
+	expect("the moving body takes no hidden impact damage", front.health == 5000.0 and front.last_result.is_empty())
 	front.queue_free()
 	behind.queue_free()
 	# 5. Snare:	# 5. Snare: a spitter that was backing away and is hit gets snared; one that was not, and a zombie, do not.

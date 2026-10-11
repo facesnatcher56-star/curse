@@ -17,4 +17,4 @@ values = {
 estimated = Array[String]([])
 summary = "Monsters in an area cannot cast spells for a while."
 order = 9
-needs = "not built yet"
+needs = ""

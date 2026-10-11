@@ -1,5 +1,16 @@
 # Combat reference and decision rule
 
+Physics combat cleanup (2026-10-11, owner decision): removing the greatsword's arc
+was insufficient. A normal melee kill launched a corpse whose ragdoll bowling
+code dealt delayed `collision` damage to neighbours. The owner then requested
+removal of all such automatic physics gameplay effects. Living knockback and
+ragdolls now add no body/wall damage, extra stun, chain knockdown, status transfer,
+collision XP or automatic prop attack. Removed those damage paths, not merely
+disabled them for one weapon. Recoil, corpse flight and wall bounces remain
+presentation. Explicit attacks/powers, their authored damage/statuses and direct
+destructible interactions remain. `--only=basicsingle`, `impact` and `knockdown`
+test real physics frames, including lethal/nonlethal basic swings and launches.
+
 Dungeon Siege II is Curse's combat foundation. Its installed game data has already been traced in
 [`ds2-combat-and-loot.md`](ds2-combat-and-loot.md); that evidence, rather than memory or a wiki, is the baseline for attacks, powers,
 recharge, damage, defenses, party behavior, enemy roles, progression and loot.
@@ -24,9 +35,30 @@ damage does not refill itself. Its stored activation survives a miss, dodge, blo
 by a successful melee hit. The visible armed state is a restrained orange heat haze that traces just outside the character's
 silhouette like rising steam, based on the owner's direct DS2 screenshot. It is not a weapon coating, ground pool, or fire cloud.
 
-Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. His next successful arrow deals 1500%
-weapon damage, cannot crit, and spends the power only when it connects. It uses the same 21-second active-party damage recharge
-formula as Brutal Attack. A miss, blocked shot, lost target or arrow striking terrain preserves it.
+Brutal Attack presentation (`BrutalAttackFx`): wisps follow the main body bones after animation evaluation, with a brief inward
+gather on activation (visual only; no cast delay). Impact uses directional cones and forward/backward particles, with DS2's
+rank colours `9E5D33 / BC5900 / 8F2808` and cone scale `1 / 1.2 / 1.8`, traced from `efct_brutal_attack.gas`.
+These are native Godot approximations, not imported DS2 art. The owner's special overhead swing, persistent armed aura,
+miss-preserves-power rule and lethal-power gibbing remain intentional Curse choices.
+
+Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
+weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.
+Ordinary bow velocity is 30; Take Aim doubles it. Losing a target before release preserves the armed state. Brutal Attack's
+owner-approved miss-preserves-power behavior is unchanged.
+
+Presentation audit (2026-10-11): `active_skills.gas` gives **both** Brutal Attack and Take Aim
+`ffx_brutal_attack_prelaunch`. Cutter now shares the restrained orange body wisps while armed,
+then gathers pale light at the bow hand for the powered draw (30 motes, 0.4-second visible effect,
+from `efct_take_aim_charge`). Aborted draws preserve the aura; spend/death clears it. These remain
+native visual approximations. Audio has not been made identical to DS2; only owner recordings may be used.
+The [power-audio analysis](DS2_POWER_AUDIO_ANALYSIS.md) measures the four original samples, event routing,
+pitch/distance settings and replacement targets. It also flags the original Take Aim impact alias mismatch;
+do not treat sample presence as proof that every original event resolves to that sample.
+Owner requested a [first layered audio pass](POWER_AUDIO_FIRST_PASS.md): four pre-baked composites
+from existing project recordings now play at Brutal contact and Take Aim draw/release/contact.
+Misses/blocks have no power-impact sound; stored arming is silent. No DS2 recording was imported.
+See [the fine-detail audit](DS2_COMBAT_DETAIL_AUDIT.md) for source evidence, interruption asymmetry,
+remaining combo/cadence/potion differences, owner-approved departures and engine-side uncertainties.
 
 ## The DS2 character and combat model (2026-10, owner decision)
 
@@ -42,13 +74,31 @@ Implemented from `ds2-combat-and-loot.md` and locked by `--only=classskills`, `-
   `0.2 x STR` (0.75 / 1.25 on the low / high roll); thrown uses DEX; Fireball is a DS2 spell (damage and mana grow with INT).
 * **Monsters** (`MonsterScaling`): DS2 life, damage per hit and armour by level, tier (`EnemyDef.tier`) and role (`EnemyDef.role`).
 
+Opening encounter parity (2026-10-11): DS2's Mercenary level-one `bracken_defender_stats` inherits
+`base_actor_evil_melee_trivial`: 7.56 life, 3.9-6.5 damage, and the standard level-one armour curve.
+`CryptRoad.encounter_tier` maps level-one road zombies, ghouls and spitters to the trivial tier (retaining their roles).
+This is a Curse roster mapping, not a claim that DS2 has those same enemies. Later encounters and named/elite spawns retain
+their authored tiers. The per-spawn definition is copied so XP and loot follow the same introductory tier without mutating
+the shared resource. Ordinary melee contacts now use the copied damage range directly: neither the old 0.85 swipe multiplier
+nor the 1.6 heavy multiplier applies. Heavy timing, lunges and physical weight remain; special pounces/spells retain their
+explicit ability multipliers. Crowd density and attack tokens are unchanged, so encounter layouts are not one-for-one DS2.
+Player human starting attributes (12/11/11), life (64.1), mana (55.05), and 1% regeneration already match the verified formulas.
+The missing human +10% racial magic find is now included in actual loot rolls and displayed on the character sheet.
+The class-XP-to-attribute conversion remains the engine-side approximation documented below, not claimed exact parity.
+Tier life now uses exact ratios (weak 2/3, strong 5/3, miniboss 11/3), reproducing the GAS coefficients instead of rounded
+0.67/1.67/3.67. Ranged and magic damage use their literal per-tier coefficients; melee normal/strong rogue and tank damage
+also use their source coefficients rather than approximate role multipliers. DS2 has no trivial/weak melee rogue template:
+the ghoul's combination remains a labelled Curse approximation. No DS2 model/AI/animation import is implied by stat parity.
+
 Curse choices where DS2's engine is not visible, or the owner chose differently (each is a deliberate, labelled departure):
 
 * **XP on the kill** (owner): DS2 pays hit by hit; Curse pays when the monster dies, and splits the hero's share over his class skills
   by the damage each did. XP no hit earned (quests, nests) goes to his most-used class skill.
 * **Class-skill table**: a class skill uses the character table one step behind (0 untrained, 1 at 300 XP), so a pure level 30 fighter
   is Melee 29 = 99 / 40 / 40, matching DS2's design note (about 100 / 40 / 40). Each class level adds its 3/1/1 weights.
-* **Experience table**: DS2's documented points are exact; the levels between them are filled in geometrically.
+* **Experience table**: all 100 thresholds now come directly from `formulas.gas` (`data/reference/ds2_xp.json`). Save version 10
+  remaps version 7-9 XP to preserve the level and fractional progress of the hero, class skills and Cutter. Older saves still follow
+  the existing pre-DS2 migration. No developer tool edits the production save.
 * **Monster level** (`WorldThreat.monster_level`): the world's threat dial maps to a DS2 level (threat 1.25 = level 1, 12 levels per
   point), so the road opens at level 1 as DS2 does.
 * **Crit**: the second hit is taken equal to the first (200%), since a blow arrives already rolled.
@@ -57,6 +107,10 @@ Curse choices where DS2's engine is not visible, or the owner chose differently 
   the Warden's special) puts the hero down. The Zombasite "crushing" and "deep wounds" outcomes are gone.
 
 ## DS2 items (2026-10, owner decision; locked by `--only=ds2items`)
+
+Full catalogue/one-for-one import progress: see [`DS2_ITEM_IMPORT_STATUS.md`](DS2_ITEM_IMPORT_STATUS.md).
+`data/reference/ds2_equipment_catalog.json` is reference data, **not** a completed live-loot import.
+Mana Steal and Mana per Hit are now supported alongside the earlier modifier families.
 
 * **Slots**: weapon, shield, helm, body, gloves, boots, amulet, two rings (`Items.Slot`). A two-handed weapon and a shield push each other off.
 * **Bases** (`ItemDef`): five item levels each (DS2's base and var1-var4). Weapon damage per hit is DS2's curve by type (1H `3.4 + 0.74L`, 2H
@@ -104,7 +158,8 @@ Curse choices (labelled in `tools/write_passive_defs.py`):
 * **Tiers and prerequisites** are DS2's own (`ds2-combat-and-loot.md` 6.1), except that Alacrity asks for Critical Strike instead of DS2's
   Dual Wield, which Curse does not have.
 * **Left out** until Curse has the mechanic: Dual Wield, the bow and crossbow passives, summons, ice, lightning, death, curses and the Nature
-  Magic tree. Cunning Renewal waits for a hero ranged power.
+  Magic tree. The ranged prerequisite paths and Cunning Renewal are now present for Repulse/Silence's higher ranks; Arcane Fury
+  is present for Detonation. Prerequisite-only ranged attack passives explicitly say which hero weapon system is missing.
 * **Deadly Strike** also raises the hero's thrown crits (DS2 gives bows Mortal Wound; Curse's thrown blade is his sword).
 
 ## DS2 powers (2026-10, owner decision; locked by `--only=powers`)

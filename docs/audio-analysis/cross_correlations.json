@@ -1,0 +1,38 @@
+[
+  {
+    "a": "s_pw_ft_brutalattack_hit.wav",
+    "b": "s_pw_rg_takeaim_charge.wav",
+    "max_abs_normalized_correlation": 0.13040316688649836,
+    "lag_s": -0.054603174603174605
+  },
+  {
+    "a": "s_pw_ft_brutalattack_hit.wav",
+    "b": "s_pw_rg_takeaim_fire.wav",
+    "max_abs_normalized_correlation": 0.1961449274812509,
+    "lag_s": -0.06798185941043083
+  },
+  {
+    "a": "s_pw_ft_brutalattack_hit.wav",
+    "b": "s_pw_rg_takeaim_hit.wav",
+    "max_abs_normalized_correlation": 0.13651340007204996,
+    "lag_s": -0.36376417233560093
+  },
+  {
+    "a": "s_pw_rg_takeaim_charge.wav",
+    "b": "s_pw_rg_takeaim_fire.wav",
+    "max_abs_normalized_correlation": 0.1377590850252037,
+    "lag_s": -0.10448979591836735
+  },
+  {
+    "a": "s_pw_rg_takeaim_charge.wav",
+    "b": "s_pw_rg_takeaim_hit.wav",
+    "max_abs_normalized_correlation": 0.092015864789603,
+    "lag_s": -0.8644444444444445
+  },
+  {
+    "a": "s_pw_rg_takeaim_fire.wav",
+    "b": "s_pw_rg_takeaim_hit.wav",
+    "max_abs_normalized_correlation": 0.14870716937160758,
+    "lag_s": -0.8677551020408163
+  }
+]

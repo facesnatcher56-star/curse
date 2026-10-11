@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "recharge_3"
 family = "recharge"
+tier = 3
 stat = "recharge"
 title = "Invigorating"
 position = "prefix"
-tier = 3
 level = 50
 value = 10.0
+max_value = 10.0
+value_ceiling = 10.0
 percent = true
-slots = Array[String](["weapon", "ring", "amulet"])
+slots = Array[String](["amulet", "weapon"])
+classes = Array[String]([])

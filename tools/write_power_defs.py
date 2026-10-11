@@ -157,6 +157,8 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     wanted = set()
     for order, (ident, name, tree, recharge, stance, ranks, values, estimated, needs, summary) in enumerate(POWERS):
+        if ident in {"whirling_strike", "staggering_blow", "war_cry", "provoke", "repulse", "silence", "flame_nexus", "detonation"}:
+            needs = ""
         wanted.add(ident + ".tres")
         rank_dicts = []
         for req in ranks:

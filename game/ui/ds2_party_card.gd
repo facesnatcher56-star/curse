@@ -3,11 +3,12 @@ extends Control
 ## Dungeon Siege II authentic party card component.
 ## Layout matches DS2 reference:
 ##   - Left: Portrait framed in stone, with horizontal Health & Mana bars underneath.
-##   - Right: Top weapon slot + buffs row; Bottom 4 circular power bezels + amber charge bar.
+##   - Right: weapon slot and four circular power bezels; recharge is inside the icon.
 
 const PORTRAIT_FRAME_TEX := preload("res://assets/ui/ds2/portrait_frame.png")
 const ACTION_BEZEL_TEX := preload("res://assets/ui/ds2/action_slot_bezel.png")
 const POWER_BEZEL_TEX := preload("res://assets/ui/ds2/power_bezel.png")
+const PowerVisual := preload("res://game/ui/power_button_visual.gd")
 
 var character_name: String = "Hero"
 var is_companion: bool = false
@@ -19,8 +20,9 @@ var _mana_fill: ColorRect
 var _weapon_slot: TextureRect
 var _power_icons: Array[TextureRect] = []
 var _power_sweeps: Array[Control] = []
-var _charge_bar: ColorRect
 var _power_charge: float = 1.0
+var _power_armed: bool = false
+var _power_available: bool = true
 
 func _init(name: String = "Hero", companion: bool = false) -> void:
 	character_name = name
@@ -181,24 +183,9 @@ func _setup_ui() -> void:
 		var p_sweep := Control.new()
 		p_sweep.size = Vector2(26, 26)
 		p_sweep.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		p_sweep.draw.connect(_draw_power_sweep)
+		p_sweep.draw.connect(_draw_power_sweep.bind(p_sweep, i))
 		p_cell.add_child(p_sweep)
 		_power_sweeps.append(p_sweep)
-
-	# Thin amber/yellow power recharge bar under the 4 power bezels (matching DS2)
-	var bar_bg := ColorRect.new()
-	bar_bg.position = Vector2(2, 65)
-	bar_bg.size = Vector2(122, 5)
-	bar_bg.color = Color(0.12, 0.10, 0.08, 0.95)
-	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_col.add_child(bar_bg)
-
-	_charge_bar = ColorRect.new()
-	_charge_bar.position = Vector2(2, 65)
-	_charge_bar.size = Vector2(122, 5)
-	_charge_bar.color = Color(0.95, 0.72, 0.15, 0.95)
-	_charge_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_col.add_child(_charge_bar)
 
 	if _pending_portrait != null and _portrait_rect != null:
 		_portrait_rect.texture = _pending_portrait
@@ -224,34 +211,17 @@ func set_icons(weapon: Texture2D, power: Texture2D) -> void:
 	if _power_icons.size() > 0 and _power_icons[0] != null:
 		_power_icons[0].texture = power
 
-func update_vitals(hp_pct: float, mana_pct: float, xp_pct: float, power_charge: float = 1.0) -> void:
+func update_vitals(hp_pct: float, mana_pct: float, xp_pct: float, power_charge: float = 1.0, power_armed: bool = false, power_available: bool = true) -> void:
 	if _hp_fill != null:
 		_hp_fill.size.x = clampf(hp_pct, 0.0, 1.0) * 50.0
 	if _mana_fill != null:
 		_mana_fill.size.x = clampf(mana_pct, 0.0, 1.0) * 50.0
 	_power_charge = clampf(power_charge, 0.0, 1.0)
-	if _charge_bar != null:
-		_charge_bar.size.x = _power_charge * 122.0
+	_power_armed = power_armed
+	_power_available = power_available
 	if _power_sweeps.size() > 0 and _power_sweeps[0] != null:
 		_power_sweeps[0].queue_redraw()
 
-func _draw_power_sweep() -> void:
-	if _power_sweeps.is_empty():
-		return
-	var sweep := _power_sweeps[0]
-	if _power_charge >= 0.999:
-		return
-	var fraction_remaining: float = 1.0 - _power_charge
-	var rect := Rect2(Vector2.ZERO, sweep.size)
-	var centre := rect.get_center()
-	var half: float = rect.size.x * 0.5
-	var points := PackedVector2Array([centre])
-	var start: float = -PI * 0.5 + _power_charge * TAU
-	var steps: int = maxi(int(ceil(fraction_remaining * 32.0)), 2)
-	for i in steps + 1:
-		var a: float = start + fraction_remaining * TAU * float(i) / float(steps)
-		var dir := Vector2(cos(a), sin(a))
-		var t: float = half / maxf(maxf(absf(dir.x), absf(dir.y)), 0.0001)
-		points.append(centre + dir * t)
-	if points.size() >= 3:
-		sweep.draw_colored_polygon(points, Color(0.0, 0.0, 0.0, 0.72))
+func _draw_power_sweep(sweep: Control, index: int) -> void:
+	if index == 0 and _pending_power != null:
+		PowerVisual.draw_on(sweep, Rect2(Vector2.ZERO, sweep.size), _power_charge, _power_armed, _power_available, 0.2)

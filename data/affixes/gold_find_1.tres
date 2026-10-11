@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "gold_find_1"
 family = "gold_find"
+tier = 1
 stat = "gold_find"
 title = "Glittering"
 position = "prefix"
-tier = 1
-level = 1
+level = 20
 value = 5.0
+max_value = 5.0
+value_ceiling = 5.0
 percent = true
-slots = Array[String](["ring", "amulet"])
+slots = Array[String](["amulet", "ring", "weapon"])
+classes = Array[String]([])

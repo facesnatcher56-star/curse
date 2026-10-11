@@ -10,6 +10,21 @@ func _test_items() -> void:
 			var item: Dictionary = Items.build(def, level, Items.Rarity.NORMAL)
 			plain = plain and item["name"] == def.display_name and int(item["level"]) == level and (item["mods"] as Array).is_empty()
 	expect("every base builds at each of its item levels, named for its base", plain)
+	var legacy_clean: bool = true
+	for def in ItemDb.all().values():
+		legacy_clean = legacy_clean and not def.stats.has("roll_cost") and not def.stats.has("roll_speed") \
+			and not def.profile.has("arc") and not def.profile.has("arc_damage") and not def.profile.has("finisher")
+	expect("repurposed Curse bases contain no old roll modifiers or automatic cleave", legacy_clean)
+	var old_armor: Dictionary = Items.from_save({"base": "Leather Jerkin", "tier": 2,
+		"stats": {"armor": 9999.0, "roll_speed": 5.0}, "affixes": ["legacy_bleed"]})
+	expect("pre-DS2 saved gear rebuilds with DS2 armour and discards legacy stats/affixes",
+		is_equal_approx(float(old_armor["stats"]["armor"]), 9.6) and not old_armor["stats"].has("roll_speed") and old_armor["mods"].is_empty())
+	var saved_armor: Dictionary = Items.to_save(Items.build(ItemDb.get_def("plate_cuirass"), 22, Items.Rarity.NORMAL))
+	saved_armor["stats"] = {"roll_speed": 5.0}
+	saved_armor["mods"] = ["legacy_bleed"]
+	var rebuilt: Dictionary = Items.from_save(saved_armor)
+	expect("definition-era saves cannot reintroduce removed affixes or armour movement stats",
+		rebuilt["mods"].is_empty() and not rebuilt["stats"].has("roll_speed"))
 	var magic: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.MAGIC, 20, "Longsword")
 	expect("a magic item is named for its modifiers (%s)" % magic["name"], not (magic["mods"] as Array).is_empty() and String(magic["name"]) != "Longsword")
 	var choices: Array[Dictionary] = Items.roll_choices(5)

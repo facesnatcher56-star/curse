@@ -53,7 +53,8 @@ func update_frame(p: Player) -> void:
 	var xp_pct: float = HeroProgression.level_fraction(TownState.hero_xp)
 	
 	var brutal_charge: float = p.stats.ult_fraction("brutal_attack")
-	hero_card.update_vitals(hp_pct, mana_pct, xp_pct, brutal_charge)
+	hero_card.update_vitals(hp_pct, mana_pct, xp_pct, brutal_charge,
+		preload("res://game/ui/power_button_visual.gd").armed(p, "brutal_attack"), p.stats.can_use("brutal_attack"))
 
 	# 2. Update Companion Card (Cutter)
 	var cutter: Node = p.stats._cutter()
@@ -67,6 +68,6 @@ func update_frame(p: Player) -> void:
 		var reload_rem: float = float(cutter.get("take_aim_reload_remaining"))
 		if reload_req > 0.0:
 			take_aim_charge = clampf(1.0 - reload_rem / maxf(reload_req, 0.001), 0.0, 1.0)
-		companion_card.update_vitals(c_hp_pct, c_mana_pct, c_xp_pct, take_aim_charge)
+		companion_card.update_vitals(c_hp_pct, c_mana_pct, c_xp_pct, take_aim_charge, bool(cutter.get("take_aim_armed")))
 	else:
 		companion_card.visible = false

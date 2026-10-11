@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "life_regen_4"
 family = "life_regen"
+tier = 4
 stat = "life_regen"
 title = "of Regeneration"
 position = "suffix"
-tier = 4
-level = 50
+level = 55
 value = 12.0
+max_value = 12.0
+value_ceiling = 12.0
 percent = true
-slots = Array[String](["body", "boots", "ring", "amulet"])
+slots = Array[String](["amulet", "body", "boots", "gloves", "helm", "ring", "shield"])
+classes = Array[String](["fighter", "ranger"])

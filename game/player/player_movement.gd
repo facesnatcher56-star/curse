@@ -30,9 +30,9 @@ func update_locomotion_anim() -> void:
 	# Only walk or run on purpose: being shoved by the crowd or a hit must not start the legs moving.
 	if moving_speed > 0.5 and (has_goal or Gamepad.move_vector().length() > 0.0) and not p.skills.busy:
 		if moving_speed > p.stats.run_speed * 0.8:
-			p.model.loop("run", 1.0)
+			p.model.loop("run", clampf(moving_speed / 4.5, 0.8, 1.4))
 		else:
-			p.model.loop("walk", 1.0)
+			p.model.loop("walk", clampf(moving_speed / 2.5, 0.78, 1.2))
 	elif not p.skills.busy:
 		idle_time += p.get_process_delta_time()
 		if idle_time >= REST_AFTER and p.combat_timer <= 0.0:

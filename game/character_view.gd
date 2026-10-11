@@ -135,7 +135,7 @@ static func _empty_place(title: String) -> Control:
 ## "Armor 34   Block 0%   Fire resist 0%   Magic find 0%": what the gear adds up to.
 func gear_text() -> String:
 	return "Armor %d   Block %d%%   Fire resist %d%%   Magic find %d%%" % [int(hero.armor), int(round(hero.block_chance * 100.0)),
-		int(round(hero.fire_resist * 100.0)), int(hero.stats.gear_stat("magic_find"))]
+		int(round(hero.fire_resist * 100.0)), int(hero.stats.magic_find())]
 
 ## Right-click, double-click or confirm on a worn piece takes it off, into the bag.
 func _worn_input(event: InputEvent, place: int, control: Control) -> void:

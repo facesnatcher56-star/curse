@@ -656,22 +656,31 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)
-	if result.get("skill_id", "") != "brutal_attack":
-		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
-	powers.gain(float(result.get("damage", 0.0)), String(result.get("skill_id", "")))
-	_steal_life(result)
+	on_party_damage(float(result.get("damage", 0.0)), String(result.get("skill_id", "")))
+	_steal_resources(result)
 	_passive_on_hit(target, result)
-	for companion in get_tree().get_nodes_in_group("companions"):
-		if companion.has_method("gain_take_aim_charge"):
-			companion.gain_take_aim_charge(float(result.get("damage", 0.0)))
 
-## DS2's life steal and life per hit (gear): `life + flat + steal% x damage dealt`, on the hero's physical blows.
-func _steal_life(result: Dictionary) -> void:
-	if dead or int(result.get("type", 0)) != Combat.DamageType.PHYSICAL or String(result.get("skill_id", "")) == "reflect":
+## All party damage feeds every power except the power that produced it.
+func on_party_damage(damage: float, skill_id: String = "") -> void:
+	if skill_id != "brutal_attack":
+		stats.gain_brutal_charge(damage)
+	powers.gain(damage, skill_id)
+	for companion in get_tree().get_nodes_in_group("companions"):
+		if skill_id != "take_aim" and companion.has_method("gain_take_aim_charge"):
+			companion.gain_take_aim_charge(damage)
+
+## DS2 rules.skrit: life/mana + flat bonus + steal% x actual damage dealt, on weapon hits, never spells/reflection.
+func _steal_resources(result: Dictionary) -> void:
+	if dead or int(result.get("type", 0)) not in [Combat.DamageType.PHYSICAL, Combat.DamageType.RANGED] \
+			or String(result.get("skill_id", "")) == "reflect" or float(result.get("damage", 0.0)) <= 0.0 \
+			or int(result.get("outcome", Combat.Outcome.HIT)) < Combat.Outcome.HIT:
 		return
 	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
 	if gain > 0.0:
 		health = minf(health + gain, max_health)
+	var mana_gain: float = stats.gear_stat("mana_per_hit") + stats.gear_stat("mana_steal") / 100.0 * float(result.get("damage", 0.0))
+	if mana_gain > 0.0:
+		stats.mana = minf(stats.mana + mana_gain, stats.max_mana)
 
 ## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Ignite sets a
 ## fire hit alight (DS2's rules.skrit: `increased_ignite_chance x damage / (1.2 + 0.6 INT)` against a 0-100 roll, the chance from its 5-30 table,
@@ -688,7 +697,7 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	var ignite: int = TownState.passive_rank("ignite")
 	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
 			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
-		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true)
+		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true, self, skill)
 
 ## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
 func _filter_incoming(result: Dictionary) -> Dictionary:

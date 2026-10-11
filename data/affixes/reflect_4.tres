@@ -6,11 +6,14 @@
 script = ExtResource("1")
 id = "reflect_4"
 family = "reflect"
+tier = 4
 stat = "reflect"
 title = "of Retribution"
 position = "suffix"
-tier = 4
-level = 60
+level = 52
 value = 40.0
+max_value = 40.0
+value_ceiling = 40.0
 percent = true
-slots = Array[String](["body", "shield"])
+slots = Array[String](["body", "boots", "gloves", "helm", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

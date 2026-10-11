@@ -200,52 +200,10 @@ func _ensure_brutal_visual() -> void:
 		return
 	if _brutal_aura != null and is_instance_valid(_brutal_aura):
 		return
-	_brutal_aura = Node3D.new()
+	_brutal_aura = BrutalAttackFx.new()
 	_brutal_aura.name = "BrutalAttackAura"
 	p.add_child(_brutal_aura)
-	# DS2's read is a restrained, body-hugging heat haze rather than a fire cloud.
-	# Small emitters sit just outside the silhouette so the weapon remains visually untouched.
-	for point in [
-		Vector3(-0.50, 1.48, 0.0), Vector3(0.50, 1.48, 0.0),
-		Vector3(-0.39, 1.05, 0.0), Vector3(0.39, 1.05, 0.0),
-		Vector3(-0.25, 0.48, 0.0), Vector3(0.25, 0.48, 0.0),
-		Vector3(0.0, 1.76, 0.0),
-	]:
-		_add_brutal_wisp_emitter(point)
-
-func _add_brutal_wisp_emitter(at: Vector3) -> void:
-	var embers := CPUParticles3D.new()
-	embers.amount = 3
-	embers.lifetime = 1.35
-	embers.randomness = 0.85
-	embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	embers.emission_box_extents = Vector3(0.08, 0.10, 0.07)
-	embers.position = at
-	embers.direction = Vector3.UP
-	embers.spread = 18.0
-	embers.initial_velocity_min = 0.12
-	embers.initial_velocity_max = 0.30
-	embers.gravity = Vector3(0.0, 0.05, 0.0)
-	embers.scale_amount_min = 0.40
-	embers.scale_amount_max = 0.72
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.12, 0.42)
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
-	material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	material.vertex_color_use_as_albedo = true
-	material.albedo_texture = Fx.soft_texture()
-	quad.material = material
-	embers.mesh = quad
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.72, 0.24, 0.045, 0.0))
-	ramp.add_point(0.24, Color(0.82, 0.30, 0.06, 0.34))
-	ramp.add_point(0.68, Color(0.34, 0.16, 0.08, 0.15))
-	ramp.set_color(1, Color(0.18, 0.08, 0.04, 0.0))
-	embers.color_ramp = ramp
-	_brutal_aura.add_child(embers)
+	(_brutal_aura as BrutalAttackFx).setup(p.model)
 
 func _clear_brutal_visual() -> void:
 	if _brutal_aura != null and is_instance_valid(_brutal_aura):
@@ -625,14 +583,14 @@ func _apply_skill(skill: Dictionary) -> void:
 			if busy_target != null and not busy_target.dead \
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
 				var brutal: bool = busy_skill == "basic" and brutal_armed
-				var damage: float = p.stats.weapon_damage(mult * (p.stats.brutal_mult() if brutal else 1.0))
-				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight)
+				var damage: float = p.stats.weapon_damage(mult)
+				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight, false, not brutal, p.stats.brutal_mult() if brutal else 1.0)
 				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 					var brutal_dir: Vector3 = busy_target.global_position - p.global_position
 					brutal_dir.y = 0.0
-					SkillFx.brutal_impact(p, busy_target.global_position, brutal_dir)
+					SkillFx.brutal_impact(p, busy_target.global_position, brutal_dir, PowerDb.hero_rank("brutal_attack"))
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 					brutal_armed = false
 					p.stats.spend_brutal_attack()
@@ -643,8 +601,6 @@ func _apply_skill(skill: Dictionary) -> void:
 					p.powers.release_staggering(busy_target)   # DS2's Staggering Blow rides the next blow that lands
 			else:
 				Sfx.sword_miss(p)   # the target died, moved away or was never in reach: the swing finds only air
-			if busy_skill == "basic":
-				_weapon_style_hits(skill, mult, weight)
 			_smash_props(mult, 1.4, 1.0)
 		"projectile":
 			Sfx.sample(p, "fireball_cast", -1.0, 1.0)   # the cast burst lands exactly as the fireball leaves the hands
@@ -661,50 +617,6 @@ func _apply_skill(skill: Dictionary) -> void:
 				origin = fire_orb.release()  # the gathered orb is the fireball that gets thrown
 				fire_orb = null
 			ball.global_position = origin
-
-## What the wielded weapon adds to a basic swing. A wide weapon (the greatsword) also hits the other enemies inside its arc, for a
-## share of the damage; a slam finisher drives the blade into the ground and throws a shockwave through everything in front.
-func _weapon_style_hits(skill: Dictionary, mult: float, weight: float) -> void:
-	var arc: float = float(p.stats.weapon_profile("arc", 0.0))
-	var slam: bool = bool(skill.get("finisher", false)) and String(p.stats.weapon_profile("finisher", "")) == "slam"
-	if arc <= 0.0 and not slam:
-		return
-	var dir: Vector3 = busy_aim - p.global_position
-	dir.y = 0.0
-	dir = dir.normalized() if dir.length() > 0.05 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	var reach: float = float(skill["range"]) + 0.3
-	var share: float = float(p.stats.weapon_profile("arc_damage", 0.6))
-	var swept: int = 0
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Actor
-		if e == null or e.dead or e == busy_target:
-			continue
-		var offset: Vector3 = e.global_position - p.global_position
-		offset.y = 0.0
-		var in_arc: bool = arc > 0.0 and offset.length() - e.body_radius <= reach and absf(dir.angle_to(offset)) <= deg_to_rad(arc * 0.5)
-		var in_slam: bool = slam and offset.length() - e.body_radius <= SLAM_RADIUS and absf(dir.angle_to(offset)) <= deg_to_rad(100.0)
-		if not (in_arc or in_slam):
-			continue
-		var frac: float = share if in_arc and not in_slam else 0.8
-		var swing: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(mult) * frac,
-			Combat.DamageType.PHYSICAL, true, weight * (1.6 if in_slam else 1.0), false)
-		swing["skill_id"] = busy_skill
-		swing["secondary"] = true
-		e.receive(swing, p.global_position)
-		if in_slam and is_instance_valid(e) and not e.dead:
-			e.interrupt(0.7)
-		swept += 1
-	if slam:
-		var at: Vector3 = p.global_position + dir * 1.8
-		Fx.ring(p, at + Vector3(0, 0.05, 0), 2.4, Color(0.55, 0.5, 0.42))
-		Fx.burst(p, at + Vector3(0, 0.2, 0), Vector3.UP, Color(0.34, 0.31, 0.27), 16, 4.0, 0.045)
-		Fx.shake(p, 0.1)
-		Fx.hitstop(p, 0.06)
-		Destructible.blast(p.get_tree(), at, SLAM_RADIUS - 0.6, p.stats.weapon_damage(mult) * 1.5, dir, 1.8, Destructible.HERO)
-	elif swept > 0:
-		Fx.punch(p, 0.8 + 0.2 * minf(swept, 3))
-
-const SLAM_RADIUS := 3.2
 
 ## A swing also breaks a barrel in front of the hero (only barrels, for now), so one can be attacked like an enemy.
 func _smash_props(mult: float, reach: float, force: float) -> void:

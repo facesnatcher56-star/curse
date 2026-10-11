@@ -17,9 +17,6 @@ const CHAINS: Array = [
 	["neck", "Head", "head_end"],
 ]
 const IMPACT_MIN_SPEED := 3.5   # horizontal m/s needed for a collision to count
-const IMPACT_DAMAGE := 12.0
-const IMPACT_STUN := 3.0        # longer than a normal fall (lie + rise is 2 s)
-const BOWL_DAMAGE := 8.0
 const LIE_TIME := 1.1
 const RISE_TIME := 0.9
 # Corpses only (presentation): a killing blow's launch is capped, a corpse that is still tumbling gives up after a while, and a
@@ -55,7 +52,6 @@ var _pin_time: float = 0.0
 var _flight_t: float = 0.0
 var _settled: bool = false      # a corpse frozen where it lies: no more simulation, the pose is final
 var _impact_cooldown: float = 0.0
-var _bowled: Dictionary = {}   # instance ids already struck by this flight
 var _trail_travel: float = 0.0
 var _last_hang_pos: Vector3 = Vector3.ZERO
 var _hang_velocity: Vector3 = Vector3.ZERO
@@ -140,7 +136,6 @@ func launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
 	_vy = lift
 	_omega = spin
 	state = State.FLIGHT
-	_bowled.clear()
 	actor.collision_layer = 0
 	actor.collision_mask = Actor.LAYER_WORLD
 	_trail_travel = 0.0
@@ -244,8 +239,6 @@ func _step_flight(delta: float) -> void:
 			_hit_obstacle(speed_before, collision.get_position())
 		_velocity = _velocity.bounce(collision.get_normal()) * 0.35
 		_omega *= 0.7
-	if speed_before >= IMPACT_MIN_SPEED:
-		_bowl_into_enemies(speed_before)
 	actor.global_position.y = 0.0
 	# Ground contact depends on how upright the body currently is.
 	var upright: float = clampf((_tumble * Basis(Vector3.UP, yaw) * Vector3.UP).y, 0.0, 1.0)
@@ -267,52 +260,9 @@ func _step_flight(delta: float) -> void:
 	_leave_blood(delta)
 	_compose(_tumble, _height)
 
-## Slammed into a wall, prop or pillar: extra damage and a longer stun than a plain landing.
-func _hit_obstacle(speed: float, point: Vector3) -> void:
-	if actor.dead:
-		return
-	# The flying body, not a projected line, is what reaches and breaks scenery.
-	Destructible.blast(_tree, point, 0.65, 8.0 + speed * 1.6, _velocity.normalized(),
-		clampf(speed / 8.0, 1.0, 2.4))
-	var result: Dictionary = Combat.resolve(actor, actor, IMPACT_DAMAGE + speed * 1.6, Combat.DamageType.FIRE, false, 1.8)
-	result["type"] = Combat.DamageType.PHYSICAL
-	result["skill_id"] = "collision"
-	actor.receive(result, actor.global_position - _velocity.normalized())
-	actor.stun_time = maxf(actor.stun_time, IMPACT_STUN)
-	Fx.text_at(actor, actor.global_position + Vector3(0, actor.body_height + 0.5, 0), "Slammed", Color(1.0, 0.85, 0.5), 40)
+## Wall contact is presentation only: no hidden damage, stun, status spread or prop attack.
+func _hit_obstacle(speed: float, _point: Vector3) -> void:
 	Fx.body_impact(actor, actor.global_position + Vector3(0, 1.0, 0), _velocity, "wall", speed)
-
-## A body flying through other enemies knocks them about, hurts them, and passes on its burn, bleed and slow.
-func _bowl_into_enemies(speed: float) -> void:
-	var here: Vector3 = actor.global_position
-	for node in actor.get_tree().get_nodes_in_group("enemies"):
-		var other := node as Actor
-		if other == null or other == actor or other.dead or other.impaled or other.is_ragdolled():
-			continue
-		if _bowled.has(other.get_instance_id()):
-			continue
-		var rel: Vector3 = other.global_position - here
-		rel.y = 0.0
-		if rel.length() > actor.body_radius + other.body_radius + 0.45 or _height > 1.6:
-			continue
-		_bowled[other.get_instance_id()] = true
-		actor.spread_debuffs_to(other)
-		if actor.hero_credited():   # the hero threw the first body: what it hurts is his doing too (kill credit, collision ownership)
-			other.credit_hero()
-			other.knocked_by = actor.knocked_by
-		var hit: Dictionary = Combat.resolve(actor, other, BOWL_DAMAGE + speed * 0.8, Combat.DamageType.FIRE, false, 1.5)
-		hit["type"] = Combat.DamageType.PHYSICAL
-		hit["skill_id"] = "collision"
-		other.receive(hit, here)
-		Fx.body_impact(actor, other.global_position + Vector3(0, 1.0, 0), rel, "enemy", speed)
-		if is_instance_valid(other):
-			other.interrupt(0.9)
-			if other.can_be_impaled() and not other.dead:   # the one it hit falls down too (the very big ones only stagger)
-				var along: Vector3 = _velocity.normalized() if _velocity.length() > 0.1 else rel.normalized()
-				other.ragdoll_launch(Vector3(along.x, 0.0, along.z) * 3.0, 2.0, along.cross(Vector3.UP) * randf_range(3.0, 6.0))
-		_velocity *= 0.7
-		Fx.burst(actor, other.global_position + Vector3(0, 1.0, 0), _velocity.normalized() + Vector3.UP * 0.3, Color(0.6, 0.05, 0.04), 10, 4.0)
-		Fx.shake(actor, 0.08)
 
 func _begin_lying() -> void:
 	state = State.LYING
