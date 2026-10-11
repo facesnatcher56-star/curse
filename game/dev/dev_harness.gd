@@ -200,7 +200,6 @@ func _test_hotkeys() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
-	GameSettings.hotbar_slots[2] = "potion"
 	GameSettings.hotbar_slots[3] = "skewer"
 	var dummy: Enemy = _spawn_enemy(Vector3(1.8, 0, 0))
 	dummy.aggro_range = 0.0
@@ -212,20 +211,20 @@ func _test_hotkeys() -> void:
 	player.skills.start_skill("basic", dummy)
 	await get_tree().create_timer(0.15).timeout
 	var was_busy: bool = player.skills.busy
-	Input.action_press("skill_3")
+	Input.action_press("use_potion")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_3")
+	Input.action_release("use_potion")
 	var potion_ok: bool = player.stats.potions == 2 and player.health > 80.0 and not player.skills.busy
 	# 2. Potion while stunned.
 	player.health = 30.0
 	player.stats.cooldowns.clear()
 	player.stun_time = 1.0
 	await get_tree().physics_frame
-	Input.action_press("skill_3")
+	Input.action_press("use_potion")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	Input.action_release("skill_3")
+	Input.action_release("use_potion")
 	var stunned_ok: bool = player.stats.potions == 1 and player.health > 60.0
 	player.stun_time = 0.0
 	# 3. A usable skill cancels the current swing and starts.
@@ -810,7 +809,7 @@ func _test_gamepad() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	# Every action has its pad button.
-	var wanted: Dictionary = {"alt_skill": true, "dodge": true, "skill_1": true, "skill_2": true, "skill_3": true, "skill_4": true,
+	var wanted: Dictionary = {"alt_skill": true, "dodge": true, "skill_1": true, "skill_2": true, "use_potion": true, "skill_4": true,
 		"skill_5": true, "skill_6": true, "pause": true, "gear": true, "zoom_in": true, "zoom_out": true, "stand_still": true}
 	var missing: PackedStringArray = []
 	for action in wanted:
@@ -1432,8 +1431,8 @@ func _test_settings() -> void:
 	trigger.axis_value = 1.0
 	GameSettings.rebind_pad("dodge", trigger)       # a trigger can be bound too; skill_5 (RT) gets dodge's old B
 	pad_ok = pad_ok and GameSettings.pad_binding_text("dodge") == "RT" and GameSettings.pad_binding_text("skill_5") == "B"
-	GameSettings.rebind("skill_3", q)               # a keyboard rebind must leave the pad button alone
-	pad_ok = pad_ok and GameSettings.pad_binding_text("skill_3") == "RB" and GameSettings.binding_text("skill_3") == "Q"
+	GameSettings.rebind("use_potion", q)             # a keyboard rebind must leave the pad button alone
+	pad_ok = pad_ok and GameSettings.pad_binding_text("use_potion") == "RB" and GameSettings.binding_text("use_potion") == "Q"
 	GameSettings.swap_sticks = true
 	GameSettings.save_to_disk()
 	GameSettings.custom_pad_bindings.clear()
@@ -6803,17 +6802,18 @@ func _test_loot_names() -> void:
 ## settings and the save, and clicking a hotbar slot opens a picker whose icons put a skill on that key.
 func _test_hotbar() -> void:
 	GameSettings.reset_hotbar()
-	var full_layout: Array[String] = ["power", "fireball", "potion", "skewer", "leap", "earthshatter"]
+	var full_layout: Array[String] = ["power", "fireball", "throw", "skewer", "leap", "earthshatter"]
 	var slots: Array[String] = full_layout.duplicate()
 	var alt: String = HotbarLayout.assign(slots, HotbarLayout.DEFAULT_ALT, 0, "fireball")
 	expect("putting a skill that is elsewhere on a key swaps the two", slots[0] == "fireball" and slots[1] == "power" and alt == "basic")
-	alt = HotbarLayout.assign(slots, alt, HotbarLayout.ALT, "potion")
-	expect("the mouse button swaps like any other slot", alt == "potion" and slots[2] == "basic" and HotbarLayout.is_valid(slots, alt))
+	alt = HotbarLayout.assign(slots, alt, HotbarLayout.ALT, "throw")
+	expect("the mouse button swaps like any other slot", alt == "throw" and slots[2] == "basic" and HotbarLayout.is_valid(slots, alt))
 	var benched: Array[String] = full_layout.duplicate()
 	var bench_alt: String = HotbarLayout.assign(benched, HotbarLayout.DEFAULT_ALT, 3, "throw")
 	expect("a skill from the bench takes a key and the one it replaces goes to the bench", benched[3] == "throw" and not benched.has("skewer") and bench_alt == "basic" and HotbarLayout.is_valid(benched, bench_alt))
-	expect("a layout has six slots, permits empty keys, and never duplicates assigned skills", not HotbarLayout.is_valid(["power", "power", "potion", "skewer", "leap", "earthshatter"], "basic")
-		and not HotbarLayout.is_valid(["power", "fireball", "potion", "skewer", "leap"], "basic") and HotbarLayout.is_valid(HotbarLayout.DEFAULT_SLOTS, "basic"))
+	expect("a layout has six slots, permits empty keys, excludes potions, and never duplicates assigned skills", not HotbarLayout.is_valid(["power", "power", "throw", "skewer", "leap", "earthshatter"], "basic")
+		and not HotbarLayout.is_valid(["power", "fireball", "potion", "skewer", "leap", "earthshatter"], "basic")
+		and not HotbarLayout.is_valid(["power", "fireball", "throw", "skewer", "leap"], "basic") and HotbarLayout.is_valid(HotbarLayout.DEFAULT_SLOTS, "basic"))
 	expect("the dodge cannot be put on a key", HotbarLayout.assign(slots, alt, 3, "dodge") == alt and slots[3] == "skewer")
 	# The hero's bar IS the settings' layout, so one change shows everywhere.
 	GameSettings.reset_hotbar()
@@ -6853,12 +6853,7 @@ func _test_hotbar() -> void:
 	press.call(Vector2(5, 5), MOUSE_BUTTON_RIGHT)
 	expect("a right click closes it with nothing changed", not hud.picker_open() and skills.right_click_skill == "basic")
 	press.call((mouse_slot["rect"] as Rect2).get_center())
-	var potion_at: Vector2 = Vector2.ZERO
-	for cell in hud.picker_cells(size_px):
-		if cell["id"] == "potion":
-			potion_at = (cell["rect"] as Rect2).get_center()
-	press.call(potion_at)
-	expect("a potion from the bench can replace the mouse-button attack", skills.right_click_skill == "potion" and not skills.hotbar.has("basic"))
+	expect("the dedicated potion is absent from the skill picker", not HotbarLayout.ASSIGNABLE.has("potion"))
 	var dodge_rect: Rect2 = Rect2()
 	for hit in hud._slot_hits:
 		if hit["action"] == "dodge":

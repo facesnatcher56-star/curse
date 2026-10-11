@@ -1,24 +1,21 @@
 class_name Ds2PotionDock
 extends Control
 ## Dungeon Siege II-style bottom-left potion and utility dock.
-## Holds health and mana flasks with count badges and hotkey markers,
-## plus utility interface buttons matching the DS2 bottom stone runner bar.
+## The game's single real consumable lives here; mana is already represented
+## by the party bars and has no separate potion inventory.
 
 const HEALTH_FLASK_TEX := preload("res://assets/ui/ds2/potion_flask_health.png")
-const MANA_FLASK_TEX := preload("res://assets/ui/ds2/potion_flask_mana.png")
 
 var player: Player
 var _hp_flask: TextureRect
-var _mana_flask: TextureRect
 var _hp_count_lbl: Label
-var _mana_count_lbl: Label
 var _hp_key_lbl: Label
 
 signal potion_requested
 
 func _init() -> void:
-	custom_minimum_size = Vector2(210, 32)
-	size = Vector2(210, 32)
+	custom_minimum_size = Vector2(176, 32)
+	size = Vector2(176, 32)
 
 func _ready() -> void:
 	var screen: Vector2 = get_viewport_rect().size
@@ -67,34 +64,7 @@ func _ready() -> void:
 	_hp_key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hp_box.add_child(_hp_key_lbl)
 
-	# 2. Mana Flask Button (28x28 circular button)
-	var mana_box := Control.new()
-	mana_box.custom_minimum_size = Vector2(28, 28)
-	mana_box.size = Vector2(28, 28)
-	mana_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(mana_box)
-
-	_mana_flask = TextureRect.new()
-	_mana_flask.texture = MANA_FLASK_TEX
-	_mana_flask.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_mana_flask.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_mana_flask.custom_minimum_size = Vector2(28, 28)
-	_mana_flask.size = Vector2(28, 28)
-	_mana_flask.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mana_box.add_child(_mana_flask)
-
-	_mana_count_lbl = Label.new()
-	_mana_count_lbl.text = "∞"
-	_mana_count_lbl.position = Vector2(10, 12)
-	_mana_count_lbl.size = Vector2(16, 14)
-	_mana_count_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_mana_count_lbl.add_theme_font_override("font", UiTheme.heading_font())
-	_mana_count_lbl.add_theme_font_size_override("font_size", 10)
-	_mana_count_lbl.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
-	_mana_count_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mana_box.add_child(_mana_count_lbl)
-
-	# 3. Utility buttons (Bag/Inventory 'I', Character 'C', Journal 'J')
+	# Utility buttons (Bag/Inventory 'I', Character 'C', Journal 'J')
 	for btn_info in [["I", "Inventory"], ["C", "Character"], ["J", "Journal"]]:
 		var u_box := Control.new()
 		u_box.custom_minimum_size = Vector2(24, 24)
@@ -139,6 +109,7 @@ func update_dock(p: Player) -> void:
 	position = Vector2(28.0, screen.y - bar_height + (bar_height - 32.0) * 0.5)
 	var potions: int = int(p.stats.potions) if "potions" in p.stats else 1
 	_hp_count_lbl.text = str(potions)
+	_hp_key_lbl.text = GameSettings.short_binding_text("use_potion")
 	_hp_flask.modulate = Color(1, 1, 1, 1.0 if potions > 0 else 0.45)
 
 func _on_hp_input(event: InputEvent) -> void:

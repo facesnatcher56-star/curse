@@ -550,8 +550,7 @@ func _read_input(cursor: Vector3) -> void:
 		elif SkillDb.all()[skills.hotbar[i]].get("aimed", false):
 			skills.handle_aimed_key(action, skills.hotbar[i], cursor)
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
-			if skills.hotbar[i] != "potion":  # potions are handled every frame in _handle_hotkeys, even mid-animation
-				skills.queue_skill(skills.hotbar[i], cursor)
+			skills.queue_skill(skills.hotbar[i], cursor)
 	# The right mouse button carries whichever skill is on it (the attack by default), and drives it the way a numbered slot would.
 	var alt_id: String = skills.right_click_skill
 	var alt_def: Dictionary = SkillDb.all()[alt_id]
@@ -566,9 +565,6 @@ func _read_input(cursor: Vector3) -> void:
 	elif alt_id == "take_aim":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
 			skills.activate_take_aim()
-	elif alt_id == "potion":
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			skills.drink_potion()
 	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
 		if Input.is_action_just_pressed("alt_skill") and alt_id != "basic":
 			skills.interrupt_for(alt_id, cursor)   # a skill on the right button cancels the swing in progress, like a numbered key

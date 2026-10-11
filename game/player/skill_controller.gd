@@ -67,6 +67,8 @@ func swing_cancellable_by_move() -> bool:
 func handle_hotkeys(cursor: Vector3) -> void:
 	if p.dead:
 		return
+	if Input.is_action_just_pressed("use_potion"):
+		drink_potion()
 	for i in hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
 		var id: String = hotbar[i]
@@ -78,8 +80,6 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			activate_brutal_attack()
 		elif id == "take_aim":
 			activate_take_aim()
-		elif id == "potion":
-			drink_potion()
 		else:
 			interrupt_for(id, cursor)
 

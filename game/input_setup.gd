@@ -15,6 +15,7 @@ static func apply() -> void:
 	_key("pause", KEY_ESCAPE)
 	_key("interact", KEY_E)
 	_key("chronicle", KEY_J)
+	_key("use_potion", KEY_Q)
 	for i in 6:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()
@@ -28,7 +29,8 @@ static func _apply_gamepad() -> void:
 	_pad_button("dodge", JOY_BUTTON_B)
 	_pad_button("skill_1", JOY_BUTTON_X)
 	_pad_button("skill_2", JOY_BUTTON_Y)
-	_pad_button("skill_3", JOY_BUTTON_RIGHT_SHOULDER)
+	_remove_pad_button("skill_3", JOY_BUTTON_RIGHT_SHOULDER)
+	_pad_button("use_potion", JOY_BUTTON_RIGHT_SHOULDER)
 	_pad_button("skill_4", JOY_BUTTON_LEFT_SHOULDER)
 	_pad_trigger("skill_5", JOY_AXIS_TRIGGER_RIGHT)
 	_pad_button("skill_6", JOY_BUTTON_RIGHT_STICK)
@@ -50,6 +52,13 @@ static func _pad_button(action: String, button: int) -> void:
 	event.device = -1   # any controller (the Deck's own pad is device 0, an Xbox pad is 1)
 	event.button_index = button as JoyButton
 	InputMap.action_add_event(action, event)
+
+static func _remove_pad_button(action: String, button: int) -> void:
+	if not InputMap.has_action(action):
+		return
+	for existing in InputMap.action_get_events(action):
+		if existing is InputEventJoypadButton and (existing as InputEventJoypadButton).button_index == button:
+			InputMap.action_erase_event(action, existing)
 
 static func _pad_trigger(action: String, axis: int) -> void:
 	if not InputMap.has_action(action):

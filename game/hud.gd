@@ -1045,13 +1045,12 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_arc(arrow, 7.0, PI * 0.15, PI * 1.65, 14, Color(1.0, 0.86, 0.5), 2.5)
 		var head: Vector2 = arrow + Vector2(cos(PI * 0.15), sin(PI * 0.15)) * 7.0
 		draw_colored_polygon(PackedVector2Array([head + Vector2(-5, -3), head + Vector2(4, -3), head + Vector2(0, 5)]), Color(1.0, 0.86, 0.5))
-	# Key hint (follows rebinding), potion count and mana cost.
+	# Key hint (follows rebinding) and mana cost. Consumables live only in the
+	# dedicated DS2 dock and never render as ability-slot content.
 	var key_text: String = GameSettings.short_binding_text(action)
 	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
 	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
-	if id == "potion":
-		draw_string(font, pos + Vector2(0, size_px - 5), "x%d" % player.stats.potions, HORIZONTAL_ALIGNMENT_RIGHT, size_px - 5, 15, Color(1, 1, 1))
-	elif float(skill["mana"]) > 0.0:
+	if float(skill["mana"]) > 0.0:
 		draw_string(font, pos + Vector2(5, size_px - 5), str(int(skill["mana"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.

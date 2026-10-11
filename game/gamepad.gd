@@ -6,7 +6,7 @@ extends RefCounted
 ##   Right stick  camera: left/right turns it, up/down zooms. While an aimed skill (Fireball) is held it slides the target area instead.
 ##                The target is always the enemy nearest to where the hero faces; holding A attacks it.
 ##   A            attack the target (hold to keep attacking)         B   dodge roll
-##   X / Y        Power Strike / Fireball (hold to aim, release)     RB  potion
+##   X / Y        Equipped powers                                    RB  health potion
 ##   LB           Skewer                                             RT  Leap
 ##   R3 (press the right stick)  Earthshatter
 ##   D-pad up/down  camera zoom       L3  stand still (hold)         Back  gear (hold)           Start  pause

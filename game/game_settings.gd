@@ -18,10 +18,11 @@ const ACTIONS: Array = [
 	["alt_skill", "Right-click skill"],
 	["skill_1", "Hotbar 1 (Brutal Attack)"],
 	["skill_2", "Hotbar 2 (Take Aim)"],
-	["skill_3", "Hotbar 3 (Potion)"],
+	["skill_3", "Hotbar 3"],
 	["skill_4", "Hotbar 4 (Skewer)"],
 	["skill_5", "Hotbar 5 (Leap)"],
 	["skill_6", "Hotbar 6 (Earthshatter)"],
+	["use_potion", "Use health potion"],
 	["dodge", "Dodge roll"],
 	["stand_still", "Stand still (hold)"],
 	["gear", "Show gear (hold)"],
@@ -60,7 +61,7 @@ static var custom_bindings: Dictionary = {}
 ## Which skill is on which key (see HotbarLayout). SkillController shares `hotbar_slots` itself, so a change here is a change there.
 static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
 static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
-const HOTBAR_LAYOUT_REV := 3
+const HOTBAR_LAYOUT_REV := 4
 
 static func reset_hotbar() -> void:
 	# SkillController deliberately keeps this exact Array reference. Reset its
