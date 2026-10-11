@@ -21,7 +21,7 @@ const QUEST_REWARD_THREAT := 1.6667
 ## The Dungeon Siege II monster level of a threat. Threat stays the world's one danger dial (zones, quest monsters, named monsters
 ## growing); this is the only place it becomes a DS2 level, which sets a monster's life, damage, armour and XP (see Enemy) and the
 ## level gap in combat. Threat 1.25 is level 1 and every point of threat is 12 levels. The road opens where DS2's first real region
-## does, not at its attack-less tutorial dummies: level 3 (Road In), up to level 6 (the Crypt Approach). A named monster grown to
+## does, not at its attack-less tutorial dummies: level 2 (Road In, the tutorial fighters), up to level 6 (the Crypt Approach). A named monster grown to
 ## threat 3.4 is level 27.
 const LEVEL_ONE_THREAT := 1.25
 const LEVELS_PER_THREAT := 12.0

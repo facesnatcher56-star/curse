@@ -79,10 +79,13 @@ wrong. The Bracken Defenders in DS2's tutorial (`a0_01_02_tutarena`, `tutcommand
 so they are not the baseline. DS2's first real fights are in `a1_02_01_jnglight`, read from `World.ds2map` and `Logic.ds2res`:
 Haku Slayers (melee trivial, level 3), Haku Hunters (ranged weak, level 4), Urg Thugs (melee weak, level 3 and 5), a Haku Shaman
 (magic normal, level 4), a Drummer (melee normal, level 5) and a Boarbeast (melee strong, level 7), in groups of 2 to 5: a boarbeast
-with four hunters, a shaman or drummer with three slayers, pairs of thugs and hunters, and a few singles. The road now opens at
-level 3 (Road In 3, Graveyard 4, Wood 5, Crypt Approach 6; `data/zones`), and the three opening beats (Waystation, Pilgrim Camp,
-Graveyard Threshold) are authored the same way: zombie = slayer (trivial, 3), spitter = hunter (weak, 4), ghoul = thug (weak, 3-5),
-plague priest = shaman (4), the Brute = boarbeast (level 5, a deliberate departure from DS2's 7 because the hero meets it earlier).
+with four hunters, a shaman or drummer with three slayers, pairs of thugs and hunters, and a few singles. The road ramps from DS2's tutorial fighters that actually attack (skipping only the Bracken Defender dummies): Forest Golem (ranged
+weak, level 2), Ketril (melee normal tank, level 2) and Mystic Protector (magic weak, level 3), in groups of one to three, read from
+`a1_01_03_tutcommand`, `tuttrenches` and `tutcav`. The Waystation uses these (spitter = golem, brute at normal tier = ketril, plague
+priest = protector); the Pilgrim Camp is the step into jnglight (slayers, a thug); the Graveyard Threshold is jnglight itself:
+zombie = slayer (trivial, 3), spitter = hunter (weak, 4), ghoul = thug (weak, 3-5), plague priest = shaman (4), the Brute = boarbeast
+(level 5, a deliberate departure from DS2's 7 because the hero meets it earlier). Zones run level 2 (Road In), 3 (Graveyard), 5 (Wood)
+and 6 (Crypt Approach) in `data/zones`.
 Members list an exact level and tier (`CryptRoad._group`), one body each: the old three-copy packs are gone from these beats.
 The level appears on every enemy's health bar and in the target banner (`LV n`).
 Player human starting attributes (12/11/11), life (64.1), mana (55.05), and 1% regeneration already match the verified formulas.

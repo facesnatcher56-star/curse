@@ -381,7 +381,7 @@ func _test_crypt_road() -> void:
 	var walkers: Array[Enemy] = []
 	var walked_from: Array[Vector3] = []
 	for node in all:
-		if (node as Enemy).group_id == 1:
+		if (node as Enemy).group_id in [1, 21]:   # the waystation's two strolling groups (a small group may all be mid-pause)
 			walkers.append(node)
 			walked_from.append((node as Enemy).global_position)
 	await get_tree().create_timer(2.5).timeout
@@ -390,7 +390,10 @@ func _test_crypt_road() -> void:
 	for i in walkers.size():   # (any of the group may be in a pause)
 		strolled = strolled or walkers[i].global_position.distance_to(walked_from[i]) > 0.6
 		calm = calm and not walkers[i]._aggro
-	expect("a walker strolls about on its own", strolled and calm)
+	var walker_report: String = ""
+	for w in walkers:
+		walker_report += " %s(aggro=%s moved=%.1f)" % [w.variant, w._aggro, w.global_position.distance_to(walked_from[walkers.find(w)])]
+	expect("a walker strolls about on its own:" + walker_report, strolled and calm)
 	# Far, unaware monsters sleep and wake as the hero comes near, so the crowd costs little.
 	run.player.global_position = place.at(0.0, -100.0)
 	await get_tree().create_timer(0.8).timeout

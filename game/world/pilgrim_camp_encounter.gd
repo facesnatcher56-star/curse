@@ -36,19 +36,19 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the pilgrim camp encounter groups.
 ## All enemies are placed at z <= 106 so they are >= 44 m from the player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 2: The Feeding Pack (Center Firepit & Overturned Wagon): three slayers and a level-5 drummer-grade fighter,
-	# distracted until the player enters aggro range. Mode "feed" satisfies the feeding pack self-test checks.
+	# The camp is the step from the tutorial fighters into DS2's first real region (a1_02_01_jnglight): Haku Slayers appear (trivial,
+	# level 3), the thugs and hunters follow at the threshold.
+	# Group 2: The Feeding Pack (Center Firepit & Overturned Wagon): three slayers, distracted until the player enters aggro range. Mode "feed" satisfies the feeding pack self-test checks.
 	road._group(2, "feed", [
 		["zombie", -3.6, 101.2, 3, "trivial"],
 		["zombie", -5.2, 99.8, 3, "trivial"],
-		["zombie", -4.3, 102.6, 3, "trivial"],
-		["zombie", -2.4, 100.0, 5]
+		["zombie", -4.3, 102.6, 3, "trivial"]
 	], Vector2(-3.0, 101.0), 3.5, Vector2(-4.5, 100.8))
 
-	# Group 22: Western Flank Ambushers (Tents & Outer Woods): a pair of hunters behind tent cover and a level-3 thug.
+	# Group 22: Western Flank Ambushers (Tents & Outer Woods): a pair of golems behind tent cover and a level-3 thug.
 	road._group(22, "wander", [
-		["spitter", -11.0, 98.0, 4, "weak"],
-		["spitter", -9.5, 99.6, 4, "weak"],
+		["spitter", -11.0, 98.0, 2, "weak"],
+		["spitter", -9.5, 99.6, 2, "weak"],
 		["ghoul", -8.5, 95.5, 3]
 	], Vector2(-10.0, 97.0), 4.0, Vector2.ZERO, [
 		Vector2(-10.5, 103.0),
@@ -56,9 +56,9 @@ static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
 		Vector2(-8.0, 94.0)
 	])
 
-	# Group 23: Eastern Wagon Scavenger: a lone level-5 thug picking through luggage debris.
+	# Group 23: Eastern Wagon Scavenger: a lone level-3 thug picking through luggage debris.
 	road._group(23, "wander", [
-		["ghoul", 7.8, 97.5, 5]
+		["ghoul", 7.8, 97.5, 3]
 	], Vector2(7.5, 98.0), 3.5, Vector2.ZERO, [
 		Vector2(6.5, 101.0),
 		Vector2(8.5, 96.0)

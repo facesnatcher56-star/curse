@@ -87,9 +87,10 @@ func _test_ds2_combat() -> void:
 	await get_tree().process_frame
 	expect("a level 1 zombie has DS2's life, damage and armour (%.1f life, %.1f armour)" % [target.max_health, target.armor], target.level == 1
 		and absf(target.max_health - 30.24) < 0.01 and absf(target.armor - MonsterScaling.armor(1)) < 0.01 and absf(target.average_hit() - 10.5248) < 0.01)
-	# The opening is DS2's first real region (jnglight), not its attack-less tutorial dummies: levels 3 to 6, Haku Slayers are trivial level 3.
-	expect("the road opens at level 3 and deepens to 6 (zones), and a level converts to its threat and back",
-		WorldThreat.monster_level(TownDb.zone_at(10.0).base_threat) == 3 and WorldThreat.monster_level(TownDb.zone_at(300.0).base_threat) == 6
+	# The opening ramps from DS2's tutorial fighters that attack (level 2) into its first real region (jnglight), skipping the attack-less
+	# Bracken Defender target dummies: levels 2 to 6, Haku Slayers are trivial level 3.
+	expect("the road opens at level 2 and deepens to 6 (zones), and a level converts to its threat and back",
+		WorldThreat.monster_level(TownDb.zone_at(10.0).base_threat) == 2 and WorldThreat.monster_level(TownDb.zone_at(300.0).base_threat) == 6
 		and WorldThreat.monster_level(WorldThreat.threat_for_level(1)) == 1 and WorldThreat.monster_level(WorldThreat.threat_for_level(7)) == 7)
 	var intro: Enemy = game.director.spawn_enemy(Vector3(28, 0, 30), "zombie", WorldThreat.threat_for_level(3), "trivial")
 	intro.set_physics_process(false)
