@@ -346,8 +346,7 @@ static func apply_bundle(bundle: Dictionary, inst: Dictionary = {}) -> Array[Str
 		TownState.potions += delta
 		lines.append("%+d potion%s" % [delta, "" if absi(delta) == 1 else "s"])
 	if bundle.has("item"):
-		var none: Array[String] = []
-		var item: Dictionary = Items.roll_drop(Items.tier_for_source(float(bundle.get("threat", WorldThreat.QUEST_REWARD_THREAT))), 1.0 if int(bundle["item"]) >= 1 else 0.0, none)   # a reward names its own source threat
+		var item: Dictionary = Items.roll_drop(Items.tier_for_source(float(bundle.get("threat", WorldThreat.QUEST_REWARD_THREAT))), 1.0 if int(bundle["item"]) >= 1 else 0.0)   # a reward names its own source threat
 		TownState.stash_item(item)
 		lines.append("an item in the stash (%s)" % String(item.get("name", "?")))
 	var happy: Dictionary = bundle.get("happy", {})

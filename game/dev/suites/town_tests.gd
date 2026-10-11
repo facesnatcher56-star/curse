@@ -109,11 +109,11 @@ func _test_town_state() -> void:
 	expect("a save from before versions is migrated", int(upgraded["save_version"]) == TownState.SAVE_VERSION
 		and JobObjective.stages(upgraded["board"][0]) == 3)
 	expect("a save from a newer build is refused, not overwritten", TownState.migrate({"save_version": TownState.SAVE_VERSION + 1}).is_empty())
-	# Items are definitions plus a small instance: saved as {def, tier, rarity, affix}, rebuilt from the data on load.
-	var made: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 3, "chain", "Greatsword")
+	# Items are definitions plus a small instance: saved as {def, tier, rarity}, rebuilt from the data on load.
+	var made: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 3, "Greatsword")
 	var slim: Dictionary = Items.to_save(made)
 	var rebuilt: Dictionary = Items.from_save(JSON.parse_string(JSON.stringify(slim)))
-	expect("an item is saved as only its definition, tier, rarity and affix", slim.keys().size() == 4 and slim["def"] == "greatsword"
+	expect("an item is saved as only its definition, tier and rarity", slim.keys().size() == 3 and slim["def"] == "greatsword"
 		and rebuilt["name"] == made["name"] and is_equal_approx(float(rebuilt["stats"]["damage"]), float(made["stats"]["damage"])))
 	var def: ItemDef = ItemDb.get_def("greatsword")
 	var old_damage: float = float(def.stats["damage"])
@@ -124,8 +124,16 @@ func _test_town_state() -> void:
 		"stats": {"damage": 1.35 * 1.16, "speed": 0.82}}
 	var from_old: Dictionary = Items.from_save(old_form)
 	expect("an item saved as a whole dictionary still loads, its tier worked out", from_old["def"] == "greatsword" and from_old["tier"] == 3)
-	expect("an item whose base or affix has gone is dropped", Items.from_save({"def": "vanished", "tier": 1, "rarity": 0, "affix": ""}).is_empty()
-		and Items.from_save({"def": "falchion", "tier": 1, "rarity": 1, "affix": "no_such_affix"}).is_empty())
+	expect("an item whose base has gone is dropped", Items.from_save({"def": "vanished", "tier": 1, "rarity": 0}).is_empty())
+	var old_rare: Dictionary = Items.from_save({"def": "falchion", "tier": 1, "rarity": 1, "affix": "chain"})
+	var old_unique: Dictionary = Items.from_save({"def": "greatsword", "tier": 2, "rarity": 2, "affix": "gravewarden", "unique": "Gravewarden"})
+	expect("an old affix is ignored: the rare loads as a plain rare of its base", old_rare["name"] == "Falchion" and old_rare["rarity"] == Items.Rarity.RARE
+		and not old_rare.has("affix"))
+	expect("an old unique loads as a rare of its base", old_unique["name"] == "Greatsword" and old_unique["rarity"] == Items.Rarity.RARE)
+	var v5: Dictionary = TownState.migrate({"save_version": 5, "hero_xp": 900, "purchased_passives": ["unbowed"], "skill_evolutions": {"throw": "ricochet"},
+		"gear": {"0": {"def": "falchion", "tier": 2, "rarity": 1, "affix": "chain"}}, "stash": [{"def": "signet", "tier": 1, "rarity": 2, "affix": "ember", "unique": "Ember Signet"}]})
+	expect("a version 5 save loses its bought passives and evolutions and its items lose their affixes", not v5.has("purchased_passives")
+		and not v5.has("skill_evolutions") and not v5["gear"]["0"].has("affix") and not v5["stash"][0].has("affix") and int(v5["hero_xp"]) == 900)
 	var v1: Dictionary = TownState.migrate({"save_version": 1, "gear": {"0": old_form}, "stash": [old_form], "stock": [{"item": old_form, "price": 80}]})
 	expect("a version 1 save has its items rewritten as definitions", v1["gear"]["0"].has("def") and not v1["gear"]["0"].has("stats")
 		and v1["stash"][0]["def"] == "greatsword" and v1["stock"][0]["item"]["tier"] == 3)
@@ -182,14 +190,10 @@ func _test_town_state() -> void:
 	expect("a fallen hero keeps only the 2g per kill", TownState.gold == gold_before + 8 and TownState.jobs_done == 1)
 	# Gear and stash.
 	TownState.reset()
-	var blade: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 2, "")
-	for id in AffixDb.all():
-		if AffixDb.all()[id]["slot"] == Items.Slot.WEAPON and AffixDb.all()[id]["title"] != "":
-			blade = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 2, id)
-			break
+	var blade: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 2, "Falchion")
 	TownState.take_gear({Items.Slot.WEAPON: blade})
 	expect("the run's gear is kept", String(TownState.gear[Items.Slot.WEAPON]["name"]) == String(blade["name"]))
-	TownState.take_gear({Items.Slot.WEAPON: Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")})
+	TownState.take_gear({Items.Slot.WEAPON: Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword")})
 	expect("a replaced special item goes to the stash", TownState.stash.size() == 1 and String(TownState.stash[0]["name"]) == String(blade["name"]))
 	# Saving: everything survives a trip through JSON.
 	TownState.gold = 321
@@ -419,7 +423,7 @@ func _test_town_scene() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	expect("a potion drunk in town is not bought back by the town's count", TownState.potions == potions)
-	TownState.stash.append(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"))
+	TownState.stash.append(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword"))
 	town.panel._wear(TownState.stash.size() - 1)
 	expect("wearing from the stash puts it on the hero too", town.player.stats.equipment[Items.Slot.WEAPON]["base"] == "Greatsword"
 		and town.player._held_path == Items.model_path(town.player.stats.equipment[Items.Slot.WEAPON]))

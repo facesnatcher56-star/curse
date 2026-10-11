@@ -85,9 +85,8 @@ func _test_fireball_sounds() -> void:
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
 	player.stats.mana = player.stats.max_mana
-	for haste in [1.0, 1.6]:   # casting faster moves the launch earlier, and the sound must follow it
+	for haste in [1.0]:   # (casting speed: only gear could change it, and none does now)
 		player.stats.cooldowns.clear()
-		player.stats.haste_time = 99.0 if haste > 1.0 else 0.0
 		Sfx._last_played.clear()
 		Sfx.played_log.clear()
 		var target: Vector3 = Vector3(0, 0, -8)
@@ -111,7 +110,6 @@ func _test_fireball_sounds() -> void:
 		expect("the impact sound plays when the fireball explodes", _logged("fireball_impact") >= 1 and impact_at > throw_at)
 		print("  fireball sound x", haste, ": launch at ", snappedf(throw_at, 0.01), " s, cast sound at ", snappedf(cast_at, 0.01), " s, impact sound after ", snappedf(impact_at, 0.01), " s")
 		await get_tree().create_timer(0.5).timeout
-	player.stats.haste_time = 0.0
 	# Both cast recordings get used.
 	Sfx.played_log.clear()
 	for i in 30:
@@ -122,33 +120,6 @@ func _test_fireball_sounds() -> void:
 		seen[name] = true
 	expect("both cast recordings are used", seen.size() == 2)
 	Sfx.enabled = was_enabled
-	await get_tree().process_frame
-
-## Twin Flame: the second fireball goes for a second target; with only one enemy it lands right next to it.
-func _test_twin_flame_target() -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	player.global_position = Vector3(0, 0, 0)
-	player.reset_physics_interpolation()
-	var one: Enemy = _spawn_enemy(Vector3(0, 0, -8))
-	var two: Enemy = _spawn_enemy(Vector3(6, 0, -9))
-	var near_first: Enemy = _spawn_enemy(Vector3(0.8, 0, -8))
-	for e in [one, two, near_first]:
-		e.aggro_range = 0.0
-	await get_tree().physics_frame
-	var dest: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
-	expect("the second fireball picks a second target, outside the first blast", dest.distance_to(Vector3(two.global_position.x, 0.0, two.global_position.z)) < 0.01)
-	two.queue_free()
-	near_first.queue_free()
-	await get_tree().process_frame
-	var lone: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
-	var gap: float = Vector2(lone.x - one.global_position.x, lone.z - one.global_position.z).length()
-	expect("with one enemy the second fireball lands right beside it", gap > 0.3 and gap < 1.3)
-	one.queue_free()
-	await get_tree().process_frame
-	var none: Vector3 = player.skills.twin_destination(Vector3(0, 0, -8))
-	expect("with no enemies it still lands near the aim point", Vector2(none.x, none.z).distance_to(Vector2(0, -8)) < 1.3)
 	await get_tree().process_frame
 
 ## Right-click or dodge backs out of a Fireball: while aiming (nothing spent, and letting go of the key does not cast) and during the

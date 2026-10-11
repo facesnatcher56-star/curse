@@ -33,12 +33,6 @@ static func description(id: String) -> String:
 	var def: SkillDef = _defs.get(id)
 	return def.description if def != null else ""
 
-## Affix ids that modify a skill.
-static func modifier_affixes(id: String) -> Array[String]:
-	_load()
-	var def: SkillDef = _defs.get(id)
-	return def.modifier_affixes if def != null else ([] as Array[String])
-
 ## The basic attack's three-step combo table (each step lists the variants it may pick from).
 static func basic_combo() -> Array:
 	_load()

@@ -359,13 +359,13 @@ func _report_to_quests(actor: Actor) -> int:
 		var named_level: float = float(Monsters.find(int(enemy.get_meta("monster_uid"))).get("level", enemy.level_scale))   # its own, not the road's
 		var paid: Dictionary = Monsters.killed(int(enemy.get_meta("monster_uid")))
 		for i in int(paid.get("items", 0)):
-			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(drop_tier(named_level), 1.0, owned_uniques()))
+			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(drop_tier(named_level), 1.0))
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return int(paid.get("xp", 0)) if enemy.hero_credited() else 0   # the bounty is paid regardless; the XP is for the hero's own kill
 	if enemy.has_meta("quest_uid"):
 		if Quests.report_unique_killed(int(enemy.get_meta("quest_uid"))):
-			drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), 1.0, owned_uniques()))   # a named monster always leaves something good
+			drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), 1.0))   # a named monster always leaves something good
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return 0
@@ -426,17 +426,7 @@ func _drop_loot(actor: Actor) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance * (Quests.world_mult("drop_mult") if world_mode else 1.0):
 		return
-	drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), enemy.def.drop_luck, owned_uniques()))
-
-func owned_uniques() -> Array[String]:
-	var owned: Array[String] = []
-	for item in player.stats.equipment.values():
-		if int(item["rarity"]) == Items.Rarity.UNIQUE:
-			owned.append(String(item["name"]))
-	for item in player.stats.bag:
-		if int(item["rarity"]) == Items.Rarity.UNIQUE:
-			owned.append(String(item["name"]))
-	return owned
+	drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), enemy.def.drop_luck))
 
 func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)

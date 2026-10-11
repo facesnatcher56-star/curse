@@ -1,19 +1,12 @@
 class_name PlayerStats
 extends RefCounted
-## Run stats and gear: mana/stamina/potions, cooldowns, equipment and its affixes, regeneration and damage numbers.
+## Run stats and gear: mana/stamina/potions, cooldowns, equipment, regeneration and damage numbers.
 
 var p: Player
 
 func _init(player: Player) -> void:
 	p = player
 	ult_charge = ult_cost("earthshatter")   # a run starts with the ultimate ready
-
-## True when worn gear changes how this skill behaves (shown as a gold pip on its hotbar slot).
-func skill_has_modifier(id: String) -> bool:
-	for affix in SkillDb.modifier_affixes(id):
-		if has_affix(affix):
-			return true
-	return false
 
 ## One-line damage summary for tooltips.
 func skill_damage_text(id: String) -> String:
@@ -64,17 +57,11 @@ var weapon_max: float = 11.0
 var cooldowns: Dictionary = {}
 ## True while the weapon is out of his hand (Weapon Throw): the weapon slot cannot be changed until it is back, so he never owns two.
 var weapon_locked: bool = false
-# Equipment (see items.gd / item_effects.gd)
+# Equipment (see items.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
 var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
 const MAX_BAG := 12
 var base_armor: float = 15.0
-var haste_time: float = 0.0
-var chain_last: String = ""     # Virtuoso: the last skill used, how many different ones in a row, and how long the streak lasts
-var chain_stacks: int = 0
-var chain_time: float = 0.0
-var vault_time: float = 0.0     # Vaultborn: seconds left in which Power Strike is free
-var aegis_hits: int = 0
 ## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
 var ult_charge: float = 0.0   # starts full (set in _init)
 const BRUTAL_COMBAT_SECONDS := 21.0
@@ -146,8 +133,6 @@ func can_use(id: String) -> bool:
 		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0
 	if ult_cost(id) > 0.0 and ult_fraction(id) < 1.0:
 		return false
-	if id == "power" and vault_time > 0.0:
-		return true   # Vaultborn: free, and no cooldown
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= float(skill["mana"])
 
 func use_potion() -> bool:
@@ -171,12 +156,6 @@ func weapon_damage(mult: float) -> float:
 
 # --- Equipment -----------------------------------------------------------------
 
-func has_affix(id: String) -> bool:
-	for item in equipment.values():
-		if item["affix"] == id:
-			return true
-	return false
-
 func _stat(slot: int, key: String, fallback: float) -> float:
 	var item: Variant = equipment.get(slot)
 	if item == null:
@@ -197,9 +176,9 @@ func weapon_profile(key: String, fallback: Variant = 0.0) -> Variant:
 func armor_stat(key: String, fallback: float) -> float:
 	return _stat(Items.Slot.ARMOR, key, fallback)
 
-## Attack speed: weapon base times a temporary haste bonus.
+## Attack speed: the weapon's own.
 func attack_speed() -> float:
-	return weapon_stat("speed", 1.0) * (1.0 + (ItemEffects.HASTE_BONUS if haste_time > 0.0 else 0.0))
+	return weapon_stat("speed", 1.0)
 
 func equip(item: Dictionary, announce: bool = true) -> void:
 	if weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:

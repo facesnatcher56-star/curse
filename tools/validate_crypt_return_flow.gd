@@ -157,14 +157,10 @@ func _run_validation() -> void:
 	climax.complete_encounter()
 	climax.complete_encounter()
 	assert(get_nodes_in_group("loot").size() == loot_before + 1, "Repeated completion must not duplicate the reward")
-	# Owned-unique handling: with every unique owned, a luck-1 roll is still rare (never a duplicate unique, never common).
-	var all_owned: Array[String] = []
-	for u in Items.UNIQUES:
-		all_owned.append(String(u["name"]))
 	for i in 40:
-		var r: Dictionary = Items.roll_drop(spot_tier, CryptForecourtClimax.REWARD_LUCK, all_owned)
-		assert(int(r["rarity"]) == Items.Rarity.RARE, "With all uniques owned the reward falls back to rare")
-	print("  [PASS] 4b. One guaranteed rare-or-better reward beside waystone, tier from source, no duplicate")
+		var r: Dictionary = Items.roll_drop(spot_tier, CryptForecourtClimax.REWARD_LUCK)
+		assert(int(r["rarity"]) == Items.Rarity.RARE, "A luck-1 reward is always rare")
+	print("  [PASS] 4b. One guaranteed rare reward beside waystone, tier from source, no duplicate")
 
 	# --- TEST 5: Interaction label and spots registration ---
 	var waystone_spots: Array = town.spots.filter(func(s: Dictionary) -> bool: return String(s.get("key", "")) == "return_waystone")

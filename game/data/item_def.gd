@@ -1,7 +1,7 @@
 class_name ItemDef
 extends Resource
 ## One base item as data: what it is, which slot it fills, how it looks on the ground and in the inventory, and its fixed numbers.
-## A particular item in the world is an *instance* (see Items): this definition's id, a tier, a rarity and an affix, nothing else.
+## A particular item in the world is an *instance* (see Items): this definition's id, a tier and a rarity, nothing else.
 ## Everything else is read from here, so changing a base's numbers or model changes every copy, saved ones included.
 ## Files live in res://data/items/, written by tools/write_item_defs.py.
 

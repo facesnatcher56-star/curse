@@ -334,7 +334,7 @@ func _test_balance() -> void:
 		var orbs: int = 0
 		var potions: int = 0
 		for i in 400:
-			ItemEffects._drop_loot(player, dummy)
+			HealthOrb.drop_for_kill(player, dummy)
 		for node in get_tree().get_nodes_in_group("orbs"):
 			if bool(node.get("is_potion")):
 				potions += 1
@@ -349,7 +349,7 @@ func _test_balance() -> void:
 	var brute_orbs: int = 0
 	var brute_potions: int = 0
 	for i in 100:
-		ItemEffects._drop_loot(player, brute)
+		HealthOrb.drop_for_kill(player, brute)
 	for node in get_tree().get_nodes_in_group("orbs"):
 		if bool(node.get("is_potion")):
 			brute_potions += 1

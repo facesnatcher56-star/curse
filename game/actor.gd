@@ -41,9 +41,6 @@ func credit_hero() -> void:
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
 var _impact_cooldown: float = 0.0
-## Mass Transfer (a passive of the hero): a body launched by a heavy hit of his may pass its force on to ONE more enemy it flies into
-## (see Ragdoll._bowl_into_enemies). Set when it is launched, spent at once when it is used; the one it bowls never gets one.
-var mass_transfer_charges: int = 0
 ## Rooted-ish: a snare slows to a crawl for a while without the ice shell a frost slow shows. Set by apply_snare.
 var snare_time: float = 0.0
 var snare_amount: float = 0.0
@@ -398,9 +395,6 @@ func ragdoll_hang(yaw: float) -> void:
 	ragdoll.hang(yaw)
 
 func ragdoll_launch(velocity: Vector3, lift: float, spin: Vector3) -> void:
-	if knocked_by is Player and (knocked_by as Player).has_passive("mass_transfer") and not dead \
-			and Vector2(velocity.x, velocity.z).length() >= BuildDefs.MASS_TRANSFER_MIN_SPEED:
-		mass_transfer_charges = 1   # a heavy launch of his: it can carry its force into one more body
 	if ragdoll == null:
 		ragdoll = Ragdoll.new(self)
 	if not ragdoll.is_active():

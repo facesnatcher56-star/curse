@@ -209,14 +209,13 @@ func _page_smith(id: String) -> void:
 
 func _restock_smith() -> void:
 	TownState.smith_stock = []
-	var none: Array[String] = []
 	var names: Array[String] = []
 	var rare_chance: float = WorldThreat.MERCHANT_RARE_CHANCE   # a placeholder, not a count of jobs done
 	for attempt in 80:
 		if TownState.smith_stock.size() >= 4:
 			break
-		var item: Dictionary = Items.roll_one(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), 0.0, rare_chance, none)
-		if int(item["slot"]) == Items.Slot.TRINKET or String(item["name"]) in names:
+		var item: Dictionary = Items.roll_one(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), rare_chance)
+		if String(item["name"]) in names:
 			continue
 		names.append(String(item["name"]))
 		TownState.smith_stock.append({"item": item, "price": TownState.item_price(item)})
@@ -249,11 +248,7 @@ func _smith_sell(index: int, offer: int) -> void:
 
 func _restock() -> void:
 	TownState.stock = []
-	var owned: Array[String] = []
-	for item in TownState.gear.values():
-		if int((item as Dictionary)["rarity"]) == Items.Rarity.UNIQUE:
-			owned.append(String((item as Dictionary)["name"]))
-	for item in Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned):
+	for item in Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false):
 		TownState.stock.append({"item": item, "price": TownState.item_price(item)})
 
 func _buy(index: int, price: int) -> void:

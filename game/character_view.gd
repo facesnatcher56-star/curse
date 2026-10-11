@@ -7,8 +7,6 @@ var _bag_scroll: ScrollContainer
 var level_label: Label
 var xp_label: Label
 var xp_bar: Control
-var points_label: Label
-var progression_button: Button
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
@@ -70,9 +68,6 @@ func _ready() -> void:
 	var bag_title: Label = ItemTile._label("Bag — %d items" % hero.stats.bag.size(), 24, UiTheme.TEXT)
 	bag_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bag_head.add_child(bag_title)
-	progression_button = UiTheme.button("PROGRESSION", 170)   # passives and evolutions: where the points are spent
-	progression_button.pressed.connect(func() -> void: (get_parent() as Hud).open_progression())
-	bag_head.add_child(progression_button)
 	right.add_child(ItemTile._label("Confirm to equip" if Gamepad.active else "Right-click or double-click to equip", 14, UiTheme.TEXT_DIM))
 	var scroll := ScrollContainer.new()
 	_bag_scroll = scroll
@@ -108,7 +103,6 @@ func _ready() -> void:
 func _add_progression(parent: Control) -> void:
 	var xp: int = TownState.hero_xp
 	TownState.events.hero_xp_changed.connect(_on_xp_changed)
-	TownState.events.hero_build_changed.connect(_on_build_changed)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
@@ -125,15 +119,6 @@ func _add_progression(parent: Control) -> void:
 	xp_bar.draw.connect(func() -> void:
 		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(TownState.hero_xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
 	parent.add_child(xp_bar)
-	points_label = ItemTile._label(_points_text(), 14, UiTheme.TEXT_DIM)   # quiet: a summary, nothing can be spent yet
-	parent.add_child(points_label)
-
-func _points_text() -> String:
-	return "Passive Points %d     Evolution Points %d" % [TownState.passive_points_available(), TownState.evolution_points_available()]
-
-func focus_progression_button() -> void:
-	if progression_button != null:
-		progression_button.grab_focus()
 
 func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	if level_label == null:
@@ -141,15 +126,8 @@ func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	level_label.text = "Level %d" % HeroProgression.level_for_xp(new_xp)
 	xp_label.text = HeroProgression.progress_text(new_xp)
 	xp_bar.queue_redraw()
-	points_label.text = _points_text()
-
-func _on_build_changed() -> void:
-	if points_label != null:
-		points_label.text = _points_text()
 
 func _exit_tree() -> void:
-	if TownState.events.hero_build_changed.is_connected(_on_build_changed):
-		TownState.events.hero_build_changed.disconnect(_on_build_changed)
 	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
 

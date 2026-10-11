@@ -8,7 +8,7 @@ extends RefCounted
 const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
 const MAX_STASH := 12
 const LOW_FOOD := 3
 
@@ -56,11 +56,6 @@ static var chronicle: Array = []          # what has happened: {day, kind, text}
 ## always derived from it (here and on load), kept as a field so everything can simply read `TownState.hero_level`. Nothing else holds a level.
 static var hero_xp: int = 0
 static var hero_level: int = 1
-## What the hero has BOUGHT with the points his level earns (see BuildDefs): the passive ids, and skill id -> chosen evolution id. The only
-## things saved about the build: points are never stored, available = earned (from the level) - what these cost. Change them only through
-## `buy_passive` / `select_evolution`; a load repairs anything unknown, repeated or unaffordable (it can never give points).
-static var purchased_passives: Array[String] = []
-static var skill_evolutions: Dictionary = {}
 ## Announces XP and level changes (see ProgressionEvents); the HUD listens, this never knows about any scene.
 static var events := ProgressionEvents.new()
 
@@ -103,8 +98,6 @@ static func reset() -> void:
 	chronicle = []
 	hero_xp = 0
 	hero_level = 1
-	purchased_passives = []
-	skill_evolutions = {}
 	ensure_npcs()
 	roll_board()
 
@@ -391,7 +384,7 @@ static func stash_carried(bag: Array) -> void:
 	_gear_stashed.clear()
 
 static func _is_plain_starter(item: Dictionary) -> bool:
-	return int(item.get("rarity", 0)) == Items.Rarity.COMMON and String(item.get("affix", "")) == ""
+	return int(item.get("rarity", 0)) == Items.Rarity.COMMON
 
 static func stash_item(item: Dictionary) -> void:
 	stash.append(item)
@@ -450,14 +443,9 @@ static func _set_hero_xp(total: int, save_now: bool = true) -> Dictionary:
 	var old_level: int = hero_level
 	hero_xp = HeroProgression.sanitize_xp(total)
 	hero_level = HeroProgression.level_for_xp(hero_xp)
-	if hero_level < old_level:
-		_repair_build()
 	var result: Dictionary = _progress_result(old_xp, hero_xp)
 	result["old_level"] = old_level
 	result["levels_gained"] = maxi(hero_level - old_level, 0)
-	var gained: Dictionary = HeroProgression.points_between(old_level, hero_level)
-	result["passive_points_gained"] = int(gained["passive"])
-	result["evolution_points_gained"] = int(gained["evolution"])
 	if hero_xp != old_xp:
 		if save_now or hero_level > old_level:
 			save()
@@ -465,65 +453,14 @@ static func _set_hero_xp(total: int, save_now: bool = true) -> Dictionary:
 			_xp_unsaved_ms = maxi(Time.get_ticks_msec(), 1)
 		events.hero_xp_changed.emit(old_xp, hero_xp)
 		if hero_level > old_level:
-			var points: Dictionary = HeroProgression.points_between(old_level, hero_level)
-			events.hero_leveled.emit(old_level, hero_level, hero_xp, int(points["passive"]), int(points["evolution"]))
+			events.hero_leveled.emit(old_level, hero_level, hero_xp)
 	return result
 
 static func _progress_result(old_xp: int, new_xp: int) -> Dictionary:
 	var old_level: int = HeroProgression.level_for_xp(old_xp)
 	var new_level: int = HeroProgression.level_for_xp(new_xp)
-	var gained: Dictionary = HeroProgression.points_between(old_level, new_level)
 	return {"xp_gained": maxi(new_xp - old_xp, 0), "old_xp": old_xp, "new_xp": new_xp, "old_level": old_level, "new_level": new_level,
-		"levels_gained": maxi(new_level - old_level, 0), "passive_points_gained": int(gained["passive"]), "evolution_points_gained": int(gained["evolution"])}
-
-## Points earned by the hero's level and not yet spent: earned (derived from the level) minus what the saved choices cost. Never negative.
-static func passive_points_available() -> int:
-	return maxi(HeroProgression.passive_points_for_level(hero_level) - purchased_passives.size() * BuildDefs.PASSIVE_COST, 0)
-
-static func evolution_points_available() -> int:
-	return maxi(HeroProgression.evolution_points_for_level(hero_level) - skill_evolutions.size() * BuildDefs.EVOLUTION_COST, 0)
-
-# --- Build choices ------------------------------------------------------------------------------------------------------------------
-
-static func has_passive(id: String) -> bool:
-	return purchased_passives.has(id)
-
-static func can_buy_passive(id: String) -> bool:
-	return BuildDefs.is_passive(id) and not has_passive(id) and passive_points_available() >= BuildDefs.PASSIVE_COST
-
-## Spends one Passive Point on a passive, once. Returns whether it was bought.
-static func buy_passive(id: String) -> bool:
-	if not can_buy_passive(id):
-		return false
-	purchased_passives.append(id)
-	save()
-	events.hero_build_changed.emit()
-	return true
-
-## The evolution chosen for a skill, or "" (the baseline skill).
-static func selected_evolution(skill_id: String) -> String:
-	return String(skill_evolutions.get(skill_id, ""))
-
-static func can_select_evolution(skill_id: String, evolution_id: String) -> bool:
-	return BuildDefs.is_evolution(skill_id, evolution_id) and not skill_evolutions.has(skill_id) 		and evolution_points_available() >= BuildDefs.EVOLUTION_COST
-
-## Spends one Evolution Point on a skill's evolution. Permanent (there is no respec): a skill takes one, and the others are then closed.
-static func select_evolution(skill_id: String, evolution_id: String) -> bool:
-	if not can_select_evolution(skill_id, evolution_id):
-		return false
-	skill_evolutions[skill_id] = evolution_id
-	save()
-	events.hero_build_changed.emit()
-	return true
-
-## After the level changes (a developer command can lower it): choices the level no longer pays for are dropped, so points never go negative.
-static func _repair_build() -> void:
-	var clean: Dictionary = BuildDefs.sanitize(purchased_passives, skill_evolutions, HeroProgression.passive_points_for_level(hero_level),
-		HeroProgression.evolution_points_for_level(hero_level))
-	if (clean["passives"] as Array).size() != purchased_passives.size() or (clean["evolutions"] as Dictionary).size() != skill_evolutions.size():
-		purchased_passives.assign(clean["passives"])
-		skill_evolutions = clean["evolutions"]
-		events.hero_build_changed.emit()
+		"levels_gained": maxi(new_level - old_level, 0)}
 
 # --- Saving --------------------------------------------------------------------------------------------------------------
 
@@ -533,8 +470,7 @@ static func to_dict() -> Dictionary:
 		"vendor_gold": vendor_gold, "smith_gold": smith_gold, "smith_stock": _stock_to_save(smith_stock), "gear": _gear_to_save(),
 		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
 		"quests": quests, "road_seed": road_seed, "quest_uid": quest_uid, "day": day, "world_mods": world_mods, "quest_clock": quest_clock, "quest_history": quest_history,
-		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp,
-		"purchased_passives": purchased_passives.duplicate(), "skill_evolutions": skill_evolutions.duplicate()}
+		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp}
 
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
@@ -551,7 +487,7 @@ static func migrate(data: Dictionary) -> Dictionary:
 				data["job"] = {}
 				data["last_run"] = {}
 				data["run_in_progress"] = false
-			1:   # items were whole dictionaries: they become {def, tier, rarity, affix} (from_save reads both, this rewrites them)
+			1:   # items were whole dictionaries: they become {def, tier, rarity} (from_save reads both, this rewrites them)
 				data["gear"] = _gear_to_save(_gear_from_save(data.get("gear", {})))
 				data["stash"] = _items_to_save(_items_from_save(data.get("stash", [])))
 				data["stock"] = _stock_to_save(_stock_from_save(data.get("stock", [])))
@@ -564,6 +500,14 @@ static func migrate(data: Dictionary) -> Dictionary:
 				data["hero_level"] = 1
 			4:   # first-departure orientation state: an existing career with jobs_done > 0 has already seen it
 				data["orientation_seen"] = int(data.get("jobs_done", 0)) > 0
+			5:   # the Curse build and the behaviour affixes are gone (Dungeon Siege II replaces them): bought passives and evolutions are
+				# dropped, and every saved item loses its affix (a rare stays a rare; a unique comes back as a rare of its base)
+				data.erase("purchased_passives")
+				data.erase("skill_evolutions")
+				data["gear"] = _gear_to_save(_gear_from_save(data.get("gear", {})))
+				data["stash"] = _items_to_save(_items_from_save(data.get("stash", [])))
+				data["stock"] = _stock_to_save(_stock_from_save(data.get("stock", [])))
+				data["smith_stock"] = _stock_to_save(_stock_from_save(data.get("smith_stock", [])))
 		version += 1
 		data["save_version"] = version
 	return data
@@ -636,16 +580,11 @@ static func from_dict(data: Dictionary) -> void:
 		chronicle.append(entry)
 	hero_xp = HeroProgression.sanitize_xp(data.get("hero_xp", 0))   # the XP decides; a saved level that disagrees with it is repaired
 	hero_level = HeroProgression.level_for_xp(hero_xp)
-	var clean: Dictionary = BuildDefs.sanitize(data.get("purchased_passives", []), data.get("skill_evolutions", {}),
-		HeroProgression.passive_points_for_level(hero_level), HeroProgression.evolution_points_for_level(hero_level))
-	purchased_passives.assign(clean["passives"])
-	skill_evolutions = clean["evolutions"]
-	events.hero_build_changed.emit()
 	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
 	job =(board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 
-## Items are saved as {def, tier, rarity, affix} (see Items.to_save) and built again on load; one whose base or affix no longer exists
-## is dropped rather than breaking the save.
+## Items are saved as {def, tier, rarity} (see Items.to_save) and built again on load; one whose base no longer exists is dropped rather
+## than breaking the save.
 static func _items_to_save(items: Array) -> Array:
 	var out: Array = []
 	for item in items:

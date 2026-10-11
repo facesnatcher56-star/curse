@@ -68,12 +68,6 @@ func _clear_lane(length: float, width: float) -> Vector3:
 				return Vector3(x, 0, z)
 	return Vector3.ZERO
 
-func _any_affix(slot: int) -> String:
-	for id in AffixDb.all():
-		if AffixDb.all()[id]["slot"] == slot and AffixDb.all()[id]["title"] != "":
-			return id
-	return ""
-
 ## The sword sound plays when the blade connects with an enemy, and only then: not on a miss or a block, not for a fireball or a
 ## boot or a shockwave.
 func _logged(prefix: String) -> int:
@@ -101,11 +95,6 @@ func _label_text(root: Node) -> String:
 	for node in root.find_children("*", "Label", true, false):
 		out.append((node as Label).text)
 	return " ".join(out)
-
-## Puts on one item carrying just this affix in the right slot (replacing what was worn there).
-func _wear(affix_id: String, slot: int) -> void:
-	player.stats.equipment = {}
-	player.stats.equip(Items.make(slot, Items.Rarity.RARE, 1, affix_id), false)
 
 ## Weapon Throw: hold to wind up (the range grows with the hold), let go and the real weapon leaves his hand and tears through a line,
 ## buries itself; the same key recalls it back along its own line (whatever the cooldown says) and he catches it.

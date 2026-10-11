@@ -220,69 +220,8 @@ static func take_aim_hit(from: Node, point: Vector3, direction: Vector3) -> void
 
 # --- Power Strike ----------------------------------------------------------------------
 
-static var _fx_meshes: Dictionary = {}
-
-## A mesh made in Blender for the Power Strike (tools/blender/make_power_fx.py): "power_wave".
-static func _fx_mesh(model: String) -> Mesh:
-	if not _fx_meshes.has(model):
-		var scene: PackedScene = load("res://assets/models/fx/%s/model.glb" % model)
-		var found: Mesh = null
-		if scene != null:
-			var root: Node = scene.instantiate()
-			for node in root.find_children("*", "MeshInstance3D", true, false):
-				found = (node as MeshInstance3D).mesh
-				break
-			root.free()
-		_fx_meshes[model] = found
-	return _fx_meshes[model]
-
-## Draws one of those meshes with its own vertex colours (and alpha), unlit, fading with `albedo_color.a`.
-static func _fx_instance(scene: Node, model: String, solid: bool = false) -> MeshInstance3D:
-	var mesh: Mesh = _fx_mesh(model)
-	if mesh == null:
-		return null
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	if solid:   # lit solid rock (turns transparent only when it fades), not a glowing sheet
-		mat.roughness = 1.0
-		mat.emission_enabled = true
-		mat.emission = Color(0.55, 0.22, 0.06)
-		mat.emission_energy_multiplier = 0.0
-	else:
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	node.material_override = mat
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	scene.get_tree().current_scene.add_child(node)
-	return node
-
-## The shockwave: a crescent of torn earth that runs out along the ground from `origin` to `reach` metres away, widening as it goes and
-## fading at the end. `width` scales it side to side.
-static func earth_wave(scene: Node, origin: Vector3, dir: Vector3, reach: float, width: float, life: float, delay: float = 0.0) -> void:
-	var wave: MeshInstance3D = _fx_instance(scene, "power_wave")
-	if wave == null:
-		return
-	var yaw: float = atan2(dir.x, dir.z)
-	wave.global_position = Vector3(origin.x, 0.05, origin.z) + dir * 0.6
-	wave.rotation.y = yaw
-	wave.scale = Vector3(width * 0.55, 0.9, 0.55)
-	wave.visible = delay <= 0.0
-	var mat: StandardMaterial3D = wave.material_override
-	var tween: Tween = wave.create_tween()
-	if delay > 0.0:
-		tween.tween_interval(delay)
-		tween.tween_callback(func() -> void: wave.visible = true)
-	tween.set_parallel(true)
-	tween.tween_property(wave, "global_position", Vector3(origin.x, 0.05, origin.z) + dir * reach, life).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(wave, "scale", Vector3(width * 1.15, 1.5, 1.2), life * 0.8).set_ease(Tween.EASE_OUT)
-	tween.tween_property(mat, "albedo_color:a", 0.0, life * 0.55).set_delay(life * 0.5)
-	tween.chain().tween_callback(wave.queue_free)
-
 ## The crushing blow: flash, expanding rings, dust, rocks, cracks, kick and hit-stop.
-static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered: bool) -> void:
+static func power_impact(player: Player, point: Vector3, dir: Vector3) -> void:
 	if not Fx.claim_impact("power", point):
 		return
 	var scene: Node = player
@@ -292,50 +231,10 @@ static func power_impact(player: Player, point: Vector3, dir: Vector3, empowered
 	debris(scene, point, 16, 6.0)
 	Fx.burst(scene, point + Vector3(0, 0.3, 0), Vector3.UP, Color(1.0, 0.8, 0.4), 16, 8.0, 0.026, true)   # compact sparks
 	ground_cracks(scene, point, 5, 0.8, 2.0)
-	# (No shockwave strip here: that wave belongs to the Gravewarden item, see gravewarden_wave. The plain blow used to throw a short one too.)
 	slash_arc(scene, player.global_position, atan2(dir.x, dir.z), 0.5, 2.7, 1.7, Color(1.0, 0.65, 0.3, 0.55), 0.2, 0.7, 1.15)
 	Fx.shake(scene, 0.32)
 	Fx.punch(scene, 3.4)
 	Fx.kick(scene, dir, 0.7)
-	if empowered:
-		Fx.ring(scene, point, 3.4, Color(0.9, 0.8, 0.5))
-
-## Gravewarden: a shockwave that tears forward along the line, ring after ring, with a glowing fissure underneath.
-static func gravewarden_wave(player: Player, dir: Vector3) -> void:
-	var origin: Vector3 = player.global_position
-	earth_wave(player, origin, dir, 9.0, 0.5, 0.55)
-	earth_wave(player, origin, dir, 8.0, 0.4, 0.5, 0.1)
-	for i in 8:
-		var at: Vector3 = origin + dir * (1.4 + i * 1.0)
-		var delay: float = i * 0.05
-		ground_ring(player, at, 0.5, 1.6, Color(0.95, 0.8, 0.5, 0.85), 0.3, delay)
-		var timer: SceneTreeTimer = player.get_tree().create_timer(delay)
-		timer.timeout.connect(func() -> void:
-			if is_instance_valid(player):
-				dust(player, at, 0.8, 6)
-				Fx.burst(player, at + Vector3(0, 0.3, 0), Vector3.UP, Color(0.85, 0.7, 0.45), 8, 4.5, 0.045))
-	# The fissure: one long amber glow line along the ground.
-	var line := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(0.5, 9.0)
-	line.mesh = plane
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_texture = Fx.soft_texture()
-	mat.albedo_color = Color(1.0, 0.65, 0.25, 0.9)
-	line.material_override = mat
-	line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	player.get_tree().current_scene.add_child(line)
-	line.global_position = Vector3(origin.x, 0.06, origin.z) + dir * 5.0
-	line.rotation.y = atan2(dir.x, dir.z)
-	var tween := line.create_tween()
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.8)
-	tween.tween_callback(line.queue_free)
-	ground_cracks(player, origin + dir * 1.2, 1, 6.0, 6.5, Color(0.05, 0.04, 0.03, 0.75), 0.1)
-	Fx.text_at(player, origin + Vector3(0, 2.7, 0), "Gravewarden", Color(0.95, 0.8, 0.5), 40)
-	Fx.shake(player, 0.2)
 
 # --- Reserved spinning-weapon effects ----------------------------------------------------
 
@@ -409,26 +308,6 @@ static func whirlpool(player: Player, radius: float) -> void:
 ## A purple streak from a dragged enemy to the hero.
 static func whirlpool_tug(player: Player, enemy: Actor) -> void:
 	Fx.beam(player, enemy.global_position + Vector3(0, 0.9, 0), player.global_position + Vector3(0, 0.9, 0), Color(0.7, 0.55, 1.0, 0.8))
-
-# --- Cleaving (combo finisher arc) -----------------------------------------------------
-
-static func cleaving_arc(player: Player, facing: Vector3, radius: float) -> void:
-	slash_arc(player, player.global_position, atan2(facing.x, facing.z), radius * 0.4, radius, 2.4, Color(1.0, 0.85, 0.5, 0.9), 0.22, 1.1, 1.0)
-	Fx.text_at(player, player.global_position + Vector3(0, 2.7, 0), "Cleaving", Color(1.0, 0.85, 0.5), 38)
-
-# --- small proc cues ---------------------------------------------------------------------
-
-static func execute_mark(player: Player, target: Actor) -> void:
-	Fx.text_at(player, target.global_position + Vector3(0, target.body_height + 0.9, 0), "Execute!", Color(1.0, 0.3, 0.25), 46)
-	Fx.burst(player, target.global_position + Vector3(0, 1.0, 0), Vector3.UP, Color(1.0, 0.2, 0.15), 14, 5.0, 0.03, true)
-
-static func ignite_mark(player: Player, target: Actor) -> void:
-	Fx.text_at(player, target.global_position + Vector3(0, target.body_height + 0.9, 0), "Ignited", Color(1.0, 0.6, 0.2), 38)
-	Fx.burst(player, target.global_position + Vector3(0, 1.0, 0), Vector3.UP, Color(1.0, 0.55, 0.12), 12, 5.0, 0.03, true)
-
-static func chain_spark(player: Player, at: Vector3) -> void:
-	Fx.burst(player, at, Vector3.UP, Color(0.7, 0.85, 1.0), 14, 6.0, 0.025, true)
-	Fx.light_flash(player, at, Color(0.6, 0.8, 1.0), 2.5, 0.12)
 
 # --- Earthshatter ----------------------------------------------------------------------
 

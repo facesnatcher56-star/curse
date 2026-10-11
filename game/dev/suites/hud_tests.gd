@@ -33,7 +33,7 @@ func _test_character_ui() -> void:
 	expect("stash prompt appears over the stash", town.hud.prompt.contains("stash") and town.hud.prompt_position.distance_to(town.get_viewport().get_camera_3d().unproject_position(stash["pos"] + Vector3(0, 2.6, 0))) < 1)
 	Gamepad.active = previous_hover_pad
 	var view_hud: Hud = town.combat_hud
-	town.player.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	town.player.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
 	var toggle := InputEventAction.new()
 	toggle.action = "gear"
 	toggle.pressed = true
@@ -79,8 +79,8 @@ func _test_character_ui() -> void:
 	town.queue_free()
 	await get_tree().process_frame
 
-## Owner playtest feedback 1: a checkbox keeps one padding in every state, the minimap shows no enemy count, the points chip is a button to
-## the Progression screen, a plain Power Strike throws no shockwave strip, ground drops carry no beam or ring, and picking gear up is silent.
+## Owner playtest feedback 1: a checkbox keeps one padding in every state, the minimap shows no enemy count, ground drops carry no beam
+## or ring, and picking gear up is silent.
 func _test_owner_feedback_1() -> void:
 	TownState.persist = false
 	await get_tree().process_frame
@@ -108,7 +108,7 @@ func _test_owner_feedback_1() -> void:
 	var source: String = FileAccess.get_file_as_string("res://game/hud.gd")
 	expect("the minimap does not print how many enemies are left", not source.contains("\"%d left\""))
 	# 5: a rare drop has no light, column or floor ring
-	var rare: LootDrop = LootDrop.create(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	var rare: LootDrop = LootDrop.create(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
 	add_child(rare)
 	await get_tree().process_frame
 	expect("a rare drop has no beam, ring or light", rare._column == null and rare._pool == null and rare._light == null)
@@ -117,37 +117,11 @@ func _test_owner_feedback_1() -> void:
 	var stats: PlayerStats = player.stats
 	player.message_time = 0.0
 	player.message = ""
-	var drop_item: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "", "Charm")
+	var drop_item: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "Charm")
 	var text: String = stats.pickup(drop_item)
 	expect("picking an item up still reports what happened to callers", text.contains("Charm"))
 	expect("but the HUD message line says nothing", player.message_time <= 0.0 and player.message == "")
-	# 8: a plain Power Strike's impact throws no shockwave strip (that is the Gravewarden item's)
-	var wave_mesh: Mesh = SkillFx._fx_mesh("power_wave")
-	var strips_before: int = 0
-	for node in get_tree().current_scene.find_children("*", "MeshInstance3D", true, false):
-		strips_before += 1 if (node as MeshInstance3D).mesh == wave_mesh else 0
-	SkillFx.power_impact(player, player.global_position + Vector3(0, 0, 2.5), Vector3(0, 0, 1), false)
-	var strips_after: int = 0
-	for node in get_tree().current_scene.find_children("*", "MeshInstance3D", true, false):
-		strips_after += 1 if (node as MeshInstance3D).mesh == wave_mesh else 0
-	expect("a plain Power Strike impact spawns no shockwave strip", wave_mesh == null or strips_after == strips_before)
-	# 7: the points chip is a button to the Progression screen
-	TownState.reset()
-	TownState.add_hero_xp(300, false)   # a few levels: points to spend
-	var size_px: Vector2 = hud.get_viewport_rect().size
-	hud.progression_hud._process(0.0)
-	var chip: Rect2 = hud.progression_hud.chip_rect(size_px)
-	expect("with points waiting the chip exists", chip.has_area())
-	expect("the chip blocks world clicks (a click must not also walk the hero)", hud.covers(chip.get_center()))
-	var opened: bool = hud.progression_hud.click_chip(chip.get_center())
-	await get_tree().process_frame
-	expect("clicking the chip opens the Progression screen", opened and hud.progression_panel != null and hud.show_gear and get_tree().paused)
-	hud.close_progression()
-	hud.close_character()
-	get_tree().paused = false
-	expect("a click away from the chip does nothing", not hud.progression_hud.click_chip(Vector2(5, 5)))
-	TownState.reset()
-	# 12: stamina is off as a resource (no drain, no slowdown, no dodge cost or gate), and the passive that only served it is gone
+	# 12: stamina is off as a resource (no drain, no slowdown, no dodge cost or gate)
 	expect("stamina is switched off", not PlayerStats.STAMINA_ON)
 	player.stats.stamina = 0.0
 	player.combat_timer = 5.0
@@ -163,7 +137,6 @@ func _test_owner_feedback_1() -> void:
 	player.movement.try_roll(player.global_position + Vector3(0, 0, 4))
 	expect("the dodge works at zero stamina and charges none", player.movement.rolling and is_equal_approx(player.stats.stamina, 0.0))
 	player.movement.rolling = false
-	expect("Bloody Recovery (a stamina perk) is no longer offered", not BuildDefs.is_passive("bloody_recovery") and not BuildDefs.PASSIVE_ORDER.has("bloody_recovery"))
 	# the "New ability learned" plate and the zone name
 	hud.ability_toast_time = 0.0
 	hud.show_ability_toast("nonsense")
@@ -252,7 +225,7 @@ func _test_orb_hud() -> void:
 func _test_inventory_equip() -> void:
 	TownState.persist = false
 	player.stats.bag.clear()
-	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion")
+	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion")
 	var old: Dictionary = player.stats.equipment[Items.Slot.WEAPON]
 	player.stats.bag.append(item)
 	hud.show_gear = true
@@ -285,7 +258,7 @@ func _test_inventory_equip() -> void:
 	if tile != null:
 		await _inventory_mouse_click(tile, MOUSE_BUTTON_RIGHT)
 		expect("right-clicking the icon equips", player.stats.equipment[Items.Slot.WEAPON] == old and player.stats.bag.has(item))
-	var armor: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "", "Plate Cuirass")
+	var armor: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "Plate Cuirass")
 	player.stats.bag.append(armor)
 	hud._open_character()
 	await get_tree().create_timer(0.1).timeout
@@ -295,7 +268,7 @@ func _test_inventory_equip() -> void:
 		expect("double-clicking a name equips armor and updates defenses", player.stats.equipment[Items.Slot.ARMOR] == armor and player.armor == player.stats.base_armor + player.stats.armor_stat("armor", 0.0))
 	else:
 		expect("bag armor has a clickable name", false)
-	var ring: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "", "Charm")
+	var ring: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "Charm")
 	player.stats.bag.append(ring)
 	hud._open_character()
 	await get_tree().create_timer(0.1).timeout

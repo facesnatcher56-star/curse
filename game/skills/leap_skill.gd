@@ -184,10 +184,9 @@ func _leap_land(slam: bool) -> void:
 	leap_t = 0.0
 	Sfx.sample(p, "leap_land", -3.0, 1.0)   # the heavy touchdown, slam or chop
 	Destructible.blast(p.get_tree(), p.global_position, 3.2, 999.0, leap_dir, 2.0)
-	ItemEffects.on_leap_land(p)
 	if slam:
 		p.model.scrub(LEAP_CLIP_LAND)
-		var damage: float = p.stats.weapon_damage(LEAP_SLAM_MULT) * ItemEffects.outgoing_multiplier(p, leap_victim)
+		var damage: float = p.stats.weapon_damage(LEAP_SLAM_MULT)
 		var result: Dictionary = Combat.resolve(p, leap_victim, damage, Combat.DamageType.PHYSICAL, false, 2.4, true)
 		result["skill_id"] = "leap"
 		leap_victim.receive(result, p.global_position)
@@ -213,7 +212,7 @@ func _leap_land(slam: bool) -> void:
 				continue
 			if p.flat_distance_to(e) - e.body_radius > LEAP_CHOP_RADIUS:
 				continue
-			var chop: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(LEAP_CHOP_MULT) * ItemEffects.outgoing_multiplier(p, e),
+			var chop: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(LEAP_CHOP_MULT),
 				Combat.DamageType.PHYSICAL, true, 1.8)
 			chop["skill_id"] = "leap"
 			e.receive(chop, p.global_position)

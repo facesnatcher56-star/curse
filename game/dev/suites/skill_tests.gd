@@ -300,28 +300,6 @@ func _test_earthshatter() -> void:
 	Fx.reset_time()
 	await get_tree().process_frame
 
-## A Power Strike whose weapon throws a shockwave shows the strip it will hit while the blow is gathered, and the effect meshes load.
-func _test_power_wave() -> void:
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns.clear()
-	player.stats.equipment["mod_gravewarden"] = {"affix": "gravewarden", "name": "gravewarden", "rarity": 1, "slot": 0}
-	var target: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -2.4))
-	target.aggro_range = 0.0
-	target.max_health = 900.0
-	target.health = 900.0
-	await get_tree().process_frame
-	expect("the shockwave mesh loads", SkillFx._fx_mesh("power_wave") != null)
-	player.skills.start_skill("power", target, null)
-	await get_tree().create_timer(0.35).timeout
-	var shown: bool = player.skills._wave_preview != null and player.skills._wave_preview.node.visible
-	expect("the strip the shockwave will hit is shown while the blow is gathered", shown)
-	expect("and the enemy in it glows, so you can see who it will hit", target.highlighted)
-	await get_tree().create_timer(1.6).timeout
-	expect("and it is gone once the blow has landed", player.skills._wave_preview == null or not player.skills._wave_preview.node.visible)
-	player.stats.equipment.erase("mod_gravewarden")
-	if is_instance_valid(target):
-		target.queue_free()
-
 ## Power Strike goes where the cursor points: it picks no target for the hero, so an enemy on the other side is left alone, and one in the
 ## direction of the cursor is hit when the blade comes down.
 func _test_power_direction() -> void:

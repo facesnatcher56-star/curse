@@ -48,15 +48,13 @@ var progression_hud: ProgressionHud
 ## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
 var level_toast_text: String:
 	get: return progression_hud.toast_text if progression_hud != null else ""
-var level_toast_points: String:
-	get: return progression_hud.toast_points if progression_hud != null else ""
 var level_toast_time: float:
 	get: return progression_hud.toast_time if progression_hud != null else 0.0
 
 func _ready() -> void:
 	loot_cards.hud = self
 	picker.hud = self
-	progression_hud = ProgressionHud.new()   # the level and XP strip, the level-up plate and the points-available mark
+	progression_hud = ProgressionHud.new()   # the level and XP strip and the level-up plate
 	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -407,8 +405,6 @@ func covers(point: Vector2) -> bool:
 		return true
 	if minimap_rect(size_px, use_ds2_ui).grow(7).has_point(point) or minimap_rect(size_px, false).grow(7).has_point(point):
 		return true
-	if progression_hud != null and progression_hud.chip_rect(size_px).grow(4.0).has_point(point):
-		return true   # the points chip is a button: a click on it must not also walk the hero
 	if progression_hud != null and progression_hud.strip_rect(size_px).grow(22.0).has_point(point):
 		return true   # the XP bar and its badge along the bottom
 	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
@@ -550,11 +546,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
 
-	if player.stats.skill_has_modifier(id):
-		# A small gold diamond: gear you wear is changing this skill (hover it for the details).
-		var c: Vector2 = pos + Vector2(size_px - 11.0, 11.0)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7), c + Vector2(7, 0), c + Vector2(0, 7), c + Vector2(-7, 0)]), Color(0.1, 0.07, 0.02, 0.9))
-		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -5), c + Vector2(5, 0), c + Vector2(0, 5), c + Vector2(-5, 0)]), Color(1.0, 0.82, 0.3))
 	var remaining: float = float(player.stats.cooldowns.get(id, 0.0))
 	var fraction: float = player.stats.cooldown_fraction(id)
 	# Weapon Throw with the weapon out is the recall key: available whatever the throw cooldown says, so it is not dimmed or swept.
@@ -646,10 +637,6 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		var desc: String = SkillDb.description(id)
 		if HudSkillPicker.slot_of_action(String(hit["action"])) != HotbarLayout.NONE:
 			desc += "\n\nClick to change what is on this key."
-		var mods: Array[String] = []
-		for affix_id in SkillDb.modifier_affixes(id):
-			if player.stats.has_affix(affix_id):
-				mods.append(AffixDb.all()[affix_id]["desc"])
 		# Measure, then draw the panel.
 		var height: float = pad + 26.0
 		if stat_line != "":
@@ -657,10 +644,6 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if damage_line != "":
 			height += 20.0
 		height += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y + 10.0
-		for m in mods:
-			height += font.get_multiline_string_size(m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 6.0
-		if not mods.is_empty():
-			height += 18.0
 		height += pad
 		var pos := Vector2(clampf(rect.get_center().x - width * 0.5, 8.0, size_px.x - width - 8.0), rect.position.y - height - 10.0)
 		UiTheme.draw_panel(self, Rect2(pos, Vector2(width, height)), 0.97)
@@ -678,13 +661,6 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		y += 22.0
 		draw_multiline_string(font, Vector2(pos.x + pad, y), desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15, -1, Color(0.92, 0.9, 0.85))
 		y += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y - 8.0
-		if not mods.is_empty():
-			y += 20.0
-			draw_string(font, Vector2(pos.x + pad, y), "From your gear", HORIZONTAL_ALIGNMENT_LEFT, inner, 13, Color(0.45, 0.72, 1.0))
-			for m in mods:
-				y += 16.0
-				draw_multiline_string(font, Vector2(pos.x + pad, y), m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14, -1, Color(0.8, 0.85, 0.95))
-				y += font.get_multiline_string_size(m, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y - 12.0
 		return
 
 static var _icons: Dictionary = {}
@@ -723,41 +699,8 @@ func _open_character() -> void:
 	add_child(character_panel)
 	get_tree().paused = true
 
-## The Progression screen (passives and evolutions), opened from the character screen: it sits over it and leaves it as it was.
-var progression_panel: ProgressionPanel
-
-func open_progression() -> void:
-	if progression_panel != null:
-		return
-	if character_panel != null:
-		character_panel.visible = false
-	progression_panel = ProgressionPanel.new()
-	progression_panel.closed.connect(close_progression)
-	add_child(progression_panel)
-
-## From play (the "points available" chip): the character screen opens behind the Progression screen, so closing it lands back there and
-## the game stays paused exactly as it does when you go in through the PROGRESSION button.
-func open_progression_from_play() -> void:
-	if progression_panel != null or player == null or player.dead or show_gear:
-		return
-	show_gear = true
-	_open_character()
-	open_progression()
-
-func close_progression() -> void:
-	if progression_panel != null:
-		progression_panel.queue_free()
-		progression_panel = null
-	if character_panel != null:
-		character_panel.visible = true
-		if character_panel.has_method("focus_progression_button"):
-			character_panel.call_deferred("focus_progression_button")
-
 func close_character() -> void:
 	show_gear = false
-	if progression_panel != null:
-		progression_panel.queue_free()
-		progression_panel = null
 	if character_panel != null:
 		character_panel.queue_free()
 		character_panel = null
@@ -775,13 +718,7 @@ func _input(event: InputEvent) -> void:
 		if click != null and click.pressed and picker.handle_click(click):
 			get_viewport().set_input_as_handled()
 			return
-		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and progression_hud != null and progression_hud.click_chip(click.position):
-			get_viewport().set_input_as_handled()   # the "points available" chip: straight to where they are spent
-			return
-	if progression_panel != null and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
-		progression_panel.back()   # a question first, then the screen
-		get_viewport().set_input_as_handled()
-	elif show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
+	if show_gear and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("gear")):
 		close_character()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("gear") and not get_tree().paused:

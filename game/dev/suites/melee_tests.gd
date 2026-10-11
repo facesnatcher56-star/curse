@@ -433,7 +433,7 @@ func _test_two_hand() -> void:
 	var skills: SkillController = player.skills
 	var seen: Dictionary = {}
 	for base in ["Falchion", "Greatsword"]:
-		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, base), false)
 		var clips: Array[String] = []
 		for step in 3:
 			var far: Enemy = _spawn_enemy(Vector3(0, 0, 14))
@@ -466,7 +466,7 @@ func _test_weapon_styles() -> void:
 	var slammed: Dictionary = {}
 	var base_time: float = float(SkillDb.basic_combo()[2][0]["time"])
 	for base in ["Falchion", "Longsword", "Greatsword"]:
-		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, base), false)
 		# How long a first swing takes from start to recovered (stepped by hand so engine time cannot blur it).
 		var far: Enemy = _spawn_enemy(Vector3(0, 0, 14))
 		far.alert_delay = 999.0
@@ -531,9 +531,9 @@ func _test_weapon_styles() -> void:
 	expect("stagger weight rises falchion < longsword < greatsword", weights["Falchion"] < weights["Longsword"] - 0.15 and weights["Greatsword"] > weights["Longsword"] + 0.3)
 	expect("only the greatsword's swing reaches the others in an arc in front (not behind)", swept["Falchion"] == 0 and swept["Longsword"] == 0 and swept["Greatsword"] == 2)
 	expect("only the greatsword's finisher slams the ground in front", slammed["Falchion"] == 0 and slammed["Longsword"] == 0 and slammed["Greatsword"] >= 2)
-	expect("the tooltip says how the weapon fights", Items.lines(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")).any(
+	expect("the tooltip says how the weapon fights", Items.lines(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword")).any(
 		func(line: String) -> bool: return line.contains("slam")))
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"), false)
 
 ## Standing monsters take a blow in the body: the chest tips away from it, overshoots and settles (BodyRecoil + CharacterModel._apply_hit_reaction).
 func _test_body_recoil() -> void:

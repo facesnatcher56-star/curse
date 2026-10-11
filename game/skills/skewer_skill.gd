@@ -25,7 +25,6 @@ const SKEWER_SPEED := 15.0
 const SKEWER_SLOTS: Array[float] = [1.0, 1.4, 1.8]  # distance ahead of the hero along the blade, hilt first
 const SKEWER_BIG_BONUS := 45.0   # flat extra damage against enemies too big to impale
 const SKEWER_BIG_STUN := 1.6     # they are staggered this long, so they cannot hit back
-const RAM_BIG_STUN_MULT := 2.5   # Ramming (the affix): the ones too big to move are stunned this much longer
 const SKEWER_WINDUP := 0.28
 const RUNNING_START := 1.5       # m/s: moving faster than this when the skill goes off skips the wind-up and carries the speed into it
 const CLEAR_RADIUS := 2.9        # at the end of the charge, whatever is this close (behind the hero, beside the lane) is dealt with
@@ -194,13 +193,12 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 			if big_hit.has(e.get_instance_id()):
 				continue
 			big_hit[e.get_instance_id()] = true
-			var damage: float = p.stats.weapon_damage(float(skill["mult"])) * ItemEffects.outgoing_multiplier(p, e) + SKEWER_BIG_BONUS
+			var damage: float = p.stats.weapon_damage(float(skill["mult"])) + SKEWER_BIG_BONUS
 			var slam: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 3.0)
 			slam["skill_id"] = "skewer"
 			e.receive(slam, p.global_position)
-			var rammed: bool = p.stats.has_affix("charger")
-			e.stun_time = maxf(e.stun_time, SKEWER_BIG_STUN * (RAM_BIG_STUN_MULT if rammed else 1.0))  # forced, even for bosses
-			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Stunned" if rammed else "Staggered", Color(1.0, 0.9, 0.5), 46)
+			e.stun_time = maxf(e.stun_time, SKEWER_BIG_STUN)  # forced, even for bosses
+			Fx.text_at(p, e.global_position + Vector3(0, e.body_height + 0.7, 0), "Staggered", Color(1.0, 0.9, 0.5), 46)
 			Fx.ring(p, e.global_position, 2.4, Color(1.0, 0.85, 0.5))
 			Fx.punch(p, 2.6)
 			Fx.shake(p, 0.2)
@@ -215,7 +213,7 @@ func _skewer_catch_enemies(skill: Dictionary) -> bool:
 		e.set_impaled(true)
 		e.ragdoll_hang(atan2(-skewer_dir.x, -skewer_dir.z))
 		skewer_impaled.append(e)
-		var stab: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * ItemEffects.outgoing_multiplier(p, e),
+		var stab: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])),
 			Combat.DamageType.PHYSICAL, false, 2.0)
 		stab["skill_id"] = "skewer"
 		stab["damage"] = minf(float(stab["damage"]), maxf(e.health - 1.0, 0.0))  # leave them alive for the kick
@@ -243,7 +241,7 @@ func _skewer_clear_melee(skill: Dictionary) -> void:
 		var away: Vector3 = e.global_position - p.global_position
 		away.y = 0.0
 		away = away.normalized() if away.length() > 0.1 else -skewer_dir
-		var blow: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.5 * ItemEffects.outgoing_multiplier(p, e),
+		var blow: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.5,
 			Combat.DamageType.PHYSICAL, false, 2.0)
 		blow["skill_id"] = "skewer"
 		blow["secondary"] = true
@@ -268,7 +266,7 @@ func _ram_aside(e: Actor, skill: Dictionary) -> void:
 	if lateral.length() < 0.1:
 		lateral = skewer_dir.cross(Vector3.UP) * (1.0 if randf() < 0.5 else -1.0)
 	lateral = lateral.normalized()
-	var shove: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.6 * ItemEffects.outgoing_multiplier(p, e),
+	var shove: Dictionary = Combat.resolve(p, e, p.stats.weapon_damage(float(skill["mult"])) * 0.6,
 		Combat.DamageType.PHYSICAL, false, 2.0)
 	shove["skill_id"] = "skewer"
 	shove["secondary"] = true
@@ -332,10 +330,6 @@ func _skewer_kick() -> void:
 			var spin: Vector3 = away.cross(Vector3.UP) * randf_range(7.0, 11.0) + Vector3.UP * randf_range(-3.0, 3.0)
 			e.ragdoll_launch(away * randf_range(9.5, 14.5), randf_range(5.0, 8.0), spin)
 		Fx.burst(p, e.global_position + Vector3(0, 1.0, 0), away + Vector3.UP * 0.4, Color(0.6, 0.05, 0.04), 20, 7.0)
-		if p.stats.has_affix("impaler"):
-			var fallback: Vector3 = p.global_position + away * 8.0
-			var victim: Actor = e
-			p.get_tree().create_timer(0.85).timeout.connect(func() -> void: ItemEffects.impaler_burst(p, victim, fallback))
 	p.skills.blade_blood = minf(p.skills.blade_blood + 0.3, 1.0)
 	skewer_impaled.clear()
 	Fx.ring(p, p.global_position + skewer_dir * 1.3, 3.0, Color(1.0, 0.85, 0.5))

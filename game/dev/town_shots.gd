@@ -1,7 +1,7 @@
 class_name TownShots
 extends Node
-## Developer tools for the town and road world, kept out of the game proper: `--townshot` pictures and the `--xpdemo` / `--builddemo=`
-## walk-throughs. TownScene adds one under itself only when --townshot is given; everything here drives the town through `town`.
+## Developer tools for the town and road world, kept out of the game proper: `--townshot` pictures and the `--xpdemo`
+## walk-through. TownScene adds one under itself only when --townshot is given; everything here drives the town through `town`.
 
 var town: TownScene
 
@@ -61,168 +61,6 @@ func _xp_demo() -> void:
 	step.call("standing quest handed in", before)
 	await get_tree().create_timer(0.8).timeout
 
-## `--builddemo=wallspike|reaping_recall|ricochet` (with --townshot): the hero is raised to level 12, spends points on a few passives and the
-## named Weapon Throw evolution through the real API (a developer session never touches the production save), then throws in the real world:
-## a stone wall and a few monsters are put on the road and the throw is run with a picture at each moment worth seeing
-## (%TEMP%/curse_build_<name>_N.png). Prints the build state and what happened.
-func _build_demo(which: String) -> void:
-	TownState.dev_set_hero_level(12)
-	for id in ["unbowed", "retaliation", "iron_recovery"]:
-		TownState.buy_passive(id)
-	if BuildDefs.is_evolution("throw", which):
-		TownState.select_evolution("throw", which)
-	print("[builddemo] level %d  passive points %d/%d free  evolution points %d/%d free  passives %s  evolutions %s" % [TownState.hero_level,
-		TownState.passive_points_available(), HeroProgression.passive_points_for_level(TownState.hero_level), TownState.evolution_points_available(),
-		HeroProgression.evolution_points_for_level(TownState.hero_level), str(TownState.purchased_passives), str(TownState.skill_evolutions)])
-	var z: float = CryptRoad.EXIT_Z - 30.0
-	var origin: Vector3 = town.crypt.at(town.crypt.road_centre_x(z), z)
-	town.player.global_position = origin
-	for node in get_tree().get_nodes_in_group("enemies"):
-		if (node as Node3D).global_position.distance_to(origin) < 45.0:
-			node.queue_free()
-	await get_tree().create_timer(0.6).timeout
-	var shot: Callable = func(label: String) -> void:
-		await get_tree().create_timer(0.12).timeout
-		var path: String = OS.get_environment("TEMP") + "/curse_build_%s_%s.png" % [which, label]
-		get_viewport().get_texture().get_image().save_png(path)
-		print("[builddemo] picture ", path)
-	var dummy: Callable = func(at: Vector3, kind: String = "zombie") -> Enemy:
-		var e: Enemy = town.director.spawn_enemy(at, kind, 1.25)
-		e.aggro_range = 0.0
-		e.max_health = 4000.0
-		e.health = 4000.0
-		return e
-	var wall_at: Callable = func(centre: Vector3, wall_size: Vector3) -> StaticBody3D:
-		var wall := StaticBody3D.new()
-		wall.collision_layer = Actor.LAYER_WORLD
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = wall_size
-		shape.shape = box
-		wall.add_child(shape)
-		var mesh := MeshInstance3D.new()
-		var cube := BoxMesh.new()
-		cube.size = wall_size
-		mesh.mesh = cube
-		var stone := StandardMaterial3D.new()
-		stone.albedo_color = Color(0.27, 0.25, 0.23)
-		stone.roughness = 0.95
-		mesh.material_override = stone
-		wall.add_child(mesh)
-		town.add_child(wall)
-		wall.global_position = centre
-		return wall
-	var wt: WeaponThrowSkill = town.player.weapon_throw
-	var throw_now: Callable = func(aim: Vector3, hold: float) -> void:
-		wt._profile = wt.profile()
-		wt.evolution = town.player.evolution_of("throw")
-		wt.state = WeaponThrowSkill.State.CHARGING
-		wt._hold = hold
-		wt.charge = wt.charge_fraction()
-		wt.release(aim)
-	town.player.stats.cooldowns.clear()
-	var east: Vector3 = Vector3(1, 0, 0)
-	town.player.visual.rotation.y = atan2(east.x, east.z)
-	match which:
-		"iron":   # Iron Recovery: a heavy blow knocks him down; when he is back on his feet he shoves the lesser enemies round him back
-			var ring: Array[Enemy] = []
-			for angle in [0.0, 2.1, 4.2]:
-				ring.append(dummy.call(origin + Vector3(cos(angle), 0, sin(angle)) * 2.0))
-			var heavy_brute: Enemy = dummy.call(origin + Vector3(cos(1.05), 0, sin(1.05)) * 2.3, "brute")
-			await get_tree().create_timer(0.4).timeout
-			await shot.call("0_surrounded")
-			var attacker: Enemy = dummy.call(origin + Vector3(0, 0, 4.0), "brute")
-			var blow: Dictionary = Combat.resolve(attacker, town.player, 20.0, Combat.DamageType.PHYSICAL, false, 2.7)
-			blow["outcome"] = Combat.Outcome.CRUSHING
-			blow["damage"] = 20.0
-			blow["weight"] = 2.7
-			town.player.receive(blow, attacker.global_position)
-			town.player.knock = Vector3.ZERO
-			var near: PackedStringArray = []
-			for e in ring:
-				near.append("%.1f m" % e.flat_distance_to(town.player))
-			print("[builddemo] heavy blow taken: stun ", snappedf(town.player.stun_time, 0.01), " s; ring distances ", ", ".join(near), "; brute ", snappedf(heavy_brute.flat_distance_to(town.player), 0.1), " m")
-			await get_tree().create_timer(0.2).timeout
-			await shot.call("1_knockdown_impact")
-			await get_tree().create_timer(0.4).timeout
-			await shot.call("2_downed")
-			await get_tree().create_timer(0.45).timeout
-			await shot.call("3_getting_up")
-			await get_tree().create_timer(0.5).timeout
-			await shot.call("4_shoved")
-			var far: PackedStringArray = []
-			for e in ring:
-				far.append("%.1f m" % e.flat_distance_to(town.player))
-			print("[builddemo] after he shook it off (shoves ", town.player.iron_shoves, "): ring distances ", ", ".join(far), "; brute ", snappedf(heavy_brute.flat_distance_to(town.player), 0.1), " m")
-		"wallspike":
-			wall_at.call(origin + Vector3(14.0, 2.0, 0.0), Vector3(1.0, 4.0, 7.0))
-			var victim: Enemy = dummy.call(origin + Vector3(6.0, 0, 0))
-			dummy.call(origin + Vector3(8.5, 0, 0.4))
-			await shot.call("0_before")
-			throw_now.call(origin + east * 40.0, 10.0)
-			await _wait_throw(wt, WeaponThrowSkill.State.EMBEDDED, 4.0)
-			await shot.call("1_pinned")
-			print("[builddemo] pinned=", wt.pinned == victim, " impaled=", victim.impaled, " victim x offset from hero=", snappedf(victim.global_position.x - origin.x, 0.1))
-			await get_tree().create_timer(1.0).timeout
-			wt.recall()
-			await get_tree().create_timer(0.35).timeout
-			await shot.call("2_released")
-			print("[builddemo] after recall pinned=", wt.pinned == null, " victim released=", not victim.impaled, " ragdolled=", victim.is_ragdolled())
-		"ricochet":
-			wall_at.call(origin + Vector3(11.5, 2.0, 0.0), Vector3(1.0, 4.0, 22.0))
-			var aim: Vector3 = Vector3(1.0, 0.0, 0.5).normalized()
-			var hit: Vector3 = origin + aim * (11.0 / aim.x)
-			var bounce_out: Vector3 = aim.bounce(Vector3(-1, 0, 0)).normalized()
-			dummy.call(hit + bounce_out * 3.5)
-			dummy.call(hit + bounce_out * 5.0 + Vector3(0, 0, 1.0))
-			await get_tree().physics_frame   # the new wall must be in the physics space before the lane looks for it
-			await get_tree().physics_frame
-			wt._profile = wt.profile()
-			wt.evolution = "ricochet"
-			wt.state = WeaponThrowSkill.State.CHARGING
-			wt._hold = 10.0
-			wt.charge = 1.0
-			wt.update_preview(origin + aim * 20.0)
-			await shot.call("0_preview")
-			print("[builddemo] preview bounce length ", snappedf(wt.preview.bounce_length, 0.1), " dir ", wt.preview.bounce_dir)
-			wt.cancel_charge()
-			throw_now.call(origin + aim * 40.0, 10.0)
-			var frames: int = 0
-			while wt.bounces == 0 and frames < 300:
-				await get_tree().physics_frame
-				frames += 1
-			await shot.call("1_bounce")
-			await _wait_throw(wt, WeaponThrowSkill.State.EMBEDDED, 4.0)
-			await shot.call("2_embedded")
-			print("[builddemo] bounces=", wt.bounces, " struck after the bounce=", wt.last_out_hits.size())
-		_:
-			var targets: Array[Enemy] = []
-			throw_now.call(origin + east * 40.0, 10.0)
-			await _wait_throw(wt, WeaponThrowSkill.State.EMBEDDED, 4.0)
-			var rest: Vector3 = wt.thrown.center()
-			var back_spot: Vector3 = Vector3(rest.x - 14.0, 0.0, rest.z + 7.0)
-			town.player.global_position = back_spot
-			for f in [0.35, 0.6]:
-				targets.append(dummy.call(Vector3(rest.x, 0.0, rest.z).lerp(back_spot, f)))
-			await get_tree().create_timer(0.3).timeout
-			await shot.call("0_set")
-			wt.recall()
-			await get_tree().create_timer(1.2).timeout
-			await shot.call("1_dragging")
-			await get_tree().create_timer(1.4).timeout
-			await shot.call("2_gathered")
-			var gathered: PackedStringArray = []
-			for e in targets:
-				gathered.append("%.1f m" % e.flat_distance_to(town.player))
-			print("[builddemo] pulled ", wt.pulled_ids.size(), " enemies; distances to hero now ", ", ".join(gathered))
-	await get_tree().create_timer(0.5).timeout
-
-func _wait_throw(wt: WeaponThrowSkill, state: int, seconds: float) -> void:
-	var waited: float = 0.0
-	while int(wt.state) != state and waited < seconds:
-		await get_tree().physics_frame
-		waited += 1.0 / 60.0
-
 func run(args: PackedStringArray) -> void:
 	TownState.persist = false   # a developer screenshot never writes the player's save
 	await get_tree().create_timer(3.0).timeout
@@ -275,21 +113,9 @@ func run(args: PackedStringArray) -> void:
 			await get_tree().create_timer(0.8).timeout
 		if arg == "--xpdemo":   # developer tool: earn XP the real way (hits, a nest, a hand-in, a named monster) and print each change
 			await _xp_demo()
-		if arg.begins_with("--builddemo="):   # developer tool: buy a Weapon Throw evolution and use it on the road, with pictures
-			await _build_demo(arg.substr(12))
-		if arg.begins_with("--panel="):   # --panel=marlow | board | stash | character | progression | evolutions | evolution-confirm: open that panel first
+		if arg.begins_with("--panel="):   # --panel=marlow | board | stash | character: open that panel first
 			var what: String = arg.substr(8)
 			match what:
-				"progression", "evolutions", "evolution-confirm":
-					TownState.dev_set_hero_level(maxi(TownState.hero_level, 12))
-					TownState.buy_passive("unbowed")
-					town.combat_hud.show_gear = true
-					town.combat_hud._open_character()
-					town.combat_hud.open_progression()
-					if what != "progression":
-						town.combat_hud.progression_panel.show_section("evolutions")
-					if what == "evolution-confirm":
-						town.combat_hud.progression_panel._request_evolution("throw", "wallspike")
 				"character":
 					town.combat_hud.show_gear = true
 					town.combat_hud._open_character()

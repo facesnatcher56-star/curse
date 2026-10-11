@@ -23,50 +23,39 @@ SKILLS = {
     "basic": dict(display_name="Attack", mana=0.0, cooldown=0.0, time=0.85, clip="atk_slash", clip_start=0.0, clip_strike=0.57,
                   clip_end=0.95, kind="melee", range=2.4, mult=1.0, weight=1.0, lunge=0.5,
                   description="A three-hit sword combo. The first two hits vary between slashes and thrusts; the third is a heavy finisher. Pause for a moment and the combo resets.",
-                  modifier_affixes=["cleaving", "maelstrom", "chain", "searing", "executioner", "kindling", "juggler", "breaker", "virtuoso"],
                   extra={"combo": COMBO}),
     "power": dict(display_name="Power Strike", mana=8.0, cooldown=4.0, time=0.95, clip="power", clip_start=0.7, clip_strike=1.23,
                   clip_end=1.75, kind="melee", range=2.4, mult=2.3, weight=1.9, lunge=1.0, directional=True,
-                  description="Heave the blade overhead for a crushing blow, in the direction of the cursor (it does not pick a target for you: aim it where you want it to land). Hits much harder than a normal swing, throws what it hits back hard and stuns it for a good while. Thrown into a wall or another monster, they take extra damage, and the one they hit falls down.",
-                  modifier_affixes=["gravewarden", "vaultborn", "executioner", "searing", "chain", "kindling", "juggler", "breaker", "virtuoso"]),
+                  description="Heave the blade overhead for a crushing blow, in the direction of the cursor (it does not pick a target for you: aim it where you want it to land). Hits much harder than a normal swing, throws what it hits back hard and stuns it for a good while. Thrown into a wall or another monster, they take extra damage, and the one they hit falls down."),
     "fireball": dict(display_name="Fireball", mana=16.0, cooldown=5.5, time=1.4, clip="charge", clip_start=0.8, clip_strike=2.05,
                      clip_end=2.3, kind="projectile", range=14.0, mult=1.0, weight=1.6, lunge=0.4, aimed=True,
                      description="Hold the key to aim a ground target, release to cast. The fireball flies to that exact point and explodes, burning everything inside the highlighted sphere. Fire damage ignores armor and cannot miss.",
-                     modifier_affixes=["twin_flame", "wildfire", "virtuoso", "pyre"],
                      extra={"charged": True, "gather": 0.72, "release_clip": "throw", "release_start": 0.55,
                             "release_speed": 1.5, "release_after": 0.3}),
     "throw": dict(display_name="Weapon Throw", mana=0.0, cooldown=15.0, time=1.0, clip="wthrow", clip_start=0.0, clip_strike=0.5,
                   clip_end=1.0, kind="throw", range=22.0, mult=2.4, weight=2.0, lunge=0.0, aimed=True,
-                  description="Hold to wind up and throw your weapon in a straight line. Longer charge increases range and force. Press again while the weapon is away to rip it back through enemies.",
-                  modifier_affixes=[], extra={"weapon_throw": True}),
+                  description="Hold to wind up and throw your weapon in a straight line. Longer charge increases range and force. Press again while the weapon is away to rip it back through enemies.", extra={"weapon_throw": True}),
     "skewer": dict(display_name="Skewer", mana=18.0, cooldown=9.0, time=1.8, clip="charge_run", clip_start=0.0, clip_strike=0.3,
                    clip_end=0.5, kind="charge", range=9.0, mult=1.5, weight=2.2, lunge=0.0, aimed=True,
-                   description="Hold the key to see the whole lane the charge will run and where the kicked enemies will be thrown, then let go to charge (right-click or dodge cancels). Lower the blade and charge toward the cursor. The first enemy in your path is run through to the hilt and carried along; up to two more are skewered on the same blade. Then you plant yourself and drive a boot into the pile, kicking all of them off the sword and far away from you. Everyone else in the lane, past the first three, is knocked down and thrown aside as you run through. Bosses cannot be impaled and stop the charge.",
-                   modifier_affixes=["impaler", "charger", "searing", "breaker", "virtuoso"], extra={"skewer": True}),
+                   description="Hold the key to see the whole lane the charge will run and where the kicked enemies will be thrown, then let go to charge (right-click or dodge cancels). Lower the blade and charge toward the cursor. The first enemy in your path is run through to the hilt and carried along; up to two more are skewered on the same blade. Then you plant yourself and drive a boot into the pile, kicking all of them off the sword and far away from you. Everyone else in the lane, past the first three, is knocked down and thrown aside as you run through. Bosses cannot be impaled and stop the charge.", extra={"skewer": True}),
     "leap": dict(display_name="Leap", mana=12.0, cooldown=7.0, time=1.8, clip="leap", clip_start=1.4, clip_strike=2.5,
                  clip_end=3.9, kind="leap", range=10.0, mult=1.3, weight=2.0, lunge=0.0, directional=True,
-                 description="Spring through the air to the cursor. Land on a knocked-down enemy and drive the sword straight down through it into the earth for a guaranteed critical blow, then plant a boot on it, pinning it and stunning it while you wrench the blade free. Land anywhere else and the same plunging chop hits everything around the landing spot for lighter damage. You sail over enemies in the way.",
-                 modifier_affixes=["vaultborn", "breaker", "virtuoso"], extra={"leap": True}),
+                 description="Spring through the air to the cursor. Land on a knocked-down enemy and drive the sword straight down through it into the earth for a guaranteed critical blow, then plant a boot on it, pinning it and stunning it while you wrench the blade free. Land anywhere else and the same plunging chop hits everything around the landing spot for lighter damage. You sail over enemies in the way.", extra={"leap": True}),
     "earthshatter": dict(display_name="Earthshatter", mana=0.0, cooldown=0.0, time=1.9, clip="earthshatter", clip_start=0.0, clip_strike=1.93,
                          clip_end=3.03, kind="earthshatter", range=7.5, mult=3.2, weight=3.0, lunge=0.0, directional=True,
-                         description="The ultimate. It charges as you deal damage (taking damage does not charge it); when the bar is full, raise your blade overhead and drive it into the earth. The shockwave hurls every enemy around you high into the air, hardest near the centre, and leaves them stunned. Anything thrown into a wall or pillar is slammed for extra damage. Burning, bleeding and chilled enemies pass those effects to everyone else caught in it. Bosses are staggered, not thrown.",
-                         modifier_affixes=["quaker", "juggler", "virtuoso"], extra={"earthshatter": True, "charge": 650.0}),
+                         description="The ultimate. It charges as you deal damage (taking damage does not charge it); when the bar is full, raise your blade overhead and drive it into the earth. The shockwave hurls every enemy around you high into the air, hardest near the centre, and leaves them stunned. Anything thrown into a wall or pillar is slammed for extra damage. Burning, bleeding and chilled enemies pass those effects to everyone else caught in it. Bosses are staggered, not thrown.", extra={"earthshatter": True, "charge": 650.0}),
     "brutal_attack": dict(display_name="Brutal Attack", mana=0.0, cooldown=0.0, time=0.0, kind="buff", range=0.0, mult=15.0,
-                         description="Gather a faint orange heat haze along your silhouette. The next basic melee hit deals 1500% weapon damage and gibs its victim if lethal. Missing, being dodged or being blocked does not spend it. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.",
-                         modifier_affixes=[], extra={"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.08, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": True}}),
+                         description="Gather a faint orange heat haze along your silhouette. The next basic melee hit deals 1500% weapon damage and gibs its victim if lethal. Missing, being dodged or being blocked does not spend it. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.", extra={"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.08, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": True}}),
     "take_aim": dict(display_name="Take Aim", mana=0.0, cooldown=0.0, time=0.0, kind="buff", range=0.0, mult=15.0,
-                     description="Order Cutter to gather his focus. His next arrow deals 1500% weapon damage and gibs its victim if lethal. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.",
-                     modifier_affixes=[], extra={}),
+                     description="Order Cutter to gather his focus. His next arrow deals 1500% weapon damage and gibs its victim if lethal. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.", extra={}),
     "potion": dict(display_name="Potion", mana=0.0, cooldown=1.0, time=0.0, kind="potion", range=0.0, mult=0.0,
-                   description="Drink a health potion to restore 60 health. Does nothing at full health.", modifier_affixes=[]),
+                   description="Drink a health potion to restore 60 health. Does nothing at full health."),
     "dodge": dict(display_name="Dodge", mana=0.0, cooldown=0.7, time=0.55, kind="dodge", range=0.0, mult=0.0,
-                  description="Roll in the direction you are moving (or toward the cursor). You take no damage for the whole roll, and every non-boss enemy near you is shoved aside and has its current attack interrupted.",
-                  modifier_affixes=["shock_roll", "cinder_roll"]),
+                  description="Roll in the direction you are moving (or toward the cursor). You take no damage for the whole roll, and every non-boss enemy near you is shoved aside and has its current attack interrupted."),
 }
 
 DEFAULTS = dict(mana=0.0, cooldown=0.0, time=1.0, clip="", clip_start=0.0, clip_strike=0.0, clip_end=0.0, kind="melee",
-                range=2.4, mult=1.0, weight=1.0, lunge=0.0, directional=False, aimed=False, description="",
-                modifier_affixes=[], extra={})
+                range=2.4, mult=1.0, weight=1.0, lunge=0.0, directional=False, aimed=False, description="", extra={})
 
 
 def fmt(v) -> str:
@@ -97,8 +86,6 @@ def main() -> None:
         for key in ("display_name", "description", "mana", "cooldown", "time", "clip", "clip_start", "clip_strike", "clip_end",
                     "kind", "range", "mult", "weight", "lunge", "directional", "aimed"):
             lines.append("%s = %s" % (key, fmt(d[key])))
-        affixes = d["modifier_affixes"]
-        lines.append("modifier_affixes = Array[String]([%s])" % ", ".join('"%s"' % a for a in affixes))
         lines.append("extra = %s" % fmt(d["extra"]))
         (OUT / ("%s.tres" % sid)).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         print("wrote", sid)

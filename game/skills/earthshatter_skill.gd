@@ -166,7 +166,7 @@ func _hit(e: Actor) -> void:
 	var offset: Vector3 = _flat(e.global_position - centre)
 	var near: float = 1.0 - clampf(offset.length() / RADIUS, 0.0, 1.0)   # 1 at the centre, 0 at the edge
 	var away: Vector3 = offset.normalized() if offset.length() > 0.15 else dir
-	var damage: float = p.stats.weapon_damage(MULT) * ItemEffects.outgoing_multiplier(p, e) * lerpf(MIN_FALLOFF, 1.0, near)
+	var damage: float = p.stats.weapon_damage(MULT) * lerpf(MIN_FALLOFF, 1.0, near)
 	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 3.0)
 	result["skill_id"] = "earthshatter"
 	result["calm"] = true   # one big shockwave, not a separate splash of effects on every victim

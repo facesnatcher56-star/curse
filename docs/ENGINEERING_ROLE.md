@@ -66,12 +66,14 @@ Make gameplay happen physically in the world rather than through hidden numbers:
 - Prefer an armour piece visibly breaking, or enemy behaviour changing, over "-12% defense debuff",
   when scope and architecture support the physical solution.
 
-### Avoid stat soup
+### Numbers follow Dungeon Siege II (owner decision, 2026-10)
 
-Unless told otherwise, do not expand toward dozens of random stat rolls, tiny percentage bonuses everywhere, meaningless
-item-score inflation, automatic enemy scaling to player level, passive trees of +1% nodes, or 30 near-identical active
-attacks. Depth comes from mechanics, interactions, player choices, physical behaviours, skill evolution, weapon identity,
-behavioural affixes and systemic world consequences. Numbers support the mechanics; they do not replace them.
+The owner replaced Curse's behavioural affixes, Passive/Evolution Points and skill evolutions with Dungeon Siege II's model:
+use-based class skills (Melee, Ranged, Combat Magic, Nature Magic) driving STR/DEX/INT, character level 1-100, DS2's passive
+trees bought with skill points, DS2 item levels, rarities (Normal/Magic/Rare/Unique/Set) and tiered numeric affix families
+(`docs/ds2-combat-and-loot.md`). Do not reintroduce behavioural affixes or replace DS2's numeric affixes with something else
+without the owner. Physical, readable combat still matters: the numbers drive damage, life and gear, while hits, knock-backs,
+impacts and skill behaviour stay physical. Still avoid meaningless item-score inflation and 30 near-identical active attacks.
 
 ### Combat skill rule
 
@@ -111,7 +113,7 @@ discrete collision. The visual result and the actual combat result must agree.
 
 ## Data-driven architecture
 
-Continue the data-first direction: `ItemDef` (base items), `SkillDef`, `AffixDef`, `EnemyDef`, `QuestDef`, `ZoneDef`;
+Continue the data-first direction: `ItemDef` (base items), `SkillDef`, `EnemyDef`, `QuestDef`, `ZoneDef` (DS2 affix families come back as data in their own phase);
 weapon-specific behaviour in weapon profiles/data where practical. Do not bury balance constants in unrelated scripts; expose
 parameters that will need balancing centrally.
 

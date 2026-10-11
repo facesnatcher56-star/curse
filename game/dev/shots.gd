@@ -126,16 +126,12 @@ func _gib_shots() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_gib_%d.png" % i)
 	get_tree().quit()
 
-## `-- --skillshot=power [--mods]`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
-## With --mods the hero wears every skill-modifying affix so their effects show too.
+## `-- --skillshot=power`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
 func _melee_shots(which: String) -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	player.stats.mana = player.stats.max_mana
 	player.set_physics_process(true)
-	if OS.get_cmdline_user_args().has("--mods"):
-		for affix in ["gravewarden", "searing", "executioner", "chain", "cleaving", "kindling", "juggler", "breaker", "maelstrom"]:
-			player.stats.equipment["mod_" + affix] = {"affix": affix, "name": affix, "rarity": 1, "slot": 0}
 	var targets: Array[Enemy] = []
 	for pos in [Vector3(0.0, 0, -2.4), Vector3(1.2, 0, -2.9), Vector3(-1.3, 0, -2.2), Vector3(0.4, 0, -4.2), Vector3(2.0, 0, -1.0), Vector3(-2.2, 0, 0.8)]:
 		var z: Enemy = _spawn_enemy(pos)
@@ -289,7 +285,7 @@ func _drop_shot() -> void:
 	for i in bases.size():
 		var slot: int = Items.Slot.WEAPON if i < 3 else (Items.Slot.ARMOR if i < 6 else Items.Slot.TRINKET)
 		var rarity: int = [Items.Rarity.COMMON, Items.Rarity.RARE, Items.Rarity.UNIQUE][i % 3] if i < 6 else Items.Rarity.RARE
-		var drop: LootDrop = game.director.drop_item(Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5), Items.make(slot, rarity, 1, "", bases[i]))
+		var drop: LootDrop = game.director.drop_item(Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5), Items.make(slot, rarity, 1, bases[i]))
 		drop._end = Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5)
 	await get_tree().create_timer(1.6).timeout
 	var size_px: Vector2 = hud.get_viewport_rect().size
@@ -330,7 +326,7 @@ func _item_sheet() -> void:
 	for def in ItemDb.all().values():
 		bases.append([def.slot, def.display_name])
 	for i in bases.size():
-		var item: Dictionary = Items.make(bases[i][0], i % 3, 1, "" if i % 3 == 0 else _any_affix(bases[i][0]), bases[i][1])
+		var item: Dictionary = Items.make(bases[i][0], mini(i % 3, Items.Rarity.RARE), 1, bases[i][1])
 		var drop: LootDrop = LootDrop.create(item)
 		game.director.add_child(drop)
 		var angle: float = -PI * 0.9 + PI * 0.8 * float(i) / float(bases.size() - 1) - PI * 0.5
@@ -417,7 +413,7 @@ func _hand_shot() -> void:
 			clip = arg.substr(11).get_slice(":", 0)
 			t = float(arg.substr(11).get_slice(":", 1)) if ":" in arg else 1.0
 		if arg.begins_with("--equip="):
-			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, arg.substr(8)), false)
 	await get_tree().process_frame
 	player.model.manual(clip)
 	player.model.scrub(t)
@@ -470,7 +466,7 @@ func _clip_sheet(spec: String) -> void:
 		player.visual.rotation.y = PI * 0.5
 	for arg in OS.get_cmdline_user_args():   # `--equip=Greatsword`: hold that weapon for the sheet
 		if arg.begins_with("--equip="):
-			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, arg.substr(8)), false)
 			await get_tree().process_frame
 	if OS.get_cmdline_user_args().has("--closeup"):
 		hud.visible = false

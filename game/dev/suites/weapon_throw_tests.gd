@@ -8,7 +8,7 @@ func _throw_shots() -> void:
 		node.queue_free()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--equip="):
-			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", arg.substr(8)), false)
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, arg.substr(8)), false)
 	player.set_physics_process(true)
 	var origin: Vector3 = _clear_lane(26.0, 3.0)
 	player.global_position = origin
@@ -72,7 +72,7 @@ func _test_throw_ownership() -> void:
 	var wt: WeaponThrowSkill = player.weapon_throw
 	var skills: SkillController = player.skills
 	player.set_physics_process(false) # advance the component explicitly, without timing races
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"), false)
 	player.global_position = _clear_lane(26.0, 3.0)
 	player.stun_time = 0.0
 	player.movement.rolling = false
@@ -174,29 +174,6 @@ func _test_throw_ownership() -> void:
 	wt.tick(0.01)
 	expect("interrupted catch restores one blade and unlocked slot", wt.has_weapon() and wt.thrown == null and player.model.weapon.visible and not player.stats.weapon_locked)
 	wt.reset()
-	# Wallspike carried and pinned victims can die or disappear independently.
-	for attached in ["carried", "pinned"]:
-		for loss in ["dead", "freed"]:
-			player.stats.cooldowns.clear()
-			wt.begin_charge()
-			wt.release(aim)
-			wt.tick_busy(0.21)
-			var body: Enemy = _throw_dummy(player.global_position + Vector3(4, 0, 0))
-			body.set_physics_process(false)
-			wt.evolution = "wallspike"
-			wt._spike(body, Vector3.RIGHT)
-			if attached == "pinned":
-				wt._embed(player.global_position + Vector3(10, 1, 0), Vector3.LEFT, true)
-			if loss == "dead":
-				body.dead = true
-			else:
-				body.free()
-			expect("recall survives %s %s victim" % [loss, attached], wt.recall() and not wt.recall())
-			if is_instance_valid(body):
-				expect("dead %s victim released from impale" % attached, not body.impaled)
-				body.free()
-			wt.reset()
-			await get_tree().process_frame
 	# Scene cleanup can remove the visual while the component still owns it.
 	player.stats.cooldowns.clear()
 	wt.begin_charge()
@@ -235,7 +212,7 @@ func _test_weapon_throw() -> void:
 	var wt: WeaponThrowSkill = player.weapon_throw
 	var saved_hotbar: Array[String] = skills.hotbar.duplicate()
 	skills.hotbar[1] = "throw"
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"), false)
 	player.stats.cooldowns.clear()
 	player.health = player.max_health
 	player.global_position = _clear_lane(26.0, 3.0)
@@ -284,7 +261,7 @@ func _test_weapon_throw() -> void:
 	expect("sword skills refuse while the weapon is out", wt.is_away() and not skills.weapon_ready("basic") and not skills.weapon_ready("power"))
 	expect("the weapon slot is locked while it is out", player.stats.weapon_locked)
 	var held: Dictionary = player.stats.equipment[Items.Slot.WEAPON]
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Falchion"), false)
 	expect("the weapon in the slot cannot be swapped while it is away", player.stats.equipment[Items.Slot.WEAPON] == held)
 	skills.start_skill("basic", line[0])
 	expect("a basic attack does nothing weaponless", not skills.busy or skills.busy_skill == "throw")
@@ -337,9 +314,9 @@ func _test_weapon_throw() -> void:
 	expect("the cooldown ran on through the whole thing and the catch did not reset it", float(player.stats.cooldowns.get("throw", 0.0)) <= cooldown_before and float(player.stats.cooldowns.get("throw", 0.0)) > 3.0)
 	await get_tree().create_timer(0.6).timeout
 	expect("sword skills work again at once", skills.weapon_ready("basic"))
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Falchion"), false)
 	expect("and he may change weapons again", player.stats.equipment[Items.Slot.WEAPON]["name"] == "Falchion")
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"), false)
 	skills.start_skill("basic", second[0] if is_instance_valid(second[0]) else null)
 	expect("normal sword combat resumes", skills.busy and skills.busy_skill == "basic")
 	skills.cancel_action()
@@ -426,11 +403,11 @@ func _test_weapon_throw() -> void:
 	# --- Profiles and the controller -----------------------------------------------------------------------------------------------
 	var profiles: Dictionary = {}
 	for base in ["Falchion", "Longsword", "Greatsword"]:
-		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base), false)
+		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, base), false)
 		profiles[base] = wt.profile()
 	expect("the three weapons throw differently", profiles["Falchion"]["charge_time"] < profiles["Longsword"]["charge_time"] and profiles["Longsword"]["charge_time"] < profiles["Greatsword"]["charge_time"]
 		and profiles["Falchion"]["speed"] > profiles["Greatsword"]["speed"] and profiles["Greatsword"]["mass"] > profiles["Falchion"]["mass"] and profiles["Greatsword"]["prop_force"] > profiles["Longsword"]["prop_force"])
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"), false)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"), false)
 	player.stats.cooldowns.clear()
 	Gamepad.active = true
 	player.cursor_override = Vector3.INF

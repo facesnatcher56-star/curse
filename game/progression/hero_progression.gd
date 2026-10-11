@@ -100,39 +100,6 @@ static func progress_text(total_xp: int) -> String:
 		return "MAX LEVEL"
 	return "%d / %d XP" % [xp_into_level(total_xp), xp_span_of_level(total_xp)]
 
-# --- What a level grants ----------------------------------------------------------------------------------------------------------------
-# Two build currencies, both DERIVED from the hero's level, never stored or counted up as levels pass: Hero Level is the entitlement, so a
-# loaded level 20 hero has exactly what a hero who levelled there has. What is spent will be saved later (available = earned - spent); for
-# now nothing can be spent, so everything earned is available.
-#   Passive Points: one at every even level (2, 4 ... 30): 15 by the cap. They will buy broad berserker passives.
-#   Evolution Points: one every third level (3, 6 ... 30): 10 by the cap. They will evolve individual active skills.
-# Only Hero Level grants them. Items, world threat and XP sources are separate systems and stay that way.
-const PASSIVE_POINT_EVERY := 2
-const EVOLUTION_POINT_EVERY := 3
-
-static func passive_points_for_level(level: int) -> int:
-	return clampi(level, 1, MAX_LEVEL) / PASSIVE_POINT_EVERY
-
-static func evolution_points_for_level(level: int) -> int:
-	return clampi(level, 1, MAX_LEVEL) / EVOLUTION_POINT_EVERY
-
-## What the levels from `old_level` (exclusive) up to `new_level` (inclusive) granted, every milestone crossed counted:
-## {passive, evolution}. Nothing when the level did not rise.
-static func points_between(old_level: int, new_level: int) -> Dictionary:
-	if new_level <= old_level:
-		return {"passive": 0, "evolution": 0}
-	return {"passive": passive_points_for_level(new_level) - passive_points_for_level(old_level),
-		"evolution": evolution_points_for_level(new_level) - evolution_points_for_level(old_level)}
-
-## "+1 Passive Point  +1 Evolution Point", or "" when a level-up granted neither.
-static func points_text(passive: int, evolution: int) -> String:
-	var parts: PackedStringArray = []
-	if passive > 0:
-		parts.append("+%d Passive Point%s" % [passive, "" if passive == 1 else "s"])
-	if evolution > 0:
-		parts.append("+%d Evolution Point%s" % [evolution, "" if evolution == 1 else "s"])
-	return "   ".join(parts)
-
 # --- What the world pays in XP --------------------------------------------------------------------------------------------------------
 # One place for every reward rule and number, so the economy can be tuned in one file. None of these read the hero's level: the same source
 # is worth the same XP to a level 1 hero and a level 20 one (the rising level requirements are what make early content inefficient).

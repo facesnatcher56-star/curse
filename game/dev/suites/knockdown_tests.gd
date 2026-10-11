@@ -116,12 +116,11 @@ func _test_death_ragdoll() -> void:
 	await get_tree().process_frame
 
 ## The hero's knockdown: a heavy blow (the old heavy-stagger trigger) puts him down -> downed -> getting up -> control; nothing works
-## while he is down; Iron Recovery rides on the completed get-up only; death cancels the fall and revival leaves him standing and free.
+## while he is down; death cancels the fall and revival leaves him standing and free.
 func _test_hero_knockdown() -> void:
 	TownState.persist = false
 	TownState.reset()
 	TownState.dev_set_hero_level(10)
-	TownState.buy_passive("iron_recovery")
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame
@@ -146,26 +145,21 @@ func _test_hero_knockdown() -> void:
 		player.movement.has_goal = false
 		player.skills.busy = false
 		player.skills.aiming_id = ""
-		player.iron_shoves = 0
 		player.global_position = Vector3.ZERO
 		player.reset_physics_interpolation()
 	await calm.call()
 	var ring: Array[Enemy] = []
 	for angle in [0.0, 2.1, 4.2]:
 		ring.append(_throw_dummy(Vector3(cos(angle), 0, sin(angle)) * 2.0))
-	# An ordinary (light) stagger: no knockdown, no Iron Recovery.
+	# An ordinary (light) stagger: no knockdown.
 	hit_hero.call(4.0, 1.0)
 	expect("a light stagger does not knock him down", not kd.active() and kd.knockdowns == 0 and player.stun_time > 0.0)
 	await get_tree().create_timer(1.0).timeout
-	expect("and Iron Recovery does not fire on an ordinary stagger", player.iron_shoves == 0)
 	await calm.call()
 	for i in ring.size():
 		ring[i].global_position = Vector3(cos(float(i) * 2.1), 0, sin(float(i) * 2.1)) * 2.0
 		ring[i].knock = Vector3.ZERO
 		ring[i].stun_time = 0.0
-	var ring_start: Array[Vector3] = []
-	for e in ring:
-		ring_start.append(e.global_position)
 	# A heavy blow.
 	var cooldowns_before: Dictionary = player.stats.cooldowns.duplicate()
 	hit_hero.call(20.0, 2.7)
@@ -208,18 +202,13 @@ func _test_hero_knockdown() -> void:
 	expect("while he is down he cannot move, attack, dodge or cast (and was tested while downed)", lock_ok and tried_at_downed and kd.get_ups == 1)
 	expect("the whole fall is a deliberate %.2f s, not an endless lockout" % Knockdown.TOTAL_TIME, elapsed > Knockdown.TOTAL_TIME - 0.15 and elapsed < Knockdown.TOTAL_TIME + 0.5)
 	expect("control is back at the end: no stun, standing upright, the throw can start again", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01 and wt.can_begin())
-	expect("Iron Recovery fired exactly once, on the completed get-up", player.iron_shoves == 1)
 	await get_tree().create_timer(0.5).timeout
-	var shoved: bool = true
-	for i in ring.size():
-		shoved = shoved and ring[i].global_position.distance_to(ring_start[i]) > 1.0
-	expect("and shoved the lesser enemies round him back", shoved)
 	var cooldowns_ok: bool = true
 	for id in player.stats.cooldowns.keys():
 		cooldowns_ok = cooldowns_ok and float(player.stats.cooldowns[id]) <= float(cooldowns_before.get(id, 0.0)) + 0.001
 	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + 2.0 and player.health >= health_after_blow - 0.01 and cooldowns_ok)
 	await get_tree().create_timer(0.8).timeout
-	expect("no second Iron Recovery afterwards", player.iron_shoves == 1 and wt.has_weapon())
+	expect("he still has his weapon afterwards", wt.has_weapon())
 	# A second heavy blow while already down neither restarts nor stretches the fall.
 	await calm.call()
 	hit_hero.call(20.0, 2.7)
@@ -235,25 +224,24 @@ func _test_hero_knockdown() -> void:
 	player._apply_damage(500.0)
 	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(1.6).timeout
-	expect("a dead hero never gets up, and no Iron Recovery fires from the fall", player.iron_shoves == 0 and kd.get_ups == 0 and not kd.active())
+	expect("a dead hero never gets up", kd.get_ups == 0 and not kd.active())
 	expect("his weapon is not lost to the fall", wt.has_weapon())
 	# Revive.
 	player.revive_at(Vector3.ZERO)
 	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and wt.can_begin() and absf(player.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(0.3).timeout
-	expect("and no stray Iron Recovery arrives after the revive", player.iron_shoves == 0)
 	hit_hero.call(20.0, 2.7)
 	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
 	await get_tree().create_timer(Knockdown.TOTAL_TIME + 0.4).timeout
-	expect("and gets up again, once", not kd.active() and kd.get_ups == 1 and player.iron_shoves == 1)
+	expect("and gets up again, once", not kd.active() and kd.get_ups == 1)
 	for e in ring:
 		e.queue_free()
 	foe.queue_free()
 	player.stats.cooldowns.clear()
 
 ## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage
-## and is stunned, and one that hits another monster hurts it and knocks it down; Ramming turns a full Skewer's leftovers into
-## knocked-down, thrown-aside monsters (the big ones stunned far longer); and a ranged monster that is hit while backing away is snared.
+## and is stunned, and one that hits another monster hurts it and knocks it down; a full Skewer's leftovers are knocked down and
+## thrown aside; and a ranged monster that is hit while backing away is snared.
 func _test_knockdown() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -356,20 +344,16 @@ func _test_knockdown() -> void:
 		and String(front.last_result.get("skill_id", "")) == "impact")
 	front.queue_free()
 	behind.queue_free()
-	# 4. A full blade's leftovers are knocked down and thrown aside; with Ramming a big one is stunned far longer.
-	var armour: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.RARE, 1, "charger")
+	# 4. A full blade's leftovers are knocked down and thrown aside.
 	var skewer: SkewerSkill = skills.p.skewer
 	var skewer_def: Dictionary = SkillDb.all()["skewer"]
-	var run_lane: Callable = func(with_ram: bool) -> Dictionary:
+	var run_lane: Callable = func() -> Dictionary:
 		for node in get_tree().get_nodes_in_group("enemies"):
 			node.queue_free()
 		await get_tree().process_frame
 		player.global_position = Vector3.ZERO
 		player.reset_physics_interpolation()
-		if with_ram:
-			player.stats.equip(armour, false)
-		else:
-			player.stats.equipment.erase(Items.Slot.ARMOR)
+		player.stats.equipment.erase(Items.Slot.ARMOR)
 		skewer.skewer_dir = Vector3(0, 0, 1)
 		skewer.skewer_impaled.clear()
 		skewer.big_hit.clear()
@@ -384,18 +368,14 @@ func _test_knockdown() -> void:
 		await get_tree().create_timer(0.3).timeout
 		var overflow: Enemy = lane[3]
 		var out: Dictionary = {"overflow_down": is_instance_valid(overflow) and (overflow.is_ragdolled() or overflow.stun_time > 0.0),
-			"overflow_moved": is_instance_valid(overflow) and absf(overflow.global_position.x) > 0.6, "brute_stun": brute.stun_time}
+			"overflow_moved": is_instance_valid(overflow) and absf(overflow.global_position.x) > 0.6}
 		for e in skewer.skewer_impaled:
 			if is_instance_valid(e):
 				e.set_impaled(false)
 		skewer.skewer_impaled.clear()
 		return out
-	var plain: Dictionary = await run_lane.call(false)
-	var rammed: Dictionary = await run_lane.call(true)
-	expect("the fourth enemy in the lane is knocked down and thrown aside, Ramming or not", plain["overflow_down"] and plain["overflow_moved"]
-		and rammed["overflow_down"] and rammed["overflow_moved"])
-	expect("with Ramming the big one is stunned much longer (%.1f vs %.1f)" % [rammed["brute_stun"], plain["brute_stun"]],
-		float(rammed["brute_stun"]) > float(plain["brute_stun"]) * 2.0)
+	var plain: Dictionary = await run_lane.call()
+	expect("the fourth enemy in the lane is knocked down and thrown aside", plain["overflow_down"] and plain["overflow_moved"])
 	player.stats.equipment.erase(Items.Slot.ARMOR)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()

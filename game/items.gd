@@ -1,10 +1,9 @@
 class_name Items
 extends RefCounted
-## Item data and reward generation. Design rule: base items are plain and fixed; the only variation
-## is a behaviour (affix) that changes how you play. No random stat lines.
-## The base items are data (ItemDef in res://data/items/, through ItemDb). An item in the world is a Dictionary built from one:
-## {def, tier, slot, rarity, name, base, stats, affix, flavor}. Only `def`, `tier`, `rarity`, `affix` (and the name of a unique) are
-## saved (see to_save / from_save): everything else is looked up again from the definition when the item is loaded.
+## Item data and reward generation. The base items are data (ItemDef in res://data/items/, through ItemDb). An item in the world is a
+## Dictionary built from one: {def, tier, slot, rarity, name, base, stats}. Only `def`, `tier` and `rarity` are saved (see to_save /
+## from_save): everything else is looked up again from the definition when the item is loaded.
+## (The behaviour affixes and the three uniques are gone; Dungeon Siege II's item levels, rarities and numeric affixes replace them.)
 
 enum Slot { WEAPON, ARMOR, TRINKET }
 enum Rarity { COMMON, RARE, UNIQUE }
@@ -13,47 +12,31 @@ const SLOT_NAMES: Array[String] = ["Weapon", "Armor", "Trinket"]
 const RARITY_NAMES: Array[String] = ["Common", "Rare", "Unique"]
 const RARITY_COLORS: Array[Color] = [Color(0.82, 0.82, 0.82), Color(0.45, 0.72, 1.0), Color(1.0, 0.62, 0.18)]
 
-## Affixes (id -> {title, slot, desc}) come from res://data/affixes/*.tres through AffixDb. Every one is a behaviour, not a number.
-
-const UNIQUES := [
-	{"name": "Gravewarden", "slot": Slot.WEAPON, "base": "Greatsword", "affix": "gravewarden",
-		"flavor": "Pulled from a grave that was not empty."},
-	{"name": "Aegis of the Fallen", "slot": Slot.ARMOR, "base": "Plate Cuirass", "affix": "aegis",
-		"flavor": "Dented by every blow that missed you."},
-	{"name": "Ember Signet", "slot": Slot.TRINKET, "base": "Signet", "affix": "ember",
-		"flavor": "Still warm."},
-]
-
 static func starting_gear() -> Array[Dictionary]:
-	return [make(Slot.WEAPON, Rarity.COMMON, 1, "", "Longsword"), make(Slot.ARMOR, Rarity.COMMON, 1, "", "Leather Jerkin")]
+	return [make(Slot.WEAPON, Rarity.COMMON, 1, "Longsword"), make(Slot.ARMOR, Rarity.COMMON, 1, "Leather Jerkin")]
 
 ## Builds one item. `tier` scales the fixed numbers slowly with progress (no random variance).
-static func make(slot: int, rarity: int, tier: int, affix: String = "", base_name: String = "") -> Dictionary:
+static func make(slot: int, rarity: int, tier: int, base_name: String = "") -> Dictionary:
 	var bases: Array[ItemDef] = ItemDb.of_slot(slot)
 	var def: ItemDef = bases[randi() % bases.size()]
 	if base_name != "":
 		var named: ItemDef = ItemDb.by_name(base_name)
 		if named != null and named.slot == slot:
 			def = named
-	return build(def, tier, rarity, affix)
+	return build(def, tier, rarity)
 
-## An item instance from its definition. Everything but def, tier, rarity and affix is derived.
-static func build(def: ItemDef, tier: int, rarity: int, affix: String = "") -> Dictionary:
-	var name: String = def.display_name
-	if affix != "" and rarity == Rarity.RARE:
-		name = "%s %s" % [AffixDb.all()[affix]["title"], name]
-	return {"def": def.id, "tier": tier, "slot": def.slot, "rarity": rarity, "name": name, "base": def.display_name,
-		"stats": def.stats_at(tier), "affix": affix, "flavor": ""}
+## An item instance from its definition. Everything but def, tier and rarity is derived.
+static func build(def: ItemDef, tier: int, rarity: int) -> Dictionary:
+	return {"def": def.id, "tier": tier, "slot": def.slot, "rarity": rarity, "name": def.display_name, "base": def.display_name,
+		"stats": def.stats_at(tier)}
 
 ## What is written to a save: just enough to build the item again.
 static func to_save(item: Dictionary) -> Dictionary:
-	var saved: Dictionary = {"def": item["def"], "tier": int(item["tier"]), "rarity": int(item["rarity"]), "affix": String(item["affix"])}
-	if int(item["rarity"]) == Rarity.UNIQUE:
-		saved["unique"] = item["name"]
-	return saved
+	return {"def": item["def"], "tier": int(item["tier"]), "rarity": int(item["rarity"])}
 
 ## Builds an item from a saved one. Takes the current form and the form from before definitions (a whole item dictionary with a base
-## name and its stats), so old saves load. Returns {} if the base no longer exists, or the affix no longer exists on a non-common item.
+## name and its stats), so old saves load. Returns {} if the base no longer exists. An old affix or unique name is ignored (a unique comes
+## back as a plain rare of its base).
 static func from_save(saved: Dictionary) -> Dictionary:
 	var def: ItemDef = ItemDb.get_def(String(saved.get("def", "")))
 	var tier: int = int(saved.get("tier", 0))
@@ -63,24 +46,8 @@ static func from_save(saved: Dictionary) -> Dictionary:
 			tier = def.tier_of(saved.get("stats", {}))
 	if def == null:
 		return {}
-	var rarity: int = int(saved.get("rarity", Rarity.COMMON))
-	var affix: String = String(saved.get("affix", ""))
-	if affix != "" and not AffixDb.all().has(affix):
-		return {}
-	var item: Dictionary = build(def, maxi(tier, 1), rarity, affix)
-	if rarity == Rarity.UNIQUE:
-		var wanted: String = String(saved.get("unique", saved.get("name", "")))
-		for entry in UNIQUES:
-			if entry["name"] == wanted:
-				item["name"] = entry["name"]
-				item["flavor"] = entry["flavor"]
-	return item
-
-static func make_unique(entry: Dictionary, tier: int) -> Dictionary:
-	var item: Dictionary = make(entry["slot"], Rarity.UNIQUE, tier, entry["affix"], entry["base"])
-	item["name"] = entry["name"]
-	item["flavor"] = entry["flavor"]
-	return item
+	var rarity: int = mini(int(saved.get("rarity", Rarity.COMMON)), Rarity.RARE)
+	return build(def, maxi(tier, 1), rarity)
 
 ## The item tier a source of this threat drops (see WorldThreat). Item tier and threat are DIFFERENT SCALES and their numbers are not meant
 ## to match: this is a loot-progression mapping, provisional, and it deliberately keeps the early road's loot as it was before the world
@@ -94,56 +61,27 @@ static func tier_for_source(source_threat: float) -> int:
 static func tier_for_wave(wave: int) -> int:
 	return 1 + wave / 3
 
-## One random item of the given numerical `tier` (1 and up). `unique_chance` and `rare_chance` are the odds of each (otherwise common);
-## trinkets are never common. The tier says how strong the numbers are; the chances say how special the item is: separate things.
-static func roll_one(tier: int, unique_chance: float, rare_chance: float, owned_uniques: Array[String]) -> Dictionary:
-	tier = maxi(tier, 1)
-	var slot: int = randi() % 3
-	var roll: float = randf()
-	var rarity: int = Rarity.COMMON
-	if roll < unique_chance:
-		rarity = Rarity.UNIQUE
-	elif roll < unique_chance + rare_chance:
-		rarity = Rarity.RARE
-	if slot == Slot.TRINKET and rarity == Rarity.COMMON:
-		rarity = Rarity.RARE
-	var item: Dictionary = {}
-	if rarity == Rarity.UNIQUE:
-		var pool: Array[Dictionary] = []
-		for entry in UNIQUES:
-			if entry["slot"] == slot and not (entry["name"] in owned_uniques):
-				pool.append(entry)
-		if pool.is_empty():
-			rarity = Rarity.RARE
-		else:
-			item = make_unique(pool[randi() % pool.size()], tier)
-	if rarity == Rarity.RARE:
-		var ids: Array[String] = []
-		for id in AffixDb.all():
-			if AffixDb.all()[id]["slot"] == slot and AffixDb.all()[id]["title"] != "":
-				ids.append(id)
-		item = make(slot, Rarity.RARE, tier, ids[randi() % ids.size()])
-	elif rarity == Rarity.COMMON:
-		item = make(slot, Rarity.COMMON, tier)
-	return item
+## One random item of the given numerical `tier` (1 and up), a weapon or an armour; `rare_chance` is the odds of a rare (otherwise common).
+## The tier says how strong the numbers are; the chance says how special the item is: separate things.
+static func roll_one(tier: int, rare_chance: float) -> Dictionary:
+	var slot: int = randi() % 2   # (trinkets had nothing but an affix: none drop until DS2 jewellery replaces them)
+	return make(slot, Rarity.RARE if randf() < rare_chance else Rarity.COMMON, maxi(tier, 1))
 
 ## What a dead monster drops, as an item of `tier` (from its source: `tier_for_source`). `luck` 0 is an ordinary monster; 1 is a Brute
-## (guaranteed rare or better, a fair chance of a unique): luck changes the rarity, never the tier.
-static func roll_drop(tier: int, luck: float, owned_uniques: Array[String]) -> Dictionary:
-	var unique_chance: float = (0.20 if luck >= 1.0 else (0.08 if tier >= 3 else 0.04))
-	var rare_chance: float = 1.0 if luck >= 1.0 else 0.55
-	return roll_one(tier, unique_chance, rare_chance, owned_uniques)
+## (a guaranteed rare): luck changes the rarity, never the tier.
+static func roll_drop(tier: int, luck: float) -> Dictionary:
+	return roll_one(tier, 1.0 if luck >= 1.0 else 0.55)
 
-## Three different items (the trader's stock). Brutes guarantee at least rare; trinkets are always rare or better.
-static func roll_choices(tier: int, brute_killed: bool, owned_uniques: Array[String]) -> Array[Dictionary]:
+## Three different items (the trader's stock). Brutes guarantee rares.
+static func roll_choices(tier: int, brute_killed: bool) -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
 	var attempts: int = 0
 	while choices.size() < 3 and attempts < 40:
 		attempts += 1
-		var item: Dictionary = roll_drop(tier, 1.0 if brute_killed else 0.0, owned_uniques)
+		var item: Dictionary = roll_drop(tier, 1.0 if brute_killed else 0.0)
 		var duplicate: bool = false
 		for existing in choices:
-			if existing["name"] == item["name"]:
+			if existing["name"] == item["name"] and existing["rarity"] == item["rarity"]:
 				duplicate = true
 		if not duplicate:
 			choices.append(item)
@@ -166,13 +104,6 @@ static func compare(item: Dictionary, current: Variant) -> Array[Dictionary]:
 			_diff(out, "Armor", float(a["armor"]), float(b["armor"]), true, "%d")
 			_diff(out, "Roll cost", float(a["roll_cost"]), float(b["roll_cost"]), false, "x%.1f")
 			_diff(out, "Roll speed", float(a["roll_speed"]), float(b["roll_speed"]), true, "x%.1f")
-	var new_affix: String = String(item["affix"])
-	var old_affix: String = String(worn["affix"])
-	if new_affix != old_affix:
-		if new_affix != "":
-			out.append({"text": "Gains: %s" % AffixDb.all()[new_affix]["title"], "sign": 1})
-		if old_affix != "":
-			out.append({"text": "Loses: %s" % AffixDb.all()[old_affix]["title"], "sign": -1})
 	if out.is_empty():
 		out.append({"text": "Same as what you wear", "sign": 0})
 	return out
@@ -189,7 +120,7 @@ static func _diff(out: Array[Dictionary], label: String, value: float, other: fl
 static func model_path(item: Dictionary) -> String:
 	return ItemDb.get_def(String(item["def"])).model_path
 
-## Text lines for a tooltip/card: stats first, then the behaviour.
+## Text lines for a tooltip/card.
 static func lines(item: Dictionary) -> Array[String]:
 	var out: Array[String] = []
 	var stats: Dictionary = item["stats"]
@@ -201,10 +132,4 @@ static func lines(item: Dictionary) -> Array[String]:
 				out.append(style)
 		Slot.ARMOR:
 			out.append("Armor %d    Roll cost x%.1f    Roll speed x%.1f" % [stats["armor"], stats["roll_cost"], stats["roll_speed"]])
-		Slot.TRINKET:
-			out.append("No stats. Only an effect.")
-	if item["affix"] != "":
-		out.append(AffixDb.all()[item["affix"]]["desc"])
-	if item["flavor"] != "":
-		out.append("\"%s\"" % item["flavor"])
 	return out

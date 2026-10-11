@@ -1,53 +1,24 @@
 extends DevSuite
-## Self-test: items, loot drops and their UI, names, icons, destructibles and affixes.
+## Self-test: items, loot drops and their UI, names, icons and destructibles.
 
-## Equips every affix in turn and drives each hook (hit, kill, roll, incoming damage, skills) against dummies.
+## Items with the behaviour affixes gone: every base builds at any tier with no affix, a Brute's luck always gives a rare, monsters drop
+## only weapons and armour (trinkets had nothing but an affix), and the trader still offers three different pieces.
 func _test_items() -> void:
-	var failures: int = 0
-	var dummies: Array[Enemy] = []
-	for i in 4:
-		var z: Enemy = _spawn_enemy(Vector3(2.0 + i * 0.8, 0, 1.0 + (i % 2) * 0.6))
-		z.aggro_range = 0.0
-		z.max_health = 400.0
-		z.health = 400.0
-		dummies.append(z)
-	await get_tree().process_frame
-	var saved: Dictionary = player.stats.equipment.duplicate()
-	for id in AffixDb.all():
-		var slot: int = AffixDb.all()[id]["slot"]
-		var item: Dictionary = Items.make(slot, Items.Rarity.RARE, 1, id)
-		player.stats.equip(item, false)
-		if not player.stats.has_affix(id):
-			failures += 1
-			print("  AFFIX NOT ACTIVE: ", id)
-		var target: Enemy = dummies[0]
-		var result: Dictionary = Combat.resolve(player, target, 20.0, Combat.DamageType.PHYSICAL, false, 1.0, true)
-		result["finisher"] = true
-		target.receive(result, player.global_position)
-		ItemEffects.on_kill(player, target)
-		ItemEffects.on_roll_start(player)
-		ItemEffects.power_shockwave(player, Vector3(1, 0, 0))
-		var incoming: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 10.0, "weight": 1.0}
-		ItemEffects.filter_incoming(player, incoming)
-		for d in dummies:
-			d.health = d.max_health
-			d.bleed_time = 0.0
-			d.slow_time = 0.0
-		player.stats.cooldowns.clear()
-		player.stats.haste_time = 0.0
-		player.stats.vault_time = 0.0
-		player.stats.chain_time = 0.0
-		await get_tree().process_frame
-	var choices: Array[Dictionary] = Items.roll_choices(5, true, [])
-	expect("every affix is driven by its hook", failures == 0)
+	var plain: bool = true
+	for def in ItemDb.all().values():
+		for tier in [1, 3]:
+			var item: Dictionary = Items.build(def, tier, Items.Rarity.RARE)
+			plain = plain and not item.has("affix") and item["name"] == def.display_name and int(item["tier"]) == tier
+	expect("every base builds at any tier, named for its base, with no affix", plain)
+	var rolls_ok: bool = true
+	for i in 60:
+		var lucky: Dictionary = Items.roll_drop(2, 1.0)
+		var any: Dictionary = Items.roll_drop(2, 0.0)
+		rolls_ok = rolls_ok and int(lucky["rarity"]) == Items.Rarity.RARE and int(any["slot"]) != Items.Slot.TRINKET and int(lucky["slot"]) != Items.Slot.TRINKET
+	expect("a Brute's luck always gives a rare, and no trinket drops", rolls_ok)
+	var choices: Array[Dictionary] = Items.roll_choices(5, true)
 	expect("reward offers 3 choices", choices.size() == 3)
-	print("  items: ", AffixDb.all().size(), " affixes driven; reward choices=", choices.size(), " (brute offer: ",
-		", ".join(choices.map(func(c): return c["name"])), "), failures=", failures)
-	for d in dummies:
-		d.queue_free()
-	player.stats.equipment = saved
-	player.armor = player.stats.base_armor + player.stats.armor_stat("armor", 0.0)
-	player.health = player.max_health
+	print("  items: reward choices=", choices.size(), " (brute offer: ", ", ".join(choices.map(func(c): return c["name"])), ")")
 	await get_tree().process_frame
 
 ## Monsters drop items instead of the old between-wave reward: the odds, the models, walking over a drop, upgrades being put on and
@@ -68,13 +39,13 @@ func _test_loot() -> void:
 	var common_brute: int = 0
 	var rare_or_better: int = 0
 	for i in 200:
-		if int(Items.roll_drop(5, 1.0, [])["rarity"]) == Items.Rarity.COMMON:
+		if int(Items.roll_drop(5, 1.0)["rarity"]) == Items.Rarity.COMMON:
 			common_brute += 1
-		if int(Items.roll_drop(2, 0.0, [])["rarity"]) >= Items.Rarity.RARE:
+		if int(Items.roll_drop(2, 0.0)["rarity"]) >= Items.Rarity.RARE:
 			rare_or_better += 1
 	expect("a Brute's drop is always rare or better", common_brute == 0)
-	# About 73% of 200 are rare or better (a rare roll, plus every common trinket made rare): a spread of six sigma either side.
-	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 90 and rare_or_better < 188)
+	# About 55% of 200 are rare (110, sigma about 7): a spread of five sigma either side.
+	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 75 and rare_or_better < 145)
 	expect("only monsters that should drop do", EnemyDb.get_def("brute").drop_chance > EnemyDb.get_def("zombie").drop_chance
 		and EnemyDb.get_def("zombie").drop_chance > 0.0)
 	# The old reward screen is gone.
@@ -105,16 +76,12 @@ func _test_loot() -> void:
 	var saved_bag: Array[Dictionary] = stats.bag.duplicate(true)
 	stats.equipment = {}
 	stats.bag = []
-	var plain: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword")
+	var plain: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword")
 	stats.pickup(plain)
 	expect("an empty slot takes whatever is picked up", stats.equipment.get(Items.Slot.WEAPON, {}).get("name") == "Longsword" and stats.bag.is_empty())
-	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Falchion"))
+	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Falchion"))
 	expect("a second weapon goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 1)
-	var fancy: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")
-	for id in AffixDb.all():
-		if AffixDb.all()[id]["slot"] == Items.Slot.WEAPON and AffixDb.all()[id]["title"] != "":
-			fancy = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, id)
-			break
+	var fancy: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Greatsword")
 	stats.pickup(fancy)
 	expect("a rarer weapon is never swapped in on its own: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 2)
 	for i in 20:
@@ -124,7 +91,7 @@ func _test_loot() -> void:
 	stats.bag = []
 	player.global_position = Vector3(-30, 0, -30)   # well away, so the drop is not picked up as it lands
 	player.reset_physics_interpolation()
-	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Mail Hauberk"))
+	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Mail Hauberk"))
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
 	player.global_position = walk.global_position + Vector3(0.5, 0, 0)
 	await get_tree().create_timer(0.5).timeout
@@ -135,7 +102,7 @@ func _test_loot() -> void:
 	# The hero holds what is equipped: each weapon shows its own model, and longer weapons are longer in the hand.
 	var held_length: Dictionary = {}
 	for base_name in ["Falchion", "Longsword", "Greatsword"]:
-		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", base_name), false)
+		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, base_name), false)
 		await get_tree().process_frame
 		var tip_y: float = player.model.weapon_tip.position.y
 		held_length[base_name] = tip_y
@@ -159,8 +126,8 @@ func _test_loot_ui() -> void:
 	await get_tree().process_frame
 	expect("enemies notice the hero from a shorter range", EnemyDef.new().aggro_range <= 12.5 and EnemyDb.get_def("zombie").aggro_range <= 12.5)
 	# Comparison.
-	var longsword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword")
-	var great: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword")
+	var longsword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword")
+	var great: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword")
 	var lines: Array[Dictionary] = Items.compare(great, longsword)
 	var damage_better: bool = false
 	var speed_worse: bool = false
@@ -172,8 +139,8 @@ func _test_loot_ui() -> void:
 	expect("a greatsword hits harder and swings slower than a longsword", damage_better and speed_worse)
 	expect("an empty slot says so", Items.compare(great, null)[0]["text"] == "Nothing worn in this slot")
 	expect("the same item compares as the same", Items.compare(longsword, longsword)[0]["sign"] == 0)
-	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Leather Jerkin")
-	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "", "Plate Cuirass")
+	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Leather Jerkin")
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Plate Cuirass")
 	var armour_lines: Array[Dictionary] = Items.compare(plate, leather)
 	var cost_worse: bool = false
 	for entry in armour_lines:
@@ -182,7 +149,7 @@ func _test_loot_ui() -> void:
 	expect("heavier armour costs more to roll in", cost_worse)
 	# Scale with distance, marker, focus.
 	player.global_position = Vector3(0, 0, 0)
-	var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -4), Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "", "Falchion"))
+	var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -4), Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.4).timeout
 	expect("a drop is the item itself, with no icon or 3D text on it", drop.get_node("Model") != null and drop.find_children("*", "Sprite3D", true, false).is_empty()
 		and drop.find_children("*", "Label3D", true, false).is_empty())
@@ -219,12 +186,12 @@ func _test_item_icons() -> void:
 		if ItemIcons.icon_for(Items.build(def, 1, Items.Rarity.RARE)) == null:
 			missing.append(def.display_name)
 	expect("every base item has an icon (%s missing)" % ", ".join(missing), missing.is_empty())
-	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.UNIQUE, 1, "", "Greatsword")
+	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Greatsword")
 	var badge: Texture2D = ItemIcons.badge(item)
 	expect("an item's badge is its picture in a frame", badge != null and badge.get_width() == 96 and ItemIcons.badge(item) == badge)
-	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Greatsword"))
+	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword"))
 	expect("rarity changes the frame", common_badge.get_image().get_pixel(3, 40) != badge.get_image().get_pixel(3, 40))
-	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "", "Longsword"))
+	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"))
 	add_child(tile)
 	tile.mouse_entered.emit()   # pointing at the picture shows the card at once (the buttons beside it show nothing)
 	var card: Control = null
@@ -337,202 +304,6 @@ func _test_destructibles() -> void:
 	await get_tree().process_frame
 	expect("a blast breaks what is inside it", Destructible.blast(get_tree(), Vector3(14, 0, 14.5), 2.0, 80.0) == 1)
 	for node in get_tree().get_nodes_in_group("debris"):
-		node.queue_free()
-	await get_tree().process_frame
-
-## The new gear affixes (the six dull ones are gone): each does what it says, using the same moves and states the skills create.
-func _test_new_affixes() -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	# The catalogue.
-	var removed: Array = ["frostbite", "momentum", "last_stand", "riposte", "warding", "windfall"]
-	var gone: bool = true
-	for id in removed:
-		gone = gone and not AffixDb.all().has(id)
-	expect("the six dull affixes are gone", gone)
-	var counts: Dictionary = {0: 0, 1: 0, 2: 0}
-	var described: bool = true
-	for id in AffixDb.all():
-		var entry: Dictionary = AffixDb.all()[id]
-		described = described and String(entry["desc"]) != ""
-		if String(entry["title"]) != "":
-			counts[int(entry["slot"])] += 1
-	expect("9 weapon, 5 armor and 6 trinket affixes can roll on rares", counts[0] == 9 and counts[1] == 5 and counts[2] == 6)
-	expect("every affix is described", described)
-	var pips_ok: bool = true
-	for skill_id in SkillDb.all():
-		for affix_id in SkillDb.modifier_affixes(skill_id):
-			pips_ok = pips_ok and AffixDb.all().has(affix_id)
-	expect("every skill's list of affixes that change it names real ones", pips_ok)
-	expect("Cleave and Whirling are absent from playable definitions and loot", not SkillDb.all().has("cleave") and not AffixDb.all().has("whirlpool")
-		and not player.skills.hotbar.has("cleave") and player.skills.hotbar.size() == 6)
-
-	var saved: Dictionary = player.stats.equipment.duplicate()
-	player.global_position = Vector3(0, 0, 0)
-	player.reset_physics_interpolation()
-	player.stats.mana = player.stats.max_mana
-	var a: Enemy = _spawn_enemy(Vector3(6, 0, 0))
-	var b: Enemy = _spawn_enemy(Vector3(7.2, 0, 0))
-	var far: Enemy = _spawn_enemy(Vector3(-20, 0, 0))
-	for e in [a, b, far]:
-		e.aggro_range = 0.0
-		e.max_health = 3000.0
-		e.health = 3000.0
-	await get_tree().process_frame
-
-	# Kindling: burning enemies take 50% more, and the fire jumps to the neighbour.
-	_wear("kindling", 0)
-	expect("a hit on a cold enemy is plain", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.0))
-	a.apply_burn(5.0, 4.0)
-	expect("a hit on a burning enemy does 50% more", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.5))
-	var hit: Dictionary = Combat.resolve(player, a, 10.0, Combat.DamageType.PHYSICAL, false, 1.0, true)
-	a.receive(hit, player.global_position)
-	ItemEffects.on_dealt_hit(player, a, hit)
-	expect("the fire jumps to the enemy next to it", b.is_burning() and not far.is_burning())
-	a.stop_burning()
-	b.stop_burning()
-
-	# Juggler's: an enemy thrown into the air takes 80% more and is knocked back up.
-	_wear("juggler", 0)
-	a.ragdoll_launch(Vector3(0, 0, 4), 6.0, Vector3(3, 0, 0))
-	await get_tree().process_frame
-	expect("a thrown enemy is airborne", ItemEffects.is_airborne(a))
-	expect("hits on it do 80% more", is_equal_approx(ItemEffects.outgoing_multiplier(player, a), 1.8))
-	expect("hits on a grounded enemy do not", is_equal_approx(ItemEffects.outgoing_multiplier(player, far), 1.0))
-	await get_tree().create_timer(0.4).timeout   # now on its way down
-	expect("it is falling", ItemEffects.is_airborne(a) and a.ragdoll._vy < 0.0)
-	ItemEffects.on_dealt_hit(player, a, hit)
-	expect("the hit knocks it back up", ItemEffects.is_airborne(a) and a.ragdoll._vy > 3.0)
-	await get_tree().create_timer(2.5).timeout
-
-	# Breaker's: stunned or downed enemies are always crit.
-	_wear("breaker", 0)
-	far.stun_time = 0.0
-	expect("a healthy enemy is not a guaranteed crit", not ItemEffects.guaranteed_crit(player, far))
-	far.stun_time = 1.0
-	expect("a stunned one is", ItemEffects.guaranteed_crit(player, far))
-	far.stun_time = 0.0
-	far.ragdoll_launch(Vector3(0, 0, 3), 5.0, Vector3(2, 0, 0))
-	await get_tree().process_frame
-	expect("a knocked-down one is", ItemEffects.guaranteed_crit(player, far))
-	await get_tree().create_timer(3.0).timeout
-
-	# Maelstrom: the Greatsword finisher stuns its target and another enemy caught by the slam.
-	player.stats.equipment = {}
-	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "maelstrom", "Greatsword"), false)
-	for e in [a, b]:
-		e.global_position = player.global_position + (Vector3(0, 0, 1.4) if e == a else Vector3(0.6, 0, 2.0))
-		e.stun_time = 0.0
-	await get_tree().process_frame
-	player.skills.combo_step = 2
-	player.skills.start_skill("basic", a, a.global_position)
-	var longest: float = 0.0
-	var t: float = 0.0
-	while t < 1.8:
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-		longest = maxf(longest, minf(a.stun_time, b.stun_time))
-	expect("Maelstrom stuns the Greatsword finisher target and its slam victim for about a second (%.2f)" % longest, longest >= 0.8)
-	await get_tree().create_timer(1.5).timeout
-	for e in [a, b]:
-		e.global_position = Vector3(6, 0, 0) if e == a else Vector3(7.2, 0, 0)
-		e.stun_time = 0.0
-
-	# Impaler's and Ramming: the Skewer kick.
-	_wear("impaler", 0)
-	var before: float = b.health
-	ItemEffects.impaler_burst(player, a, Vector3(6, 0, 0))
-	expect("an enemy kicked off the blade bursts and hurts the one beside it", b.health < before)
-
-	# Ember-Treaded: the trail sets an enemy standing on it alight.
-	_wear("cinder_roll", 1)
-	far.global_position = player.global_position + Vector3(0.6, 0, 0)
-	far.stop_burning()
-	ItemEffects.on_roll_start(player)
-	await get_tree().create_timer(0.5).timeout
-	expect("an enemy on the embers catches fire", far.is_burning())
-	far.global_position = Vector3(-20, 0, 0)
-	far.stop_burning()
-
-	# Vaultborn: a Leap landing makes the next Power Strike free.
-	_wear("vaultborn", 1)
-	player.stats.mana = 0.0
-	player.stats.cooldowns["power"] = 5.0
-	expect("without a Leap, Power Strike is not available", not player.stats.can_use("power"))
-	ItemEffects.on_leap_land(player)
-	expect("after a Leap landing it is, with no mana and no cooldown", player.stats.can_use("power") and player.stats.vault_time > 0.0)
-	a.global_position = player.global_position + Vector3(1.4, 0, 0)
-	player.skills.start_skill("power", a, null)
-	expect("using it spends nothing", player.stats.mana == 0.0 and float(player.stats.cooldowns["power"]) == 5.0 and player.stats.vault_time == 0.0)
-	await get_tree().create_timer(2.0).timeout
-	player.skills.cancel_action()
-	player.stats.mana = player.stats.max_mana
-
-	# Smouldering: being hit sets the enemies close to you alight.
-	_wear("smouldering", 1)
-	a.global_position = player.global_position + Vector3(2.0, 0, 0)
-	far.global_position = Vector3(-20, 0, 0)
-	a.stop_burning()
-	ItemEffects.on_player_hurt(player)
-	expect("a close enemy catches fire when you are hit, a far one does not", a.is_burning() and not far.is_burning())
-	a.stop_burning()
-
-	# Wildfire: a Fireball that catches three or more.
-	_wear("wildfire", 2)
-	player.stats.cooldowns["fireball"] = 5.5
-	ItemEffects.on_fireball_blast(player, 2)
-	expect("two enemies in the blast earn nothing", float(player.stats.cooldowns["fireball"]) == 5.5)
-	ItemEffects.on_fireball_blast(player, 3)
-	expect("three earn 3 seconds off the cooldown", is_equal_approx(float(player.stats.cooldowns["fireball"]), 2.5))
-
-	# Virtuoso: different skills in a row stack; repeating drops them.
-	_wear("virtuoso", 2)
-	player.stats.chain_stacks = 0
-	player.stats.chain_time = 0.0
-	player.stats.chain_last = ""
-	ItemEffects.on_skill_start(player, "power")
-	expect("the first skill starts the streak with no bonus", player.stats.chain_stacks == 0 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.0))
-	ItemEffects.on_skill_start(player, "basic")
-	expect("a different second skill gives +20%", player.stats.chain_stacks == 1 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.2))
-	ItemEffects.on_skill_start(player, "fireball")
-	ItemEffects.on_skill_start(player, "skewer")
-	ItemEffects.on_skill_start(player, "leap")
-	expect("it stops at three stacks (+60%)", player.stats.chain_stacks == 3 and is_equal_approx(ItemEffects.virtuoso_multiplier(player), 1.6))
-	ItemEffects.on_skill_start(player, "leap")
-	expect("repeating a skill drops them", player.stats.chain_stacks == 0)
-	ItemEffects.on_skill_start(player, "power")
-	ItemEffects.on_skill_start(player, "basic")
-	player.stats.chain_time = 0.0
-	player._physics_process(0.016)
-	expect("the streak ends when its time runs out", player.stats.chain_stacks == 0)
-
-	# Quakebound: kills charge the ultimate.
-	_wear("quaker", 2)
-	player.stats.ult_charge = 0.0
-	ItemEffects.on_kill(player, far)
-	expect("a kill charges 4% of Earthshatter", is_equal_approx(player.stats.ult_charge, PlayerStats.MAX_ULT_CHARGE * 0.04))
-
-	# Pyrebound: a burning enemy that dies explodes.
-	_wear("pyre", 2)
-	a.global_position = Vector3(6, 0, 3)
-	b.global_position = Vector3(7.0, 0, 3)
-	a.stop_burning()
-	b.stop_burning()
-	a.health = 3000.0
-	b.health = 3000.0
-	var b_before: float = b.health
-	ItemEffects.on_kill(player, a)
-	expect("a cold kill explodes nothing", b.health == b_before and not b.is_burning())
-	a.apply_burn(5.0, 4.0)
-	ItemEffects.on_kill(player, a)
-	expect("a burning kill goes up: the neighbour is hurt and set alight", b.health < b_before and b.is_burning())
-
-	player.stats.equipment = saved
-	player.armor = player.stats.base_armor + player.stats.armor_stat("armor", 0.0)
-	player.stats.cooldowns.clear()
-	player.stats.ult_charge = PlayerStats.MAX_ULT_CHARGE
-	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame
 

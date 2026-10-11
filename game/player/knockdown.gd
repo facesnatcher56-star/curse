@@ -113,10 +113,8 @@ func _finish() -> void:
 	get_ups += 1
 	p.stun_time = 0.0
 	p.model.loop("idle_alert")
-	if p.has_passive("iron_recovery"):
-		p._iron_recovery()
 
-## Death and revival: the fall is simply over, with no get-up and no Iron Recovery.
+## Death and revival: the fall is simply over, with no get-up.
 func cancel() -> void:
 	if not active():
 		return

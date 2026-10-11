@@ -35,10 +35,6 @@ extends Resource
 ## Hold the key to aim a ground target, release to cast (Fireball).
 @export var aimed: bool = false
 
-@export_group("Gear")
-## Affixes that change how this skill behaves; a gold pip shows on its hotbar slot while one is worn.
-@export var modifier_affixes: Array[String] = []
-
 ## Anything else a particular skill needs (flags like "charged", "skewer", "leap", fireball timing, the combo table).
 @export var extra: Dictionary = {}
 

@@ -29,7 +29,7 @@ func _test_progression() -> void:
 	var none_neg: Dictionary = TownState.add_hero_xp(-50)
 	expect("zero and negative awards change nothing", TownState.hero_xp == before and int(none_zero["xp_gained"]) == 0 and int(none_neg["levels_gained"]) == 0)
 	var seen: Array = []
-	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: seen.append([old_level, new_level])
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int) -> void: seen.append([old_level, new_level])
 	TownState.events.hero_leveled.connect(on_level)
 	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(5) - TownState.hero_xp)
 	expect("one award can gain several levels (2 to 5)", TownState.hero_level == 5 and int(jump["levels_gained"]) == 3 and int(jump["old_level"]) == 2 and int(jump["new_level"]) == 5)
@@ -245,25 +245,24 @@ func _test_world_progression() -> void:
 		and uniques.all(func(q: QuestDef) -> bool: return q.unique_level >= 1.0 and q.unique_level <= 3.0))
 	plain.queue_free()
 	# Rarity is not tier.
-	var owned: Array[String] = []
 	var lucky_tiers: Array[int] = []
 	var lucky_rare: bool = true
 	var plain_commons: int = 0
 	var plain_tiers: Array[int] = []
 	for i in 120:
-		var lucky: Dictionary = Items.roll_drop(3, 1.0, owned)
+		var lucky: Dictionary = Items.roll_drop(3, 1.0)
 		lucky_tiers.append(int(lucky["tier"]))
 		lucky_rare = lucky_rare and int(lucky["rarity"]) >= Items.Rarity.RARE
-		var ordinary: Dictionary = Items.roll_drop(3, 0.0, owned)
+		var ordinary: Dictionary = Items.roll_drop(3, 0.0)
 		plain_tiers.append(int(ordinary["tier"]))
 		plain_commons += 1 if int(ordinary["rarity"]) == Items.Rarity.COMMON else 0
 	expect("a Brute's luck makes rarer items but not a higher tier", lucky_rare and lucky_tiers.all(func(t: int) -> bool: return t == 3)
 		and plain_tiers.all(func(t: int) -> bool: return t == 3) and plain_commons > 10)
 	# The shops and quest rewards do not read jobs done.
 	TownState.jobs_done = 0
-	var shop_a: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	var shop_a: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false)
 	TownState.jobs_done = 40
-	var shop_b: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false, owned)
+	var shop_b: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false)
 	var shop_tier: int = Items.tier_for_source(WorldThreat.MERCHANT_THREAT)
 	expect("merchant stock is a fixed explicit tier (%d), whatever has been done" % shop_tier,
 		shop_a.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier) and shop_b.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier))
@@ -477,7 +476,7 @@ func _test_xp() -> void:
 	# Levels from one reward: one event, one plate; the cap; the open character screen.
 	TownState.dev_set_hero_level(1)
 	var events: Array = []
-	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, _passive: int, _evolution: int) -> void: events.append([old_level, new_level])
+	var on_level: Callable = func(old_level: int, new_level: int, _xp: int) -> void: events.append([old_level, new_level])
 	TownState.events.hero_leveled.connect(on_level)
 	town.combat_hud._open_character()
 	var view: Control = town.combat_hud.character_panel
@@ -513,86 +512,6 @@ func _test_xp() -> void:
 	await get_tree().process_frame
 	TownState.reset()
 	Monsters.in_tests = false
-
-## What the hero's level earns: Passive Points at every even level, Evolution Points every third, derived from the level and never stored.
-func _test_level_rewards() -> void:
-	TownState.persist = false
-	TownState.reset()
-	var table: Array = [[1, 0, 0], [2, 1, 0], [3, 1, 1], [4, 2, 1], [6, 3, 2], [9, 4, 3], [12, 6, 4], [20, 10, 6], [30, 15, 10]]
-	var table_ok: bool = true
-	for row in table:
-		table_ok = table_ok and HeroProgression.passive_points_for_level(int(row[0])) == int(row[1]) and HeroProgression.evolution_points_for_level(int(row[0])) == int(row[2])
-	expect("the point schedule: L1 0/0, L2 1/0, L3 1/1, L6 3/2, L12 6/4, L20 10/6, L30 15/10", table_ok)
-	expect("above the cap there is nothing more (and below 1 nothing)", HeroProgression.passive_points_for_level(31) == 15 and HeroProgression.evolution_points_for_level(99) == 10
-		and HeroProgression.passive_points_for_level(0) == 0 and HeroProgression.evolution_points_for_level(-3) == 0)
-	var passive_levels: Array[int] = []
-	var evolution_levels: Array[int] = []
-	for level in range(2, HeroProgression.MAX_LEVEL + 1):
-		if HeroProgression.passive_points_for_level(level) > HeroProgression.passive_points_for_level(level - 1):
-			passive_levels.append(level)
-		if HeroProgression.evolution_points_for_level(level) > HeroProgression.evolution_points_for_level(level - 1):
-			evolution_levels.append(level)
-	expect("Passive Points come at every even level and Evolution Points at every third", passive_levels == [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
-		and evolution_levels == [3, 6, 9, 12, 15, 18, 21, 24, 27, 30])
-	# Awards report what they crossed.
-	var one: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(2))
-	expect("a one-level award to level 2 reports one Passive Point", int(one["passive_points_gained"]) == 1 and int(one["evolution_points_gained"]) == 0)
-	var three: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(3) - TownState.hero_xp)
-	expect("level 3 reports an Evolution Point", int(three["passive_points_gained"]) == 0 and int(three["evolution_points_gained"]) == 1)
-	var none: Dictionary = TownState.add_hero_xp(5)
-	expect("an award that does not level gives no points", int(none["passive_points_gained"]) == 0 and int(none["evolution_points_gained"]) == 0)
-	TownState.dev_set_hero_level(4)
-	var events: Array = []
-	var on_level: Callable = func(old_level: int, new_level: int, _xp: int, passive: int, evolution: int) -> void: events.append([old_level, new_level, passive, evolution])
-	TownState.events.hero_leveled.connect(on_level)
-	var jump: Dictionary = TownState.add_hero_xp(HeroProgression.xp_for_level(7) - TownState.hero_xp)
-	expect("4 to 7 crosses level 6 (and 5, 7): 1 Passive and 1 Evolution Point, counted from every level crossed", int(jump["passive_points_gained"]) == 1
-		and int(jump["evolution_points_gained"]) == 1 and int(jump["old_level"]) == 4 and int(jump["new_level"]) == 7)
-	expect("the level-up event carries the same totals, once", events == [[4, 7, 1, 1]])
-	var big: Dictionary = TownState.add_hero_xp(HeroProgression.max_xp())
-	expect("a jump from 7 to the cap reports all that was left (12 Passive, 8 Evolution)", int(big["passive_points_gained"]) == 12 and int(big["evolution_points_gained"]) == 8)
-	var past: Dictionary = TownState.add_hero_xp(1000)
-	expect("at the cap nothing more is earned", int(past["passive_points_gained"]) == 0 and TownState.passive_points_available() == 15 and TownState.evolution_points_available() == 10)
-	TownState.events.hero_leveled.disconnect(on_level)
-	# Derived, not saved: a level N hero has its entitlement the moment it loads.
-	TownState.reset()
-	TownState.dev_set_hero_level(20)
-	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
-	expect("the save holds no point counters (they are worked out from the level) and the version is unchanged", not saved.has("passive_points") and not saved.has("evolution_points")
-		and not saved.has("points") and int(saved["save_version"]) == TownState.SAVE_VERSION and saved.keys().filter(func(k: String) -> bool: return "point" in k).is_empty())
-	TownState.reset()
-	TownState.from_dict(TownState.migrate(saved))
-	expect("a loaded level 20 hero has 10 Passive and 6 Evolution Points with no level-ups replayed", TownState.hero_level == 20 and TownState.passive_points_available() == 10
-		and TownState.evolution_points_available() == 6)
-	TownState.reset()
-	TownState.apply_dev_progression(PackedStringArray(["--level=12"]))
-	expect("--level=12 gives 6 Passive and 4 Evolution Points", TownState.passive_points_available() == 6 and TownState.evolution_points_available() == 4)
-	expect("the text for a reward names both, with plurals", HeroProgression.points_text(1, 1) == "+1 Passive Point   +1 Evolution Point" and HeroProgression.points_text(2, 0) == "+2 Passive Points"
-		and HeroProgression.points_text(0, 0) == "")
-	# The screen and the plate.
-	TownState.reset()
-	var town := TownScene.new()
-	town.with_road = false
-	game.add_child(town)
-	await get_tree().process_frame
-	town.combat_hud._open_character()
-	var view: Control = town.combat_hud.character_panel
-	expect("a fresh character screen shows 0 and 0", view.points_label.text == "Passive Points 0     Evolution Points 0")
-	TownState.add_hero_xp(HeroProgression.xp_for_level(6))
-	expect("reaching level 6 puts both rewards on the one plate", town.combat_hud.level_toast_text == "LEVEL 6" and town.combat_hud.level_toast_points == "+3 Passive Points   +2 Evolution Points")
-	expect("the open character screen updates its totals", view.points_label.text == "Passive Points 3     Evolution Points 2" and view.level_label.text == "Level 6")
-	TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL)
-	town.combat_hud._open_character()
-	view = town.combat_hud.character_panel
-	await get_tree().process_frame
-	expect("at level 30 it shows 15 and 10, and MAX LEVEL", view.points_label.text == "Passive Points 15     Evolution Points 10" and view.xp_label.text == "MAX LEVEL"
-		and view.level_label.text == "Level 30")
-	var close_button: Button = view.find_children("*", "Button", true, false).back()
-	expect("the points line sits inside the panel and the Close button keeps focus", view.get_global_rect().encloses(view.points_label.get_global_rect())
-		and close_button.has_focus() and not view.points_label.get_global_rect().intersects(view.xp_bar.get_global_rect()))
-	town.queue_free()
-	await get_tree().process_frame
-	TownState.reset()
 
 ## Where a session may save: a developer session (any user argument) never uses the production save unless it says so, loudly.
 func _test_save_policy() -> void:
