@@ -79,9 +79,9 @@ func stance_ok(stance: String) -> bool:
 	var weapon: Variant = p.stats.equipment.get(Items.Slot.WEAPON)
 	match stance:
 		"melee":
-			return weapon != null and not p.stats.weapon_locked
+			return weapon != null
 		"two_handed":
-			return weapon != null and PlayerStats._two_handed(weapon) and not p.stats.weapon_locked
+			return weapon != null and PlayerStats._two_handed(weapon)
 		"shield":
 			return p.stats.equipment.has(Items.Slot.SHIELD)
 		"any":

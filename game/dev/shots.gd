@@ -127,102 +127,19 @@ func _gib_shots() -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_gib_%d.png" % i)
 	get_tree().quit()
 
-## `-- --skillshot=power`: hit a cluster of zombies and capture frames in %TEMP%/curse_melee_N.png.
-func _melee_shots(which: String) -> void:
+## `-- --skillshot=fireball`: cast on dummies and capture a frame every 0.12 s.
+func _skill_shots(_which: String) -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	player.stats.mana = player.stats.max_mana
 	player.set_physics_process(true)
-	var targets: Array[Enemy] = []
-	for pos in [Vector3(0.0, 0, -2.4), Vector3(1.2, 0, -2.9), Vector3(-1.3, 0, -2.2), Vector3(0.4, 0, -4.2), Vector3(2.0, 0, -1.0), Vector3(-2.2, 0, 0.8)]:
+	for pos in [Vector3(-1.2, 0, -4.2), Vector3(0.8, 0, -5.0), Vector3(2.2, 0, -3.8)]:
 		var z: Enemy = _spawn_enemy(pos)
 		z.aggro_range = 0.0
-		z.max_health = 900.0
-		z.health = 900.0
-		targets.append(z)
-	await get_tree().create_timer(0.6).timeout
-	player.skills.start_skill(which, targets[0], null)
-	for i in 22:
-		await get_tree().create_timer(0.08).timeout
-		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_melee_%d.png" % i)
-	get_tree().quit()
-
-## `-- --skillshot=leap`: leap onto a downed zombie (a stunned one stands beside it); frames in %TEMP%/curse_leap_N.png.
-func _leap_shots() -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	player.stats.mana = player.stats.max_mana
-	player.set_physics_process(true)
-	var downed: Enemy = _spawn_enemy(Vector3(0.3, 0, -5.5))
-	var dazed: Enemy = _spawn_enemy(Vector3(2.4, 0, -4.0))
-	for e in [downed, dazed]:
-		e.aggro_range = 0.0
-		e.max_health = 800.0
-		e.health = 800.0
-	dazed.stun_time = 6.0
-	await get_tree().create_timer(0.5).timeout
-	downed.ragdoll_launch(Vector3(0, 0, -2.0), 1.0, Vector3(3, 0, 0))
-	while not LeapSkill.is_downed(downed):
-		await get_tree().physics_frame
-	player.skills.try_directional("leap", downed.global_position)
-	for i in 24:
-		await get_tree().create_timer(0.1).timeout
-		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_leap_%d.png" % i)
-	get_tree().quit()
-
-## `-- --skillshot=earthshatter`: a crowd (one burning) around the hero, a full ultimate; frames in %TEMP%/curse_es_N.png.
-func _earthshatter_shots() -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	player.set_physics_process(true)
-	var crowd: Array[Enemy] = []
-	for i in 14:
-		var angle: float = TAU * float(i) / 14.0 + 0.2
-		var radius: float = 2.6 + float(i % 3) * 1.6
-		var z: Enemy = _spawn_enemy(player.global_position + Vector3(sin(angle), 0, cos(angle)) * radius, "zombie" if i % 4 else "brute")
-		z.aggro_range = 0.0
-		z.max_health = 900.0
-		z.health = 900.0
-		crowd.append(z)
-	await get_tree().create_timer(0.6).timeout
-	crowd[0].apply_burn(6.0, 8.0)
-	player.stats.ult_charge = player.stats.ult_cost("earthshatter")
-	player.skills.try_directional("earthshatter", player.global_position + Vector3(0, 0, -5))
-	var frame: int = 0
-	var started: int = Time.get_ticks_msec()
-	while frame < 30:
-		await get_tree().create_timer(0.12, true, false, true).timeout
-		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_es_%d.png" % frame)
-		print("frame ", frame, " t=", Time.get_ticks_msec() - started, " ms  time_scale=", snappedf(Engine.time_scale, 0.01), " phase=", player.earthshatter.phase)
-		frame += 1
-	get_tree().quit()
-
-## `-- --skillshot=skewer|fireball`: run the skill on dummies and capture a frame every 0.12 s.
-func _skill_shots(which: String) -> void:
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	player.stats.mana = player.stats.max_mana
-	player.set_physics_process(true)
-	var dummies: Array[Enemy] = []
-	if which == "skewer":
-		for i in 4:
-			var z: Enemy = _spawn_enemy(Vector3(1.0 + i * 0.4, 0, -3.5 - i * 1.6))
-			z.aggro_range = 0.0
-			z.max_health = 800.0
-			z.health = 800.0
-			dummies.append(z)
-	else:
-		for pos in [Vector3(-1.2, 0, -4.2), Vector3(0.8, 0, -5.0), Vector3(2.2, 0, -3.8)]:
-			var z: Enemy = _spawn_enemy(pos)
-			z.aggro_range = 0.0
-			z.max_health = 800.0
-			z.health = 800.0
-			dummies.append(z)
+		z.max_health = 800.0
+		z.health = 800.0
 	await get_tree().create_timer(0.8).timeout
-	if which == "skewer":
-		player.skewer.start_skewer(Vector3(1.8, 0, -12.0))
-	else:
-		player.skills.start_skill("fireball", null, Vector3(0.6, 0, -4.4))
+	player.skills.start_skill("fireball", null, Vector3(0.6, 0, -4.4))
 	for i in 20:
 		await get_tree().create_timer(0.14 if i < 12 else 0.4).timeout
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_skill_%d.png" % i)
@@ -268,11 +185,11 @@ func _aim_shot() -> void:
 ## `-- --hudshot`: put skills on cooldown (and drain mana) to check the hotbar cooldown display.
 func _hud_shot() -> void:
 	player.set_physics_process(false)
-	player.stats.cooldowns = {"power": 1.1, "fireball": 0.3, "dodge": 0.6}
+	player.stats.cooldowns = {"fireball": 0.3, "dodge": 0.6}
 	player.stats.mana = 9.0
 	await get_tree().create_timer(0.15).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_0.png")
-	player.stats.cooldowns = {"power": 0.0, "fireball": 0.0, "dodge": 0.0}
+	player.stats.cooldowns = {"fireball": 0.0, "dodge": 0.0}
 	await get_tree().create_timer(0.1).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
@@ -297,7 +214,7 @@ func _drop_shot() -> void:
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_drops.png")
 	get_tree().quit()
 
-## `-- --smashshot`: a Skewer charge through a row of barrels, a cart, gravestones and a brazier, captured as the pieces fly.
+## `-- --smashshot`: a Detonation among a row of barrels, a cart, gravestones and a brazier, captured as the pieces fly.
 func _smash_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -309,8 +226,8 @@ func _smash_shot() -> void:
 	for spot in spots:
 		arena.place_prop(spot[0], Vector3(-3.0 + spot[1], 0, spot[2]), 0.0, spot[3], true, spot[0] == "brazier")
 	await get_tree().create_timer(0.5).timeout
-	player.stats.mana = player.stats.max_mana
-	player.skills.try_directional("skewer", Vector3(20, 0, 0))
+	TownState.passive_ranks = {"searing_flames": 8, "ignite": 1, "devastation": 2}
+	player.powers.activate("detonation", Vector3(0.5, 0, 0))
 	await get_tree().create_timer(0.55).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_smash_0.png")
 	await get_tree().create_timer(0.45).timeout

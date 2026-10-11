@@ -26,9 +26,6 @@ const REST_AFTER := 6.0
 var idle_time: float = 0.0
 
 func update_locomotion_anim() -> void:
-	if p.weapon_throw.charging():
-		p.weapon_throw.pose_charge()   # the wind-up clip is scrubbed by the charge, not by his walking
-		return
 	var moving_speed: float = (p.velocity - p.knock).length()
 	# Only walk or run on purpose: being shoved by the crowd or a hit must not start the legs moving.
 	if moving_speed > 0.5 and (has_goal or Gamepad.move_vector().length() > 0.0) and not p.skills.busy:
@@ -47,7 +44,7 @@ func update_locomotion_anim() -> void:
 
 ## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
 func _travel_speed(delta: float) -> float:
-	var speed: float = p.stats.run_speed * p.weapon_throw.move_factor()   # winding up a throw, he is slow, then planted
+	var speed: float = p.stats.run_speed
 	if PlayerStats.STAMINA_ON and p.combat_timer > 0.0:
 		if p.stats.stamina <= 0.0:
 			speed = p.stats.run_speed * 0.6
@@ -97,9 +94,6 @@ func shove_enemies(delta: float) -> void:
 	for node in p.get_tree().get_nodes_in_group("enemies"):
 		var e := node as Actor
 		if e == null or e.dead or e.is_boss or e.impaled or e.is_ragdolled():
-			continue
-		# During a Skewer charge, do not shove enemies the blade can still catch; they are the target.
-		if p.skewer.skewer_phase == 2 and e.can_be_impaled() and p.skewer.skewer_impaled.size() < 3 and not p.skewer.big_hit.has(e.get_instance_id()):
 			continue
 		var rel: Vector3 = e.global_position - p.global_position
 		rel.y = 0.0

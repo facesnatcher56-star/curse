@@ -11,11 +11,9 @@ extends DevSuite
 const SUITES := [
 	preload("res://game/dev/shots.gd"), preload("res://game/dev/perf.gd"),
 	preload("res://game/dev/suites/skill_tests.gd"),
-	preload("res://game/dev/suites/skewer_tests.gd"),
 	preload("res://game/dev/suites/fireball_tests.gd"),
 	preload("res://game/dev/suites/melee_tests.gd"),
 	preload("res://game/dev/suites/knockdown_tests.gd"),
-	preload("res://game/dev/suites/weapon_throw_tests.gd"),
 	preload("res://game/dev/suites/enemy_tests.gd"),
 	preload("res://game/dev/suites/monster_tests.gd"),
 	preload("res://game/dev/suites/camera_input_tests.gd"),
@@ -52,14 +50,8 @@ func _run(method: String, args: Array = []) -> Variant:
 func run_from_args() -> bool:
 	if OS.get_cmdline_user_args().has("--wardenshot"):
 		_run("_warden_shots")
-	elif OS.get_cmdline_user_args().has("--skillshot=skewer"):
-		_run("_skill_shots", ["skewer"])
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
 		_run("_skill_shots", ["fireball"])
-	elif OS.get_cmdline_user_args().has("--skillshot=leap"):
-		_run("_leap_shots")
-	elif OS.get_cmdline_user_args().has("--skillshot=earthshatter"):
-		_run("_earthshatter_shots")
 	elif OS.get_cmdline_user_args().has("--enemyshot"):
 		_run("_enemy_shot")
 	elif OS.get_cmdline_user_args().has("--enemyfight"):
@@ -70,10 +62,6 @@ func run_from_args() -> bool:
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
 		_run("_gib_shots")
-	elif OS.get_cmdline_user_args().has("--skillshot=power"):
-		_run("_melee_shots", ["power"])
-	elif OS.get_cmdline_user_args().has("--skillshot=throw"):
-		_run("_throw_shots")
 	elif OS.get_cmdline_user_args().has("--aimshot"):
 		_run("_aim_shot")
 	elif OS.get_cmdline_user_args().has("--pauseshot"):
@@ -119,9 +107,9 @@ func _clip_arg() -> String:
 const ONLY_TESTS := {
 "skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack",
 "actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers",
-"throwownership": "_test_throw_ownership", "progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
-"questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "powerdirect": "_test_power_direction", "skewerflow": "_test_skewer_flow", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "weaponthrow": "_test_weapon_throw", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "leap": "_test_leap", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "earthshatter": "_test_earthshatter", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "skewer": "_test_skewer", "skewerpreview": "_test_skewer_preview", "hotkeys": "_test_hotkeys",
+"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
+"questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
+	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys",
 }
 
 var _failures: PackedStringArray = []
@@ -159,12 +147,8 @@ func _run_selftest() -> void:
 	await _run("_test_hotkeys")
 	await _run("_test_navigation")
 	await _run("_test_roll_shove")
-	await _run("_test_skewer")
-	await _run("_test_skewer_preview")
 	await _run("_test_fireball")
 	await _run("_test_items")
-	await _run("_test_leap")
-	await _run("_test_earthshatter")
 	await _run("_test_ui_block")
 	await _run("_test_hover_behind_camera")
 	await _run("_test_camera_rotation")
@@ -203,7 +187,7 @@ func _run_selftest() -> void:
 	player.stats.mana = player.stats.max_mana
 	await get_tree().create_timer(0.5).timeout
 	# Exercise hotbar skills directly on the nearest zombie.
-	for id in ["power", "fireball"]:
+	for id in ["fireball"]:
 		var target: Actor = player.enemy_near(player.global_position, 20.0)
 		if target == null:
 			break

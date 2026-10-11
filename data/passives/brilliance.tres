@@ -13,3 +13,4 @@ first = 7.0
 last = 150.0
 text = "Max mana +%s%%"
 order = 16
+needs = ""

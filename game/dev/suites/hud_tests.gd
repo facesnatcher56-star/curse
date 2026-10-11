@@ -125,7 +125,7 @@ func _test_owner_feedback_1() -> void:
 	expect("stamina is switched off", not PlayerStats.STAMINA_ON)
 	player.stats.stamina = 0.0
 	player.combat_timer = 5.0
-	var free_speed: float = player.stats.run_speed * player.weapon_throw.move_factor()
+	var free_speed: float = player.stats.run_speed
 	expect("an 'exhausted' hero in a fight is not slowed", is_equal_approx(player.movement._travel_speed(1.0), free_speed))
 	player.stats.stamina = 60.0
 	player.movement._travel_speed(1.0)
@@ -141,8 +141,8 @@ func _test_owner_feedback_1() -> void:
 	hud.ability_toast_time = 0.0
 	hud.show_ability_toast("nonsense")
 	expect("an unknown skill id shows no ability plate", hud.ability_toast_time <= 0.0)
-	hud.show_ability_toast("power")
-	expect("a known skill shows the ability plate for a few seconds", hud.ability_toast_id == "power" and hud.ability_toast_time > 3.0)
+	hud.show_ability_toast("fireball")
+	expect("a known skill shows the ability plate for a few seconds", hud.ability_toast_id == "fireball" and hud.ability_toast_time > 3.0)
 	hud.ability_toast_time = 0.0
 	expect("the HUD names the place the hero stands in", hud.zone_name() != "" and hud.zone_subtitle() != "")
 

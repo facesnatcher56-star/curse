@@ -22,7 +22,7 @@ extends Resource
 @export var clip_end: float = 0.0
 
 @export_group("Effect")
-## "melee", "projectile", "charge", "leap", "potion" or "dodge": which code path runs it.
+## "melee", "projectile", "buff" (Brutal Attack, Take Aim), "power" (PowerController), "potion" or "dodge": which code path runs it.
 @export var kind: String = "melee"
 @export var range: float = 2.4
 @export var mult: float = 1.0
@@ -30,12 +30,12 @@ extends Resource
 @export var lunge: float = 0.0
 
 @export_group("Input")
-## Triggers on key press, toward the cursor (Skewer, Leap).
+## Triggers on key press, toward the cursor.
 @export var directional: bool = false
 ## Hold the key to aim a ground target, release to cast (Fireball).
 @export var aimed: bool = false
 
-## Anything else a particular skill needs (flags like "charged", "skewer", "leap", fireball timing, the combo table).
+## Anything else a particular skill needs (flags like "charged", fireball timing, the combo table).
 @export var extra: Dictionary = {}
 
 ## The dictionary form the combat code reads (the shape the old SKILLS constant had).

@@ -18,6 +18,8 @@ const MAX_RANK := 20
 @export var first: float = 0.0
 @export var last: float = 0.0
 @export var text: String = ""
+## What Curse is missing for its effect ("" when it works): it can still be bought, as DS2's path to what comes after it.
+@export var needs: String = ""
 ## Order within its tree.
 @export var order: int = 0
 

@@ -13,5 +13,6 @@ prereqs = {
 }
 first = 3.0
 last = 25.0
-text = "Weapon Throw wind-up +%s%% faster"
+text = "Thrown weapons; their attack rate +%s%%"
 order = 13
+needs = "throwing weapons"

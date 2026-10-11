@@ -275,18 +275,18 @@ func _test_swarm() -> void:
 		" dmg/s); attackers swinging at once: max ", max_swinging, ", average ", snappedf(swinging_total / frames, 0.1))
 	for line in autos:
 		print("    ", line)
-	# A skill cast in the middle of the swarm should run to the end, not get cut short by incoming hits.
+	# A cast in the middle of the swarm should run to the end, not get cut short by incoming hits.
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.health = player.max_health
-	player.skills.start_skill("power", zs[0], zs[0].global_position)
+	player.skills.start_skill("fireball", null, zs[0].global_position)
 	var cast: float = 0.0
 	var interrupted: bool = false
 	while player.skills.busy and cast < 3.0:
 		await get_tree().physics_frame
 		cast += 1.0 / 60.0
-	expect("a Power Strike in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
-	print("  Power Strike inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
+	expect("a Fireball cast in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
+	print("  Fireball inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
 	player.max_health = saved_max
 	player.health = saved_max
 	for z in zs:

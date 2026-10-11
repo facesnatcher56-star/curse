@@ -11,5 +11,6 @@ class_level = 1
 prereqs = {}
 first = 8.0
 last = 50.0
-text = "Thrown critical chance %s%%"
+text = "Ranged critical chance %s%%"
 order = 11
+needs = "a ranged attack"

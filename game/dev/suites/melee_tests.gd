@@ -1,8 +1,6 @@
 extends DevSuite
 ## Self-test: melee feel (auto-attack, impacts, sword sounds, roll and dodge, fists, weapon styles, recoil, brutal attacks).
 
-## Skewer: a Brute in the lane is staggered (not impaled); three zombies are impaled, ragdoll, get kicked off and
-## thrown trailing blood, lie limp, then get back up. A fourth zombie is only shoved aside.
 ## A click attacks once; nothing keeps attacking afterwards, and skills drop the attack order.
 func _test_auto_attack() -> void:
 	player.global_position = Vector3.ZERO
@@ -51,36 +49,10 @@ func _test_auto_attack() -> void:
 	dummy.queue_free()
 	await get_tree().process_frame
 
-## Skewer catches knocked-down enemies; thrown bodies spread burn to enemies they hit and slam into props.
+## Thrown bodies spread burn to enemies they hit and slam into props.
 func _test_impact() -> void:
 	player.global_position = Vector3(-25, 0, -25)
 	player.reset_physics_interpolation()
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns.clear()
-	var lying: Enemy = _spawn_enemy(Vector3(-25, 0, -29))
-	lying.aggro_range = 0.0
-	lying.max_health = 800.0
-	lying.health = 800.0
-	await get_tree().process_frame
-	lying.ragdoll_launch(Vector3.ZERO, 0.0, Vector3.ZERO)
-	var t: float = 0.0
-	while t < 3.0 and not (lying.ragdoll != null and lying.ragdoll.state == Ragdoll.State.LYING):
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-	var was_lying: bool = lying.ragdoll != null and lying.ragdoll.state == Ragdoll.State.LYING
-	player.skewer.start_skewer(Vector3(-25, 0, -40))
-	var caught: bool = false
-	t = 0.0
-	while player.skills.busy and t < 4.0:
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-		caught = caught or player.skewer.skewer_impaled.has(lying)
-	expect("skewer catches a downed enemy", was_lying and caught)
-	print("  skewer vs downed enemy: was lying=", was_lying, " impaled it=", caught)
-	await get_tree().create_timer(2.5).timeout
-	if is_instance_valid(lying):
-		lying.queue_free()
-
 	# Burning body bowled into a bystander.
 	var bystander: Enemy = _spawn_enemy(Vector3(32, 0, -13))
 	var burner: Enemy = _spawn_enemy(Vector3(32, 0, -19))
@@ -211,14 +183,14 @@ func _test_sword_sound() -> void:
 	enemy.receive(block, player.global_position)
 	expect("a block plays neither", Sfx.played_log.size() == 2)
 	await get_tree().create_timer(0.1).timeout
-	for other in ["skewer_kick", "earthshatter", "fireball"]:
+	for other in ["flame_nexus", "detonation", "fireball"]:
 		var odd: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
 		odd["skill_id"] = other
 		enemy.receive(odd, player.global_position)
 		await get_tree().create_timer(0.1).timeout
-	expect("a boot, a shockwave or a fireball is not the sword", Sfx.played_log.size() == 2)
+	expect("a fire power or a fireball is not the sword", Sfx.played_log.size() == 2)
 	var secondary: Dictionary = Combat.resolve(player, enemy, 20.0, Combat.DamageType.PHYSICAL, false, 1.0)
-	secondary["skill_id"] = "power"
+	secondary["skill_id"] = "basic"
 	secondary["secondary"] = true
 	enemy.receive(secondary, player.global_position)
 	expect("splash damage is not a sword hit either", Sfx.played_log.size() == 2)
@@ -239,8 +211,7 @@ func _test_sword_sound() -> void:
 	enemy.queue_free()
 	await get_tree().process_frame
 
-## Any time the sword swings and finds nothing, a swing sound plays: a swing at a target that is out of reach, a Power Strike with nobody
-## around, a Leap chop on open ground.
+## Any time the sword swings and finds nothing, a swing sound plays: a swing at a target that is out of reach.
 func _test_sword_miss_in_air() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -265,27 +236,6 @@ func _test_sword_miss_in_air() -> void:
 	expect("a swing that cannot reach its target makes the swing sound", _logged("sword_miss") == 1 and _logged("sword_hit") == 0)
 	far.queue_free()
 	await get_tree().process_frame
-	# A Power Strike with nobody in range.
-	await get_tree().create_timer(0.2).timeout
-	Sfx._last_played.clear()
-	Sfx.played_log.clear()
-	player.skills.start_skill("power", null, player.global_position + Vector3(0, 0, -3))
-	t = 0.0
-	while player.skills.busy and t < 3.0:
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-	expect("a Power Strike through empty air makes the swing sound", _logged("sword_miss") == 1)
-	# A Leap chop onto open ground.
-	player.stats.cooldowns.clear()
-	Sfx._last_played.clear()
-	Sfx.played_log.clear()
-	player.skills.try_directional("leap", player.global_position + Vector3(0, 0, -6))
-	t = 0.0
-	while player.skills.busy and t < 5.0:
-		await get_tree().physics_frame
-		t += 1.0 / 60.0
-	expect("a Leap chop on bare ground makes the swing sound", _logged("sword_miss") == 1)
-	expect("the Leap landing plays its impact sound once", _logged("leap_land") == 1)
 	# And when it does connect there is no swing sound.
 	var near: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -1.6))
 	near.aggro_range = 0.0
@@ -296,7 +246,7 @@ func _test_sword_miss_in_air() -> void:
 		player.stats.cooldowns.clear()
 		Sfx._last_played.clear()
 		Sfx.played_log.clear()
-		player.skills.start_skill("power", near, near.global_position)
+		player.skills.start_skill("basic", near, near.global_position)
 		t = 0.0
 		while player.skills.busy and t < 3.0:
 			await get_tree().physics_frame
@@ -304,7 +254,7 @@ func _test_sword_miss_in_air() -> void:
 		if _logged("sword_hit") >= 1 and _logged("sword_miss") == 0:   # (a swing that also whiffed on someone else is not the case under test)
 			break
 		await get_tree().create_timer(0.1).timeout
-	expect("a Power Strike that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
+	expect("a swing that connects makes the hit sound, not the swing sound", _logged("sword_hit") >= 1 and _logged("sword_miss") == 0)
 	near.queue_free()
 	Sfx.enabled = was_enabled
 	await get_tree().process_frame

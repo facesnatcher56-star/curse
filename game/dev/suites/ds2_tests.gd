@@ -44,7 +44,7 @@ func _test_class_skills() -> void:
 		and player.level == 30 and is_equal_approx(player.stats.strength, 99.0))
 	player.health = 5.0
 	player.stats.mana = 0.0
-	player.stats.cooldowns["power"] = 3.0
+	player.stats.cooldowns["fireball"] = 3.0
 	player.stats.brutal_reload_remaining = 100.0
 	TownState.add_hero_xp(HeroProgression.xp_for_level(31) - TownState.hero_xp, false)
 	expect("a level-up restores life and mana and recharges every power (DS2)", TownState.hero_level == 31 and is_equal_approx(player.health, player.max_health)

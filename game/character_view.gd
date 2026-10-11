@@ -152,8 +152,6 @@ func _take_off(place: int) -> void:
 		return
 	var off: Variant = hero.stats.unequip(place)
 	if off == null:
-		if place == Items.Slot.WEAPON and hero.stats.weapon_locked:
-			hero._say("Recall your weapon first")
 		return
 	_equipping = true
 	hero.stats.bag.append(off)

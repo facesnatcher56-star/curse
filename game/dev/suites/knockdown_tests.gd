@@ -125,7 +125,6 @@ func _test_hero_knockdown() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var kd: Knockdown = player.knockdown
-	var wt: WeaponThrowSkill = player.weapon_throw
 	var hit_hero: Callable = func(damage: float, weight: float) -> void:
 		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
 		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
@@ -166,7 +165,6 @@ func _test_hero_knockdown() -> void:
 	var health_after_blow: float = player.health
 	expect("a heavy blow puts him in the impact phase of a knockdown", kd.active() and kd.phase == Knockdown.Phase.IMPACT and kd.knockdowns == 1)
 	expect("the blow cost its damage once (20 of %d)" % int(player.max_health), absf((player.max_health - health_after_blow) - 20.0) < 8.0 and health_after_blow < player.max_health)
-	expect("he keeps his weapon through the fall", wt.has_weapon() and not wt.is_away())
 	# Walk the phases, trying to act all the way down.
 	var foe: Enemy = _throw_dummy(Vector3(2.0, 0, 3.0))
 	var seen: Array[String] = []
@@ -193,7 +191,7 @@ func _test_hero_knockdown() -> void:
 		if kd.is_downed() and not tried_at_downed:
 			held_position = player.global_position   # (the blow's own shove has played out by now)
 		if kd.active():
-			lock_ok = lock_ok and not player.movement.rolling and not player.skills.busy and player.skills.aiming_id == "" and not wt.can_begin() \
+			lock_ok = lock_ok and not player.movement.rolling and not player.skills.busy and player.skills.aiming_id == "" \
 				and (not tried_at_downed or player.global_position.distance_to(held_position) < 0.05) and player.stun_time > 0.0
 			tried_at_downed = tried_at_downed or kd.is_downed()
 	player.movement.has_goal = false
@@ -201,7 +199,7 @@ func _test_hero_knockdown() -> void:
 	expect("the phases run impact -> downed -> getting_up -> none (saw %s)" % ", ".join(seen), seen == ["impact", "downed", "getting_up"] and not kd.active())
 	expect("while he is down he cannot move, attack, dodge or cast (and was tested while downed)", lock_ok and tried_at_downed and kd.get_ups == 1)
 	expect("the whole fall is a deliberate %.2f s, not an endless lockout" % Knockdown.TOTAL_TIME, elapsed > Knockdown.TOTAL_TIME - 0.15 and elapsed < Knockdown.TOTAL_TIME + 0.5)
-	expect("control is back at the end: no stun, standing upright, the throw can start again", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01 and wt.can_begin())
+	expect("control is back at the end: no stun, standing upright", player.stun_time == 0.0 and absf(player.visual.rotation.x) < 0.01 and absf(player.visual.position.y) < 0.01)
 	await get_tree().create_timer(0.5).timeout
 	var cooldowns_ok: bool = true
 	for id in player.stats.cooldowns.keys():
@@ -209,7 +207,6 @@ func _test_hero_knockdown() -> void:
 	var regen_allowance: float = player.max_health * HeroAttributes.REGEN_PER_SECOND * (Knockdown.TOTAL_TIME + 1.5)   # DS2 regenerates 1% a second meanwhile
 	expect("the fall took no extra health and spent no cooldown", player.health <= health_after_blow + regen_allowance and player.health >= health_after_blow - 0.01 and cooldowns_ok)
 	await get_tree().create_timer(0.8).timeout
-	expect("he still has his weapon afterwards", wt.has_weapon())
 	# A second heavy blow while already down neither restarts nor stretches the fall.
 	await calm.call()
 	hit_hero.call(20.0, 2.7)
@@ -226,10 +223,9 @@ func _test_hero_knockdown() -> void:
 	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(1.6).timeout
 	expect("a dead hero never gets up", kd.get_ups == 0 and not kd.active())
-	expect("his weapon is not lost to the fall", wt.has_weapon())
 	# Revive.
 	player.revive_at(Vector3.ZERO)
-	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and wt.can_begin() and absf(player.visual.rotation.x) < 0.01)
+	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and absf(player.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(0.3).timeout
 	hit_hero.call(20.0, 2.7)
 	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
@@ -240,9 +236,8 @@ func _test_hero_knockdown() -> void:
 	foe.queue_free()
 	player.stats.cooldowns.clear()
 
-## Heavy blows have consequences: Power Strike throws what it hits and stuns it; a thrown monster that hits a wall takes a little damage
-## and is stunned, and one that hits another monster hurts it and knocks it down; a full Skewer's leftovers are knocked down and
-## thrown aside; and a ranged monster that is hit while backing away is snared.
+## Heavy blows have consequences: a thrown monster that hits a wall takes a little damage and is stunned, and one that hits another
+## monster hurts it and knocks it down; and a ranged monster that is hit while backing away is snared.
 func _test_knockdown() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -250,43 +245,7 @@ func _test_knockdown() -> void:
 	player.global_position = Vector3(0, 0, 0)
 	player.reset_physics_interpolation()
 	var skills: SkillController = player.skills
-	var power: Dictionary = SkillDb.all()["power"].duplicate()
-	# 1. Power Strike on one zombie in open ground: thrown back several metres and stunned for over a second.
-	var z: Enemy = _spawn_enemy(Vector3(0, 0, 1.8))
-	z.alert_delay = 999.0
-	z.max_health = 5000.0
-	z.health = 5000.0
-	skills.busy_skill = "power"
-	skills.busy_target = z
-	skills.busy_aim = z.global_position
-	skills._apply_skill(power)
-	var stun_at_hit: float = z.stun_time
-	var start: Vector3 = z.global_position
-	await get_tree().create_timer(0.7).timeout
-	var thrown: float = z.global_position.distance_to(start)
-	expect("Power Strike stuns for over a second (%.2f)" % stun_at_hit, stun_at_hit >= 1.3)
-	# (the blow itself can miss; the throw is the skill's own and happens anyway, a landed hit adds its own knock on top: 4 m and up)
-	expect("Power Strike throws it back, even on a miss (%.1f m, was about 0.5 before)" % thrown, thrown >= 1.5)
-	z.queue_free()
-	# 2. Thrown into a wall: extra damage and a stun.
-	# Close enough that even a missed strike's 9 m/s shove reaches the wall
-	# above Actor.IMPACT_SPEED; the old 2.8 m gap depended on a random landed hit.
-	var wall_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
-	wall_victim.alert_delay = 999.0
-	wall_victim.max_health = 5000.0
-	wall_victim.health = 5000.0
-	player.global_position = Vector3(37.4, 0, 0)
-	player.reset_physics_interpolation()
-	skills.busy_target = wall_victim
-	skills.busy_aim = wall_victim.global_position
-	skills._apply_skill(power)
-	var hit_only: float = 5000.0 - wall_victim.health
-	var hit_only_stun: float = wall_victim.stun_time
-	await get_tree().create_timer(0.6).timeout
-	expect("thrown into the wall it takes extra damage (%.0f over %.0f) and the impact stuns it" % [5000.0 - wall_victim.health, hit_only],
-		5000.0 - wall_victim.health > hit_only + 2.0 and String(wall_victim.last_result.get("skill_id", "")) == "impact" and wall_victim.stun_time > 0.0)
-	wall_victim.queue_free()
-	await get_tree().process_frame
+	# 1-2. Thrown into a wall: extra damage and a stun (the knock itself, not a particular skill).
 	# Exercise actual movement/collision without a random combat roll.
 	var impact_victim: Enemy = _spawn_enemy(Vector3(39.2, 0, 0))
 	impact_victim.alert_delay = 999.0
@@ -326,7 +285,7 @@ func _test_knockdown() -> void:
 	# (9 m/s on a miss versus 10.25 normally, or 20 on a crushing splash).
 	# The minimum Power Strike shove closes this 0.66 m capsule gap above IMPACT_SPEED.
 	front.knocked_by = player
-	front.knock = Vector3(0, 0, SkillController.POWER_KNOCK)
+	front.knock = Vector3(0, 0, 9.0)
 	var saw_down: bool = false
 	var t: float = 0.0
 	# Observe the first settled body-impact event, before ragdoll follow-up contacts.
@@ -345,43 +304,7 @@ func _test_knockdown() -> void:
 		and String(front.last_result.get("skill_id", "")) == "impact")
 	front.queue_free()
 	behind.queue_free()
-	# 4. A full blade's leftovers are knocked down and thrown aside.
-	var skewer: SkewerSkill = skills.p.skewer
-	var skewer_def: Dictionary = SkillDb.all()["skewer"]
-	var run_lane: Callable = func() -> Dictionary:
-		for node in get_tree().get_nodes_in_group("enemies"):
-			node.queue_free()
-		await get_tree().process_frame
-		player.global_position = Vector3.ZERO
-		player.reset_physics_interpolation()
-		player.stats.equipment.erase(Items.Slot.ARMOR)
-		skewer.skewer_dir = Vector3(0, 0, 1)
-		skewer.skewer_impaled.clear()
-		skewer.big_hit.clear()
-		var lane: Array[Enemy] = []
-		for dist in [0.5, 0.8, 1.1, 1.4]:
-			var e: Enemy = _spawn_enemy(Vector3(0, 0, dist))
-			e.alert_delay = 999.0
-			lane.append(e)
-		var brute: Enemy = _spawn_enemy(Vector3(1.0, 0, 1.2), "brute")
-		brute.alert_delay = 999.0
-		skewer._skewer_catch_enemies(skewer_def)
-		await get_tree().create_timer(0.3).timeout
-		var overflow: Enemy = lane[3]
-		var out: Dictionary = {"overflow_down": is_instance_valid(overflow) and (overflow.is_ragdolled() or overflow.stun_time > 0.0),
-			"overflow_moved": is_instance_valid(overflow) and absf(overflow.global_position.x) > 0.6}
-		for e in skewer.skewer_impaled:
-			if is_instance_valid(e):
-				e.set_impaled(false)
-		skewer.skewer_impaled.clear()
-		return out
-	var plain: Dictionary = await run_lane.call()
-	expect("the fourth enemy in the lane is knocked down and thrown aside", plain["overflow_down"] and plain["overflow_moved"])
-	player.stats.equipment.erase(Items.Slot.ARMOR)
-	for node in get_tree().get_nodes_in_group("enemies"):
-		node.queue_free()
-	await get_tree().process_frame
-	# 5. Snare: a spitter that was backing away and is hit gets snared; one that was not, and a zombie, do not.
+	# 5. Snare:	# 5. Snare: a spitter that was backing away and is hit gets snared; one that was not, and a zombie, do not.
 	player.global_position = Vector3.ZERO
 	player.reset_physics_interpolation()
 	var spitter: Enemy = _spawn_enemy(Vector3(0, 0, 3.0), "spitter")

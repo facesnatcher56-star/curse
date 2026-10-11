@@ -256,8 +256,8 @@ func flat_distance_to(other: Node3D) -> float:
 	return d.length()
 
 ## Skills whose blow is the hero's sword itself.
-const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "power", "skewer", "leap"]
-const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "power", "skewer", "skewer_kick", "leap", "earthshatter", "throw", "fireball"]
+const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "whirling_strike", "staggering_blow"]
+const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "whirling_strike", "staggering_blow", "flame_nexus", "detonation", "fireball"]
 
 ## Apply a resolved attack (see Combat.resolve) to this actor.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
@@ -363,8 +363,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 			add_hitpause(pause)
 		if source != null and source != self:
 			source.add_hitpause(pause)
-		var charging: bool = source is Player and (source as Player).is_charging()   # no stutter in the middle of a charge
-		if outcome == Combat.Outcome.CRITICAL and not charging:
+		if outcome == Combat.Outcome.CRITICAL:
 			Fx.hitstop(self, 0.045)
 
 	# Equipment reacts to every landed hit (including the one that killed).

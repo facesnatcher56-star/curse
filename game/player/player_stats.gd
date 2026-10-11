@@ -6,7 +6,6 @@ var p: Player
 
 func _init(player: Player) -> void:
 	p = player
-	ult_charge = ult_cost("earthshatter")   # a run starts with the ultimate ready
 
 ## One-line damage summary for tooltips (the blow before the target's armour).
 func skill_damage_text(id: String) -> String:
@@ -18,21 +17,8 @@ func skill_damage_text(id: String) -> String:
 		"projectile":
 			var spell: Vector2 = spell_range()
 			return "Fire damage %d-%d" % [int(spell.x), int(spell.y)]
-		"throw":
-			var thrown: Vector2 = weapon_range(float(skill["mult"]), true)
-			return "Damage up to %d-%d" % [int(thrown.x), int(thrown.y)]
-		"charge":
-			var impale: Vector2 = weapon_range(1.5)
-			var kick: Vector2 = weapon_range(1.8)
-			return "Impale %d-%d, then %d-%d per kick" % [int(impale.x), int(impale.y), int(kick.x), int(kick.y)]
-		"leap":
-			var chop: Vector2 = weapon_range(p.leap.LEAP_CHOP_MULT)
-			var slam: Vector2 = weapon_range(p.leap.LEAP_SLAM_MULT)
-			return "Chop %d-%d, slam %d-%d (crit)" % [int(chop.x), int(chop.y), int(slam.x), int(slam.y)]
-		"earthshatter":
-			var shatter: Vector2 = weapon_range(p.earthshatter.MULT)
-			return "Damage %d-%d, thrown %d m up" % [int(shatter.x * p.earthshatter.MIN_FALLOFF), int(shatter.y),
-				int(pow(p.earthshatter.LAUNCH_LIFT, 2.0) / 40.0)]
+		"power":
+			return PowerDb.get_def(id).summary if PowerDb.get_def(id) != null else ""
 		"buff":
 			if id == "brutal_attack":
 				var brutal: Vector2 = weapon_range(brutal_mult())
@@ -152,15 +138,11 @@ const MAX_POTIONS := 6
 var potions: int = 3
 var run_speed: float = 5.0
 var cooldowns: Dictionary = {}
-## True while the weapon is out of his hand (Weapon Throw): the weapon slot cannot be changed until it is back, so he never owns two.
-var weapon_locked: bool = false
 # Equipment (see items.gd)
 var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
 var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
 const MAX_BAG := 12
 var base_armor: float = 0.0   # DS2: a hero's armour is all his gear's
-## The ultimate charges from damage the hero deals; `ult_cost()` is how much a skill needs (0 for ordinary skills).
-var ult_charge: float = 0.0   # starts full (set in _init)
 const BRUTAL_COMBAT_SECONDS := 21.0
 var brutal_reload_required: float = 0.0
 var brutal_reload_remaining: float = 0.0
@@ -207,7 +189,7 @@ func ult_cost(id: String) -> float:
 		if cutter != null:
 			return cutter.take_aim_reload_required if cutter.take_aim_reload_required > 0.0 else power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
 		return power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
-	return float(SkillDb.all()[id].get("charge", 0.0))
+	return 0.0
 
 func ult_fraction(id: String) -> float:
 	if PowerController.LIVE.has(id):
@@ -220,15 +202,10 @@ func ult_fraction(id: String) -> float:
 		if cutter == null:
 			return 0.0
 		return 1.0 if cutter.take_aim_reload_remaining <= 0.0 else clampf(1.0 - cutter.take_aim_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
-	return clampf(ult_charge / cost, 0.0, 1.0) if cost > 0.0 else 1.0
+	return 1.0
 
 func gain_brutal_charge(damage: float) -> void:
 	brutal_reload_remaining = maxf(brutal_reload_remaining - maxf(damage, 0.0), 0.0)
-
-func gain_ult_charge(damage: float) -> void:
-	ult_charge = minf(ult_charge + damage, MAX_ULT_CHARGE)
-
-const MAX_ULT_CHARGE := 650.0
 
 func can_use(id: String) -> bool:
 	if PowerController.LIVE.has(id):
@@ -239,8 +216,6 @@ func can_use(id: String) -> bool:
 	if id == "take_aim":
 		var cutter := _cutter()
 		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0
-	if ult_cost(id) > 0.0 and ult_fraction(id) < 1.0:
-		return false
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= mana_cost(id)
 
 func use_potion() -> bool:
@@ -313,12 +288,8 @@ func skill_speed(id: String) -> float:
 	return attack_speed() * (1.0 + passive("alacrity") / 100.0)
 
 ## Puts `item` on. Returns what came off to make room (the piece in its place, and a shield for a two-handed weapon or a two-handed weapon
-## for a shield), or null when it cannot be worn: the weapon is out in the world, or the hero does not meet its requirement (DS2: class
-## skill at least item level - 2). A ring goes on a free hand, else replaces the first ring.
+## for a shield), or null when the hero does not meet its requirement (DS2: class skill at least item level - 2, and the stance passive). A ring goes on a free hand, else replaces the first ring.
 func equip(item: Dictionary, announce: bool = true) -> Variant:
-	if weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:
-		p._say("Recall your weapon first")
-		return null
 	if not Items.hero_can_wear(item):
 		if announce:
 			p._say(Items.requirement_text(item))
@@ -329,9 +300,6 @@ func equip(item: Dictionary, announce: bool = true) -> Variant:
 		off.append(equipment[place])
 	var conflict: int = _hand_conflict(item)
 	if conflict >= 0 and equipment.has(conflict):
-		if conflict == Items.Slot.WEAPON and weapon_locked:
-			p._say("Recall your weapon first")
-			return null
 		off.append(equipment[conflict])
 		equipment.erase(conflict)
 	equipment[place] = item
@@ -370,7 +338,7 @@ func wear(place: int, item: Dictionary) -> void:
 
 ## Takes off what is worn at `place` (returns it, or null).
 func unequip(place: int) -> Variant:
-	if not equipment.has(place) or (place == Items.Slot.WEAPON and weapon_locked):
+	if not equipment.has(place):
 		return null
 	var item: Dictionary = equipment[place]
 	equipment.erase(place)

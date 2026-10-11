@@ -105,10 +105,3 @@ func _throw_dummy(pos: Vector3, variant: String = "zombie") -> Enemy:
 	e.health = 4000.0
 	e.block_chance = 0.0
 	return e
-
-func _wait_state(wanted: int, seconds: float) -> bool:
-	var waited: float = 0.0
-	while int(player.weapon_throw.state) != wanted and waited < seconds:
-		await get_tree().physics_frame
-		waited += 1.0 / 60.0
-	return int(player.weapon_throw.state) == wanted

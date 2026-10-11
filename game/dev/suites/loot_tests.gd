@@ -209,7 +209,7 @@ func _test_item_icons() -> void:
 	hud.close_character()
 	await get_tree().process_frame
 
-## Breakable props: barrels, carts, gravestones and braziers can be smashed; a charge or a leap through them throws the pieces along its
+## Breakable props: barrels, carts, gravestones and braziers can be smashed; a power's blast breaks them along its
 ## path; clicking one makes the hero swing at it; what breaks stops blocking the way and may leave something behind.
 func _test_destructibles() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -239,44 +239,18 @@ func _test_destructibles() -> void:
 	arena.place_prop("gravestone", Vector3(30, 0, 36), 0.0, 1.3)
 	var grave: Destructible = Destructible.near(get_tree(), Vector3(30, 0, 36), 0.5)
 	expect("a gravestone takes more than one swing", not grave.hit(15.0, Vector3.RIGHT) and not grave.hit(15.0, Vector3.RIGHT) and grave.hit(15.0, Vector3.RIGHT))
-	# Charging through a barrel throws the pieces the way the hero was going.
+	# A Whirling Strike breaks what stands around the hero.
 	player.global_position = Vector3(26, 0, 30)
 	player.reset_physics_interpolation()
-	player.visual.rotation.y = PI * 0.5
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns["skewer"] = 0.0
-	arena.place_prop("barrel", Vector3(30, 0, 30), 0.0, 1.0)
-	arena.place_prop("wrecked_cart", Vector3(33, 0, 30.4), 0.0, 1.9)
+	TownState.passive_ranks["critical_strike"] = 8
+	TownState.passive_ranks["fortitude"] = 8
+	player.powers.reset()
+	arena.place_prop("barrel", Vector3(27.6, 0, 30), 0.0, 1.0)
 	await get_tree().process_frame
-	player.skills.try_directional("skewer", Vector3(40, 0, 30))
-	var charge_t: float = 0.0
-	while charge_t < 3.0 and (player.skills.busy or charge_t < 0.3):
-		await get_tree().physics_frame
-		charge_t += 1.0 / 60.0
-	expect("a Skewer charge smashes what is in its path", Destructible.near(get_tree(), Vector3(30, 0, 30), 0.3) == null
-		and Destructible.near(get_tree(), Vector3(33, 0, 30.4), 0.3) == null)
-	var ahead: float = 0.0
-	var count: int = 0
-	for node in get_tree().get_nodes_in_group("debris"):
-		ahead += (node as DebrisChunk).velocity.x + ((node as DebrisChunk).global_position.x - 30.0)
-		count += 1
-	expect("the pieces are thrown ahead of the charge (%d pieces)" % count, count > 10 and ahead > 0.0)
-	for node in get_tree().get_nodes_in_group("debris"):
-		node.queue_free()
-	await get_tree().create_timer(1.0).timeout
-	# Leaping over a barrel breaks it too.
-	player.global_position = Vector3(26, 0, 33)
-	player.reset_physics_interpolation()
-	player.stats.mana = player.stats.max_mana
-	player.stats.cooldowns["leap"] = 0.0
-	arena.place_prop("barrel", Vector3(30, 0, 33), 0.0, 1.0)
-	await get_tree().process_frame
-	player.skills.try_directional("leap", Vector3(34, 0, 33))
-	var leap_t: float = 0.0
-	while leap_t < 4.0 and (player.skills.busy or leap_t < 0.3):
-		await get_tree().physics_frame
-		leap_t += 1.0 / 60.0
-	expect("a Leap through a barrel breaks it", Destructible.near(get_tree(), Vector3(30, 0, 33), 0.3) == null)
+	expect("a Whirling Strike smashes a barrel beside the hero", player.powers.activate("whirling_strike", player.global_position)
+		and Destructible.near(get_tree(), Vector3(27.6, 0, 30), 0.3) == null)
+	TownState.passive_ranks.clear()
+	player.powers.reset()
 	# Clicking a prop sends the hero to swing at it.
 	for node in get_tree().get_nodes_in_group("debris"):
 		node.queue_free()

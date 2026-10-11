@@ -13,3 +13,4 @@ first = 8.0
 last = 50.0
 text = "Melee critical chance %s%%"
 order = 1
+needs = ""

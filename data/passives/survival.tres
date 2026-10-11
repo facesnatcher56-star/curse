@@ -13,3 +13,4 @@ first = 10.0
 last = 60.0
 text = "Fire resistance +%s%%"
 order = 14
+needs = ""

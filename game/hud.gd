@@ -548,11 +548,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 
 	var remaining: float = float(player.stats.cooldowns.get(id, 0.0))
 	var fraction: float = player.stats.cooldown_fraction(id)
-	# Weapon Throw with the weapon out is the recall key: available whatever the throw cooldown says, so it is not dimmed or swept.
-	var recall: bool = id == WeaponThrowSkill.SKILL_ID and player.weapon_throw.is_away()
-	if recall:
-		remaining = 0.0
-		fraction = 0.0
 	var affordable: bool = player.stats.mana >= player.stats.mana_cost(id)
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
@@ -593,14 +588,6 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel
 	# here would cover the ability art; status is already conveyed by overlays.
 	draw_rect(rect.grow(1.0), METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46), false, 1.0)
-	if recall:   # a pulsing ember edge and a small curved arrow: it comes back
-		var beat: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
-		draw_rect(rect.grow(2.0 + 1.5 * beat), Color(0.95, 0.6, 0.25, 0.3 + 0.3 * beat), false, 2.5)
-		var arrow: Vector2 = pos + Vector2(size_px - 16.0, size_px - 16.0)
-		draw_arc(arrow, 7.0, PI * 0.15, PI * 1.65, 14, Color(0, 0, 0, 0.8), 4.5)
-		draw_arc(arrow, 7.0, PI * 0.15, PI * 1.65, 14, Color(1.0, 0.86, 0.5), 2.5)
-		var head: Vector2 = arrow + Vector2(cos(PI * 0.15), sin(PI * 0.15)) * 7.0
-		draw_colored_polygon(PackedVector2Array([head + Vector2(-5, -3), head + Vector2(4, -3), head + Vector2(0, 5)]), Color(1.0, 0.86, 0.5))
 	# Key hint (follows rebinding) and mana cost. Consumables live only in the
 	# dedicated DS2 dock and never render as ability-slot content.
 	var key_text: String = GameSettings.short_binding_text(action)

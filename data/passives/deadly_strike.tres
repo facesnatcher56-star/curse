@@ -15,3 +15,4 @@ first = 224.0
 last = 350.0
 text = "Critical damage %s%%"
 order = 10
+needs = ""

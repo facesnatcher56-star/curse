@@ -20,9 +20,10 @@ const START := Vector3(12, 11, 11)
 
 ## The skill each hit is counted under. Anything not listed (collisions, impacts, splash) is Melee: the hero's own body and blade.
 const SKILL_CLASS := {
-	"basic": "melee", "brutal_attack": "melee", "power": "melee", "skewer": "melee", "skewer_kick": "melee", "leap": "melee",
-	"earthshatter": "melee", "collision": "melee", "impact": "melee",
-	"throw": "ranged", "take_aim": "ranged", "companion_arrow": "ranged",
+	"basic": "melee", "brutal_attack": "melee", "whirling_strike": "melee", "staggering_blow": "melee", "rebuke": "melee", "reflect": "melee",
+	"collision": "melee", "impact": "melee",
+	"take_aim": "ranged", "companion_arrow": "ranged",
+	"flame_nexus": "combat", "detonation": "combat",
 	"fireball": "combat", "burn": "combat",
 }
 

@@ -41,7 +41,7 @@ func phase_name() -> String:
 
 ## Puts the hero down (a heavy blow). Already down, dead, or mid Skewer charge (nothing may stall that): does nothing.
 func begin() -> bool:
-	if p.dead or active() or p.is_charging():
+	if p.dead or active():
 		return false
 	knockdowns += 1
 	phase = Phase.IMPACT

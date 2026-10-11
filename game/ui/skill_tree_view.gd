@@ -76,6 +76,8 @@ func _add_row(parent: Control, def: PassiveDef) -> void:
 		("   next: " if rank > 0 else "Rank 1: ") + def.describe(rank + 1))
 	if blocker != "" and blocker != "No skill points left" and rank < PassiveDef.MAX_RANK:
 		line += "   (%s)" % blocker
+	if def.needs != "":
+		line += "   No effect yet: needs %s" % def.needs
 	var detail: Label = ItemTile._label(line, 11, Color(0.85, 0.5, 0.42) if blocker != "" and blocker != "No skill points left" else UiTheme.TEXT_DIM)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.custom_minimum_size.x = 280

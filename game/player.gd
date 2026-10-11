@@ -36,26 +36,18 @@ var _pad_hold: Vector3 = Vector3.ZERO          # aim offset kept while an aimed 
 var _pad_hold_valid: bool = false
 
 # Components (see game/player/ and game/skills/). Each owns one slice of what the hero is and does.
-var skewer: SkewerSkill
-var leap: LeapSkill
-var earthshatter: EarthshatterSkill
 var movement: PlayerMovement
 var stats: PlayerStats
 var skills: SkillController
 var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
-var weapon_throw: WeaponThrowSkill
 var knockdown: Knockdown
 var hit_reaction: HitReaction
 
 func _init() -> void:
-	skewer = SkewerSkill.new(self)
-	leap = LeapSkill.new(self)
-	earthshatter = EarthshatterSkill.new(self)
 	movement = PlayerMovement.new(self)
 	stats = PlayerStats.new(self)
 	skills = SkillController.new(self)
 	powers = PowerController.new(self)
-	weapon_throw = WeaponThrowSkill.new(self)
 	knockdown = Knockdown.new(self)
 	hit_reaction = HitReaction.new(self)
 
@@ -112,16 +104,6 @@ func refresh_weapon_model() -> void:
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
 
-## Whether a Skewer charge is under way (wind-up, run or skid): nothing may stall or push the hero then.
-func is_charging() -> bool:
-	return skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3
-
-## The hero is never frozen by the blows he lands while charging: every enemy the blade takes would otherwise stop him for a beat.
-func add_hitpause(duration: float) -> void:
-	if is_charging():
-		return
-	super.add_hitpause(duration)
-
 ## A HEAVY blow is an enemy's heavy attack (its strike weight, Actor.HEAVY_BLOW_WEIGHT); it puts him on the ground (see Knockdown).
 func is_heavy_hit(result: Dictionary) -> bool:
 	return float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT
@@ -147,14 +129,11 @@ func _play_flinch() -> void:
 	hit_reaction.begin(_last_hit_from, stun_time)
 
 func _physics_process(delta: float) -> void:
-	weapon_throw.tick(delta)
 	powers.tick(delta)   # (power timers and Repulse's field run through a hit-pause too)
 	_dormancy_timer -= delta
 	if _dormancy_timer <= 0.0:
 		_dormancy_timer = 0.5
 		_manage_dormancy()
-	if skewer.skewer_phase >= 1 and skewer.skewer_phase <= 3:
-		knock = Vector3.ZERO   # nothing pushes the hero off a Skewer charge, not even a hit-pause frame
 	if _actor_tick(delta):
 		move_with(Vector3.ZERO)
 		return
@@ -164,9 +143,8 @@ func _physics_process(delta: float) -> void:
 	hit_reaction.tick(delta)
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
-	skills.update_buff_visuals()
 	if model != null and model.weapon != null:
-		model.weapon.visible = not weapon_throw.is_away() and not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (not while it is out in the world)
+		model.weapon.visible = not (skills.busy and bool(skills.busy_def.get("charged", false)))   # (put away while casting)
 	if not skills.busy and not knockdown.active() and visual != null and absf(visual.rotation.x) > 0.001:
 		visual.rotation.x = lerpf(visual.rotation.x, 0.0, 1.0 - exp(-14.0 * delta))
 	message_time = maxf(message_time - delta, 0.0)
@@ -480,20 +458,14 @@ func _read_input(cursor: Vector3) -> void:
 		var slot_id: String = skills.hotbar[i]
 		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim" or PowerController.LIVE.has(slot_id):
 			continue   # (powers go off from SkillController.handle_hotkeys)
-		if SkillDb.all()[slot_id].get("directional", false):
-			if Input.is_action_just_pressed(action):
-				skills.try_directional(skills.hotbar[i], cursor)
-		elif SkillDb.all()[skills.hotbar[i]].get("aimed", false):
+		if SkillDb.all()[skills.hotbar[i]].get("aimed", false):
 			skills.handle_aimed_key(action, skills.hotbar[i], cursor)
 		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
 			skills.queue_skill(skills.hotbar[i], cursor)
 	# The right mouse button carries whichever skill is on it (the attack by default), and drives it the way a numbered slot would.
 	var alt_id: String = skills.right_click_skill
 	var alt_def: Dictionary = SkillDb.all()[alt_id]
-	if bool(alt_def.get("directional", false)):
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			skills.try_directional(alt_id, cursor)
-	elif bool(alt_def.get("aimed", false)):
+	if bool(alt_def.get("aimed", false)):
 		skills.handle_aimed_key("alt_skill", alt_id, cursor)
 	elif alt_id == "brutal_attack":
 		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
@@ -569,7 +541,6 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.mana = stats.max_mana
 	stats.cooldowns.clear()
 	stats.brutal_reload_remaining = 0.0
-	stats.ult_charge = PlayerStats.MAX_ULT_CHARGE
 	powers.reset()
 	var cutter := stats._cutter()
 	if cutter != null:
@@ -582,13 +553,10 @@ func _exit_tree() -> void:
 		TownState.events.hero_leveled.disconnect(_on_leveled)
 	if TownState.events.passives_changed.is_connected(stats.refresh):
 		TownState.events.passives_changed.disconnect(stats.refresh)
-	if weapon_throw != null:
-		weapon_throw.reset()
 
 func _on_death() -> void:
 	hit_reaction.clear()
 	knockdown.die()   # dying supersedes the fall (no get-up, no Iron Recovery) and the death clip carries on from his pose
-	weapon_throw.reset()   # a weapon out in the world comes back to his hand: it is never left lying where he fell
 	skills.reset()
 
 ## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
@@ -596,7 +564,6 @@ func _on_death() -> void:
 func revive_at(pos: Vector3) -> void:
 	if not dead:
 		return
-	weapon_throw.reset()
 	dead = false
 	if ragdoll != null and ragdoll.is_active():
 		ragdoll._finish()
@@ -689,8 +656,6 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 		Gamepad.rumble(0.15, 0.55, 0.14)
 	if not result.get("secondary", false):
 		skills.blade_blood = minf(skills.blade_blood + 0.05, 1.0)
-	if result.get("skill_id", "") != "earthshatter":
-		stats.gain_ult_charge(float(result.get("damage", 0.0)))   # the ultimate does not charge itself
 	if result.get("skill_id", "") != "brutal_attack":
 		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
 	powers.gain(float(result.get("damage", 0.0)), String(result.get("skill_id", "")))
@@ -708,8 +673,8 @@ func _steal_life(result: Dictionary) -> void:
 	if gain > 0.0:
 		health = minf(health + gain, max_health)
 
-## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Bleed opens a
-## wound on a thrown hit (10-25%, 0.06-0.5 x DEX a second for 4 s), Ignite sets a fire hit alight (chance `rank x damage / (1.2 + 0.6 INT)`,
+## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Ignite sets a
+## fire hit alight (chance `rank x damage / (1.2 + 0.6 INT)`,
 ## 0.08-0.5 x INT a second for 3 s).
 func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	if target == null or target.dead or result.get("secondary", false):
@@ -720,10 +685,6 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
 			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
 		target._gain_stun(1.0 + float(smite - 1) / 19.0)
-	var bleed: int = TownState.passive_rank("bleed")
-	if bleed > 0 and skill == "throw" and randf() < PassiveDb.get_def("bleed").value(bleed) / 100.0:
-		target.bleed_dps = maxf(target.bleed_dps, (0.06 + 0.44 * float(bleed - 1) / 19.0) * stats.dexterity)
-		target.bleed_time = maxf(target.bleed_time, 4.0)
 	var ignite: int = TownState.passive_rank("ignite")
 	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
 			and randf() < float(ignite) * damage / (1.2 + 0.6 * stats.intelligence):
