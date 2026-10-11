@@ -15,4 +15,5 @@ first = 4.0
 last = 25.0
 text = "Cast speed +%s%%"
 order = 19
+table = Array[float]([])
 needs = ""

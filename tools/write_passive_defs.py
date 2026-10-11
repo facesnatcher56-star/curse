@@ -38,6 +38,12 @@ PASSIVES = [
 ]
 
 
+# DS2's per-rank tables (passive_skills.gas), where read: the curve flattens toward rank 20. The rest go straight from rank 1 to 20
+# until their tables are read.
+TABLES = {
+    "deadly_strike": [224, 242, 256, 268, 279, 288, 296, 303, 310, 316, 322, 327, 332, 336, 340, 343, 346, 348, 349, 350],
+}
+
 NEEDS = {"critical_shot": "a ranged attack", "quick_draw": "throwing weapons", "bleed": "throwing weapons"}
 
 
@@ -52,7 +58,8 @@ def main() -> None:
             '[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]', "", "[resource]",
             'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name, 'tree = "%s"' % tree,
             "class_level = %d" % level, "prereqs = %s" % pre, "first = %s" % float(first), "last = %s" % float(last),
-            'text = "%s"' % text, "order = %d" % order, 'needs = "%s"' % NEEDS.get(ident, ""),
+            'text = "%s"' % text, "order = %d" % order,
+            "table = Array[float]([%s])" % ", ".join(str(float(v)) for v in TABLES.get(ident, [])), 'needs = "%s"' % NEEDS.get(ident, ""),
         ]
         (OUT / (ident + ".tres")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     for old in OUT.glob("*.tres"):

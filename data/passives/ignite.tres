@@ -15,4 +15,5 @@ first = 0.08
 last = 0.5
 text = "Fire hits may ignite: %s x INT a second"
 order = 20
+table = Array[float]([])
 needs = ""

@@ -15,4 +15,5 @@ first = 8.0
 last = 50.0
 text = "Two-handed weapons; their damage +%s%%"
 order = 3
+table = Array[float]([])
 needs = ""

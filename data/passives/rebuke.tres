@@ -15,4 +15,5 @@ first = 0.4
 last = 2.5
 text = "On a block: %s x Melee level back, and a stun"
 order = 9
+table = Array[float]([])
 needs = ""

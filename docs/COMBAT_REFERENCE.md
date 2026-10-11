@@ -125,5 +125,5 @@ grown by Searing Flames, setting victims alight 4 s at 0.1 x INT as DS2's fire p
 
 Curse choices: every rank's values are DS2's own, except that Take Aim's ranks 1 and 2 grow with Ranged where DS2's file says Melee (a
 slip: rank 3 and every other ranged power use Ranged); DS2's `desperate_frenzy`
-is taken to be Deadly Strike (to confirm); War Cry's cone (8 m, 70 degrees), its fear (4 s), Flame Nexus's radius (4 m) and the reach of
+is Deadly Strike (confirmed in passive_skills.gas); War Cry's cone (8 m, 70 degrees), its fear (4 s), Flame Nexus's radius (4 m) and the reach of
 targeted powers (14 m) are Curse's (DS2's file gives only dummy radii); Cutter buys no passives, so his Take Aim stays at rank 1 and grows with his Ranged level.

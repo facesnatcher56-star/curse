@@ -16,4 +16,5 @@ first = 5.0
 last = 50.0
 text = "Two-handed hits stun: %s%% chance"
 order = 7
+table = Array[float]([])
 needs = ""

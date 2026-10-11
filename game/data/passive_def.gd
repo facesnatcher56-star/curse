@@ -18,15 +18,20 @@ const MAX_RANK := 20
 @export var first: float = 0.0
 @export var last: float = 0.0
 @export var text: String = ""
+## DS2's own value at each of the 20 ranks, when the reference has the table (the curve is not a straight line); empty: straight from
+## `first` to `last`.
+@export var table: Array[float] = []
 ## What Curse is missing for its effect ("" when it works): it can still be bought, as DS2's path to what comes after it.
 @export var needs: String = ""
 ## Order within its tree.
 @export var order: int = 0
 
-## Its effect at `rank` (0 at rank 0; straight from rank 1 to rank 20).
+## Its effect at `rank` (0 at rank 0): DS2's table when there is one, otherwise straight from rank 1 to rank 20.
 func value(rank: int) -> float:
 	if rank <= 0:
 		return 0.0
+	if table.size() == MAX_RANK:
+		return table[mini(rank, MAX_RANK) - 1]
 	return first + (last - first) * float(mini(rank, MAX_RANK) - 1) / float(MAX_RANK - 1)
 
 func describe(rank: int) -> String:

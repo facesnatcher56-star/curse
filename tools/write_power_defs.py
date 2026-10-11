@@ -7,8 +7,8 @@ Values are expressions in the class levels melee, ranged, combat, nature, all th
 CURSE CHOICE: DS2's file has Take Aim's ranks 1 and 2 grow with #src_melee, plainly a slip (rank 3 and every other ranged power use
 ranged): Curse uses Ranged for all three.
 `needs` names what Curse lacks for the power; a power with needs is data only (shown, not usable) until that system exists.
-Passive ids follow Curse's (DS2's aegis is Barricade). ASSUMPTION: DS2's `desperate_frenzy` is Deadly Strike (to confirm against
-passive_skills.gas). Edit and re-run; stale files are removed.
+Passive ids follow Curse's: DS2's aegis is Barricade, and its desperate_frenzy is Deadly Strike (passive_skills.gas: screen_name
+"Deadly Strike", once designed as a berserk frenzy). Edit and re-run; stale files are removed.
 """
 from pathlib import Path
 
