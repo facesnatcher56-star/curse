@@ -177,7 +177,11 @@ func _test_ds2_items() -> void:
 	var heavy: Dictionary = Items.build(ItemDb.get_def("longsword"), 17, Items.Rarity.NORMAL)
 	expect("a level 17 sword needs Melee 15", Items.requirement(heavy) == {"class": "melee", "level": 15}
 		and not Items.meets_requirement(heavy, {"melee": 14}) and Items.meets_requirement(heavy, {"melee": 15}))
-	expect("armour needs any class skill at that level", Items.meets_requirement(Items.build(ItemDb.get_def("iron_helm"), 20, 0), {"melee": 0, "ranged": 18}))
+	var ranger_cap: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 20, 0)
+	expect("armour needs its own class's skill (a ranger cap Ranged, a fighter helm Melee)", Items.meets_requirement(ranger_cap, {"melee": 40, "ranged": 18})
+		and not Items.meets_requirement(ranger_cap, {"melee": 40, "ranged": 17}) and not Items.meets_requirement(Items.build(ItemDb.get_def("iron_helm"), 20, 0), {"melee": 17, "ranged": 40}))
+	expect("jewellery needs the character level", Items.meets_requirement(Items.build(ItemDb.get_def("signet"), 34, 1), {"uber": 32})
+		and not Items.meets_requirement(Items.build(ItemDb.get_def("signet"), 34, 1), {"uber": 31, "melee": 60}))
 	expect("a new hero cannot wear it: it stays off and he says why", player.stats.equip(heavy) == null and player.stats.equipment.get(Items.Slot.WEAPON) != heavy)
 	expect("and the card says so, as a worse line", Items.compare(heavy, player.stats.equipment.get(Items.Slot.WEAPON))[0]["sign"] == -1)
 	# Drops.

@@ -154,34 +154,39 @@ static func mods_of(item: Dictionary) -> Dictionary:
 
 # --- Requirements (DS2: class skill >= item level - 2) ---------------------------------------------------------------------------------
 
-## What wearing `item` needs: {class, level}. A weapon needs Melee (the hero's blades); armour and jewellery any class skill, his highest
-## (CURSE CHOICE: DS2's class pieces name their class; the hero wears what his best skill allows). The stance passives DS2 also asks for
-## (Barricade for a shield, Overbear for a two-handed weapon) come with the passive trees.
+## Which class skill an armour class's pieces ask for (DS2's `equip_requirements`).
+const ARMOR_CLASS_SKILL := {"fighter": "melee", "ranger": "ranged", "mage": "combat"}
+
+## What wearing `item` needs: {class, level}, DS2's `equip_requirements` (item level - 2): a weapon Melee (the hero's blades), an armour
+## piece its own class's skill (fighter Melee, ranger Ranged, mage Combat Magic), jewellery the character level ("uber"). The stance
+## passives DS2 also asks for (Barricade for a shield, Overbear for a two-handed weapon) come with the passive trees.
 static func requirement(item: Dictionary) -> Dictionary:
 	var def: ItemDef = ItemDb.get_def(String(item["def"]))
-	return {"class": "melee" if def != null and def.is_weapon() else "", "level": maxi(int(item["level"]) - 2, 0)}
+	var skill: String = "melee"
+	if def != null and def.is_jewelry():
+		skill = "uber"
+	elif def != null and def.is_armor():
+		skill = String(ARMOR_CLASS_SKILL.get(def.armor_class, "melee"))
+	return {"class": skill, "level": maxi(int(item["level"]) - 2, 0)}
 
-## Whether class skill `levels` (HeroAttributes.levels_from_xp) meet the requirement.
+## Whether `levels` meet the requirement: class skill levels (HeroAttributes.levels_from_xp) and "uber", the character level.
 static func meets_requirement(item: Dictionary, levels: Dictionary) -> bool:
 	var need: Dictionary = requirement(item)
-	var have: int = 0
-	if String(need["class"]) != "":
-		have = int(levels.get(need["class"], 0))
-	else:
-		for id in levels:
-			have = maxi(have, int(levels[id]))
-	return have >= int(need["level"])
+	return int(levels.get(need["class"], 0)) >= int(need["level"])
 
-## Whether the hero (TownState's class XP) may wear `item`.
+## Whether the hero (TownState's level and class XP) may wear `item`.
 static func hero_can_wear(item: Dictionary) -> bool:
-	return meets_requirement(item, HeroAttributes.levels_from_xp(TownState.class_xp))
+	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
+	levels["uber"] = TownState.hero_level
+	return meets_requirement(item, levels)
 
 static func requirement_text(item: Dictionary) -> String:
 	var need: Dictionary = requirement(item)
 	if int(need["level"]) <= 0:
 		return ""
-	var skill: String = String(HeroAttributes.CLASS_NAMES.get(need["class"], "")) if String(need["class"]) != "" else "any class skill"
-	return "Requires %s %d" % [skill, int(need["level"])]
+	if String(need["class"]) == "uber":
+		return "Requires level %d" % int(need["level"])
+	return "Requires %s %d" % [String(HeroAttributes.CLASS_NAMES.get(need["class"], need["class"])), int(need["level"])]
 
 # --- Saving ---------------------------------------------------------------------------------------------------------------------------
 
