@@ -8,7 +8,7 @@ extends RefCounted
 const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 7
+const SAVE_VERSION := 8
 const MAX_STASH := 12
 const LOW_FOOD := 3
 
@@ -362,7 +362,7 @@ static func finish_run(result: Dictionary) -> void:
 ## is stashed here is remembered in `_gear_stashed` and `stash_carried` does not stash it a second time. An item swapped back onto the
 ## hero is taken out of the stash again: one owned copy, wherever the swaps ended.
 static func take_gear(equipment: Dictionary) -> void:
-	for slot in equipment.keys():
+	for slot in equipment:
 		var item: Dictionary = (equipment[slot] as Dictionary).duplicate(true)
 		var back: int = _gear_stashed.find(item)
 		if back >= 0:
@@ -370,11 +370,17 @@ static func take_gear(equipment: Dictionary) -> void:
 			var at: int = stash.rfind(item)
 			if at >= 0:
 				stash.remove_at(at)
-		var old: Variant = gear.get(int(slot))
-		if old != null and (old as Dictionary).get("name") != item.get("name") and not _is_plain_starter(old as Dictionary):
-			stash_item(old as Dictionary)
+	for slot in gear.keys():   # what came off (replaced, or pushed off: a shield for a two-handed weapon) goes to the stash
+		var old: Dictionary = gear[slot]
+		var still_worn: bool = false
+		for place in equipment:
+			still_worn = still_worn or (equipment[place] as Dictionary).hash() == old.hash()
+		if not still_worn and not _is_plain_starter(old):
+			stash_item(old)
 			_gear_stashed.append(old)
-		gear[int(slot)] = item
+	gear = {}
+	for slot in equipment:
+		gear[int(slot)] = (equipment[slot] as Dictionary).duplicate(true)
 
 ## Replaced gear `take_gear` has put in the stash while the hero may still carry it in the bag (in memory only; the bag is not saved).
 static var _gear_stashed: Array = []
@@ -391,16 +397,16 @@ static func stash_carried(bag: Array) -> void:
 	_gear_stashed.clear()
 
 static func _is_plain_starter(item: Dictionary) -> bool:
-	return int(item.get("rarity", 0)) == Items.Rarity.COMMON
+	return int(item.get("rarity", 0)) == Items.Rarity.NORMAL
 
 static func stash_item(item: Dictionary) -> void:
 	stash.append(item)
 	while stash.size() > MAX_STASH:
 		stash.pop_front()
 
-## What the vendor will pay for an item (and charge, before mood).
+## What the vendor will pay for an item (and charge, before mood): by rarity, and more for a higher item level (CURSE CHOICE).
 static func item_price(item: Dictionary) -> int:
-	return [30, 80, 220][clampi(int(item.get("rarity", 0)), 0, 2)]
+	return int(round([30, 80, 220, 400, 400][clampi(int(item.get("rarity", 0)), 0, 4)] * (1.0 + 0.04 * float(item.get("level", 1)))))
 
 # --- Hero progression ----------------------------------------------------------------------------------------------------
 
@@ -547,6 +553,12 @@ static func migrate(data: Dictionary) -> Dictionary:
 				for offer in data.get("board", []):
 					if (offer as Dictionary).has("xp"):
 						offer["xp"] = HeroProgression.STANDING_QUEST_XP
+			7:   # Dungeon Siege II items: an item's tier becomes its item level, as a Normal item of its base (what made it rare is gone);
+				# a trinket becomes a ring (Signet) or an amulet (Charm, Talisman) and is worn as one
+				data["gear"] = _gear_to_save(_gear_from_save(data.get("gear", {})))
+				data["stash"] = _items_to_save(_items_from_save(data.get("stash", [])))
+				data["stock"] = _stock_to_save(_stock_from_save(data.get("stock", [])))
+				data["smith_stock"] = _stock_to_save(_stock_from_save(data.get("smith_stock", [])))
 		version += 1
 		data["save_version"] = version
 	return data
@@ -665,8 +677,14 @@ static func _gear_from_save(saved: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	for key in saved:
 		var item: Dictionary = Items.from_save(saved[key])
-		if not item.is_empty():
-			out[int(item["slot"])] = item
+		if item.is_empty():
+			continue
+		var place: int = int(key) if str(key).is_valid_int() else int(item["slot"])
+		if not Items.places(int(item["slot"])).has(place):   # a trinket from before DS2 items may now be an amulet
+			place = int(item["slot"])
+		if out.has(place) and int(item["slot"]) == Items.Slot.RING:
+			place = Items.Slot.RING2
+		out[place] = item
 	return out
 
 static func _stock_to_save(entries: Array) -> Array:

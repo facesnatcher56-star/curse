@@ -131,8 +131,8 @@ func _ready() -> void:
 
 ## The gear the hero wears this run: whatever the town holds, over the starting kit.
 static func _apply_run_gear(hero: Player) -> void:
-	for item in TownState.gear.values():
-		hero.stats.equip(item, false)
+	for place in TownState.gear:
+		hero.stats.wear(int(place), TownState.gear[place])
 	hero.stats.potions = TownState.potions
 
 func _build_world() -> void:
@@ -469,15 +469,14 @@ func _use_return_waystone() -> void:
 		crypt.return_waystone.reset_used()
 
 ## The one way gear changes in town: what is worn is recorded in TownState and put on the hero standing here, so the weapon in his
-## hand (and his armour) is what the shop or stash just gave him. Returns what was worn in that slot before, or null.
+## hand (and his armour) is what the shop or stash just gave him. Returns what came off to make room (an Array), or null when he cannot
+## wear it (the weapon is out, or the requirement is not met): nothing changed.
 func equip_town_item(item: Dictionary) -> Variant:
-	if player.stats.weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:
-		player._say("Recall your weapon first")
-		return item   # nothing changed: what was asked for is handed straight back
-	var old: Variant = TownState.gear.get(int(item["slot"]))
-	TownState.gear[int(item["slot"])] = item
-	player.stats.equip(item, false)
-	return old
+	var off: Variant = player.stats.equip(item, true)
+	if off == null:
+		return null
+	TownState.gear = player.stats.equipment.duplicate()
+	return off
 
 ## The one way the potion count changes in town. The hero's own count is the live one (he can drink in town), TownState mirrors it
 ## every frame; buying changes the hero's and records it at once.

@@ -13,6 +13,17 @@ const STAT_NAMES := {
 	"block": "Chance to block", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
 }
 
+## The stats that are percentages.
+const PERCENT_STATS: Array[String] = ["melee_pct", "spell_pct", "life_steal", "armor_pct", "fire_resist", "reflect", "life_regen", "mana_regen",
+	"block", "recharge", "magic_find", "gold_find"]
+
+static func is_percent(stat: String) -> bool:
+	return PERCENT_STATS.has(stat)
+
+## "+12 Strength", "+18% Melee damage".
+static func describe_stat(stat: String, value: float) -> String:
+	return "+%d%s %s" % [int(round(value)), "%" if is_percent(stat) else "", String(STAT_NAMES.get(stat, stat))]
+
 static var _defs: Dictionary = {}   # id -> AffixDef
 
 static func all() -> Dictionary:

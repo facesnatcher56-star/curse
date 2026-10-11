@@ -144,15 +144,19 @@ func connected() -> bool:
 static func arena_level(at_wave: int) -> float:
 	return 1.0 + 0.12 * (at_wave - 1)
 
-## The item tier a drop from a source of this threat has: the arena goes by its wave, the connected world by the source.
-func drop_tier(source_threat: float) -> int:
-	return Items.tier_for_source(source_threat) if connected() else Items.tier_for_wave(wave)
+## The level loot from a source of this threat drops at (DS2: around the monster's level): the arena goes by its wave.
+func drop_level(source_threat: float) -> int:
+	return WorldThreat.monster_level(source_threat if connected() else arena_level(wave))
 
-## The item tier for something with no monster behind it (a smashed prop) at a place: the stretch of road it stands in.
-func drop_tier_at(point: Vector3) -> int:
+## The level for something with no monster behind it (a smashed prop, a reward) at a place: the stretch of road it stands in.
+func drop_level_at(point: Vector3) -> int:
 	if not connected():
-		return Items.tier_for_wave(wave)
-	return Items.tier_for_source(location.threat_at(point) if location != null else WorldThreat.for_distance(0.0))
+		return WorldThreat.monster_level(arena_level(wave))
+	return WorldThreat.monster_level(location.threat_at(point) if location != null else WorldThreat.for_distance(0.0))
+
+## The hero's magic find (gear), for the drop tables.
+func magic_find() -> float:
+	return player.stats.gear_stat("magic_find") if player != null else 0.0
 
 ## Starts the job in an authored location: every group is already there, doing its own thing, so there is no wave and no timer.
 func start_location(place: CryptRoad) -> void:
@@ -359,13 +363,13 @@ func _report_to_quests(actor: Actor) -> int:
 		var named_level: float = float(Monsters.find(int(enemy.get_meta("monster_uid"))).get("level", enemy.level_scale))   # its own, not the road's
 		var paid: Dictionary = Monsters.killed(int(enemy.get_meta("monster_uid")))
 		for i in int(paid.get("items", 0)):
-			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_drop(drop_tier(named_level), 1.0))
+			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_reward(drop_level(named_level), Items.REWARD, magic_find()))
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return int(paid.get("xp", 0)) if enemy.hero_credited() else 0   # the bounty is paid regardless; the XP is for the hero's own kill
 	if enemy.has_meta("quest_uid"):
 		if Quests.report_unique_killed(int(enemy.get_meta("quest_uid"))):
-			drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), 1.0))   # a named monster always leaves something good
+			drop_item(enemy.global_position, Items.roll_reward(enemy.level, Items.REWARD, magic_find()))   # a named monster always leaves something good
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return 0
@@ -438,12 +442,15 @@ func xp_report() -> Dictionary:
 	return {"kills": kills_n, "by_kind": by_kind, "kill_xp": kill_total, "nests": nests, "nest_xp": nest_xp, "quest_xp": quest_xp,
 		"named": named_n, "named_xp": named_total, "total": kill_total + nest_xp + quest_xp}
 
-## A dead monster may drop an item (see EnemyDef.drop_chance): it lands near the body and waits to be walked over.
+## A dead monster may drop an item, by DS2's table for its tier (Items.roll_drop) at its level: it lands near the body and waits to be
+## walked over. Most kills drop nothing.
 func _drop_loot(actor: Actor) -> void:
 	var enemy := actor as Enemy
-	if enemy == null or enemy.def == null or randf() >= enemy.def.drop_chance * (Quests.world_mult("drop_mult") if world_mode else 1.0):
+	if enemy == null or enemy.def == null:
 		return
-	drop_item(enemy.global_position, Items.roll_drop(drop_tier(enemy.level_scale), enemy.def.drop_luck))
+	var item: Dictionary = Items.roll_drop(enemy.level, enemy.def.tier, magic_find(), Quests.world_mult("drop_mult") if world_mode else 1.0)
+	if not item.is_empty():
+		drop_item(enemy.global_position, item)
 
 func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)
@@ -469,7 +476,7 @@ func _end_run(completed: bool, walked_out: bool = false) -> void:
 func _on_enemy_died(actor: Actor) -> void:
 	kills += 1
 	if gold_per_kill > 0:
-		TownState.gold += int(round(gold_per_kill * Quests.world_mult("gold_mult")))
+		TownState.gold += int(round(gold_per_kill * Quests.world_mult("gold_mult") * (1.0 + player.stats.gear_stat("gold_find") / 100.0)))
 	if world_mode:
 		var named_xp: int = _report_to_quests(actor)
 		_pay_kill_xp(actor, named_xp)

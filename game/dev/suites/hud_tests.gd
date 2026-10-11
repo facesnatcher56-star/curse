@@ -117,7 +117,7 @@ func _test_owner_feedback_1() -> void:
 	var stats: PlayerStats = player.stats
 	player.message_time = 0.0
 	player.message = ""
-	var drop_item: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "Charm")
+	var drop_item: Dictionary = Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1, "Charm")
 	var text: String = stats.pickup(drop_item)
 	expect("picking an item up still reports what happened to callers", text.contains("Charm"))
 	expect("but the HUD message line says nothing", player.message_time <= 0.0 and player.message == "")
@@ -265,10 +265,10 @@ func _test_inventory_equip() -> void:
 	var item_name: Control = _inventory_item_control(hud, armor, true)
 	if item_name != null:
 		await _inventory_mouse_click(item_name, MOUSE_BUTTON_LEFT, true)
-		expect("double-clicking a name equips armor and updates defenses", player.stats.equipment[Items.Slot.ARMOR] == armor and player.armor == player.stats.base_armor + player.stats.armor_stat("armor", 0.0))
+		expect("double-clicking a name equips armor and updates defenses", player.stats.equipment[Items.Slot.ARMOR] == armor and is_equal_approx(player.armor, player.stats.total_armor()))
 	else:
 		expect("bag armor has a clickable name", false)
-	var ring: Dictionary = Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1, "Charm")
+	var ring: Dictionary = Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1, "Charm")
 	player.stats.bag.append(ring)
 	hud._open_character()
 	await get_tree().create_timer(0.1).timeout
@@ -284,7 +284,7 @@ func _test_inventory_equip() -> void:
 		accept.pressed = false
 		get_viewport().push_input(accept, true)
 		await get_tree().process_frame
-		expect("controller confirmation equips focused icon into empty slot", player.stats.equipment.get(Items.Slot.TRINKET) == ring and not player.stats.bag.has(ring))
+		expect("controller confirmation equips focused icon into empty slot", player.stats.equipment.get(Items.Slot.RING) == ring and not player.stats.bag.has(ring))
 		expect("controller focus stays on remaining bag items", get_viewport().gui_get_focus_owner() is ItemTile)
 	else:
 		expect("bag trinket is focusable", false)

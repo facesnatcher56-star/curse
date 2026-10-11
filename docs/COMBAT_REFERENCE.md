@@ -55,4 +55,28 @@ Curse choices where DS2's engine is not visible, or the owner chose differently 
 * **Fireball**: DS2's table values (53 at INT 100, 105 at INT 200) fitted as `1 + 0.52 x INT`; mana `0.82 x INT`.
 * **Heavy blows**: DS2 has no stagger roll. Curse keeps its physical knockdown: a blow of weight 2.0 or more (a Brute's heavy swing,
   the Warden's special) puts the hero down. The Zombasite "crushing" and "deep wounds" outcomes are gone.
-* **Weapon damage until DS2 items**: an item's tier stands in for its item level on DS2's one-handed curve (`3.4 + 0.74L`).
+
+## DS2 items (2026-10, owner decision; locked by `--only=ds2items`)
+
+* **Slots**: weapon, shield, helm, body, gloves, boots, amulet, two rings (`Items.Slot`). A two-handed weapon and a shield push each other off.
+* **Bases** (`ItemDef`): five item levels each (DS2's base and var1-var4). Weapon damage per hit is DS2's curve by type (1H `3.4 + 0.74L`, 2H
+  `5.2 + 1.2L`, x0.75 / x1.25); armour `class x slot x (16 + 4L)` (fighter 1.0, ranger 0.8; body 0.5, helm and shield 0.2, gloves and boots 0.15).
+* **Rarities**: Normal, Magic (1-2 modifiers), Rare, Unique, Set. Modifiers are DS2's families and tiers (`AffixDef`), one per family.
+* **Requirement**: class skill at least item level - 2 (`Items.requirement`).
+* **Drops**: DS2's item columns per monster tier (weak 5% / 0.45 / 0.15 / 0.15, normal 8 / 0.75 / 0.25 / 0.25, strong 15 / 1.35 / 0.45 / 0.45),
+  the item-level windows (-6..0, -5..+1, -4..+2; rares -4..+2, uniques -40..+3, sets -50..+3), a miniboss's guaranteed piece (30 / 50 / 12 / 4 / 4),
+  rewards 70 / 15 / 15, magic find `x (1 + MF/100)` on rare, unique and set.
+* **Gear on the hero**: STR/DEX/INT, life, mana, min/max melee, melee %, combat magic %, added fire (before armour), life steal and life per hit,
+  armour and armour %, fire resistance, reflect, life and mana recovery, block (with a shield), power recharge, magic find, gold found.
+
+Curse choices (labelled in code):
+
+* **Few bases**: two or three a slot with their levels spread, so a slot has a base near any level; when none fits a drop's window the nearest
+  variant drops. Ice, lightning and death damage, ranged-only and class-skill modifiers wait for those systems.
+* **A magic item's modifier window** (DS2 leaves it to the engine) is `item level - 20 ... item level`; a rare's is DS2's `-25 ... +5`, with 3 or 4
+  modifiers (DS2: engine-side).
+* **DS2's "#" item** drops plain half the time, with one modifier 30% and two 20%. Jewellery is never plain.
+* **Armour and jewellery requirement** uses the hero's highest class skill (DS2's pieces name their class). The stance passives DS2 also asks for
+  (Barricade for a shield, Overbear for two hands) arrive with the passive trees.
+* **Gold and potions** stay Curse's own (gold per kill, health orbs); only the item columns of DS2's tables are used.
+* **The hero's thrown blade** is his melee weapon, so it keeps the melee damage modifiers.

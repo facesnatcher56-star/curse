@@ -44,11 +44,6 @@ extends Resource
 ## How many of the hero's "attackers at once" slots this enemy takes up.
 @export var token_weight: int = 1
 
-@export_group("Loot")
-## Chance of dropping an item when killed, and how lucky the drop is (0 ordinary, 1 a Brute: rare or better, often unique).
-@export var drop_chance: float = 0.0
-@export var drop_luck: float = 0.0
-
 @export_group("Spawning")
 @export var min_wave: int = 1
 ## "pack" (clustered with its own kind), "solo" (scattered, alone) or "support" (placed behind a pack).

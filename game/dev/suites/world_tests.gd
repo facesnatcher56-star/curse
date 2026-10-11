@@ -234,7 +234,7 @@ func _test_world() -> void:
 		others = others or (id != "hale" and (town.npcs[id] as TownNpc).has_reward_marker())
 	expect("nobody else has one", not others)
 	# Home again: the bag goes to the stash, the quest is still waiting.
-	hero.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Falchion"))
+	hero.stats.bag.append(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Falchion"))
 	var stash_before: int = TownState.stash.size()
 	hero.global_position = Vector3(0, 0, -10)
 	hero.reset_physics_interpolation()

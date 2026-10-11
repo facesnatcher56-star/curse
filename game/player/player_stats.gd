@@ -54,17 +54,57 @@ var dexterity: float:
 var intelligence: float:
 	get: return attributes.z
 
-## Works STR / DEX / INT out again from the saved class XP, and with them the hero's maximum life and mana (keeping the share he has
-## left of each). His character level becomes his combat level.
+## Works STR / DEX / INT out again from the saved class XP and the gear, and with them the hero's maximum life and mana (keeping the share
+## he has left of each), his armour, resistance, block and added fire. His character level becomes his combat level.
 func refresh() -> void:
-	attributes = HeroAttributes.attributes(HeroAttributes.levels_from_xp(TownState.class_xp))
+	gear = gear_totals()
+	attributes = HeroAttributes.attributes(HeroAttributes.levels_from_xp(TownState.class_xp)) \
+		+ Vector3(gear_stat("str"), gear_stat("dex"), gear_stat("int"))
 	var life_share: float = p.health / maxf(p.max_health, 1.0)
 	var mana_share: float = mana / maxf(max_mana, 1.0)
-	p.max_health = HeroAttributes.max_life(attributes)
-	max_mana = HeroAttributes.max_mana(attributes)
+	p.max_health = HeroAttributes.max_life(attributes) + gear_stat("life")
+	max_mana = HeroAttributes.max_mana(attributes) + gear_stat("mana")
 	p.health = clampf(p.max_health * life_share, 0.0, p.max_health) if not p.dead else p.health
 	mana = max_mana * mana_share
 	p.level = TownState.hero_level
+	p.armor = total_armor()
+	p.fire_resist = gear_stat("fire_resist") / 100.0
+	p.block_chance = gear_stat("block") / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
+	p.added_fire = gear_stat("fire_added")
+
+# --- What the gear adds (DS2 modifiers, uniques and set bonuses) ------------------------------------------------------------------------
+## Everything worn adds up to this: stat (AffixDb.STAT_NAMES) -> value. Worked out by `refresh`.
+var gear: Dictionary = {}
+
+func gear_stat(stat: String) -> float:
+	return float(gear.get(stat, 0.0))
+
+## The modifiers of every worn piece, plus each set's bonus for the pieces of it worn.
+func gear_totals() -> Dictionary:
+	var out: Dictionary = {}
+	var set_pieces: Dictionary = {}
+	for place in equipment:
+		var item: Dictionary = equipment[place]
+		var mods: Dictionary = Items.mods_of(item)
+		for stat in mods:
+			out[stat] = float(out.get(stat, 0.0)) + float(mods[stat])
+		var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
+		if u != null and u.set_id != "":
+			set_pieces[u.set_id] = int(set_pieces.get(u.set_id, 0)) + 1
+	for set_id in set_pieces:
+		var set_def: SetDef = UniqueDb.get_set(set_id)
+		if set_def != null:
+			var bonus: Dictionary = set_def.bonus_for(int(set_pieces[set_id]))
+			for stat in bonus:
+				out[stat] = float(out.get(stat, 0.0)) + float(bonus[stat])
+	return out
+
+## DS2's armour: the worn pieces' armour plus flat armour modifiers, then x (1 + armour %). Heroes have none of their own.
+func total_armor() -> float:
+	var armor: float = base_armor
+	for place in equipment:
+		armor += float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
+	return (armor + gear_stat("armor")) * (1.0 + gear_stat("armor_pct") / 100.0)
 
 ## A skill's mana: its data's, except Fireball, a DS2 spell whose cost grows with INT (82 at INT 100, 164 at 200: 0.82 x INT).
 func mana_cost(id: String) -> float:
@@ -78,7 +118,7 @@ const SPELL_PER_INT := 0.52
 const SPELL_MANA_PER_INT := 0.82
 
 func spell_range() -> Vector2:
-	var average: float = SPELL_BASE + SPELL_PER_INT * intelligence
+	var average: float = (SPELL_BASE + SPELL_PER_INT * intelligence) * (1.0 + gear_stat("spell_pct") / 100.0)
 	return Vector2(average * 0.75, average * 1.25)
 
 func spell_damage() -> float:
@@ -120,7 +160,7 @@ func brutal_active_members() -> int:
 ## Dungeon Siege II's fast-power baseline, copied directly: secondsOfCombat × (6 + 1.5L) × (1 + .022L) × active group members.
 func power_recharge_damage(seconds_of_combat: float) -> float:
 	var level: float = maxf(float(TownState.hero_level), 1.0)
-	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members()
+	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members() / (1.0 + gear_stat("recharge") / 100.0)
 
 func brutal_recharge_damage() -> float:
 	return power_recharge_damage(BRUTAL_COMBAT_SECONDS)
@@ -192,20 +232,21 @@ func use_potion() -> bool:
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 
-## The wielded weapon's own blow (DS2 one-handed: `3.4 + 0.74 x item level` on average, rolled 0.75 to 1.25), scaled by its base's damage.
-## CURSE CHOICE until DS2 item levels arrive: the item's tier stands in for its item level.
+## The wielded weapon's own blow (its base's DS2 curve at its item level, ItemDef.stats_at) plus the gear's minimum and maximum melee
+## damage. Bare hands are a level 1 one-handed blow.
 func weapon_base_range() -> Vector2:
 	var item: Variant = equipment.get(Items.Slot.WEAPON)
-	var item_level: float = float((item as Dictionary).get("tier", 1)) if item != null else 1.0
-	var average: float = (3.4 + 0.74 * item_level) * weapon_stat("damage", 1.0)
-	return Vector2(average * 0.75, average * 1.25)
+	var low: float = float((item as Dictionary)["stats"].get("min", 3.105)) if item != null else 3.105
+	var high: float = float((item as Dictionary)["stats"].get("max", 5.175)) if item != null else 5.175
+	return Vector2(low + gear_stat("melee_min"), maxf(high + gear_stat("melee_max"), low + gear_stat("melee_min")))
 
-## DS2's hero blow: the weapon plus 0.2 x STR (DEX for a thrown weapon), 0.75 of that on the low roll and 1.25 on the high, times `mult`
-## (the skill's multiplier, DS2's power damage multiplier).
+## DS2's hero blow: the weapon plus 0.2 x STR (DEX for a thrown weapon), 0.75 of that on the low roll and 1.25 on the high, then x (1 +
+## melee damage %), times `mult` (the skill's multiplier, DS2's power damage multiplier). CURSE CHOICE: the hero's thrown blade is his
+## melee weapon, so it keeps the melee modifiers.
 func weapon_range(mult: float, thrown: bool = false) -> Vector2:
 	var base: Vector2 = weapon_base_range()
 	var bonus: float = 0.2 * maxf(dexterity if thrown else strength, 10.0)
-	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * mult
+	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + gear_stat("melee_pct") / 100.0) * mult
 
 func weapon_damage(mult: float, thrown: bool = false) -> float:
 	var r: Vector2 = weapon_range(mult, thrown)
@@ -237,29 +278,84 @@ func armor_stat(key: String, fallback: float) -> float:
 func attack_speed() -> float:
 	return weapon_stat("speed", 1.0)
 
-func equip(item: Dictionary, announce: bool = true) -> void:
+## Puts `item` on. Returns what came off to make room (the piece in its place, and a shield for a two-handed weapon or a two-handed weapon
+## for a shield), or null when it cannot be worn: the weapon is out in the world, or the hero does not meet its requirement (DS2: class
+## skill at least item level - 2). A ring goes on a free hand, else replaces the first ring.
+func equip(item: Dictionary, announce: bool = true) -> Variant:
 	if weapon_locked and int(item["slot"]) == Items.Slot.WEAPON:
 		p._say("Recall your weapon first")
-		return
-	equipment[int(item["slot"])] = item
-	p.armor = base_armor + armor_stat("armor", 0.0)
-	if int(item["slot"]) == Items.Slot.WEAPON:
+		return null
+	if not Items.hero_can_wear(item):
+		if announce:
+			p._say(Items.requirement_text(item))
+		return null
+	var off: Array[Dictionary] = []
+	var place: int = place_for(item)
+	if equipment.has(place):
+		off.append(equipment[place])
+	var conflict: int = _hand_conflict(item)
+	if conflict >= 0 and equipment.has(conflict):
+		if conflict == Items.Slot.WEAPON and weapon_locked:
+			p._say("Recall your weapon first")
+			return null
+		off.append(equipment[conflict])
+		equipment.erase(conflict)
+	equipment[place] = item
+	refresh()
+	if place == Items.Slot.WEAPON or conflict == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
-	# (no "Equipped X" line any more: the gear panel and the hero's weapon show it)
-	if announce:
-		pass
+	return off
 
-## Whether `item` would be put on at once when picked up: only into an empty slot. Rarity never decides it, because a rarer piece may
-## not fit the build; everything else goes to the bag and the player chooses.
+## Where `item` would go: its slot, or for a ring the free hand (the first when both are full).
+func place_for(item: Dictionary) -> int:
+	var places: Array[int] = Items.places(int(item["slot"]))
+	for place in places:
+		if not equipment.has(place):
+			return place
+	return places[0]
+
+## The place a two-handed weapon and a shield fight over: -1 when there is none.
+func _hand_conflict(item: Dictionary) -> int:
+	var slot: int = int(item["slot"])
+	if slot == Items.Slot.WEAPON and _two_handed(item):
+		return Items.Slot.SHIELD
+	if slot == Items.Slot.SHIELD and equipment.has(Items.Slot.WEAPON) and _two_handed(equipment[Items.Slot.WEAPON]):
+		return Items.Slot.WEAPON
+	return -1
+
+static func _two_handed(item: Dictionary) -> bool:
+	var def: ItemDef = ItemDb.get_def(String(item.get("def", "")))
+	return def != null and bool(def.profile.get("two_handed", false))
+
+## Puts back what was worn at `place` (a save, the town's record), with no requirement check: what he had on stays on.
+func wear(place: int, item: Dictionary) -> void:
+	equipment[place] = item
+	refresh()
+	if place == Items.Slot.WEAPON:
+		p.refresh_weapon_model()
+
+## Takes off what is worn at `place` (returns it, or null).
+func unequip(place: int) -> Variant:
+	if not equipment.has(place) or (place == Items.Slot.WEAPON and weapon_locked):
+		return null
+	var item: Dictionary = equipment[place]
+	equipment.erase(place)
+	refresh()
+	if place == Items.Slot.WEAPON:
+		p.refresh_weapon_model()
+	return item
+
+## Whether `item` would be put on at once when picked up: only into an empty place, if he may wear it and it pushes nothing off. Rarity
+## never decides it, because a rarer piece may not fit the build; everything else goes to the bag and the player chooses.
 func takes_empty_slot(item: Dictionary) -> bool:
-	return equipment.get(int(item["slot"])) == null
+	return not equipment.has(place_for(item)) and Items.hero_can_wear(item) \
+		and (_hand_conflict(item) < 0 or not equipment.has(_hand_conflict(item)))
 
 ## Picks a dropped item up: an empty slot is filled at once, anything else goes to the bag.
 func pickup(item: Dictionary) -> String:
 	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
 	var text: String
-	if takes_empty_slot(item):
-		equip(item, false)
+	if takes_empty_slot(item) and equip(item, false) != null:
 		text = "Equipped %s" % item["name"]
 	else:
 		add_to_bag(item)
@@ -298,8 +394,8 @@ var stamina_free_time: float = 0.0
 ## DS2 regeneration: about 1% of the maximum a second, life and mana alike.
 func regen(delta: float) -> void:
 	var in_combat: bool = p.combat_timer > 0.0
-	p.health = minf(p.health + p.max_health * HeroAttributes.REGEN_PER_SECOND * delta, p.max_health)
-	mana = minf(mana + max_mana * HeroAttributes.REGEN_PER_SECOND * delta, max_mana)
+	p.health = minf(p.health + p.max_health * HeroAttributes.REGEN_PER_SECOND * (1.0 + gear_stat("life_regen") / 100.0) * delta, p.max_health)
+	mana = minf(mana + max_mana * HeroAttributes.REGEN_PER_SECOND * (1.0 + gear_stat("mana_regen") / 100.0) * delta, max_mana)
 	stamina_free_time = maxf(stamina_free_time - delta, 0.0)
 	if not in_combat or p.velocity.length() < 0.5 or stamina_free_time > 0.0:
 		stamina = minf(stamina + 14.0 * delta, max_stamina)

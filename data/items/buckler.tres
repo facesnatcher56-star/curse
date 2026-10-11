@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "buckler"
+display_name = "Buckler"
+slot = 3
+order = 8
+model_path = "res://assets/models/items/buckler/model.glb"
+icon_path = "res://assets/icons/items/buckler.png"
+item_type = "shield"
+armor_class = "fighter"
+levels = Array[int]([6, 11, 17, 28, 39])
+stats = {}

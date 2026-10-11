@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "band"
+display_name = "Iron Band"
+slot = 2
+order = 7
+model_path = "res://assets/models/items/band/model.glb"
+icon_path = "res://assets/icons/items/band.png"
+item_type = "ring"
+armor_class = ""
+levels = Array[int]([8, 25, 45, 66, 92])
+stats = {}

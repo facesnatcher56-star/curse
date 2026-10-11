@@ -15,31 +15,31 @@ def slowed_ground_speed(speed: float) -> float:
     return round(speed * NON_LEAPER_SPEED_SCALE, 3)
 
 ENEMIES = {
-    "zombie": dict(tier="normal", role="", drop_chance=0.07, drop_luck=0.0, display_name="Zombie", model_path="res://assets/models/zombie", height=1.75, radius=0.42, speed=slowed_ground_speed(3.6), attack_range=1.6, attack_time=1.1, flinch=0.35, behavior="melee", params={"heavy_chance": 0.25},
+    "zombie": dict(tier="normal", role="", display_name="Zombie", model_path="res://assets/models/zombie", height=1.75, radius=0.42, speed=slowed_ground_speed(3.6), attack_range=1.6, attack_time=1.1, flinch=0.35, behavior="melee", params={"heavy_chance": 0.25},
                    min_wave=1, spawn_mode="pack", base_count=11.0, per_wave=3.0, max_per_wave=60),
-    "brute": dict(tier="strong", role="tank", drop_chance=0.5, drop_luck=1.0, display_name="Brute", model_path="res://assets/models/zombie_brute", height=2.4, radius=0.62, speed=slowed_ground_speed(2.9), attack_range=2.2, attack_time=1.4, flinch=0.1, knock_resist=0.6, stun_resist=0.5, impalable=False, behavior="melee",
+    "brute": dict(tier="strong", role="tank", display_name="Brute", model_path="res://assets/models/zombie_brute", height=2.4, radius=0.62, speed=slowed_ground_speed(2.9), attack_range=2.2, attack_time=1.4, flinch=0.1, knock_resist=0.6, stun_resist=0.5, impalable=False, behavior="melee",
                   params={"heavy_chance": 0.5}, token_weight=2, gib_color=(0.38, 0.42, 0.34),
                   min_wave=2, spawn_mode="solo", base_count=1.0, per_wave=0.5, max_per_wave=8),
-    "ghoul": dict(tier="weak", role="rogue", drop_chance=0.09, drop_luck=0.0, display_name="Ghoul", model_path="res://assets/models/ghoul", height=1.6, radius=0.36, speed=4.8, attack_range=1.5, attack_time=0.8, flinch=0.5, behavior="pouncer", model_scale=(0.95, 0.95, 0.95),
+    "ghoul": dict(tier="weak", role="rogue", display_name="Ghoul", model_path="res://assets/models/ghoul", height=1.6, radius=0.36, speed=4.8, attack_range=1.5, attack_time=0.8, flinch=0.5, behavior="pouncer", model_scale=(0.95, 0.95, 0.95),
                   clips=["idle", "walk", "run", "attack", "hit", "death", "leap", "charge_run"],
                   gib_color=(0.5, 0.5, 0.47),
                   params={"flank_radius": 5.5, "leap_min": 2.8, "leap_max": 6.5, "windup": 0.55, "leap_time": 0.42,
                           "recover": 1.1, "pounce_mult": 1.5, "cooldown_min": 2.2, "cooldown_max": 3.6},
                   min_wave=2, spawn_mode="pack", base_count=2.0, per_wave=0.7, max_per_wave=8),
-    "spitter": dict(tier="normal", role="ranged", drop_chance=0.12, drop_luck=0.0, display_name="Spitter", model_path="res://assets/models/spitter", height=1.7, radius=0.4, speed=slowed_ground_speed(3.2), attack_range=1.5, attack_time=1.0, flinch=0.5, behavior="spitter",
+    "spitter": dict(tier="normal", role="ranged", display_name="Spitter", model_path="res://assets/models/spitter", height=1.7, radius=0.4, speed=slowed_ground_speed(3.2), attack_range=1.5, attack_time=1.0, flinch=0.5, behavior="spitter",
                     clips=["idle", "walk", "run", "hit", "death", "throw", "stagger"], gib_color=(0.55, 0.6, 0.25),
                     params={"preferred": 8.0, "min_dist": 5.0, "fire_range": 13.0, "windup": 0.75, "cooldown_min": 2.4,
                             "cooldown_max": 3.6, "glob_time": 0.85, "splash": 1.3, "puddle_radius": 1.6,
                             "puddle_time": 3.5, "puddle_mult": 0.67, "puddle_slow": 0.3,
                             "snare_on_hit": 3.0, "snare_amount": 0.6},
                     min_wave=3, spawn_mode="solo", base_count=1.0, per_wave=0.5, max_per_wave=5),
-    "bloater": dict(tier="normal", role="tank", drop_chance=0.16, drop_luck=0.0, display_name="Bloater", model_path="res://assets/models/bloater", height=2.0, radius=0.7, speed=slowed_ground_speed(3.3), attack_range=2.3, attack_time=1.0, flinch=0.1, knock_resist=0.5, impalable=False, behavior="bloater",
+    "bloater": dict(tier="normal", role="tank", display_name="Bloater", model_path="res://assets/models/bloater", height=2.0, radius=0.7, speed=slowed_ground_speed(3.3), attack_range=2.3, attack_time=1.0, flinch=0.1, knock_resist=0.5, impalable=False, behavior="bloater",
                     model_scale=(1.0, 1.0, 1.0), clips=["idle", "walk", "run", "attack", "hit", "death", "scream"],
                     gib_color=(0.62, 0.66, 0.4), token_weight=0,
                     params={"fuse_range": 2.3, "fuse_time": 1.0, "blast_radius": 3.2, "blast_mult": 1.6,
                             "cloud_time": 4.5, "cloud_mult": 0.36, "fire_blast_mult": 2.3},
                     min_wave=4, spawn_mode="solo", base_count=1.0, per_wave=0.35, max_per_wave=3),
-    "priest": dict(tier="normal", role="magic", drop_chance=0.25, drop_luck=0.0, display_name="Plague Priest", model_path="res://assets/models/priest", height=1.85, radius=0.4, speed=slowed_ground_speed(2.2), attack_range=1.8, attack_time=0.9, flinch=0.4, behavior="support",
+    "priest": dict(tier="normal", role="magic", display_name="Plague Priest", model_path="res://assets/models/priest", height=1.85, radius=0.4, speed=slowed_ground_speed(2.2), attack_range=1.8, attack_time=0.9, flinch=0.4, behavior="support",
                    clips=["idle", "walk", "run", "attack", "hit", "death", "cast"], gib_color=(0.3, 0.3, 0.32),
                    attack_clip="attack", attack_start=0.5, attack_strike=1.07, attack_end=1.45, token_weight=1,
                    params={"ward_interval": 7.0, "ward_time": 5.0, "ward_reduction": 0.4, "ward_haste": 1.25,
@@ -50,7 +50,7 @@ ENEMIES = {
 
 DEFAULTS = dict(attack_start=0.6, attack_strike=1.43, attack_end=2.0, model_scale=(1.0, 1.0, 1.0), knock_resist=0.0, stun_resist=0.0, impalable=True, token_weight=1,
                 gib_color=(0.42, 0.48, 0.37), clips=ZOMBIE_CLIPS, attack_clip="attack", spawn_mode="pack", min_wave=1,
-                base_count=0.0, per_wave=0.0, max_per_wave=0, params={}, drop_chance=0.0, drop_luck=0.0, tier="normal", role="")
+                base_count=0.0, per_wave=0.0, max_per_wave=0, params={}, tier="normal", role="")
 
 
 def fmt(v) -> str:
@@ -88,7 +88,7 @@ def main() -> None:
         lines.append("gib_color = Color(%s, %s, %s, 1)" % tuple(repr(float(x)) for x in gib))
         for key in ("tier", "role", "speed", "attack_range", "attack_time", "flinch", "knock_resist", "stun_resist", "impalable", "attack_clip", "attack_start",
                     "attack_strike", "attack_end", "behavior",
-                    "params", "token_weight", "drop_chance", "drop_luck", "min_wave", "spawn_mode", "base_count", "per_wave", "max_per_wave"):
+                    "params", "token_weight", "min_wave", "spawn_mode", "base_count", "per_wave", "max_per_wave"):
             lines.append("%s = %s" % (key, fmt(d[key])))
         (OUT / ("%s.tres" % eid)).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         print("wrote", eid)

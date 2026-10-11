@@ -31,6 +31,7 @@ LEATHER_DARK = (0.12, 0.08, 0.05)
 BONE = (0.55, 0.50, 0.40)
 CLOTH = (0.18, 0.15, 0.12)
 EMBER = (0.75, 0.30, 0.08)
+WOOD = (0.24, 0.17, 0.11)
 
 # material key -> (base colour, metallic, roughness, wear: how much rust and grime it takes)
 MATERIALS = {
@@ -43,6 +44,7 @@ MATERIALS = {
     "cloth": (CLOTH, 0.0, 0.95, 0.5),
     "bone": (BONE, 0.0, 0.8, 0.5),
     "ember": (EMBER, 0.2, 0.45, 0.2),
+    "wood": (WOOD, 0.0, 0.9, 0.9),
 }
 
 
@@ -339,10 +341,174 @@ def build_talisman(parts):
         sphere(parts.bm("iron"), (0.235 + math.cos(a) * 0.056, math.sin(a) * 0.056, 0.022), 0.0065, (1, 1, 1), segs=6, rings=4)
 
 
+# --- Helms, gloves, boots, shields and the band (Dungeon Siege II's full gear) --------------------------------------------------
+
+def prism(bm, outline, z0, z1):
+    """A flat plate: the polygon `outline` (XY points, in order) from z0 to z1."""
+    bottom = [bm.verts.new((x, y, z0)) for x, y in outline]
+    top = [bm.verts.new((x, y, z1)) for x, y in outline]
+    n = len(outline)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((bottom[i], bottom[j], top[j], top[i]))
+    bm.faces.new(top)
+    bm.faces.new(bottom[::-1])
+
+
+def dome(bm, radius, height, center=(0, 0, 0), segs=28, rows=12, bump=None):
+    """An open-bottomed dome (a cap or a helm bowl) standing on z = center.z."""
+    rings = []
+    for r in range(rows + 1):
+        t = r / rows                      # 0 at the rim, 1 at the crown
+        a = t * math.pi * 0.5
+        rr = radius * math.cos(a)
+        z = height * math.sin(a)
+        row = []
+        for s_i in range(segs):
+            b = math.tau * s_i / segs
+            push = bump(b, t) if bump else 0.0
+            row.append(bm.verts.new((center[0] + math.cos(b) * (rr + push) * 1.08, center[1] + math.sin(b) * (rr + push), center[2] + z + push)))
+        rings.append(row)
+    ring_grid(bm, rings)
+    return rings
+
+
+def build_leather_cap(parts):
+    # A boiled-leather skullcap: four panels stitched over the crown, a thick rolled band, ear flaps.
+    dome(parts.bm("leather"), 0.11, 0.1, bump=lambda b, t: 0.003 * math.sin(b * 4.0) * (1.0 - t))
+    seams = parts.bm("leather_dark")
+    for k in range(4):
+        a = k * math.pi / 2
+        for i in range(7):
+            t = i / 7
+            r = 0.112 * math.cos(t * math.pi * 0.5)
+            box(seams, (math.cos(a) * r * 1.08, math.sin(a) * r, 0.101 * math.sin(t * math.pi * 0.5) + 0.002), (0.012, 0.012, 0.006),
+                rot=(0, 0, a))
+    cylinder(parts.bm("leather_dark"), (0, 0, 0.012), 0.118, 0.026, axis="Z", segs=32)
+    for side in (-1, 1):
+        box(parts.bm("leather"), (0.0, side * 0.115, -0.03), (0.07, 0.012, 0.08), cuts=1)
+
+
+def build_iron_helm(parts):
+    # A dented iron bowl with a riveted brow band, a nasal guard and a low comb.
+    dome(parts.bm("iron"), 0.12, 0.13, bump=lambda b, t: 0.004 * noise.noise(Vector((math.cos(b) * 3.0, math.sin(b) * 3.0, t * 4.0))))
+    cylinder(parts.bm("steel"), (0, 0, 0.018), 0.132, 0.034, axis="Z", segs=36)
+    for i in range(16):
+        a = math.tau * i / 16
+        sphere(parts.bm("brass"), (math.cos(a) * 0.142, math.sin(a) * 0.132, 0.018), 0.007, segs=6, rings=4)
+    box(parts.bm("steel"), (0.138, 0.0, -0.025), (0.016, 0.03, 0.09), cuts=1)
+    box(parts.bm("dark_steel"), (0.0, 0.0, 0.128), (0.24, 0.012, 0.022), cuts=4)
+
+
+def glove(parts, x, y, mirror, plated):
+    m = mirror
+    body = parts.bm("iron" if plated else "leather")
+    box(body, (x, y, 0.016), (0.095, 0.085, 0.03), cuts=1)
+    for i in range(4):
+        fy = y + (i - 1.5) * 0.021 * m
+        length = (0.075, 0.085, 0.08, 0.065)[i]
+        if plated:
+            for k in range(3):
+                box(parts.bm("dark_steel"), (x + 0.06 + k * length / 3.0, fy, 0.016), (length / 3.2, 0.019, 0.022))
+        else:
+            cylinder(body, (x + 0.047 + length / 2, fy, 0.012), 0.0095, length, axis="X", segs=10)
+    thumb = parts.bm("dark_steel" if plated else "leather")
+    cylinder(thumb, (x + 0.02, y + 0.06 * m, 0.012), 0.011, 0.06, axis="X", segs=10, rot=(0, 0, 0.7 * m))
+    cuff = parts.bm("steel" if plated else "leather_dark")
+    cylinder(cuff, (x - 0.075, y, 0.02), 0.05 if plated else 0.044, 0.07, axis="X", segs=20, radius2=0.062 if plated else 0.05)
+    if plated:
+        for i in range(5):
+            sphere(parts.bm("brass"), (x - 0.06, y + (i - 2) * 0.02, 0.07), 0.005, segs=6, rings=4)
+
+
+def build_leather_gloves(parts):
+    glove(parts, 0.0, 0.07, 1, False)
+    glove(parts, 0.03, -0.07, -1, False)
+
+
+def build_iron_gauntlets(parts):
+    glove(parts, 0.0, 0.075, 1, True)
+    glove(parts, 0.03, -0.075, -1, True)
+
+
+def boot(parts, x, y, plated):
+    """A boot lying on its side, its L outline flat on the ground: the shaft along X, the foot turned along +Y at the low end."""
+    leather = parts.bm("leather")
+    cylinder(leather, (x + 0.03, y, 0.045), 0.044, 0.2, axis="X", segs=18, radius2=0.05)
+    sphere(leather, (x - 0.08, y + 0.055, 0.042), 0.05, (0.95, 1.9, 0.82), segs=16, rings=10)   # the foot
+    sphere(leather, (x - 0.085, y - 0.005, 0.042), 0.048, (1.0, 1.0, 0.85), segs=14, rings=8)  # the heel
+    sole = parts.bm("leather_dark")
+    box(sole, (x - 0.125, y + 0.05, 0.04), (0.012, 0.19, 0.07), cuts=1)
+    torus(parts.bm("leather_dark"), (x + 0.13, y, 0.045), 0.048, 0.01, axis="X", major_segs=24, minor_segs=6)   # the turned-down top
+    if plated:   # greaves: a shin plate, a knee cop and a plated toe
+        cylinder(parts.bm("iron"), (x + 0.035, y, 0.052), 0.05, 0.17, axis="X", segs=18, radius2=0.055)
+        sphere(parts.bm("steel"), (x + 0.135, y, 0.06), 0.042, (0.6, 1.0, 1.0), segs=14, rings=8)
+        sphere(parts.bm("dark_steel"), (x - 0.08, y + 0.09, 0.05), 0.04, (0.9, 1.1, 0.7), segs=14, rings=8)
+        for i in range(4):
+            sphere(parts.bm("brass"), (x - 0.03 + i * 0.045, y, 0.104), 0.006, segs=6, rings=4)
+    else:   # laces up the front of the shaft
+        for i in range(5):
+            sphere(parts.bm("leather_dark"), (x - 0.04 + i * 0.035, y + 0.0, 0.088), 0.008, (1.0, 2.2, 0.6), segs=8, rings=5)
+
+
+def build_leather_boots(parts):
+    boot(parts, 0.0, 0.07, False)
+    boot(parts, 0.04, -0.12, False)
+
+
+def build_iron_greaves(parts):
+    boot(parts, 0.0, 0.08, True)
+    boot(parts, 0.04, -0.13, True)
+
+
+def build_buckler(parts):
+    # A small round shield: weathered planks behind an iron rim and a heavy boss.
+    wood = parts.bm("wood")
+    cylinder(wood, (0, 0, 0.012), 0.18, 0.024, axis="Z", segs=36)
+    for i in range(5):
+        box(parts.bm("leather_dark"), (0.0, (i - 2) * 0.07, 0.025), (0.34, 0.004, 0.003))
+    torus(parts.bm("iron"), (0, 0, 0.022), 0.18, 0.011, axis="Z", major_segs=40, minor_segs=8)
+    sphere(parts.bm("steel"), (0, 0, 0.03), 0.06, (1, 1, 0.65), segs=18, rings=10)
+    for i in range(8):
+        a = math.tau * i / 8
+        sphere(parts.bm("brass"), (math.cos(a) * 0.075, math.sin(a) * 0.075, 0.027), 0.007, segs=6, rings=4)
+
+
+def build_kite_shield(parts):
+    # A tall kite: planks under a faded, scuffed cloth facing, an iron edge and a boss.
+    outline = []
+    for i in range(13):   # the rounded top
+        a = math.pi * i / 12
+        outline.append((0.18 + math.sin(a) * 0.12, math.cos(a) * 0.17))
+    outline += [(-0.08, -0.13), (-0.3, -0.02), (-0.31, 0.0), (-0.3, 0.02), (-0.08, 0.13)]
+    prism(parts.bm("wood"), outline, 0.0, 0.026)
+    face = parts.bm("cloth")
+    prism(face, [(x * 0.92, y * 0.88) for x, y in outline], 0.026, 0.03)
+    edge = parts.bm("iron")
+    for i in range(len(outline)):
+        ax, ay = outline[i]
+        bx, by = outline[(i + 1) % len(outline)]
+        for k in range(4):
+            t = k / 4
+            sphere(edge, (ax + (bx - ax) * t, ay + (by - ay) * t, 0.02), 0.011, segs=8, rings=5)
+    sphere(parts.bm("steel"), (0.13, 0, 0.034), 0.045, (1, 1, 0.6), segs=16, rings=8)
+
+
+def build_band(parts):
+    # A plain, heavy iron band, notched and worn smooth on one side.
+    torus(parts.bm("iron"), (0.0, 0.0, 0.012), 0.034, 0.011, axis="Z", major_segs=32, minor_segs=10)
+    for i in range(8):
+        a = math.tau * i / 8
+        box(parts.bm("dark_steel"), (math.cos(a) * 0.034, math.sin(a) * 0.034, 0.023), (0.006, 0.006, 0.004), rot=(0, 0, a))
+
+
 BUILDERS = {
     "falchion": build_falchion, "longsword": build_longsword, "greatsword": build_greatsword,
     "leather_jerkin": build_leather_jerkin, "mail_hauberk": build_mail_hauberk, "plate_cuirass": build_plate_cuirass,
     "charm": build_charm, "signet": build_signet, "talisman": build_talisman,
+    "leather_cap": build_leather_cap, "iron_helm": build_iron_helm, "leather_gloves": build_leather_gloves,
+    "iron_gauntlets": build_iron_gauntlets, "leather_boots": build_leather_boots, "iron_greaves": build_iron_greaves,
+    "buckler": build_buckler, "kite_shield": build_kite_shield, "band": build_band,
 }
 
 # --- Weathering ------------------------------------------------------------------------------------------------------------
@@ -369,7 +535,7 @@ def paint(obj, material_key, seed):
                 col = mix(col, RUST, min((rust_mask - 0.12) * 2.2 * wear, 0.75))
             edge = 1.0 - abs(v.normal.z)                      # surfaces turned sideways: scuffed bright edges
             col = mix(col, tuple(min(c * 1.9, 0.7) for c in base), edge * 0.28)
-        elif material_key.startswith("leather") or material_key == "cloth":
+        elif material_key.startswith("leather") or material_key in ("cloth", "wood"):
             col = mix(col, (0.06, 0.045, 0.03), max(0.0, noise.noise(p * 15.0) - 0.1) * 0.8 * wear)
         grime = max(0.0, -noise.noise(p * 22.0 + Vector((9.0, 9.0, 9.0)))) * 0.5 * wear
         col = tuple(c * (1.0 - grime) for c in col)
@@ -451,7 +617,9 @@ def render_icon(obj, name, size=192):
     background (the game frames it in the rarity colour). Weapons are turned diagonal so a long blade fits a square."""
     os.makedirs(ICONS, exist_ok=True)
     scene = bpy.context.scene
-    for engine in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT", "CYCLES"):
+    # CURSE_ICON_ENGINE=CYCLES renders on the CPU (a headless machine with no GPU cannot run EEVEE).
+    engines = (os.environ["CURSE_ICON_ENGINE"],) if os.environ.get("CURSE_ICON_ENGINE") else ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT", "CYCLES")
+    for engine in engines:
         try:
             scene.render.engine = engine
             break

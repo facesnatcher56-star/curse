@@ -171,7 +171,7 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 		var lrel: Vector2 = Vector2(lp.x, lp.z).rotated(Gamepad.view_yaw)
 		var lat: Vector2 = centre + Vector2(lrel.x, lrel.y).limit_length(half) * scale_px
 		var rarity: int = int(drop.item["rarity"])
-		var r: float = 3.0 + 1.5 * rarity
+		var r: float = 3.0 + 1.5 * mini(rarity, 3)
 		var tint: Color = Items.RARITY_COLORS[rarity] if rarity > 0 else Color(0.78, 0.76, 0.7)
 		t.draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r - 1), lat + Vector2(r + 1, 0), lat + Vector2(0, r + 1), lat + Vector2(-r - 1, 0)]), Color(0, 0, 0, 0.85))
 		t.draw_colored_polygon(PackedVector2Array([lat + Vector2(0, -r), lat + Vector2(r, 0), lat + Vector2(0, r), lat + Vector2(-r, 0)]), tint)

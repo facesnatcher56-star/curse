@@ -12,7 +12,8 @@ const LIFETIME := 150.0
 ## How long (metres, its longest side) a drop lies on the ground, whatever the model's own size: a greatsword is not two metres of
 ## steel on the floor. The camera makes them a little larger when pulled far back (see _camera_scale); the marker above them and the
 ## name and the light beam are what find them from far away.
-const FIT_LENGTH := {Items.Slot.WEAPON: 0.7, Items.Slot.ARMOR: 0.5, Items.Slot.TRINKET: 0.3}
+const FIT_LENGTH := {Items.Slot.WEAPON: 0.7, Items.Slot.ARMOR: 0.5, Items.Slot.RING: 0.3, Items.Slot.SHIELD: 0.55, Items.Slot.HELM: 0.38,
+	Items.Slot.GLOVES: 0.34, Items.Slot.BOOTS: 0.4, Items.Slot.AMULET: 0.3}
 
 ## Rare and unique drops used to get a light, a faint column and a glowing floor ring. Off since the first owner playtest; flip to bring them back.
 const GROUND_HIGHLIGHTS := false
@@ -41,7 +42,7 @@ func _ready() -> void:
 	var rarity: int = int(item["rarity"])
 	var color: Color = Items.RARITY_COLORS[rarity]
 	_add_model(int(item["slot"]))
-	if GROUND_HIGHLIGHTS and rarity > Items.Rarity.COMMON:   # (the owner does not want beams or circles on the ground: the name plate and the minimap find it)
+	if GROUND_HIGHLIGHTS and rarity > Items.Rarity.NORMAL:   # (the owner does not want beams or circles on the ground: the name plate and the minimap find it)
 		_light = OmniLight3D.new()
 		_light.light_color = color
 		_light.light_energy = 0.35 if rarity == Items.Rarity.RARE else 0.7

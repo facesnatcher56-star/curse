@@ -10,14 +10,13 @@ slot = 0
 order = 2
 model_path = "res://assets/models/items/greatsword/model.glb"
 icon_path = "res://assets/icons/items/greatsword.png"
+item_type = "2h"
+armor_class = ""
+levels = Array[int]([6, 26, 47, 68, 92])
 stats = {
-"damage": 1.35,
+"damage": 1.0,
 "speed": 0.82
 }
-tier_mult = {
-"damage": 0.08
-}
-tier_add = {}
 profile = {
 "throw": {
 "charge_time": 1.5,

@@ -35,7 +35,6 @@ const FORECOURT_ENTRY_Z: float = -146.0
 const CLEAR_BANNER_TEXT: String = "Forecourt secured — the sealed crypt waits."
 const CLEAR_BANNER_DURATION: float = 4.0
 const REWARD_BANNER_FORMAT: String = "By the waystone lies a %s find: %s"
-const REWARD_LUCK: float = 1.0  # Items.roll_drop luck 1.0: a guaranteed rare (like a Brute)
 
 const STAGE_1_FALLBACK_TIMER: float = 12.0
 const STAGE_2_FALLBACK_TIMER: float = 10.0
@@ -200,7 +199,7 @@ func _award_clear_reward() -> String:
 	if director == null or road == null or road.return_waystone == null or not reward_item.is_empty():
 		return ""
 	var spot: Vector3 = road.return_waystone.global_position
-	reward_item = Items.roll_drop(director.drop_tier_at(spot), REWARD_LUCK)
+	reward_item = Items.roll_reward(director.drop_level_at(spot), Items.REWARD, director.magic_find())
 	reward_drop = director.drop_item(spot, reward_item)
 	# The line is only true while the item lies there: taking it, or stepping into the waystone, retires it from the HUD.
 	reward_drop.tree_exiting.connect(_retire_reward_line, CONNECT_ONE_SHOT)

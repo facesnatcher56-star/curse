@@ -38,7 +38,7 @@ func _run() -> void:
 	# Loot: common, rare, unique beside each other, ahead of the hero.
 	var director = town.director if "director" in town else null
 	print("director=", director)
-	var rar := [Items.Rarity.COMMON, Items.Rarity.RARE, Items.Rarity.UNIQUE]
+	var rar := [Items.Rarity.NORMAL, Items.Rarity.MAGIC, Items.Rarity.RARE]
 	var drops: Array = []
 	for i in 3:
 		var item := Items.make(Items.Slot.WEAPON, rar[i], 1)

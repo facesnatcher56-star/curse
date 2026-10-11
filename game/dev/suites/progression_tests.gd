@@ -152,16 +152,13 @@ func _test_world_progression() -> void:
 	var deep: float = WorldThreat.for_distance(300.0)
 	expect("each stretch has its own threat, rising with distance", is_equal_approx(road_in, TownDb.zone_at(10.0).base_threat) and road_in < WorldThreat.for_distance(100.0)
 		and WorldThreat.for_distance(100.0) < WorldThreat.for_distance(170.0) and WorldThreat.for_distance(170.0) < deep)
-	expect("an item tier is one per whole point of threat, on top of tier 1", Items.tier_for_source(0.5) == 1 and Items.tier_for_source(1.0) == 2
-		and Items.tier_for_source(1.99) == 2 and Items.tier_for_source(2.0) == 3 and Items.tier_for_source(5.0) == 6)
-	expect("a little more threat is not a new tier", Items.tier_for_source(road_in) == Items.tier_for_source(deep))
-	expect("the arena has its own tier by wave, separate from the world's", Items.tier_for_wave(1) == 1 and Items.tier_for_wave(3) == 2 and Items.tier_for_wave(6) == 3)
 	# The arena director still runs on its waves.
 	var arena_director := RunDirector.new()
 	add_child(arena_director)
 	arena_director.wave = 6
 	expect("the arena scales by its wave and drops by its wave", is_equal_approx(RunDirector.arena_level(1), 1.0) and is_equal_approx(RunDirector.arena_level(6), 1.6)
-		and not arena_director.connected() and arena_director.drop_tier(9.0) == Items.tier_for_wave(6) and arena_director.drop_tier_at(Vector3.ZERO) == Items.tier_for_wave(6))
+		and not arena_director.connected() and arena_director.drop_level(9.0) == WorldThreat.monster_level(RunDirector.arena_level(6))
+		and arena_director.drop_level_at(Vector3.ZERO) == WorldThreat.monster_level(RunDirector.arena_level(6)))
 	arena_director.queue_free()
 	# The connected world.
 	var town := TownScene.new()
@@ -189,7 +186,7 @@ func _test_world_progression() -> void:
 		return null
 	var near_before: Enemy = spawn_at.call(950, 160.0)
 	var far_before: Enemy = spawn_at.call(951, -40.0)
-	var first_tier: int = director.drop_tier_at(crypt.at(0.0, 160.0))
+	var first_level: int = director.drop_level_at(crypt.at(0.0, 160.0))
 	TownState.dev_set_hero_level(20)
 	TownState.jobs_done += 6
 	var near_after: Enemy = spawn_at.call(952, 160.0)
@@ -199,8 +196,8 @@ func _test_world_progression() -> void:
 		and is_equal_approx(near_after.max_health, near_before.max_health) and is_equal_approx(near_after.damage_max, near_before.damage_max))
 	expect("six more jobs done do not make the road harder either", is_equal_approx(far_after.level_scale, far_before.level_scale) and TownState.jobs_done == 6)
 	expect("deeper authored ground is still tougher", far_before.level_scale > near_before.level_scale and far_before.max_health > near_before.max_health)
-	expect("the same place drops the same tier whatever the hero is", director.drop_tier_at(crypt.at(0.0, 160.0)) == first_tier
-		and director.drop_tier(road_in) == Items.tier_for_source(road_in) and director.drop_tier(road_in + 1.0) > director.drop_tier(road_in))
+	expect("the same place drops at the same level whatever the hero is", director.drop_level_at(crypt.at(0.0, 160.0)) == first_level
+		and director.drop_level(road_in) == WorldThreat.monster_level(road_in) and director.drop_level(road_in + 1.0) > director.drop_level(road_in))
 	for e in [near_before, far_before, near_after, far_after]:
 		e.queue_free()
 	# A named monster is its own measure, wherever it lives.
@@ -237,43 +234,38 @@ func _test_world_progression() -> void:
 	bare.queue_free()
 	var loot_before: int = get_tree().get_nodes_in_group("loot").size()
 	director._report_to_quests(body)
-	var tiers: Array[int] = []
+	var levels: Array[int] = []
 	for node in get_tree().get_nodes_in_group("loot"):
-		tiers.append(int((node as LootDrop).item["tier"]))
-	expect("its drops are of its own level's tier (%s), not the road's" % str(tiers), get_tree().get_nodes_in_group("loot").size() > loot_before
-		and tiers.all(func(t: int) -> bool: return t == Items.tier_for_source(5.0)) and Items.tier_for_source(5.0) > Items.tier_for_source(road_in))
+		levels.append(int((node as LootDrop).item["level"]))
+	var named_level: int = WorldThreat.monster_level(5.0)
+	expect("its drops are rare or better at its own level (%s, its level %d), not the road's" % [str(levels), named_level],
+		get_tree().get_nodes_in_group("loot").size() > loot_before and levels.all(func(l: int) -> bool: return l <= named_level + 3)
+		and levels.max() > WorldThreat.monster_level(road_in) + 5)
 	# A quest's unique monster has an absolute threat on the same scale.
 	var uniques: Array = TownDb.quests().values().filter(func(q: QuestDef) -> bool: return q.kind == "slay_unique")
 	expect("a unique quest monster has its own absolute threat, on the zones' scale", not uniques.is_empty()
 		and uniques.all(func(q: QuestDef) -> bool: return q.unique_level >= 1.0 and q.unique_level <= 3.0))
 	plain.queue_free()
-	# Rarity is not tier.
-	var lucky_tiers: Array[int] = []
-	var lucky_rare: bool = true
-	var plain_commons: int = 0
-	var plain_tiers: Array[int] = []
+	# Rarity is not level: a guaranteed reward is rare or better, but from the same window around its source's level.
+	var reward_ok: bool = true
 	for i in 120:
-		var lucky: Dictionary = Items.roll_drop(3, 1.0)
-		lucky_tiers.append(int(lucky["tier"]))
-		lucky_rare = lucky_rare and int(lucky["rarity"]) >= Items.Rarity.RARE
-		var ordinary: Dictionary = Items.roll_drop(3, 0.0)
-		plain_tiers.append(int(ordinary["tier"]))
-		plain_commons += 1 if int(ordinary["rarity"]) == Items.Rarity.COMMON else 0
-	expect("a Brute's luck makes rarer items but not a higher tier", lucky_rare and lucky_tiers.all(func(t: int) -> bool: return t == 3)
-		and plain_tiers.all(func(t: int) -> bool: return t == 3) and plain_commons > 10)
+		var reward: Dictionary = Items.roll_reward(3)
+		reward_ok = reward_ok and int(reward["rarity"]) >= Items.Rarity.RARE and int(reward["level"]) <= 3 + 3
+	expect("a reward is rare or better and no higher in level for it", reward_ok)
 	# The shops and quest rewards do not read jobs done.
+	var shop_level: int = WorldThreat.monster_level(WorldThreat.MERCHANT_THREAT)
+	var in_window: Callable = func(i: Dictionary) -> bool: return int(i["level"]) >= shop_level - 4 and int(i["level"]) <= shop_level + 1
 	TownState.jobs_done = 0
-	var shop_a: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false)
+	var shop_a: Array[Dictionary] = Items.roll_choices(shop_level)
 	TownState.jobs_done = 40
-	var shop_b: Array[Dictionary] = Items.roll_choices(Items.tier_for_source(WorldThreat.MERCHANT_THREAT), false)
-	var shop_tier: int = Items.tier_for_source(WorldThreat.MERCHANT_THREAT)
-	expect("merchant stock is a fixed explicit tier (%d), whatever has been done" % shop_tier,
-		shop_a.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier) and shop_b.all(func(i: Dictionary) -> bool: return int(i["tier"]) == shop_tier))
+	var shop_b: Array[Dictionary] = Items.roll_choices(shop_level)
+	expect("merchant stock is around a fixed explicit level (%d), whatever has been done" % shop_level, shop_a.all(in_window) and shop_b.all(in_window))
 	TownState.stash = []
 	Quests.apply_bundle({"item": 1})
 	Quests.apply_bundle({"item": 1, "threat": 4.0})
-	expect("a quest reward item has a tier from its own named source threat, not jobs done",
-		int(TownState.stash[0]["tier"]) == Items.tier_for_source(WorldThreat.QUEST_REWARD_THREAT) and int(TownState.stash[1]["tier"]) == Items.tier_for_source(4.0))
+	expect("a quest reward item's level comes from its own named source threat, not jobs done",
+		int(TownState.stash[0]["level"]) <= WorldThreat.monster_level(WorldThreat.QUEST_REWARD_THREAT) + 3
+		and int(TownState.stash[1]["level"]) <= WorldThreat.monster_level(4.0) + 3 and int(TownState.stash[1]["rarity"]) >= Items.Rarity.RARE)
 	town.queue_free()
 	await get_tree().process_frame
 	TownState.reset()

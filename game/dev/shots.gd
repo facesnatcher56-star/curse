@@ -281,11 +281,11 @@ func _drop_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	player.set_physics_process(false)
-	var bases: Array[String] = ["Falchion", "Longsword", "Greatsword", "Leather Jerkin", "Mail Hauberk", "Plate Cuirass", "Charm", "Signet", "Talisman"]
-	for i in bases.size():
-		var slot: int = Items.Slot.WEAPON if i < 3 else (Items.Slot.ARMOR if i < 6 else Items.Slot.TRINKET)
-		var rarity: int = [Items.Rarity.COMMON, Items.Rarity.RARE, Items.Rarity.UNIQUE][i % 3] if i < 6 else Items.Rarity.RARE
-		var drop: LootDrop = game.director.drop_item(Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5), Items.make(slot, rarity, 1, bases[i]))
+	var defs: Array = ItemDb.all().values().slice(0, 9)
+	for i in defs.size():
+		var def: ItemDef = defs[i]
+		var rarity: int = [Items.Rarity.NORMAL, Items.Rarity.MAGIC, Items.Rarity.RARE][i % 3]
+		var drop: LootDrop = game.director.drop_item(Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5), Items.make(def.slot, rarity, 1, def.display_name))
 		drop._end = Vector3(-0.6 + (i % 3) * 0.55, 0, 2.2 + (i / 3) * 0.5)
 	await get_tree().create_timer(1.6).timeout
 	var size_px: Vector2 = hud.get_viewport_rect().size
@@ -326,7 +326,7 @@ func _item_sheet() -> void:
 	for def in ItemDb.all().values():
 		bases.append([def.slot, def.display_name])
 	for i in bases.size():
-		var item: Dictionary = Items.make(bases[i][0], mini(i % 3, Items.Rarity.RARE), 1, bases[i][1])
+		var item: Dictionary = Items.make(bases[i][0], i % 5, 1, bases[i][1])
 		var drop: LootDrop = LootDrop.create(item)
 		game.director.add_child(drop)
 		var angle: float = -PI * 0.9 + PI * 0.8 * float(i) / float(bases.size() - 1) - PI * 0.5
@@ -342,6 +342,9 @@ func _item_sheet() -> void:
 		TownState.persist = false   # a picture of a mid-level hero (--maxlevel: the capped one) must not touch the real save
 		TownState.dev_set_hero_level(HeroProgression.MAX_LEVEL if OS.get_cmdline_user_args().has("--maxlevel") else 6)
 		TownState.add_hero_xp(0 if OS.get_cmdline_user_args().has("--maxlevel") else 420)
+		for drop in drops.slice(8):   # the rest are worn, so the paper doll has something in most places
+			if not player.stats.equipment.has(player.stats.place_for(drop.item)) and int(drop.item["slot"]) != Items.Slot.WEAPON:
+				player.stats.wear(player.stats.place_for(drop.item), drop.item)
 		hud._open_character()
 		await get_tree().create_timer(0.5).timeout
 		var size_px: Vector2 = get_viewport().get_visible_rect().size
@@ -413,7 +416,7 @@ func _hand_shot() -> void:
 			clip = arg.substr(11).get_slice(":", 0)
 			t = float(arg.substr(11).get_slice(":", 1)) if ":" in arg else 1.0
 		if arg.begins_with("--equip="):
-			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, arg.substr(8)), false)
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, arg.substr(8)), false)
 	await get_tree().process_frame
 	player.model.manual(clip)
 	player.model.scrub(t)
@@ -466,7 +469,7 @@ func _clip_sheet(spec: String) -> void:
 		player.visual.rotation.y = PI * 0.5
 	for arg in OS.get_cmdline_user_args():   # `--equip=Greatsword`: hold that weapon for the sheet
 		if arg.begins_with("--equip="):
-			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, arg.substr(8)), false)
+			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, arg.substr(8)), false)
 			await get_tree().process_frame
 	if OS.get_cmdline_user_args().has("--closeup"):
 		hud.visible = false

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "leather_boots"
+display_name = "Leather Boots"
+slot = 6
+order = 14
+model_path = "res://assets/models/items/leather_boots/model.glb"
+icon_path = "res://assets/icons/items/leather_boots.png"
+item_type = "boots"
+armor_class = "ranger"
+levels = Array[int]([2, 11, 27, 45, 67])
+stats = {}

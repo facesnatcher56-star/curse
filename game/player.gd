@@ -683,9 +683,28 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 		stats.gain_ult_charge(float(result.get("damage", 0.0)))   # the ultimate does not charge itself
 	if result.get("skill_id", "") != "brutal_attack":
 		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
+	_steal_life(result)
 	for companion in get_tree().get_nodes_in_group("companions"):
 		if companion.has_method("gain_take_aim_charge"):
 			companion.gain_take_aim_charge(float(result.get("damage", 0.0)))
+
+## DS2's life steal and life per hit (gear): `life + flat + steal% x damage dealt`, on the hero's physical blows.
+func _steal_life(result: Dictionary) -> void:
+	if dead or int(result.get("type", 0)) != Combat.DamageType.PHYSICAL or String(result.get("skill_id", "")) == "reflect":
+		return
+	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
+	if gain > 0.0:
+		health = minf(health + gain, max_health)
+
+## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
+func _filter_incoming(result: Dictionary) -> Dictionary:
+	var source: Variant = result.get("source")
+	var share: float = stats.gear_stat("reflect") / 100.0
+	if share > 0.0 and source is Enemy and not (source as Enemy).dead and int(result.get("type", 0)) == Combat.DamageType.PHYSICAL \
+			and int(result.get("outcome", 0)) >= Combat.Outcome.HIT and not result.get("quiet", false):
+		(source as Enemy).receive({"outcome": Combat.Outcome.HIT, "damage": maxf(float(result["damage"]) * share, 1.0), "weight": 0.3,
+			"source": self, "type": Combat.DamageType.PHYSICAL, "calm": true, "secondary": true, "skill_id": "reflect"}, global_position)
+	return result
 
 func on_enemy_killed(enemy: Actor) -> void:
 	HealthOrb.drop_for_kill(self, enemy)

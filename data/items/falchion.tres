@@ -10,14 +10,13 @@ slot = 0
 order = 0
 model_path = "res://assets/models/items/falchion/model.glb"
 icon_path = "res://assets/icons/items/falchion.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([1, 13, 31, 50, 72])
 stats = {
-"damage": 0.9,
+"damage": 0.85,
 "speed": 1.18
 }
-tier_mult = {
-"damage": 0.08
-}
-tier_add = {}
 profile = {
 "throw": {
 "charge_time": 0.85,

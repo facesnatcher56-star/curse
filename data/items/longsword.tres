@@ -10,14 +10,13 @@ slot = 0
 order = 1
 model_path = "res://assets/models/items/longsword/model.glb"
 icon_path = "res://assets/icons/items/longsword.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([2, 17, 38, 60, 84])
 stats = {
 "damage": 1.0,
 "speed": 1.0
 }
-tier_mult = {
-"damage": 0.08
-}
-tier_add = {}
 profile = {
 "throw": {
 "charge_time": 1.15,

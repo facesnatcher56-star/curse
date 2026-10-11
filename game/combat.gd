@@ -1,7 +1,7 @@
 class_name Combat
 extends RefCounted
 ## Combat rules: Dungeon Siege II's (docs/ds2-combat-and-loot.md section 2). There is no accuracy roll: a blow lands unless it is
-## dodged (the defender's dodge chance) or blocked (a shield's chance). Then a critical (a second hit on top), armour as a ratio against
+## dodged (the defender's dodge chance) or blocked (a shield's chance). Then a critical (a second hit on top), added fire, armour as a ratio against
 ## the attacker's level, resistance for fire, the level-gap penalty, and a floor of 1.
 
 enum Outcome { MISS, BLOCK, HIT, CRITICAL }
@@ -51,6 +51,8 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		outcome = Outcome.CRITICAL
 		dmg *= 2.0
 	if damage_type == DamageType.PHYSICAL:
+		if attacker.added_fire > 0.0:   # DS2: added elemental damage, less the victim's resistance, before armour
+			dmg += attacker.added_fire * (1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0))
 		dmg *= armor_factor(attacker.level, defender.armor)
 	else:
 		dmg *= 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0)

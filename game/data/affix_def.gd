@@ -21,4 +21,4 @@ extends Resource
 
 ## "+12 Strength", "+18% Melee damage": the line on an item card.
 func describe() -> String:
-	return "+%d%s %s" % [int(value), "%" if percent else "", String(AffixDb.STAT_NAMES.get(stat, stat))]
+	return AffixDb.describe_stat(stat, value)

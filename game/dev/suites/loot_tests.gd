@@ -1,24 +1,20 @@
 extends DevSuite
 ## Self-test: items, loot drops and their UI, names, icons and destructibles.
 
-## Items with the behaviour affixes gone: every base builds at any tier with no affix, a Brute's luck always gives a rare, monsters drop
-## only weapons and armour (trinkets had nothing but an affix), and the trader still offers three different pieces.
+## Items: every base builds at each of its item levels, a plain one named for its base and a magic one for its modifiers, and the trader
+## offers three different pieces. (DS2's numbers are locked by --only=ds2items.)
 func _test_items() -> void:
 	var plain: bool = true
 	for def in ItemDb.all().values():
-		for tier in [1, 3]:
-			var item: Dictionary = Items.build(def, tier, Items.Rarity.RARE)
-			plain = plain and not item.has("affix") and item["name"] == def.display_name and int(item["tier"]) == tier
-	expect("every base builds at any tier, named for its base, with no affix", plain)
-	var rolls_ok: bool = true
-	for i in 60:
-		var lucky: Dictionary = Items.roll_drop(2, 1.0)
-		var any: Dictionary = Items.roll_drop(2, 0.0)
-		rolls_ok = rolls_ok and int(lucky["rarity"]) == Items.Rarity.RARE and int(any["slot"]) != Items.Slot.TRINKET and int(lucky["slot"]) != Items.Slot.TRINKET
-	expect("a Brute's luck always gives a rare, and no trinket drops", rolls_ok)
-	var choices: Array[Dictionary] = Items.roll_choices(5, true)
-	expect("reward offers 3 choices", choices.size() == 3)
-	print("  items: reward choices=", choices.size(), " (brute offer: ", ", ".join(choices.map(func(c): return c["name"])), ")")
+		for level in def.levels:
+			var item: Dictionary = Items.build(def, level, Items.Rarity.NORMAL)
+			plain = plain and item["name"] == def.display_name and int(item["level"]) == level and (item["mods"] as Array).is_empty()
+	expect("every base builds at each of its item levels, named for its base", plain)
+	var magic: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.MAGIC, 20, "Longsword")
+	expect("a magic item is named for its modifiers (%s)" % magic["name"], not (magic["mods"] as Array).is_empty() and String(magic["name"]) != "Longsword")
+	var choices: Array[Dictionary] = Items.roll_choices(5)
+	expect("the trader offers 3 choices", choices.size() == 3)
+	print("  items: offer: ", ", ".join(choices.map(func(c): return c["name"])))
 	await get_tree().process_frame
 
 ## Monsters drop items instead of the old between-wave reward: the odds, the models, walking over a drop, upgrades being put on and
@@ -35,32 +31,28 @@ func _test_loot() -> void:
 		if not ResourceLoader.exists(def.model_path):
 			missing.append(def.display_name)
 	expect("every base item has a dropped model (%s missing)" % ", ".join(missing), missing.is_empty())
-	# The odds: ordinary monsters mostly drop commons, a Brute never drops a common.
-	var common_brute: int = 0
-	var rare_or_better: int = 0
-	for i in 200:
-		if int(Items.roll_drop(5, 1.0)["rarity"]) == Items.Rarity.COMMON:
-			common_brute += 1
-		if int(Items.roll_drop(2, 0.0)["rarity"]) >= Items.Rarity.RARE:
-			rare_or_better += 1
-	expect("a Brute's drop is always rare or better", common_brute == 0)
-	# About 55% of 200 are rare (110, sigma about 7): a spread of five sigma either side.
-	expect("an ordinary monster's drop is often common but sometimes rare", rare_or_better > 75 and rare_or_better < 145)
-	expect("only monsters that should drop do", EnemyDb.get_def("brute").drop_chance > EnemyDb.get_def("zombie").drop_chance
-		and EnemyDb.get_def("zombie").drop_chance > 0.0)
+	# The odds (DS2): a miniboss always drops, an ordinary monster rarely.
+	var weak_drops: int = 0
+	var miniboss_ok: bool = true
+	for i in 400:
+		if not Items.roll_drop(5, "weak").is_empty():
+			weak_drops += 1
+		miniboss_ok = miniboss_ok and not Items.roll_drop(5, "miniboss").is_empty()
+	expect("a miniboss always drops", miniboss_ok)
+	# DS2's weak monster drops an item 5.75% of the time: 23 of 400 (sigma about 4.7).
+	expect("an ordinary monster mostly drops nothing (%d of 400)" % weak_drops, weak_drops > 5 and weak_drops < 45)
 	# The old reward screen is gone.
 	expect("the director no longer offers a reward", not game.director.has_method("offer_reward") and not game.director.has_method("choose"))
 	# A kill can drop an item that lands near the body.
 	var def: EnemyDef = EnemyDb.get_def("zombie")
-	var saved_chance: float = def.drop_chance
-	def.drop_chance = 1.0
 	player.global_position = Vector3(30, 0, 30)
 	var zombie: Enemy = _spawn_enemy(Vector3(24, 0, 24))
 	zombie.aggro_range = 0.0
 	await get_tree().process_frame
+	def.tier = "miniboss"   # (a miniboss always drops)
 	zombie.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, player.global_position)
 	await get_tree().create_timer(0.3).timeout
-	def.drop_chance = saved_chance
+	def.tier = "normal"
 	var drops: Array = get_tree().get_nodes_in_group("loot")
 	expect("a killed monster drops an item", drops.size() == 1)
 	if drops.size() == 1:
@@ -76,22 +68,22 @@ func _test_loot() -> void:
 	var saved_bag: Array[Dictionary] = stats.bag.duplicate(true)
 	stats.equipment = {}
 	stats.bag = []
-	var plain: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword")
+	var plain: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword")
 	stats.pickup(plain)
 	expect("an empty slot takes whatever is picked up", stats.equipment.get(Items.Slot.WEAPON, {}).get("name") == "Longsword" and stats.bag.is_empty())
-	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Falchion"))
+	stats.pickup(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Falchion"))
 	expect("a second weapon goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 1)
 	var fancy: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Greatsword")
 	stats.pickup(fancy)
 	expect("a rarer weapon is never swapped in on its own: it goes to the bag", stats.equipment[Items.Slot.WEAPON]["name"] == "Longsword" and stats.bag.size() == 2)
 	for i in 20:
-		stats.add_to_bag(Items.make(Items.Slot.TRINKET, Items.Rarity.COMMON, 1))
+		stats.add_to_bag(Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 1))
 	expect("the bag holds a dozen items", stats.bag.size() == PlayerStats.MAX_BAG)
 	# Walking over a drop does NOT pick it up: you click it (or its name), or press the use key.
 	stats.bag = []
 	player.global_position = Vector3(-30, 0, -30)   # well away, so the drop is not picked up as it lands
 	player.reset_physics_interpolation()
-	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Mail Hauberk"))
+	var walk: LootDrop = game.director.drop_item(Vector3(30, 0, 33), Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Mail Hauberk"))
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
 	player.global_position = walk.global_position + Vector3(0.5, 0, 0)
 	await get_tree().create_timer(0.5).timeout
@@ -102,7 +94,7 @@ func _test_loot() -> void:
 	# The hero holds what is equipped: each weapon shows its own model, and longer weapons are longer in the hand.
 	var held_length: Dictionary = {}
 	for base_name in ["Falchion", "Longsword", "Greatsword"]:
-		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, base_name), false)
+		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, base_name), false)
 		await get_tree().process_frame
 		var tip_y: float = player.model.weapon_tip.position.y
 		held_length[base_name] = tip_y
@@ -111,7 +103,7 @@ func _test_loot() -> void:
 	expect("a greatsword is longer in the hand than a falchion", held_length["Greatsword"] > held_length["Falchion"])
 	stats.equipment = saved_equipment
 	stats.bag = saved_bag
-	player.armor = stats.base_armor + stats.armor_stat("armor", 0.0)
+	stats.refresh()
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
 	await get_tree().process_frame
@@ -126,8 +118,8 @@ func _test_loot_ui() -> void:
 	await get_tree().process_frame
 	expect("enemies notice the hero from a shorter range", EnemyDef.new().aggro_range <= 12.5 and EnemyDb.get_def("zombie").aggro_range <= 12.5)
 	# Comparison.
-	var longsword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword")
-	var great: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword")
+	var longsword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword")
+	var great: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Greatsword")
 	var lines: Array[Dictionary] = Items.compare(great, longsword)
 	var damage_better: bool = false
 	var speed_worse: bool = false
@@ -139,14 +131,14 @@ func _test_loot_ui() -> void:
 	expect("a greatsword hits harder and swings slower than a longsword", damage_better and speed_worse)
 	expect("an empty slot says so", Items.compare(great, null)[0]["text"] == "Nothing worn in this slot")
 	expect("the same item compares as the same", Items.compare(longsword, longsword)[0]["sign"] == 0)
-	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Leather Jerkin")
-	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.COMMON, 1, "Plate Cuirass")
+	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Leather Jerkin")
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
 	var armour_lines: Array[Dictionary] = Items.compare(plate, leather)
-	var cost_worse: bool = false
+	var armour_better: bool = false
 	for entry in armour_lines:
-		if String(entry["text"]).begins_with("Roll cost") and int(entry["sign"]) < 0:
-			cost_worse = true
-	expect("heavier armour costs more to roll in", cost_worse)
+		if String(entry["text"]).begins_with("Armor") and int(entry["sign"]) > 0:
+			armour_better = true
+	expect("fighter plate protects more than ranger leather", armour_better)
 	# Scale with distance, marker, focus.
 	player.global_position = Vector3(0, 0, 0)
 	var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -4), Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
@@ -189,9 +181,9 @@ func _test_item_icons() -> void:
 	var item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Greatsword")
 	var badge: Texture2D = ItemIcons.badge(item)
 	expect("an item's badge is its picture in a frame", badge != null and badge.get_width() == 96 and ItemIcons.badge(item) == badge)
-	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Greatsword"))
+	var common_badge: Texture2D = ItemIcons.badge(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Greatsword"))
 	expect("rarity changes the frame", common_badge.get_image().get_pixel(3, 40) != badge.get_image().get_pixel(3, 40))
-	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.COMMON, 1, "Longsword"))
+	var tile: ItemTile = ItemTile.create(item, Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"))
 	add_child(tile)
 	tile.mouse_entered.emit()   # pointing at the picture shows the card at once (the buttons beside it show nothing)
 	var card: Control = null
@@ -321,7 +313,7 @@ func _test_loot_names() -> void:
 	# A pile: twelve items landing within a metre of each other.
 	var pile: Array[LootDrop] = []
 	for i in 12:
-		var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -6), Items.make(Items.Slot.WEAPON if i % 2 == 0 else Items.Slot.ARMOR, [Items.Rarity.COMMON, Items.Rarity.RARE][i % 2], 1, ""))
+		var drop: LootDrop = game.director.drop_item(Vector3(0, 0, -6), Items.make(Items.Slot.WEAPON if i % 2 == 0 else Items.Slot.ARMOR, [Items.Rarity.NORMAL, Items.Rarity.RARE][i % 2], 1, ""))
 		drop._end = Vector3(randf_range(-0.5, 0.5), 0.0, -6.0 + randf_range(-0.5, 0.5))
 		pile.append(drop)
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.6).timeout

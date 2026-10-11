@@ -18,6 +18,8 @@ var fire_resist: float = 0.0
 var dodge_chance: float = 0.0
 var block_chance: float = 0.0
 var crit_chance: float = 0.0
+## Fire added to every physical blow (DS2's added elemental damage, from gear): it meets the target's fire resistance, then armour with the rest.
+var added_fire: float = 0.0
 var body_radius: float = 0.4
 var dead: bool = false
 
