@@ -11,13 +11,13 @@ recharge = 35.0
 stance = "dual_wield"
 ranks = Array[Dictionary]([{"dual_wield": 1}, {"dual_wield": 5, "alacrity": 4}, {"dual_wield": 10, "alacrity": 10, "deadly_strike": 8}])
 values = {
-"damage_pct": ["200 + 3.6 * melee", "345 + 6.3 * melee", "490 + 9 * melee"],
+"damage_pct": ["200 + 3.6 * melee", "280 + 7 * melee", "490 + 9 * melee"],
 "waves": ["5", "5", "5"],
 "period": ["0.24", "0.24", "0.24"],
 "distance": ["12", "12", "12"],
 "speed": ["10", "10", "10"]
 }
-estimated = Array[String](["damage_pct"])
+estimated = Array[String]([])
 summary = "A sequence of swings, each sending a wave of force tearing out in front of you."
 order = 5
 needs = "dual wielding"

@@ -11,9 +11,9 @@ recharge = 21.0
 stance = "any"
 ranks = Array[Dictionary]([{"critical_shot": 1}, {"critical_shot": 5}, {"critical_shot": 8, "penetrate": 1}])
 values = {
-"damage_pct": ["1500 + 25 * ranged", "2000 + 42.5 * ranged", "2500 + 60 * ranged"]
+"damage_pct": ["1500 + 25 * ranged", "1700 + 48 * ranged", "2500 + 60 * ranged"]
 }
-estimated = Array[String](["damage_pct"])
+estimated = Array[String]([])
 summary = "The next shot deals massive damage (Cutter's)."
 order = 7
 needs = ""

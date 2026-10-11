@@ -11,10 +11,10 @@ recharge = 60.0
 stance = "any"
 ranks = Array[Dictionary]([{"amplified_lightning": 8, "quickened_casting": 1}, {"amplified_lightning": 10, "quickened_casting": 6, "arcane_fury": 1}, {"amplified_lightning": 14, "quickened_casting": 12, "arcane_fury": 6}])
 values = {
-"damage": ["(70 + 17.5 * combat) * (1.85 + 0.015 * combat)", "(70 + 17.5 * combat) * (1.85 + 0.015 * combat)", "(70 + 17.5 * combat) * (1.85 + 0.015 * combat)"],
+"damage": ["(70 + 17.5 * combat) * (1.85 + 0.015 * combat)", "(70 + 17.5 * combat) * (2.0 + 0.029 * combat)", "(70 + 17.5 * combat) * (2.5 + 0.036 * combat)"],
 "radius": ["3.5", "4", "5"]
 }
-estimated = Array[String](["damage"])
+estimated = Array[String]([])
 summary = "A gathered bolt of lightning strikes an area."
 order = 19
 needs = "lightning"

@@ -11,9 +11,9 @@ recharge = 21.0
 stance = "melee"
 ranks = Array[Dictionary]([{"critical_strike": 1}, {"critical_strike": 5}, {"critical_strike": 8}])
 values = {
-"damage_pct": ["1500 + 25 * melee", "1750 + 42.5 * melee", "2000 + 60 * melee"]
+"damage_pct": ["1500 + 25 * melee", "1750 + 48 * melee", "2000 + 60 * melee"]
 }
-estimated = Array[String](["damage_pct"])
+estimated = Array[String]([])
 summary = "Your next melee hit deals massive damage."
 order = 0
 needs = ""

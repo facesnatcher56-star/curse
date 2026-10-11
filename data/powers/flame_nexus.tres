@@ -11,9 +11,9 @@ recharge = 35.0
 stance = "any"
 ranks = Array[Dictionary]([{"devastation": 2, "searing_flames": 1}, {"devastation": 5, "searing_flames": 4}, {"devastation": 12, "searing_flames": 8, "ignite": 5}])
 values = {
-"damage": ["(40 + 10 * combat) * (0.82 + 0.015 * combat)", "(40 + 10 * combat) * (0.82 + 0.015 * combat)", "(40 + 10 * combat) * (0.82 + 0.015 * combat)"]
+"damage": ["(40 + 10 * combat) * (0.82 + 0.015 * combat)", "(40 + 10 * combat) * (1.15 + 0.029 * combat)", "(40 + 10 * combat) * (2.0 + 0.036 * combat)"]
 }
-estimated = Array[String](["damage"])
+estimated = Array[String]([])
 summary = "Fire erupts around you, burning everything near."
 order = 14
 needs = "not built yet"

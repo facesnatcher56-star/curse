@@ -12,10 +12,10 @@ stance = "melee"
 ranks = Array[Dictionary]([{"critical_strike": 6, "fortitude": 8}, {"critical_strike": 8, "fortitude": 10, "reinforced_armor": 6}, {"critical_strike": 12, "fortitude": 12, "reinforced_armor": 12}])
 values = {
 "radius": ["3", "3.5", "4"],
-"damage_pct": ["920 + 9 * melee", "920 + 9 * melee", "920 + 9 * melee"],
+"damage_pct": ["920 + 9 * melee", "1070 + 15.4 * melee", "1400 + 19 * melee"],
 "stun": ["1.5", "1.5", "1.5"]
 }
-estimated = Array[String](["damage_pct"])
+estimated = Array[String]([])
 summary = "Whirl your weapon in a circle, damaging and briefly stunning everything near you."
 order = 2
 needs = "not built yet"

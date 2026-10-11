@@ -13,9 +13,9 @@ ranks = Array[Dictionary]([{"summon_might": 8, "arcane_renewal": 1}, {"summon_mi
 values = {
 "radius": ["3.5", "4", "5"],
 "stun": ["5", "5", "5"],
-"damage_pct": ["240 + 1.8 * nature", "240 + 1.8 * nature", "240 + 1.8 * nature"]
+"damage_pct": ["240 + 1.8 * nature", "240 + 3.5 * nature", "350 + 4.3 * nature"]
 }
-estimated = Array[String](["damage_pct"])
+estimated = Array[String]([])
 summary = "Your summon bursts with aether, stunning those around it."
 order = 24
 needs = "summons"

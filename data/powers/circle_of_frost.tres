@@ -13,9 +13,9 @@ ranks = Array[Dictionary]([{"natural_bond": 5, "arctic_mastery": 8, "freezing": 
 values = {
 "freeze": ["12", "15", "18"],
 "radius": ["3.5", "4", "4.5"],
-"damage": ["(13.3 + 3.3 * nature) * (2.0 + 0.015 * nature)", "(13.3 + 3.3 * nature) * (2.0 + 0.015 * nature)", "(13.3 + 3.3 * nature) * (2.0 + 0.015 * nature)"]
+"damage": ["(13.3 + 3.3 * nature) * (2.0 + 0.015 * nature)", "(13.3 + 3.3 * nature) * (2.0 + 0.029 * nature)", "(13.3 + 3.3 * nature) * (2.5 + 0.036 * nature)"]
 }
-estimated = Array[String](["damage"])
+estimated = Array[String]([])
 summary = "Freeze everything around you."
 order = 22
 needs = "ice"

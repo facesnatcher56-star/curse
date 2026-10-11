@@ -12,11 +12,11 @@ stance = "thrown"
 ranks = Array[Dictionary]([{"quick_draw": 1}, {"quick_draw": 5, "bleed": 5}, {"quick_draw": 10, "bleed": 8, "penetrate": 6}])
 values = {
 "missiles": ["5", "7", "9"],
-"damage_pct": ["950 + 17 * ranged", "950 + 17 * ranged", "950 + 17 * ranged"],
-"radial_damage_pct": ["80 + 1.5 * ranged", "80 + 1.5 * ranged", "80 + 1.5 * ranged"],
+"damage_pct": ["950 + 17 * ranged", "1450 + 24 * ranged", "1700 + 30 * ranged"],
+"radial_damage_pct": ["80 + 1.5 * ranged", "130 + 3.0 * ranged", "200 + 3.6 * ranged"],
 "radius": ["1", "1", "1"]
 }
-estimated = Array[String](["damage_pct", "radial_damage_pct"])
+estimated = Array[String]([])
 summary = "A thrown weapon bursts into a spray of missiles."
 order = 10
 needs = "throwing weapons"
