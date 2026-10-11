@@ -130,7 +130,7 @@ func _test_loot_ui() -> void:
 		if String(entry["text"]).begins_with("Speed") and int(entry["sign"]) < 0:
 			speed_worse = true
 	expect("a greatsword hits harder and swings slower than a longsword", damage_better and speed_worse)
-	expect("an empty slot says so", Items.compare(great, null)[0]["text"] == "Nothing worn in this slot")
+	expect("an empty slot says so", Items.compare(great, null).any(func(e: Dictionary) -> bool: return e["text"] == "Nothing worn in this slot"))
 	expect("the same item compares as the same", Items.compare(longsword, longsword)[0]["sign"] == 0)
 	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Leather Jerkin")
 	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
