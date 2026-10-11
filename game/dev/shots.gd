@@ -94,6 +94,84 @@ func _archer_shot() -> void:
 	print("ARCHERSHOT done: draw stages and Take Aim flight captured")
 	get_tree().quit()
 
+## `-- --takeaimshot`: visual test of Take Aim targeting cursor, hovering an enemy, and firing.
+func _take_aim_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(-0.5, 0.0, 1.8)
+	player.reset_physics_interpolation()
+	var archer: ArcherCompanion = game.companion
+	archer.testing_disabled = false
+	archer.global_position = Vector3(1.8, 0.0, 3.2)
+	archer.reset_physics_interpolation()
+	archer.take_aim_reload_remaining = 0.0
+	archer.take_aim_armed = false
+	var enemy: Enemy = _spawn_enemy(Vector3(0.2, 0.0, -0.6), "zombie")
+	enemy.set_physics_process(false)
+	enemy.max_health = 1000.0
+	enemy.health = 1000.0
+	enemy.target = player
+	enemy.wake()
+	rig.target = player
+	rig.global_position = player.global_position
+	for i in 6:
+		await get_tree().process_frame
+		await get_tree().physics_frame
+
+	# Overlay sprite for capturing the custom reticle at the exact mouse hotspot
+	var cursor_layer := CanvasLayer.new()
+	cursor_layer.layer = 120
+	var cursor_rect := TextureRect.new()
+	cursor_rect.texture = preload("res://assets/ui/cursors/take_aim_reticle.png")
+	cursor_rect.size = Vector2(48, 48)
+	cursor_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cursor_rect.visible = false
+	cursor_layer.add_child(cursor_rect)
+	get_tree().root.add_child(cursor_layer)
+
+	# 1. Activate Take Aim -> enters targeting mode
+	player.skills.activate_take_aim()
+	print("TAKE_AIM_SHOT targeting=", player.skills.take_aim_targeting)
+
+	for res: Vector2i in GameSettings.RESOLUTIONS:
+		if DisplayServer.get_name() != "headless":
+			var screen: int = 0 if res.y > 1080 else mini(1, DisplayServer.get_screen_count() - 1)
+			get_window().current_screen = screen
+			get_window().borderless = true
+			get_window().size = res
+			var physical: Vector2i = DisplayServer.screen_get_size(screen)
+			get_window().position = DisplayServer.screen_get_position(screen) + (physical - res).max(Vector2i.ZERO) / 2
+		for s in 5:
+			await get_tree().process_frame
+		var aim_3d: Vector3 = enemy.global_position + Vector3(0.0, enemy.body_height * 0.65, 0.0)
+		var screen_pos: Vector2 = rig.camera.unproject_position(aim_3d)
+		player.hover_target = enemy
+		cursor_rect.position = screen_pos - Vector2(24, 24)
+		cursor_rect.visible = true
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var tag: String = "%dx%d" % [res.x, res.y]
+		var targeting_img: Image = get_viewport().get_texture().get_image()
+		var path: String = OS.get_environment("TEMP") + "/curse_take_aim_targeting_%s.png" % tag
+		targeting_img.save_png(path)
+		print("TAKE_AIM_SHOT saved ", path)
+
+	# 2. Confirm click on enemy -> Cutter focuses and arms Take Aim
+	player.skills.confirm_take_aim(enemy)
+	cursor_rect.visible = false
+	print("TAKE_AIM_SHOT confirmed: targeting=", player.skills.take_aim_targeting, " cutter_target=", archer.target, " cutter_armed=", archer.take_aim_armed)
+
+	for i in 8:
+		await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		var shot_img: Image = get_viewport().get_texture().get_image()
+		shot_img.save_png(OS.get_environment("TEMP") + "/curse_take_aim_fire_%d.png" % i)
+
+	print("TAKE_AIM_SHOT done")
+	cursor_layer.queue_free()
+	get_tree().quit()
+
 ## `-- --brutalshot`: arms Brutal Attack, whiffs once without spending it, then lands it; frames in %TEMP%/curse_brutal_N.png.
 func _brutal_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):

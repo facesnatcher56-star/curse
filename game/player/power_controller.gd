@@ -106,7 +106,10 @@ func activate(id: String, cursor: Vector3) -> bool:
 		return false
 	p.combat_timer = 5.0
 	var immediate_target: Actor = p.skills.busy_target if is_instance_valid(p.skills.busy_target) else p.attack_target
+	if not is_instance_valid(immediate_target):
+		immediate_target = p.hover_target
 	p.skills.cancel_action()   # Powers interrupt an ordinary attack instead of queuing.
+	p.skills.clear_queue()
 	match id:
 		"whirling_strike":
 			_whirling_strike()
@@ -114,6 +117,7 @@ func activate(id: String, cursor: Vector3) -> bool:
 			staggering_armed = true   # the next landed blow releases it, and only then is it spent (DS2: preserved by a miss)
 			Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "Staggering Blow", Color(0.95, 0.7, 0.4), 36)
 			if is_instance_valid(immediate_target) and not immediate_target.dead:
+				p.attack_target = immediate_target
 				p.movement.has_goal = false
 				p.skills.start_skill("basic", immediate_target)
 			return true

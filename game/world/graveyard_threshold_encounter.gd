@@ -37,28 +37,28 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the graveyard threshold encounter groups.
 ## All enemies are placed at z <= 85 so they are >= 65 m from player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 24: Risen Pallbearers & Hearse Pack (Eastern Road Verge & Broken Wagon): a plague priest with three slayers, picking through
-	# the shattered casket (DS2's shaman-and-three-slayers group).
+	# Group 24: Risen Pallbearers & Hearse Pack (Eastern Road Verge & Broken Wagon): a scavenger ghoul with three pallbearers, picking through
+	# the shattered casket.
 	road._group(24, "wander", [
 		["zombie", 3.2, 82.5, 3, "trivial"],
 		["zombie", 5.0, 84.0, 3, "trivial"],
 		["zombie", 4.2, 80.6, 3, "trivial"],
-		["priest", 5.8, 82.4, 4]
+		["ghoul", 5.8, 82.4, 3, "weak"]
 	], Vector2(4.0, 82.5), 3.5, Vector2.ZERO, [
 		Vector2(3.0, 84.5),
 		Vector2(5.5, 82.0),
 		Vector2(3.8, 80.5)
 	])
 
-	# Group 25: Cemetery Threshold Lookout (Western Verge & Disturbed Trench): four hunters behind a brute holding the verge (DS2's
-	# boarbeast-and-four-hunters group; the brute is level 5, not DS2's 7, as the hero meets it earlier). Placed at z >= 80.5 so it does not
+	# Group 25: Cemetery Threshold Lookout (Western Verge & Disturbed Trench): two hunters and two zombies behind a brute holding the verge (DS2's
+	# boarbeast-and-hunters group; the brute is level 3 normal to introduce the tank archetype smoothly without a lethal one-shot spike). Placed at z >= 80.5 so it does not
 	# interfere with cottage spitter test checks in dev_harness.
 	road._group(25, "", [
-		["spitter", -6.2, 84.8, 4, "weak"],
-		["spitter", -4.0, 84.2, 4, "weak"],
-		["spitter", -8.2, 83.6, 4, "weak"],
-		["spitter", -3.2, 82.6, 4, "weak"],
-		["brute", -5.5, 81.0, 5]
+		["spitter", -6.2, 84.8, 3, "weak"],
+		["spitter", -4.0, 84.2, 3, "weak"],
+		["zombie", -8.2, 83.6, 3, "trivial"],
+		["zombie", -3.2, 82.6, 3, "trivial"],
+		["brute", -5.5, 81.0, 3, "normal"]
 	], Vector2(-5.5, 83.0), 3.0)
 
 	# Group 26: Graveyard Flank Prowler (Threshold Shrine & Cemetery Trail): one level-4 thug stalking the western detour route.

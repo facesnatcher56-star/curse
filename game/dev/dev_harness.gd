@@ -72,6 +72,8 @@ func run_from_args() -> bool:
 		_run("_enemy_fight")
 	elif OS.get_cmdline_user_args().has("--archershot"):
 		_run("_archer_shot")
+	elif OS.get_cmdline_user_args().has("--takeaimshot"):
+		_run("_take_aim_shot")
 	elif OS.get_cmdline_user_args().has("--brutalshot"):
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):

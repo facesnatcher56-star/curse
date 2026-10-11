@@ -23,6 +23,7 @@ const ACTIONS: Array = [
 	["skill_5", "Hotbar 5 (Leap)"],
 	["skill_6", "Hotbar 6 (Earthshatter)"],
 	["use_potion", "Use health potion"],
+	["companion_attack", "Direct companion to target (A)"],
 	["dodge", "Dodge roll"],
 	["stand_still", "Stand still (hold)"],
 	["gear", "Open / close character and inventory"],

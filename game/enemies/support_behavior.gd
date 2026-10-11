@@ -42,6 +42,8 @@ func tick(delta: float, dist: float) -> void:
 		return
 	var flee: float = float(e.def.param("flee_dist", 4.5))
 	var allies: Array[Enemy] = _allies_near(10.0)
+	if allies.is_empty() and _raised_total == 0 and _summoned.is_empty():
+		_summon_cd = 0.0
 	if dist <= e.attack_range and e.tokens_available():
 		super.tick(delta, dist)   # cornered: swat with the staff
 		return

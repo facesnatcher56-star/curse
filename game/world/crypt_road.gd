@@ -405,17 +405,20 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	# The broken funeral procession: hearse pack, threshold lookout, and flank prowler.
 	GraveyardThresholdEncounter.spawn_encounters(self, director)
 	# The graveyard: strollers among the stones, a bloater lying in wait among the graves, and the nest's keepers.
-	_group(4, "wander", [["zombie", -14, 80], ["zombie", -18, 74], ["zombie", -12, 70]], Vector2(-15, 76), 8.0)
-	_group(5, "", [["bloater", -16.5, 64]], Vector2(-16.5, 64))
-	_group(6, "wander", [["zombie", -23, 55], ["zombie", -19, 51], ["zombie", -24, 61], ["ghoul", -17, 56]], Vector2(-21, 57), 5.0)
+	_group(4, "wander", [["zombie", -14, 80, 3, "trivial"], ["zombie", -18, 74, 3, "weak"], ["zombie", -12, 70, 3, "weak"], ["zombie", -16, 73, 3, "trivial"], ["zombie", -13, 76, 3, "trivial"], ["zombie", -17, 78, 3, "trivial"]], Vector2(-14, 77), 7.0)
+	# An isolated ritual hollow off the western graveyard verge: a plague priest alone with no nearby packs to aggro.
+	# He initiates combat by raising his own undead minions from the earth.
+	_group(32, "", [["priest", -27.0, 70.0, 3, "weak"]], Vector2(-27.0, 70.0), 3.0)
+	_group(5, "", [["bloater", -16.5, 64, 3, "weak"]], Vector2(-16.5, 64))
+	_group(6, "wander", [["zombie", -23, 55, 3, "weak"], ["zombie", -19, 51, 3, "weak"], ["zombie", -24, 61, 3, "trivial"], ["zombie", -21, 57, 3, "trivial"], ["zombie", -25, 53, 3, "trivial"], ["ghoul", -17, 56, 3, "weak"], ["ghoul", -20, 58, 3, "weak"]], Vector2(-21, 57), 5.0)
 	# The cottage: a line of fighters across the way in, spitters standing back behind them, the nest's keepers behind the house.
-	_group(7, "", [["zombie", 13, 84], ["zombie", 17.5, 85], ["zombie", 22, 83.5]], Vector2(17, 84))
-	_group(7, "", [["spitter", 16, 75], ["spitter", 22, 74]], Vector2(19, 74))
-	_group(8, "wander", [["zombie", 23, 57], ["zombie", 17, 49]], Vector2(20, 53), 4.0)
+	_group(7, "", [["zombie", 13, 84, 3, "weak"], ["zombie", 17.5, 85, 3, "weak"], ["zombie", 22, 83.5, 3, "weak"], ["zombie", 15.0, 83.0, 3, "trivial"], ["zombie", 20.0, 84.0, 3, "trivial"], ["zombie", 18.0, 82.5, 3, "trivial"]], Vector2(17, 84))
+	_group(7, "", [["spitter", 16, 75, 3, "weak"], ["spitter", 22, 74, 3, "weak"]], Vector2(19, 74))
+	_group(8, "wander", [["zombie", 23, 57, 3, "weak"], ["zombie", 17, 49, 3, "weak"], ["zombie", 20, 52, 3, "trivial"], ["zombie", 24, 52, 3, "trivial"], ["zombie", 18, 54, 3, "trivial"], ["ghoul", 19, 46, 3, "weak"]], Vector2(20, 53), 4.0)
 	# Between the graveyard and the cottage, a support-protected knot (melee only, no ranged, no area denial): a plague priest stands
 	# on the road's west shoulder behind a screen of zombies, so the problem is breaking through the screen to the caster, not dodging
 	# a crossfire. 13+ m from every neighbouring group, and the road north stays open to fall back on.
-	_group(31, "", [["priest", 6, 57], ["zombie", 9.5, 60]], Vector2(7.5, 58.5))
+	_group(31, "", [["priest", 6, 57, 3, "weak"], ["zombie", 9.5, 60, 3, "weak"], ["zombie", 7.5, 61, 3, "trivial"], ["zombie", 4.5, 59, 3, "trivial"], ["zombie", 8.0, 56.5, 3, "trivial"]], Vector2(7.5, 58.5))
 	# The choke: a brute that has been standing in the road a long while, and a pair of ghouls working the trees.
 	_group(9, "wander", [["brute", 3, 22]], Vector2(2, 22), 3.0)
 	_group(10, "wander", [["ghoul", -7, 31], ["ghoul", -9, 27]], Vector2(-8, 29), 4.0)

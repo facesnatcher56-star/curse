@@ -251,11 +251,51 @@ func _test_archer_companion() -> void:
 	quiet.queue_free()
 	await get_tree().process_frame
 	archer.target = null
-	player.global_position += Vector3(8.0, 0.0, 0.0)
+	# Slack check: player moves within leash slack (< LEASH_DISTANCE), Cutter stays stationary in idle.
+	var cutter_anchor: Vector3 = archer.global_position
+	player.global_position = archer.global_position + Vector3(3.0, 0.0, 0.0)
+	player.reset_physics_interpolation()
+	await get_tree().create_timer(0.4).timeout
+	expect("Cutter remains stationary in idle while player is within leash slack",
+		archer.flat_distance_to_point(cutter_anchor) < 0.2 and not archer._leash_active)
+
+	# Taut check: player moves beyond LEASH_DISTANCE (8m away).
+	player.global_position = archer.global_position + Vector3(8.0, 0.0, 0.0)
 	player.reset_physics_interpolation()
 	var displaced_gap: float = archer.flat_distance_to(player)
 	await get_tree().create_timer(1.0).timeout
 	expect("Cutter automatically follows the moving hero", archer.flat_distance_to(player) < displaced_gap - 1.0)
+	# Manual target override test
+	var override_enemy: Enemy = _spawn_enemy(Vector3(0.0, 0.0, -8.0))
+	override_enemy.max_health = 100.0
+	override_enemy.health = 100.0
+	archer.set_manual_target(override_enemy)
+	expect("setting manual target overrides Cutter's focus", archer.manual_target == override_enemy and archer.target == override_enemy)
+	override_enemy.queue_free()
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	expect("manual target clears once the target is freed or dead", archer.manual_target == null)
+
+	# Take Aim targeting mode and custom reticle cursor tests
+	var aim_foe: Enemy = _spawn_enemy(Vector3(0.0, 0.0, -8.0))
+	aim_foe.max_health = 100.0
+	aim_foe.health = 100.0
+	archer.take_aim_reload_remaining = 0.0
+	archer.take_aim_armed = false
+	player.skills.cancel_take_aim_targeting()
+	player.skills.activate_take_aim()
+	expect("activating Take Aim enters targeting mode and sets reticle cursor",
+		player.skills.take_aim_targeting and not archer.take_aim_armed)
+	player.skills.cancel_take_aim_targeting()
+	expect("cancelling targeting restores cursor without spending Take Aim",
+		not player.skills.take_aim_targeting and archer.take_aim_reload_remaining <= 0.0 and not archer.take_aim_armed)
+	player.skills.activate_take_aim()
+	player.skills.confirm_take_aim(aim_foe)
+	expect("confirming target commands Cutter to focus and arm Take Aim, restoring normal cursor",
+		not player.skills.take_aim_targeting and archer.manual_target == aim_foe and archer.take_aim_armed)
+	aim_foe.queue_free()
+	await get_tree().process_frame
+	await get_tree().physics_frame
 	archer.testing_disabled = true
 	archer.target = null
 

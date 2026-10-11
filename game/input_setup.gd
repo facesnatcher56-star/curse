@@ -17,6 +17,7 @@ static func apply() -> void:
 	_key("interact", KEY_E)
 	_key("chronicle", KEY_J)
 	_key("use_potion", KEY_Q)
+	_key("companion_attack", KEY_A)
 	for i in 6:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()

@@ -42,10 +42,10 @@ static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
 		Vector2(0.8, 126.0)
 	])
 
-	# Group 20: Tollhouse sentry: a golem with a protector.
+	# Group 20: Tollhouse sentry: a golem with a watchful sentry.
 	road._group(20, "", [
 		["spitter", 9.5, 128.0, 2, "weak"],
-		["priest", 12.0, 126.5, 3, "weak"]
+		["zombie", 12.0, 126.5, 2, "trivial"]
 	], Vector2(11.0, 127.0), 2.5)
 
 	# Group 21: Western flank: a pair of golems working the ditch bypass.

@@ -20,6 +20,10 @@ var right_click_skill: String:
 func assign_slot(slot: int, id: String) -> void:
 	GameSettings.assign_hotbar(slot, id)
 	clear_aim()
+
+const TAKE_AIM_CURSOR := preload("res://assets/ui/cursors/take_aim_reticle.png")
+const TAKE_AIM_HOTSPOT := Vector2(24, 24)
+var take_aim_targeting: bool = false
 var queued_skill: String = ""
 var queued_target: Actor
 var busy: bool = false
@@ -70,14 +74,17 @@ func handle_hotkeys(cursor: Vector3) -> void:
 			continue
 		if not Input.is_action_just_pressed(action):
 			continue
-		if id == "brutal_attack":
-			activate_brutal_attack()
-		elif id == "take_aim":
+		if id == "take_aim":
 			activate_take_aim()
-		elif PowerController.LIVE.has(id):
-			p.powers.activate(id, cursor)
 		else:
-			interrupt_for(id, cursor)
+			if take_aim_targeting:
+				cancel_take_aim_targeting()
+			if id == "brutal_attack":
+				activate_brutal_attack()
+			elif PowerController.LIVE.has(id):
+				p.powers.activate(id, cursor)
+			else:
+				interrupt_for(id, cursor)
 
 ## A skill pressed mid-action cancels it (a skill never waits behind a basic swing); the same for a numbered key and for the skill on the right mouse button.
 func interrupt_for(id: String, cursor: Vector3) -> void:
@@ -104,6 +111,7 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 
 ## Aborts the current swing, cast or charge immediately.
 func cancel_action() -> void:
+	cancel_take_aim_targeting()
 	clear_queue()
 	if not busy:
 		return
@@ -136,6 +144,7 @@ func _refund_unreleased_cast() -> void:
 
 ## Death/revive cleanup without changing the actor's animation or transition.
 func reset() -> void:
+	cancel_take_aim_targeting()
 	_refund_unreleased_cast()
 	clear_aim()
 	if p.model != null:
@@ -176,9 +185,11 @@ func activate_brutal_attack() -> void:
 		immediate_target = p.hover_target
 	if busy:
 		cancel_action()
+	clear_queue()
 	brutal_armed = true
 	_ensure_brutal_visual()
 	if is_instance_valid(immediate_target) and not immediate_target.dead:
+		p.attack_target = immediate_target
 		p.movement.has_goal = false
 		start_skill("basic", immediate_target)
 
@@ -193,6 +204,39 @@ func activate_take_aim() -> void:
 	if not p.stats.can_use("take_aim"):
 		p._say("Take Aim is %d%% charged" % int(p.stats.ult_fraction("take_aim") * 100.0))
 		return
+	if take_aim_targeting:
+		cancel_take_aim_targeting()
+		p._say("Cancelled")
+		return
+	if Gamepad.active:
+		var target: Actor = p.pad_facing_target()
+		if target != null and not target.dead and target is Enemy:
+			cutter.set_manual_target(target as Enemy)
+		cutter.activate_take_aim_now()
+		return
+	start_take_aim_targeting()
+
+func start_take_aim_targeting() -> void:
+	take_aim_targeting = true
+	Input.set_custom_mouse_cursor(TAKE_AIM_CURSOR, Input.CURSOR_ARROW, TAKE_AIM_HOTSPOT)
+	Input.set_custom_mouse_cursor(TAKE_AIM_CURSOR, Input.CURSOR_CROSS, TAKE_AIM_HOTSPOT)
+
+func cancel_take_aim_targeting() -> void:
+	if not take_aim_targeting:
+		return
+	take_aim_targeting = false
+	Input.set_custom_mouse_cursor(null, Input.CURSOR_ARROW)
+	Input.set_custom_mouse_cursor(null, Input.CURSOR_CROSS)
+
+func confirm_take_aim(target_enemy: Enemy) -> void:
+	if not take_aim_targeting:
+		return
+	cancel_take_aim_targeting()
+	var cutter: ArcherCompanion = p.stats._cutter()
+	if cutter == null or cutter.dead:
+		p._say("Cutter is not here")
+		return
+	cutter.set_manual_target(target_enemy)
 	cutter.activate_take_aim_now()
 
 func _ensure_brutal_visual() -> void:
@@ -215,7 +259,14 @@ func _clear_brutal_visual() -> void:
 func check_cancel() -> void:
 	var alt: bool = Input.is_action_just_pressed("alt_skill") and aiming_action != "alt_skill"
 	var dodge: bool = Input.is_action_just_pressed("dodge")
-	if not (alt or dodge):
+	var esc: bool = Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("pause")
+	if not (alt or dodge or esc):
+		return
+	if take_aim_targeting:
+		cancel_take_aim_targeting()
+		if alt:
+			swallow_alt = true
+		p._say("Cancelled")
 		return
 	if aiming_id != "":
 		aim_blocked = aiming_action   # the aim key may still be held: letting go of it must not cast

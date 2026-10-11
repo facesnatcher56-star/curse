@@ -122,6 +122,11 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not pause_menu.is_open():
+		if is_instance_valid(player) and player.skills != null and player.skills.take_aim_targeting:
+			player.skills.cancel_take_aim_targeting()
+			player._say("Cancelled")
+			get_viewport().set_input_as_handled()
+			return
 		pause_menu.open()
 		return
 	if event.is_action_pressed("restart") and player.dead:
@@ -182,6 +187,8 @@ func _apply_job_mood(offer: Dictionary) -> void:
 			world_environment.fog_density *= def.fog_mult
 
 func _process(_delta: float) -> void:
+	if hud == null or director == null:
+		return
 	hud.wave = director.wave
 	hud.kills = director.kills
 	hud.objective = director.objective_line()

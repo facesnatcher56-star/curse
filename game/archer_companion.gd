@@ -8,7 +8,9 @@ const CLIPS: Array[String] = ["idle", "calm", "walk", "run"]
 const BOW_MODEL := "res://assets/models/archer/bow/model.glb"
 const QUIVER_MODEL := "res://assets/models/archer/quiver/model.glb"
 const ARROW_MODEL := "res://assets/models/archer/arrow/model.glb"
-const FOLLOW_DISTANCE := 2.7
+const FOLLOW_DISTANCE := 4.8
+const LEASH_DISTANCE := 6.0
+const LEASH_STOP_DISTANCE := 3.5
 const HARD_TETHER_DISTANCE := 16.0
 const TELEPORT_TETHER_DISTANCE := 30.0
 const MOVE_SPEED := 4.5
@@ -26,6 +28,7 @@ const TAKE_AIM_DRAW_TIME := 0.92
 
 var player: Player
 var target: Enemy
+var manual_target: Enemy
 var testing_disabled: bool = false
 var shots_fired: int = 0
 var last_hit_target: Enemy
@@ -46,6 +49,7 @@ var _release: float = 0.0
 var _bow_scale: float
 var _arrow_rest: Transform3D
 var _take_aim_aura: BrutalAttackFx
+var _leash_active: bool = false
 
 func setup(hero: Player) -> void:
 	player = hero
@@ -137,14 +141,19 @@ func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
 	_release = maxf(_release - delta, 0.0)
 	_scan_left -= delta
-	if not is_instance_valid(target):
-		target = null
-	if not _valid_target(target):
-		target = null
-	if _scan_left <= 0.0:
-		_scan_left = 0.30
-		if target == null or randf() < 0.28:
-			target = _random_threat()
+	if not is_instance_valid(manual_target) or (manual_target != null and manual_target.dead):
+		manual_target = null
+	if manual_target != null:
+		target = manual_target
+	else:
+		if not is_instance_valid(target):
+			target = null
+		if not _valid_target(target):
+			target = null
+		if _scan_left <= 0.0:
+			_scan_left = 0.30
+			if target == null or randf() < 0.28:
+				target = _random_threat()
 	var player_gap: float = flat_distance_to(player)
 	# Combat spacing wins over formation following. Only a genuinely separated hero may pull Cutter away from his firing position.
 	if player_gap > TELEPORT_TETHER_DISTANCE:
@@ -152,19 +161,18 @@ func _physics_process(delta: float) -> void:
 		reset_physics_interpolation()
 		_nav.clear()
 		_cancel_draw()
+		_leash_active = false
 		return
-	if player_gap > HARD_TETHER_DISTANCE or target == null:
+	if (player_gap > HARD_TETHER_DISTANCE and manual_target == null) or target == null:
 		_follow(delta)
 		return
+	_leash_active = false
 	var enemy_gap: float = flat_distance_to(target)
 	if enemy_gap < MIN_COMBAT_RANGE:
-		_reposition(delta, (global_position - target.global_position).normalized())
+		_reposition_away(delta)
 		return
 	if enemy_gap > RANGE or not _line_to(target):
-		# Close only until bow range, never until Cutter is standing on the target. With blocked sight, strafe instead of charging.
-		var toward: Vector3 = (target.global_position - global_position).normalized()
-		var move_dir: Vector3 = toward if enemy_gap > PREFERRED_COMBAT_RANGE else toward.cross(Vector3.UP)
-		_reposition(delta, move_dir)
+		_reposition_to_engage(delta)
 		return
 	move_with(Vector3.ZERO)
 	face(target.global_position, 0.28)
@@ -184,46 +192,114 @@ func _physics_process(delta: float) -> void:
 	if _draw >= 1.0:
 		_loose()
 
+## Player 'A' key command: overrides Cutter's target until this enemy dies.
+func set_manual_target(enemy: Enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy) or enemy.dead:
+		return
+	manual_target = enemy
+	target = enemy
+	_cancel_draw()
+	_cooldown = 0.0
+	_nav.clear()
+	_leash_active = false
+	Fx.text_at(enemy, enemy.global_position + Vector3(0, enemy.body_height + 0.8, 0), "Focused", Color(0.9, 0.7, 0.2), 24)
+	Sfx.power(self, "take_aim_charge")
+
 func _formation_point() -> Vector3:
-	var offset := Vector3(1.55, 0.0, 1.85).rotated(Vector3.UP, player.visual.rotation.y)
+	var offset := Vector3(2.4, 0.0, 3.8).rotated(Vector3.UP, player.visual.rotation.y)
 	return player.global_position + offset
 
 func _follow(delta: float) -> void:
 	_cancel_draw()
-	var goal: Vector3 = _formation_point()
-	var gap: float = flat_distance_to_point(goal)
-	if gap <= 0.8:
+	var player_gap: float = flat_distance_to(player)
+
+	# The invisible leash: stay resting in idle until player pulls past LEASH_DISTANCE.
+	if not _leash_active:
+		if player_gap > LEASH_DISTANCE or player_gap > HARD_TETHER_DISTANCE:
+			_leash_active = true
+		else:
+			move_with(Vector3.ZERO)
+			model.loop("idle")
+			return
+
+	# Slack regained: once Cutter catches up inside LEASH_STOP_DISTANCE, settle back into idle.
+	if player_gap <= LEASH_STOP_DISTANCE:
+		_leash_active = false
+		_nav.clear()
 		move_with(Vector3.ZERO)
 		model.loop("idle")
 		return
+
+	# Path toward the player's perimeter along Cutter's approach vector.
+	var to_cutter: Vector3 = global_position - player.global_position
+	to_cutter.y = 0.0
+	var follow_dir: Vector3 = to_cutter.normalized() if to_cutter.length_squared() > 0.01 else -player.visual.global_basis.z.normalized()
+	var goal: Vector3 = Nav.snap(self, player.global_position + follow_dir * LEASH_STOP_DISTANCE)
 	var next: Vector3 = Nav.next_point(self, goal, _nav, delta, 0.35)
 	var dir: Vector3 = next - global_position
 	dir.y = 0.0
+	if dir.length_squared() < 0.01:
+		move_with(Vector3.ZERO)
+		model.loop("idle")
+		return
 	face(global_position + dir, 0.24)
-	var speed: float = minf(MOVE_SPEED, maxf(2.2, gap * 1.5))
+	var max_speed: float = MOVE_SPEED * 1.25 if player_gap > LEASH_DISTANCE + 2.0 else MOVE_SPEED
+	var speed: float = minf(max_speed, maxf(2.4, (player_gap - LEASH_STOP_DISTANCE) * 1.5 + 2.0))
 	move_with(dir.normalized() * speed)
 	model.loop("run" if speed > 3.5 else "walk", clampf(speed / (4.4 if speed > 3.5 else 1.8), 0.8, 1.25))
 
-func _reposition(_delta: float, dir: Vector3) -> void:
+func _reposition_away(delta: float) -> void:
 	_cancel_draw()
+	var away_dir: Vector3 = (global_position - target.global_position).normalized()
+	away_dir.y = 0.0
+	var backup_goal: Vector3 = Nav.snap(self, global_position + away_dir * 4.0)
+	var next: Vector3 = Nav.next_point(self, backup_goal, _nav, delta, 0.35)
+	var dir: Vector3 = next - global_position
 	dir.y = 0.0
-	if dir.length_squared() < 0.01:
-		return
-	face(target.global_position, 0.28)
-	move_with(dir.normalized() * MOVE_SPEED * 0.72)
-	model.loop("walk", 1.12)
+	if dir.length_squared() > 0.01:
+		face(target.global_position, 0.28)
+		move_with(dir.normalized() * MOVE_SPEED * 0.72)
+		model.loop("walk", 1.12)
+
+func _reposition_to_engage(delta: float) -> void:
+	_cancel_draw()
+	# Approach toward the target using NavMesh pathfinding to get within firing range with clear line of sight
+	var to_enemy: Vector3 = (target.global_position - global_position).normalized()
+	to_enemy.y = 0.0
+	var engage_goal: Vector3 = Nav.snap(self, target.global_position - to_enemy * PREFERRED_COMBAT_RANGE)
+	var next: Vector3 = Nav.next_point(self, engage_goal, _nav, delta, 0.35)
+	var dir: Vector3 = next - global_position
+	dir.y = 0.0
+	if dir.length_squared() > 0.01:
+		face(global_position + dir, 0.24)
+		move_with(dir.normalized() * MOVE_SPEED * 0.85)
+		model.loop("run" if MOVE_SPEED * 0.85 > 3.5 else "walk", 1.15)
 
 func _valid_target(enemy: Enemy) -> bool:
-	return enemy != null and is_instance_valid(enemy) and not enemy.dead and enemy.is_aggro() and enemy.target == player \
-		and flat_distance_to(enemy) <= RANGE * 1.25
+	if enemy == null or not is_instance_valid(enemy) or enemy.dead:
+		return false
+	if enemy == manual_target:
+		return true
+	var party_aggro: bool = enemy.is_aggro() and (enemy.target == player or enemy.target == self)
+	var hero_engaging: bool = is_instance_valid(player) and (player.attack_target == enemy or player.skills.busy_target == enemy)
+	return (party_aggro or hero_engaging) and flat_distance_to(player) <= HARD_TETHER_DISTANCE * 1.5
 
 func _random_threat() -> Enemy:
+	if is_instance_valid(player) and is_instance_valid(player.attack_target) and _valid_target(player.attack_target as Enemy):
+		return player.attack_target as Enemy
+	if is_instance_valid(player) and is_instance_valid(player.skills.busy_target) and _valid_target(player.skills.busy_target as Enemy):
+		return player.skills.busy_target as Enemy
 	var choices: Array[Enemy] = []
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if _valid_target(enemy):
 			choices.append(enemy)
-	return choices.pick_random() if not choices.is_empty() else null
+	if choices.is_empty():
+		return null
+	choices.sort_custom(func(a: Enemy, b: Enemy) -> bool:
+		return flat_distance_to(a) < flat_distance_to(b)
+	)
+	return choices[0]
 
 func _line_to(enemy: Enemy) -> bool:
 	var from: Vector3 = global_position + Vector3(0, 1.35, 0)

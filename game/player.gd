@@ -163,6 +163,10 @@ func _physics_process(delta: float) -> void:
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
 		skills.clear_aim()
 	skills.check_cancel()
+	if skills.take_aim_targeting:
+		var cutter := stats._cutter()
+		if cutter == null or cutter.dead:
+			skills.cancel_take_aim_targeting()
 	skills.update_aim(cursor)
 	skills.handle_hotkeys(cursor)
 	if movement.rolling:
@@ -405,6 +409,13 @@ func _read_input(cursor: Vector3) -> void:
 	if not Input.is_action_pressed("click"):
 		_ui_click = false
 	if Input.is_action_just_pressed("click") and not _ui_click:
+		if skills.take_aim_targeting:
+			var hit_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor) as Enemy)
+			if hit_enemy == null:
+				hit_enemy = enemy_near(cursor, 3.5) as Enemy
+			if hit_enemy != null and not hit_enemy.dead:
+				skills.confirm_take_aim(hit_enemy)
+			return
 		var hover: Actor = _hover_pick(cursor)
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
 		skills.clear_queue()
@@ -423,6 +434,8 @@ func _read_input(cursor: Vector3) -> void:
 			attack_target = hover
 			attack_prop = null
 			movement.has_goal = false
+			if (skills.brutal_armed or powers.staggering_armed) and skills.busy and skills.busy_skill == "basic":
+				skills.cancel_action()
 		elif Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null:
 			click_mode = 3
 			attack_target = null
@@ -512,6 +525,15 @@ func _pursue_pickup(stand_still: bool) -> void:
 					nearest = drop
 		if nearest != null:
 			nearest.pick_up(self)
+	if Input.is_action_just_pressed("companion_attack"):
+		var hover_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor_world()) as Enemy)
+		if hover_enemy != null and not hover_enemy.dead:
+			var cutter := stats._cutter()
+			if cutter != null and not cutter.dead:
+				if skills.take_aim_targeting:
+					skills.confirm_take_aim(hover_enemy)
+				else:
+					cutter.set_manual_target(hover_enemy)
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:
@@ -627,6 +649,8 @@ func _act(delta: float, cursor: Vector3) -> void:
 		var skill: Dictionary = SkillDb.all()[skill_id]
 		var dist: float = flat_distance_to(target) - target.body_radius
 		if dist <= float(skill["range"]):
+			if (skills.brutal_armed or powers.staggering_armed) and skills.busy and skills.busy_skill == "basic":
+				skills.cancel_action()
 			if stats.can_use(skill_id):
 				skills.start_skill(skill_id, target)
 				return
