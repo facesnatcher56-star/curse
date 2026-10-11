@@ -549,6 +549,7 @@ func _enter_tree() -> void:
 	if not TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 		TownState.events.hero_xp_changed.connect(_on_xp_changed)
 		TownState.events.hero_leveled.connect(_on_leveled)
+		TownState.events.passives_changed.connect(stats.refresh)
 
 func _on_xp_changed(_old_xp: int, _new_xp: int) -> void:
 	stats.refresh()
@@ -572,6 +573,8 @@ func _exit_tree() -> void:
 		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
 	if TownState.events.hero_leveled.is_connected(_on_leveled):
 		TownState.events.hero_leveled.disconnect(_on_leveled)
+	if TownState.events.passives_changed.is_connected(stats.refresh):
+		TownState.events.passives_changed.disconnect(stats.refresh)
 	if weapon_throw != null:
 		weapon_throw.reset()
 
@@ -684,6 +687,7 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	if result.get("skill_id", "") != "brutal_attack":
 		stats.gain_brutal_charge(float(result.get("damage", 0.0)))
 	_steal_life(result)
+	_passive_on_hit(target, result)
 	for companion in get_tree().get_nodes_in_group("companions"):
 		if companion.has_method("gain_take_aim_charge"):
 			companion.gain_take_aim_charge(float(result.get("damage", 0.0)))
@@ -695,6 +699,27 @@ func _steal_life(result: Dictionary) -> void:
 	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
 	if gain > 0.0:
 		health = minf(health + gain, max_health)
+
+## DS2's passives that ride a landed blow (docs/ds2-combat-and-loot.md 4): Smite stuns on a two-handed hit (5-50%, 1-2 s), Bleed opens a
+## wound on a thrown hit (10-25%, 0.06-0.5 x DEX a second for 4 s), Ignite sets a fire hit alight (chance `rank x damage / (1.2 + 0.6 INT)`,
+## 0.08-0.5 x INT a second for 3 s).
+func _passive_on_hit(target: Actor, result: Dictionary) -> void:
+	if target == null or target.dead or result.get("secondary", false):
+		return
+	var skill: String = String(result.get("skill_id", ""))
+	var damage: float = float(result.get("damage", 0.0))
+	var smite: int = TownState.passive_rank("smite")
+	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
+			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
+		target._gain_stun(1.0 + float(smite - 1) / 19.0)
+	var bleed: int = TownState.passive_rank("bleed")
+	if bleed > 0 and skill == "throw" and randf() < PassiveDb.get_def("bleed").value(bleed) / 100.0:
+		target.bleed_dps = maxf(target.bleed_dps, (0.06 + 0.44 * float(bleed - 1) / 19.0) * stats.dexterity)
+		target.bleed_time = maxf(target.bleed_time, 4.0)
+	var ignite: int = TownState.passive_rank("ignite")
+	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
+			and randf() < float(ignite) * damage / (1.2 + 0.6 * stats.intelligence):
+		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true)
 
 ## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
 func _filter_incoming(result: Dictionary) -> Dictionary:
@@ -740,8 +765,15 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	hurt_flash = 1.0
 	Fx.shake(self, 0.08)
 
-func _on_avoided(_outcome: int) -> void:
+func _on_avoided(outcome: int) -> void:
 	combat_timer = 5.0
+	# DS2's Rebuke: a block hits back for 0.4-2.5 x Melee level and stuns for 1-2 s.
+	var rebuke: int = TownState.passive_rank("rebuke")
+	if rebuke > 0 and outcome == Combat.Outcome.BLOCK and last_hit_by is Enemy and not last_hit_by.dead:
+		var melee: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get("melee", 0))
+		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,
+			"source": self, "type": Combat.DamageType.PHYSICAL, "secondary": true, "skill_id": "rebuke"}, global_position)
+		last_hit_by._gain_stun(1.0 + float(rebuke - 1) / 19.0)
 
 func _popup_tint() -> Color:
 	return Color(1.0, 0.35, 0.3)

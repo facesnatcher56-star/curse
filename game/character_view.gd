@@ -24,12 +24,12 @@ func _ready() -> void:
 	left.add_child(ItemTile._label(hero.display_name + " — Character", 24, UiTheme.TEXT))
 	_add_progression(left)
 	var portrait := SubViewportContainer.new()
-	portrait.custom_minimum_size = Vector2(280, 190)
+	portrait.custom_minimum_size = Vector2(280, 160)
 	portrait.stretch = true
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left.add_child(portrait)
 	var viewport := SubViewport.new()
-	viewport.size = Vector2i(280, 190)
+	viewport.size = Vector2i(280, 160)
 	viewport.own_world_3d = true
 	viewport.transparent_bg = true
 	portrait.add_child(viewport)
@@ -51,6 +51,10 @@ func _ready() -> void:
 	light.light_color = Color(0.92, 0.79, 0.61)
 	light.light_energy = 2.0
 	viewport.add_child(light)
+	var skills_button: Button = UiTheme.button("Skills (%d)" % TownState.skill_points_left(), 140)
+	skills_button.name = "skills"
+	skills_button.pressed.connect(func() -> void: (get_parent() as Hud).open_skills())
+	left.add_child(skills_button)
 	left.add_child(ItemTile._label(gear_text(), 14, UiTheme.TEXT))
 	_add_paper_doll(left)
 	var right := VBoxContainer.new()

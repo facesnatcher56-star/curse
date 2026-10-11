@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "bleed"
+display_name = "Bleed"
+tree = "ranged"
+class_level = 12
+prereqs = {
+"critical_shot": 1
+}
+first = 10.0
+last = 25.0
+text = "Thrown hits bleed: %s%% chance"
+order = 15

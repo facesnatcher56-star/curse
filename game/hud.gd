@@ -699,6 +699,15 @@ func _open_character() -> void:
 	add_child(character_panel)
 	get_tree().paused = true
 
+## The skill screen (DS2's passive trees) in the character panel's place.
+func open_skills() -> void:
+	if character_panel != null:
+		character_panel.queue_free()
+	character_panel = preload("res://game/ui/skill_tree_view.gd").new()
+	character_panel.hero = player
+	add_child(character_panel)
+	get_tree().paused = true
+
 func close_character() -> void:
 	show_gear = false
 	if character_panel != null:

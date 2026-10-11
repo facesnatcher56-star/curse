@@ -110,6 +110,7 @@ func profile() -> Dictionary:
 	var own: Variant = p.stats.weapon_profile("throw", {})
 	if own is Dictionary:
 		merged.merge(own, true)
+	merged["charge_time"] = float(merged["charge_time"]) / (1.0 + p.stats.passive("quick_draw") / 100.0)   # DS2's Quick Draw
 	return merged
 
 func charge_fraction() -> float:
@@ -395,7 +396,9 @@ func _hit_enemy(e: Actor, dir: Vector3, outgoing: bool) -> void:
 	var strength: float = (0.4 + 0.6 * c) * float(prof["damage"]) * (1.0 if outgoing else float(prof["recall_damage"]))
 	var damage: float = p.stats.weapon_damage(strength, true)
 	var flat: Vector3 = Vector3(dir.x, 0.0, dir.z).normalized()
-	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 1.0 + 1.2 * c * mass)
+	# A thrown weapon crits by Critical Shot, not the melee Critical Strike.
+	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, false, 1.0 + 1.2 * c * mass,
+		randf() < p.stats.passive("critical_shot") / 100.0, false)
 	result["skill_id"] = SKILL_ID
 	# Only the first thing the outgoing weapon strikes can set off the weapon's on-hit effects; everything after it, and the whole way
 	# back, is a secondary hit, so a weapon that goes through ten enemies does not chain, burn and juggle ten times over.

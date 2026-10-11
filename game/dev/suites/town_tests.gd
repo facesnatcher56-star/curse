@@ -429,6 +429,7 @@ func _test_town_scene() -> void:
 	await get_tree().process_frame
 	expect("a potion drunk in town is not bought back by the town's count", TownState.potions == potions)
 	TownState.stash.append(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Greatsword"))
+	TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 	town.panel._wear(TownState.stash.size() - 1)
 	expect("wearing from the stash puts it on the hero too", town.player.stats.equipment[Items.Slot.WEAPON]["base"] == "Greatsword"
 		and town.player._held_path == Items.model_path(town.player.stats.equipment[Items.Slot.WEAPON]))

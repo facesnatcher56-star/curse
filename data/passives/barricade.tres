@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "barricade"
+display_name = "Barricade"
+tree = "melee"
+class_level = 12
+prereqs = {}
+first = 2.0
+last = 20.0
+text = "Shields; block +%s%% and shield armor +20 to +120%%"
+order = 4

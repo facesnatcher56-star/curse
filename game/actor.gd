@@ -18,6 +18,9 @@ var fire_resist: float = 0.0
 var dodge_chance: float = 0.0
 var block_chance: float = 0.0
 var crit_chance: float = 0.0
+## How much a critical deals (DS2: 200%, Deadly Strike up to 350%), and the share of physical damage this actor shrugs off (Toughness).
+var crit_mult: float = 2.0
+var toughness: float = 0.0
 ## Fire added to every physical blow (DS2's added elemental damage, from gear): it meets the target's fire resistance, then armour with the rest.
 var added_fire: float = 0.0
 var body_radius: float = 0.4

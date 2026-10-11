@@ -7,3 +7,5 @@ extends RefCounted
 signal hero_xp_changed(old_xp: int, new_xp: int)
 ## The level went up, by one or several levels at once: one event for one award.
 signal hero_leveled(old_level: int, new_level: int, new_xp: int)
+## Passive ranks were bought (the hero's numbers follow them).
+signal passives_changed()

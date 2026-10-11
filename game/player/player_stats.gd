@@ -62,15 +62,24 @@ func refresh() -> void:
 		+ Vector3(gear_stat("str"), gear_stat("dex"), gear_stat("int"))
 	var life_share: float = p.health / maxf(p.max_health, 1.0)
 	var mana_share: float = mana / maxf(max_mana, 1.0)
-	p.max_health = HeroAttributes.max_life(attributes) + gear_stat("life")
-	max_mana = HeroAttributes.max_mana(attributes) + gear_stat("mana")
+	p.max_health = (HeroAttributes.max_life(attributes) + gear_stat("life")) * (1.0 + passive("fortitude") / 100.0)
+	max_mana = (HeroAttributes.max_mana(attributes) + gear_stat("mana")) * (1.0 + passive("brilliance") / 100.0)
 	p.health = clampf(p.max_health * life_share, 0.0, p.max_health) if not p.dead else p.health
 	mana = max_mana * mana_share
 	p.level = TownState.hero_level
 	p.armor = total_armor()
-	p.fire_resist = gear_stat("fire_resist") / 100.0
-	p.block_chance = gear_stat("block") / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
+	p.fire_resist = (gear_stat("fire_resist") + passive("survival")) / 100.0
+	p.block_chance = (gear_stat("block") + passive("barricade")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.added_fire = gear_stat("fire_added")
+	p.crit_chance = passive("critical_strike") / 100.0
+	p.crit_mult = passive("deadly_strike") / 100.0 if TownState.passive_rank("deadly_strike") > 0 else 2.0
+	p.toughness = passive("toughness") / 100.0
+	p.dodge_chance = passive("dodge") / 100.0
+
+## A DS2 passive's effect at the hero's rank in it (PassiveDef.value; 0 when he has none).
+func passive(id: String) -> float:
+	var def: PassiveDef = PassiveDb.get_def(id)
+	return def.value(TownState.passive_rank(id)) if def != null else 0.0
 
 # --- What the gear adds (DS2 modifiers, uniques and set bonuses) ------------------------------------------------------------------------
 ## Everything worn adds up to this: stat (AffixDb.STAT_NAMES) -> value. Worked out by `refresh`.
@@ -100,11 +109,16 @@ func gear_totals() -> Dictionary:
 	return out
 
 ## DS2's armour: the worn pieces' armour plus flat armour modifiers, then x (1 + armour %). Heroes have none of their own.
+## Barricade raises the shield's own armour (+20 to +120%), Reinforced Armor all of it (DS2 section 3).
 func total_armor() -> float:
 	var armor: float = base_armor
 	for place in equipment:
-		armor += float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
-	return (armor + gear_stat("armor")) * (1.0 + gear_stat("armor_pct") / 100.0)
+		var piece: float = float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
+		var barricade: int = TownState.passive_rank("barricade")
+		if place == Items.Slot.SHIELD and barricade > 0:
+			piece *= 1.0 + (20.0 + 100.0 * float(barricade - 1) / 19.0) / 100.0
+		armor += piece
+	return (armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) * (1.0 + gear_stat("armor_pct") / 100.0)
 
 ## A skill's mana: its data's, except Fireball, a DS2 spell whose cost grows with INT (82 at INT 100, 164 at 200: 0.82 x INT).
 func mana_cost(id: String) -> float:
@@ -118,7 +132,8 @@ const SPELL_PER_INT := 0.52
 const SPELL_MANA_PER_INT := 0.82
 
 func spell_range() -> Vector2:
-	var average: float = (SPELL_BASE + SPELL_PER_INT * intelligence) * (1.0 + gear_stat("spell_pct") / 100.0)
+	var average: float = (SPELL_BASE + SPELL_PER_INT * intelligence) * (1.0 + (gear_stat("spell_pct") + passive("devastation")) / 100.0) \
+		* (1.0 + passive("searing_flames") / 100.0)
 	return Vector2(average * 0.75, average * 1.25)
 
 func spell_damage() -> float:
@@ -162,8 +177,9 @@ func power_recharge_damage(seconds_of_combat: float) -> float:
 	var level: float = maxf(float(TownState.hero_level), 1.0)
 	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members() / (1.0 + gear_stat("recharge") / 100.0)
 
+## Brutal Attack is a melee power: Fierce Renewal speeds its recharge.
 func brutal_recharge_damage() -> float:
-	return power_recharge_damage(BRUTAL_COMBAT_SECONDS)
+	return power_recharge_damage(BRUTAL_COMBAT_SECONDS) / (1.0 + passive("fierce_renewal") / 100.0)
 
 func spend_brutal_attack() -> void:
 	brutal_reload_required = brutal_recharge_damage()
@@ -246,7 +262,8 @@ func weapon_base_range() -> Vector2:
 func weapon_range(mult: float, thrown: bool = false) -> Vector2:
 	var base: Vector2 = weapon_base_range()
 	var bonus: float = 0.2 * maxf(dexterity if thrown else strength, 10.0)
-	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + gear_stat("melee_pct") / 100.0) * mult
+	var overbear: float = passive("overbear") if _two_handed(equipment.get(Items.Slot.WEAPON, {})) else 0.0
+	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + gear_stat("melee_pct") / 100.0) * (1.0 + overbear / 100.0) * mult
 
 func weapon_damage(mult: float, thrown: bool = false) -> float:
 	var r: Vector2 = weapon_range(mult, thrown)
@@ -277,6 +294,12 @@ func armor_stat(key: String, fallback: float) -> float:
 ## Attack speed: the weapon's own.
 func attack_speed() -> float:
 	return weapon_stat("speed", 1.0)
+
+## How fast a skill plays out: a spell by Quickened Casting, everything else by the weapon and Alacrity (DS2: melee speed).
+func skill_speed(id: String) -> float:
+	if String(SkillDb.all()[id].get("kind", "")) == "projectile":
+		return 1.0 + passive("quickened_casting") / 100.0
+	return attack_speed() * (1.0 + passive("alacrity") / 100.0)
 
 ## Puts `item` on. Returns what came off to make room (the piece in its place, and a shield for a two-handed weapon or a two-handed weapon
 ## for a shield), or null when it cannot be worn: the weapon is out in the world, or the hero does not meet its requirement (DS2: class

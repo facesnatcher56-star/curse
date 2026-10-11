@@ -433,6 +433,7 @@ func _test_two_hand() -> void:
 	var skills: SkillController = player.skills
 	var seen: Dictionary = {}
 	for base in ["Falchion", "Greatsword"]:
+		TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, base), false)
 		var clips: Array[String] = []
 		for step in 3:
@@ -466,6 +467,7 @@ func _test_weapon_styles() -> void:
 	var slammed: Dictionary = {}
 	var base_time: float = float(SkillDb.basic_combo()[2][0]["time"])
 	for base in ["Falchion", "Longsword", "Greatsword"]:
+		TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, base), false)
 		# How long a first swing takes from start to recovered (stepped by hand so engine time cannot blur it).
 		var far: Enemy = _spawn_enemy(Vector3(0, 0, 14))

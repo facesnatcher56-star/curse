@@ -590,7 +590,7 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	if id == "basic":
 		skill = _next_basic()
 	busy_def = skill
-	busy_time = float(skill["time"]) / p.stats.attack_speed()
+	busy_time = float(skill["time"]) / p.stats.skill_speed(id)
 	_mana_spent = p.stats.mana_cost(id)
 	p.stats.mana -= _mana_spent
 	p.stats.cooldowns[id] = float(skill["cd"])

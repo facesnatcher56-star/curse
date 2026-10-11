@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dodge"
+display_name = "Dodge"
+tree = "ranged"
+class_level = 1
+prereqs = {}
+first = 4.0
+last = 40.0
+text = "Dodge melee and ranged blows %s%%"
+order = 12

@@ -346,6 +346,12 @@ func _item_sheet() -> void:
 			if not player.stats.equipment.has(player.stats.place_for(drop.item)) and int(drop.item["slot"]) != Items.Slot.WEAPON:
 				player.stats.wear(player.stats.place_for(drop.item), drop.item)
 		hud._open_character()
+		if OS.get_cmdline_user_args().has("--skills"):   # the skill screen instead, a few ranks bought and some chosen
+			TownState.passive_ranks = {"fortitude": 3, "critical_strike": 2}
+			hud.open_skills()
+			await get_tree().process_frame
+			hud.character_panel._raise("fortitude")
+			hud.character_panel._raise("dodge")
 		await get_tree().create_timer(0.5).timeout
 		var size_px: Vector2 = get_viewport().get_visible_rect().size
 		hud.mouse_override = Vector2(size_px.x - 30.0 - (6 * 64 + 5 * 10) + 1 * 74 + 32, 70.0 + 4.0 + 64.0 + 34.0 + 32.0)
@@ -416,6 +422,7 @@ func _hand_shot() -> void:
 			clip = arg.substr(11).get_slice(":", 0)
 			t = float(arg.substr(11).get_slice(":", 1)) if ":" in arg else 1.0
 		if arg.begins_with("--equip="):
+			TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, arg.substr(8)), false)
 	await get_tree().process_frame
 	player.model.manual(clip)
@@ -469,6 +476,7 @@ func _clip_sheet(spec: String) -> void:
 		player.visual.rotation.y = PI * 0.5
 	for arg in OS.get_cmdline_user_args():   # `--equip=Greatsword`: hold that weapon for the sheet
 		if arg.begins_with("--equip="):
+			TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, arg.substr(8)), false)
 			await get_tree().process_frame
 	if OS.get_cmdline_user_args().has("--closeup"):

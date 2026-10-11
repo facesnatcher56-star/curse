@@ -8,6 +8,7 @@ func _throw_shots() -> void:
 		node.queue_free()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--equip="):
+			TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 			player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, arg.substr(8)), false)
 	player.set_physics_process(true)
 	var origin: Vector3 = _clear_lane(26.0, 3.0)
@@ -403,6 +404,7 @@ func _test_weapon_throw() -> void:
 	# --- Profiles and the controller -----------------------------------------------------------------------------------------------
 	var profiles: Dictionary = {}
 	for base in ["Falchion", "Longsword", "Greatsword"]:
+		TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 		player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, base), false)
 		profiles[base] = wt.profile()
 	expect("the three weapons throw differently", profiles["Falchion"]["charge_time"] < profiles["Longsword"]["charge_time"] and profiles["Longsword"]["charge_time"] < profiles["Greatsword"]["charge_time"]

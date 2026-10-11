@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "quickened_casting"
+display_name = "Quickened Casting"
+tree = "combat"
+class_level = 12
+prereqs = {
+"brilliance": 1
+}
+first = 4.0
+last = 25.0
+text = "Cast speed +%s%%"
+order = 19

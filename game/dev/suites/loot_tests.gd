@@ -94,6 +94,7 @@ func _test_loot() -> void:
 	# The hero holds what is equipped: each weapon shows its own model, and longer weapons are longer in the hand.
 	var held_length: Dictionary = {}
 	for base_name in ["Falchion", "Longsword", "Greatsword"]:
+		TownState.passive_ranks["overbear"] = 1   # (a two-handed weapon needs Overbear)
 		stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, base_name), false)
 		await get_tree().process_frame
 		var tip_y: float = player.model.weapon_tip.position.y

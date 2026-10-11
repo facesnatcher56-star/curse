@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ignite"
+display_name = "Ignite"
+tree = "combat"
+class_level = 12
+prereqs = {
+"searing_flames": 1
+}
+first = 0.08
+last = 0.5
+text = "Fire hits may ignite: %s x INT a second"
+order = 20

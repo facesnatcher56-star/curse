@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "critical_shot"
+display_name = "Critical Shot"
+tree = "ranged"
+class_level = 1
+prereqs = {}
+first = 8.0
+last = 50.0
+text = "Thrown critical chance %s%%"
+order = 11

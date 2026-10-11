@@ -49,8 +49,9 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		# DS2 adds a second, separately rolled hit; CURSE CHOICE: the second roll is taken equal to the first (200%), since the blow
 		# arrives here already rolled.
 		outcome = Outcome.CRITICAL
-		dmg *= 2.0
+		dmg *= attacker.crit_mult
 	if damage_type == DamageType.PHYSICAL:
+		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)   # DS2's Toughness: the victim's physical damage cut
 		if attacker.added_fire > 0.0:   # DS2: added elemental damage, less the victim's resistance, before armour
 			dmg += attacker.added_fire * (1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") else 2.0))
 		dmg *= armor_factor(attacker.level, defender.armor)

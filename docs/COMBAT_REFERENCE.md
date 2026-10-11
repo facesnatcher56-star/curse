@@ -80,3 +80,25 @@ Curse choices (labelled in code):
 * **Stance passives** DS2 also asks for (Barricade for a shield, Overbear for two hands) arrive with the passive trees.
 * **Gold and potions** stay Curse's own (gold per kill, health orbs); only the item columns of DS2's tables are used.
 * **The hero's thrown blade** is his melee weapon, so it keeps the melee damage modifiers.
+
+## DS2 skill points and passives (2026-10, owner decision; locked by `--only=skilltree`)
+
+* **Skill points**: one a character level after the first, plus a human's two (`TownState.skill_points_total`). Spent one rank at a time on
+  passives (20 ranks each), chosen with + and -, then confirmed for good: DS2 has no respec (`SkillTreeView`, from the character screen).
+* **Gates**: each passive opens at its tree's class skill level (DS2's tiers 1, 5, 12, 24, 36) and may need ranks in another first.
+* **Stances**: a two-handed weapon needs Overbear 1, a shield Barricade 1 (`Items.requirement`).
+* **Effects** (rank 1 -> 20, DS2's): Fortitude life +6-45%, Critical Strike 8-50%, Overbear two-handed damage +8-50%, Toughness physical
+  damage taken -3-26%, Barricade block +2-20% and shield armour +20-120%, Alacrity melee speed +3-25%, Smite two-handed stun 5-50% for 1-2 s,
+  Reinforced Armor +4-35%, Fierce Renewal Brutal Attack recharge +3-30%, Rebuke a block hits back for 0.4-2.5 x Melee level and stuns,
+  Deadly Strike crits 224-350%; Critical Shot (thrown) 8-50%, Dodge 4-40%, Quick Draw (Weapon Throw wind-up) +3-25%, Survival fire resistance
+  +10-60%, Bleed (thrown) 10-25% for 0.06-0.5 x DEX a second, 4 s; Brilliance mana +7-150%, Devastation combat magic +10-60%, Searing Flames
+  fire +8-60%, Quickened Casting +4-25%, Ignite chance `rank x damage / (1.2 + 0.6 INT)`, 0.08-0.5 x INT a second for 3 s.
+
+Curse choices (labelled in `tools/write_passive_defs.py`):
+
+* **Tiers and prerequisites** follow DS2 where the reference names them (Smite needs Fortitude; Reinforced Armor Barricade and Melee 24;
+  Rebuke Barricade; Alacrity at 12). The rest are placed by Curse until the full `passive_skills.gas` table is read; Alacrity asks for
+  Critical Strike instead of DS2's Dual Wield, which Curse does not have.
+* **Left out** until Curse has the mechanic: Dual Wield, the bow and crossbow passives, summons, ice, lightning, death, curses and the Nature
+  Magic tree. Cunning Renewal waits for a hero ranged power.
+* **Deadly Strike** also raises the hero's thrown crits (DS2 gives bows Mortal Wound; Curse's thrown blade is his sword).

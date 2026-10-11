@@ -175,7 +175,7 @@ func _test_ds2_items() -> void:
 	expect("jewellery is never plain", int(Items.make(Items.Slot.RING, Items.Rarity.NORMAL, 10)["rarity"]) == Items.Rarity.MAGIC)
 	# Requirement: class skill >= item level - 2.
 	var heavy: Dictionary = Items.build(ItemDb.get_def("longsword"), 17, Items.Rarity.NORMAL)
-	expect("a level 17 sword needs Melee 15", Items.requirement(heavy) == {"class": "melee", "level": 15}
+	expect("a level 17 sword needs Melee 15", Items.requirement(heavy) == {"class": "melee", "level": 15, "passive": ""}
 		and not Items.meets_requirement(heavy, {"melee": 14}) and Items.meets_requirement(heavy, {"melee": 15}))
 	var ranger_cap: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 20, 0)
 	expect("armour needs its own class's skill (a ranger cap Ranged, a fighter helm Melee)", Items.meets_requirement(ranger_cap, {"melee": 40, "ranged": 18})
@@ -203,6 +203,7 @@ func _test_ds2_items() -> void:
 	expect("magic find makes rares, uniques and sets more likely (%d vs %d)" % [lucky_rare, plain_rare], lucky_rare > plain_rare * 2)
 	# The gear on the hero.
 	TownState.dev_set_hero_level(40)
+	TownState.passive_ranks = {"overbear": 1, "barricade": 1}   # (DS2: a two-handed weapon needs Overbear, a shield Barricade)
 	await get_tree().process_frame
 	var stats: PlayerStats = player.stats
 	var saved_equipment: Dictionary = stats.equipment.duplicate()
@@ -220,7 +221,7 @@ func _test_ds2_items() -> void:
 	expect("a second ring goes on the other hand", stats.equipment.get(Items.Slot.RING) == ring and stats.equipment.get(Items.Slot.RING2) == second)
 	var shield: Dictionary = Items.build(ItemDb.get_def("buckler"), 28, Items.Rarity.MAGIC, ["block_4"])
 	stats.equip(shield, false)
-	expect("a shield's block is the hero's chance to block (%.2f)" % player.block_chance, is_equal_approx(player.block_chance, AffixDb.get_def("block_4").value / 100.0))
+	expect("a shield's block (and Barricade's) is the hero's chance to block (%.2f)" % player.block_chance, is_equal_approx(player.block_chance, (AffixDb.get_def("block_4").value + 2.0) / 100.0))
 	var off: Variant = stats.equip(Items.build(ItemDb.get_def("greatsword"), 26, Items.Rarity.NORMAL), false)
 	expect("a two-handed weapon takes the shield off (and blocking with it)", off != null and (off as Array).has(shield) and not stats.equipment.has(Items.Slot.SHIELD)
 		and is_equal_approx(player.block_chance, 0.0))
@@ -251,6 +252,71 @@ func _test_ds2_items() -> void:
 	target.queue_free()
 	stats.equipment = saved_equipment
 	stats.bag = saved_bag
+	TownState.reset()
+	stats.refresh()
+	await get_tree().process_frame
+
+## DS2's skill points and passive trees: a point a level (and a human's two), the tiers and prerequisites, the rank cap, buying for good,
+## a save, the stance requirements (Overbear for two hands, Barricade for a shield), and what the passives do to the hero.
+func _test_skill_tree() -> void:
+	TownState.persist = false
+	TownState.reset()
+	await get_tree().process_frame
+	expect("a new hero has a human's two skill points", TownState.skill_points_total() == 2 and TownState.skill_points_left() == 2)
+	TownState.dev_set_hero_level(10)
+	expect("one point a level after that (11 at level 10)", TownState.skill_points_left() == 11)
+	expect("a passive opens at its tree's class level (Barricade at Melee 12; a level 10 fighter is Melee 9)",
+		TownState.passive_blocker("barricade") == "Needs Melee 12" and TownState.passive_blocker("fortitude") == "")
+	expect("and may need another first (Smite needs Fortitude 1)", TownState.passive_blocker("smite").begins_with("Needs Melee")
+		or TownState.passive_blocker("smite") == "Needs Fortitude 1")
+	TownState.dev_set_hero_level(30)
+	expect("Smite needs Fortitude first", TownState.passive_blocker("smite") == "Needs Fortitude 1")
+	expect("a staged rank counts for what comes after it", TownState.passive_blocker("smite", {"fortitude": 1}) == "")
+	var life_before: float = player.max_health
+	expect("buying ranks spends points and keeps them", TownState.buy_passives({"fortitude": 20, "smite": 1}) and TownState.passive_rank("fortitude") == 20
+		and TownState.skill_points_left() == 31 - 21)
+	await get_tree().process_frame
+	expect("Fortitude 20 is +45% life (%.0f -> %.0f)" % [life_before, player.max_health], absf(player.max_health - life_before * 1.45) < 1.0)
+	expect("no rank past 20", TownState.passive_blocker("fortitude") == "At its highest rank")
+	expect("a purchase that breaks a rule buys nothing", not TownState.buy_passives({"reinforced_armor": 1}) and TownState.passive_rank("reinforced_armor") == 0)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
+	TownState.reset()
+	TownState.from_dict(TownState.migrate(saved))
+	expect("ranks survive a save", TownState.passive_rank("fortitude") == 20 and TownState.passive_rank("smite") == 1)
+	expect("a version 8 save starts with nothing bought", (TownState.migrate({"save_version": 8})["passive_ranks"] as Dictionary).is_empty())
+	# Stances.
+	var great: Dictionary = Items.build(ItemDb.get_def("greatsword"), 6, Items.Rarity.NORMAL)
+	var shield: Dictionary = Items.build(ItemDb.get_def("buckler"), 6, Items.Rarity.NORMAL)
+	expect("a two-handed weapon needs Overbear and a shield Barricade (DS2)", not Items.hero_can_wear(great) and not Items.hero_can_wear(shield)
+		and Items.requirement_text(great).contains("Overbear") and Items.requirement_text(shield).contains("Barricade"))
+	TownState.buy_passives({"overbear": 1})
+	expect("with Overbear the greatsword can be wielded", Items.hero_can_wear(great))
+	# Effects.
+	var stats: PlayerStats = player.stats
+	TownState.passive_ranks["critical_strike"] = 20
+	TownState.passive_ranks["deadly_strike"] = 20
+	TownState.passive_ranks["toughness"] = 20
+	TownState.passive_ranks["dodge"] = 20
+	TownState.passive_ranks["survival"] = 20
+	TownState.passive_ranks["brilliance"] = 20
+	var mana_plain: float = player.stats.max_mana
+	stats.refresh()
+	expect("Critical Strike 20 is a 50% crit, Deadly Strike 20 a 350% one", is_equal_approx(player.crit_chance, 0.5) and is_equal_approx(player.crit_mult, 3.5))
+	expect("Toughness 20 takes 26% off physical blows, Dodge 20 is 40%, Survival 20 +60% fire resistance", is_equal_approx(player.toughness, 0.26)
+		and is_equal_approx(player.dodge_chance, 0.4) and is_equal_approx(player.fire_resist, 0.6))
+	expect("Brilliance 20 is +150% mana", absf(stats.max_mana - mana_plain * 2.5) < 1.0)
+	var spell_before: Vector2 = stats.spell_range()
+	TownState.passive_ranks["devastation"] = 20
+	expect("Devastation 20 is +60% combat magic damage", absf(stats.spell_range().y - spell_before.y * 1.6) < 0.01)
+	var target: Enemy = _spawn_enemy(Vector3(30, 0, 30))
+	target.aggro_range = 0.0
+	await get_tree().process_frame
+	target.armor = 0.0
+	target.level = player.level
+	player.dodge_chance = 0.0
+	var hit: Dictionary = Combat.resolve(target, player, 100.0, Combat.DamageType.PHYSICAL, false)
+	expect("the toughened hero takes 74 of a 100 blow", is_equal_approx(float(hit["damage"]), 74.0))
+	target.queue_free()
 	TownState.reset()
 	stats.refresh()
 	await get_tree().process_frame

@@ -167,26 +167,36 @@ static func requirement(item: Dictionary) -> Dictionary:
 		skill = "uber"
 	elif def != null and def.is_armor():
 		skill = String(ARMOR_CLASS_SKILL.get(def.armor_class, "melee"))
-	return {"class": skill, "level": maxi(int(item["level"]) - 2, 0)}
+	var stance: String = ""
+	if def != null and def.item_type == "shield":
+		stance = "barricade"
+	elif def != null and bool(def.profile.get("two_handed", false)):
+		stance = "overbear"
+	return {"class": skill, "level": maxi(int(item["level"]) - 2, 0), "passive": stance}
 
-## Whether `levels` meet the requirement: class skill levels (HeroAttributes.levels_from_xp) and "uber", the character level.
-static func meets_requirement(item: Dictionary, levels: Dictionary) -> bool:
+## Whether `levels` meet the requirement: class skill levels (HeroAttributes.levels_from_xp) and "uber", the character level; `ranks`
+## the passive ranks (a shield needs Barricade, a two-handed weapon Overbear).
+static func meets_requirement(item: Dictionary, levels: Dictionary, ranks: Dictionary = {}) -> bool:
 	var need: Dictionary = requirement(item)
-	return int(levels.get(need["class"], 0)) >= int(need["level"])
+	return int(levels.get(need["class"], 0)) >= int(need["level"]) and (String(need["passive"]) == "" or int(ranks.get(need["passive"], 0)) >= 1)
 
-## Whether the hero (TownState's level and class XP) may wear `item`.
+## Whether the hero (TownState's level, class XP and passives) may wear `item`.
 static func hero_can_wear(item: Dictionary) -> bool:
 	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
 	levels["uber"] = TownState.hero_level
-	return meets_requirement(item, levels)
+	return meets_requirement(item, levels, TownState.passive_ranks)
 
 static func requirement_text(item: Dictionary) -> String:
 	var need: Dictionary = requirement(item)
-	if int(need["level"]) <= 0:
-		return ""
-	if String(need["class"]) == "uber":
-		return "Requires level %d" % int(need["level"])
-	return "Requires %s %d" % [String(HeroAttributes.CLASS_NAMES.get(need["class"], need["class"])), int(need["level"])]
+	var parts: PackedStringArray = []
+	if int(need["level"]) > 0:
+		if String(need["class"]) == "uber":
+			parts.append("level %d" % int(need["level"]))
+		else:
+			parts.append("%s %d" % [String(HeroAttributes.CLASS_NAMES.get(need["class"], need["class"])), int(need["level"])])
+	if String(need["passive"]) != "":
+		parts.append(PassiveDb.get_def(String(need["passive"])).display_name)
+	return ("Requires " + " and ".join(parts)) if not parts.is_empty() else ""
 
 # --- Saving ---------------------------------------------------------------------------------------------------------------------------
 
