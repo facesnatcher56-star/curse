@@ -375,7 +375,7 @@ func _test_brutal_attack() -> void:
 	var expected_reload: float = player.stats.brutal_recharge_damage()
 	expect("the next successful basic hit spends Brutal Attack and deals its amplified weapon damage",
 		not skills.brutal_armed and is_equal_approx(player.stats.brutal_reload_remaining, expected_reload)
-		and is_equal_approx(player.stats.brutal_reload_required, expected_reload) and before - victim.health > player.stats.weapon_max * 5.0)
+		and is_equal_approx(player.stats.brutal_reload_required, expected_reload) and before - victim.health > player.stats.weapon_range(1.0).y * 5.0)
 	player.on_dealt_hit(victim, {"outcome": Combat.Outcome.HIT, "damage": 90.0, "skill_id": "basic"})
 	expect("ordinary combat damage subtracts from DS2's reload-damage budget",
 		is_equal_approx(player.stats.brutal_reload_remaining, expected_reload - 90.0))
