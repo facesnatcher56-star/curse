@@ -12,7 +12,7 @@ func skill_damage_text(id: String) -> String:
 	var skill: Dictionary = SkillDb.all()[id]
 	match String(skill["kind"]):
 		"melee":
-			var r: Vector2 = weapon_range(float(skill["mult"]))
+			var r: Vector2 = ranged_range() if id == "basic" and is_ranged() else weapon_range(float(skill["mult"]))
 			return ("Damage %d-%d per hit" if id == "basic" else "Damage %d-%d") % [int(r.x), int(r.y)]
 		"projectile":
 			var spell: Vector2 = spell_range()
@@ -284,7 +284,8 @@ func is_ranged() -> bool:
 func ranged_range() -> Vector2:
 	var base := weapon_base_range()
 	var bonus := 0.2 * maxf(dexterity, 10.0)
-	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + passive("biting_arrow") / 100.0)
+	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) \
+		* (1.0 + passive("biting_arrow") / 100.0) * (1.0 + gear_stat("ranged_pct") / 100.0)
 
 # --- Equipment -----------------------------------------------------------------
 

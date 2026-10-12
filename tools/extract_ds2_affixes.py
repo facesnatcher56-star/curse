@@ -26,7 +26,9 @@ ROOTS = {
     "strength": ("ofhardiness", "str"), "dexterity": ("oftheswift", "dex"),
     "intelligence": ("ofawareness", "int"), "life": ("oftherat", "life"), "mana": ("ofthetoad", "mana"),
     "melee_max": ("ofwounding", "melee_max"), "melee_min": ("ofaffliction", "melee_min"),
-    "melee_pct": ("cruel", "melee_pct"), "spell_pct": ("destructive", "spell_pct"),
+    "ranged_max": ("ofaccuracy", "ranged_max"), "ranged_min": ("ofpiercing", "ranged_min"),
+    "melee_pct": ("cruel", "melee_pct"), "ranged_pct": ("sharp", "ranged_pct"),
+    "spell_pct": ("destructive", "spell_pct"),
     "fire_added": ("scorching", "fire_added"), "life_steal": ("oftheparasite", "life_steal"),
     "mana_steal": ("ofthephantom", "mana_steal"), "mana_per_hit": ("ofcandlelight", "mana_per_hit"),
     "life_per_hit": ("ofconsumption", "life_per_hit"), "armor": ("stout", "armor"),
@@ -36,7 +38,7 @@ ROOTS = {
     "block_ranged": ("ofdeflection", "block_ranged"), "recharge": ("rousing", "recharge"),
     "magic_find": ("fortunate", "magic_find"), "gold_find": ("glittering", "gold_find"),
 }
-FRACTIONS = {"melee_pct", "spell_pct", "armor_pct", "fire_resist", "life_regen", "mana_regen", "recharge", "gold_find"}
+FRACTIONS = {"melee_pct", "ranged_pct", "spell_pct", "armor_pct", "fire_resist", "life_regen", "mana_regen", "recharge", "gold_find"}
 PERCENT = FRACTIONS | {"life_steal", "mana_steal", "reflect", "block", "block_ranged", "magic_find"}
 
 

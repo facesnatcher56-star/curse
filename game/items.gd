@@ -127,15 +127,22 @@ static func roll_mods(def: ItemDef, level: int, rarity: int, count: int = -1) ->
 	var out: Array = []
 	var families: Array[String] = []
 	for position in positions:
-		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
+		var item_class := _affix_class(def)
+		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families, item_class)
 		if pick == null:
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families, item_class)
 		if pick == null and position != "":
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families, def.armor_class if def.slot != Slot.WEAPON else "fighter")
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families, item_class)
 		if pick != null:
 			out.append(pick.id)
 			families.append(pick.family)
 	return out
+
+## DS2 modifier skill_types follow the weapon discipline, not the presentation model or current wielder.
+static func _affix_class(def: ItemDef) -> String:
+	if def.slot == Slot.WEAPON:
+		return "ranger" if bool(def.profile.get("ranged", false)) else "fighter"
+	return def.armor_class
 
 static func _pick_affix(kind: String, low: int, high: int, position: String, taken: Array[String], item_class: String = "") -> AffixDef:
 	var pool: Array[AffixDef] = []

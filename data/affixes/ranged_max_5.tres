@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ranged_max_5"
+family = "ranged_max"
+tier = 5
+stat = "ranged_max"
+title = "of Seeking"
+position = "suffix"
+level = 56
+value = 44.0
+max_value = 44.0
+value_ceiling = 44.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

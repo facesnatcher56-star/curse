@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ranged_min_1"
+family = "ranged_min"
+tier = 1
+stat = "ranged_min"
+title = "of Piercing"
+position = "suffix"
+level = 3
+value = 3.0
+max_value = 3.0
+value_ceiling = 3.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])
