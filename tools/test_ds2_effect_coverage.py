@@ -16,7 +16,7 @@ TOOLS_DIR = os.path.join(BASE_DIR, "tools")
 if TOOLS_DIR not in sys.path:
     sys.path.insert(0, TOOLS_DIR)
 
-from check_ds2_effect_coverage import validate_coverage, VALID_STATUSES
+from check_ds2_effect_coverage import validate_coverage, verify_consumer_or_test_path, VALID_STATUSES
 from generate_ds2_effect_manifest import build_manifest_data, CATALOG_PATH, MANIFEST_PATH
 
 
@@ -48,7 +48,7 @@ class TestDS2EffectCoverage(unittest.TestCase):
         self.assertEqual(len(alts), 58)
 
     def test_manifest_validation_clean(self):
-        """Run automated validator and assert zero errors."""
+        """Run automated validator and assert zero errors on real repository files."""
         errors = validate_coverage(CATALOG_PATH, MANIFEST_PATH)
         self.assertEqual(errors, [], f"Validation errors found: {errors}")
 
@@ -66,7 +66,7 @@ class TestDS2EffectCoverage(unittest.TestCase):
         alts = manifest.get("alterations", {})
         self.assertEqual(len(alts), 58)
 
-        status_counts = {"supported": 0, "unsupported": 0, "unresolved": 0, "cosmetic_only": 0, "excluded": 0}
+        status_counts = {"supported": 0, "untested": 0, "unsupported": 0, "unresolved": 0, "cosmetic_only": 0, "excluded": 0}
         for alt_id, data in alts.items():
             st = data.get("status")
             self.assertIn(st, VALID_STATUSES)
@@ -76,11 +76,16 @@ class TestDS2EffectCoverage(unittest.TestCase):
                 self.assertIsNotNone(data.get("runtime_consumer"))
                 self.assertIsNotNone(data.get("test_path"))
                 self.assertIsNotNone(data.get("runtime_key"))
+            elif st == "untested":
+                self.assertIsNotNone(data.get("runtime_consumer"))
+                self.assertIsNone(data.get("test_path"))
+                self.assertIsNotNone(data.get("runtime_key"))
             elif st in ("unsupported", "unresolved"):
                 self.assertIsNone(data.get("runtime_consumer"))
                 self.assertIsNone(data.get("test_path"))
 
-        self.assertEqual(status_counts["supported"], 28)
+        self.assertEqual(status_counts["supported"], 17)
+        self.assertEqual(status_counts["untested"], 11)
         self.assertEqual(status_counts["unsupported"], 29)
         self.assertEqual(status_counts["unresolved"], 1)
         self.assertEqual(status_counts["cosmetic_only"], 0)
@@ -120,15 +125,62 @@ class TestDS2EffectCoverage(unittest.TestCase):
         """Test that validator catches and flags omitted alterations."""
         with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
             manifest = json.load(f)
-        # Delete one alteration to test failure detection
         del manifest["alterations"]["alter_strength"]
-        temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_manifest.json")
+        temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_missing_alt.json")
         try:
             with open(temp_manifest_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f)
             errors = validate_coverage(CATALOG_PATH, temp_manifest_path)
             self.assertTrue(len(errors) > 0)
             self.assertTrue(any("alter_strength" in e for e in errors))
+        finally:
+            if os.path.exists(temp_manifest_path):
+                os.remove(temp_manifest_path)
+
+    def test_validation_rejects_nonexistent_test_file(self):
+        """Test that validator rejects nonexistent test suite paths."""
+        with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["alterations"]["alter_strength"]["test_path"] = "tests/test_stats.gd"
+        temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_nonexistent_file.json")
+        try:
+            with open(temp_manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f)
+            errors = validate_coverage(CATALOG_PATH, temp_manifest_path)
+            self.assertTrue(len(errors) > 0)
+            self.assertTrue(any("tests/test_stats.gd" in e for e in errors))
+        finally:
+            if os.path.exists(temp_manifest_path):
+                os.remove(temp_manifest_path)
+
+    def test_validation_rejects_nonexistent_symbol(self):
+        """Test that validator rejects nonexistent function/method symbol in real file."""
+        with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["alterations"]["alter_strength"]["runtime_consumer"] = "game/player/player_stats.gd:fake_method_does_not_exist()"
+        temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_nonexistent_sym.json")
+        try:
+            with open(temp_manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f)
+            errors = validate_coverage(CATALOG_PATH, temp_manifest_path)
+            self.assertTrue(len(errors) > 0)
+            self.assertTrue(any("fake_method_does_not_exist" in e for e in errors))
+        finally:
+            if os.path.exists(temp_manifest_path):
+                os.remove(temp_manifest_path)
+
+    def test_validation_rejects_untested_with_claimed_test_path(self):
+        """Test that validator rejects untested status if a test path is claimed."""
+        with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        manifest["alterations"]["alter_intelligence"]["test_path"] = "game/dev/suites/ds2_tests.gd:_test_ds2_items()"
+        temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_untested_claim.json")
+        try:
+            with open(temp_manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f)
+            errors = validate_coverage(CATALOG_PATH, temp_manifest_path)
+            self.assertTrue(len(errors) > 0)
+            self.assertTrue(any("alter_intelligence" in e and "must be null" in e for e in errors))
         finally:
             if os.path.exists(temp_manifest_path):
                 os.remove(temp_manifest_path)

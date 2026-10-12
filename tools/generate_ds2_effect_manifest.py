@@ -57,7 +57,7 @@ def build_manifest_data(catalog):
 
     # 58 Alterations Definitions
     alterations = {
-        # --- SUPPORTED ALTERATIONS (25) ---
+        # --- SUPPORTED ALTERATIONS (17) ---
         "alter_strength": {
             "status": "supported",
             "category": "attribute",
@@ -68,8 +68,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["amulet", "ring", "armor", "weapon"],
             "source_evidence": "alter_strength in items, affixes (e.g. +<value> Strength).",
             "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Direct additive bonus to base Strength attribute."
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Direct additive bonus to base Strength attribute. Verified in ds2_tests.gd lines 322-325."
         },
         "alter_dexterity": {
             "status": "supported",
@@ -81,21 +81,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["amulet", "ring", "armor", "weapon"],
             "source_evidence": "alter_dexterity in items, affixes (e.g. +<value> Dexterity).",
             "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Direct additive bonus to base Dexterity attribute."
-        },
-        "alter_intelligence": {
-            "status": "supported",
-            "category": "attribute",
-            "runtime_key": "int",
-            "units": "flat_integer",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["amulet", "ring", "armor", "weapon"],
-            "source_evidence": "alter_intelligence in items, affixes (e.g. +<value> Intelligence).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Direct additive bonus to base Intelligence attribute."
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Direct additive bonus to base Dexterity attribute. Verified in ds2_tests.gd lines 326-328."
         },
         "alter_max_life": {
             "status": "supported",
@@ -107,47 +94,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_max_life in items, affixes, sets (e.g. +<value> Health).",
             "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Increases maximum player health."
-        },
-        "alter_max_mana": {
-            "status": "supported",
-            "category": "vital",
-            "runtime_key": "mana",
-            "units": "flat_integer",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["armor", "ring", "amulet", "spellbook"],
-            "source_evidence": "alter_max_mana in items, affixes, sets (e.g. +<value> Mana).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Increases maximum player mana."
-        },
-        "alter_melee_damage_min": {
-            "status": "supported",
-            "category": "weapon_damage",
-            "runtime_key": "melee_min",
-            "units": "flat_integer",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["melee", "ring", "amulet"],
-            "source_evidence": "alter_melee_damage_min in items, affixes, sets.",
-            "runtime_consumer": "game/player/player_stats.gd:weapon_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Adds flat minimum melee damage."
-        },
-        "alter_melee_damage_max": {
-            "status": "supported",
-            "category": "weapon_damage",
-            "runtime_key": "melee_max",
-            "units": "flat_integer",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["melee", "ring", "amulet"],
-            "source_evidence": "alter_melee_damage_max in items, affixes, sets (e.g. +<value> Melee Damage).",
-            "runtime_consumer": "game/player/player_stats.gd:weapon_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Adds flat maximum melee damage."
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Increases maximum player health. Verified in ds2_tests.gd lines 322-325."
         },
         "alter_ranged_damage_min": {
             "status": "supported",
@@ -159,8 +107,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["ranged", "ring", "amulet"],
             "source_evidence": "alter_ranged_damage_min in items, affixes, sets.",
             "runtime_consumer": "game/player/player_stats.gd:ranged_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Adds flat minimum ranged damage."
+            "test_path": "game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()",
+            "notes": "Adds flat minimum ranged damage. Verified in ranged_modifier_tests.gd lines 72, 79."
         },
         "alter_ranged_damage_max": {
             "status": "supported",
@@ -172,34 +120,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["ranged", "ring", "amulet"],
             "source_evidence": "alter_ranged_damage_max in items, affixes, sets (e.g. +<value> Ranged Damage).",
             "runtime_consumer": "game/player/player_stats.gd:ranged_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Adds flat maximum ranged damage."
-        },
-        "alter_custom_damage_fire": {
-            "status": "supported",
-            "category": "elemental_damage",
-            "runtime_key": "fire_added, fire_added_max",
-            "units": "damage_range",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["weapon", "ring", "amulet"],
-            "source_evidence": "alter_custom_damage_fire in items, affixes, sets (e.g. Adds <value> to <max_value> Fire Damage).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Flat added fire damage evaluated in combat resolution."
-        },
-        "alter_melee_damage_source_percent": {
-            "status": "supported",
-            "category": "damage_multiplier",
-            "runtime_key": "melee_pct",
-            "units": "fractional_percent",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["weapon", "ring", "amulet"],
-            "source_evidence": "alter_melee_damage_source_percent in items, affixes, sets (e.g. +10% Melee Damage).",
-            "runtime_consumer": "game/player/player_stats.gd:weapon_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Percentage scalar on total melee damage."
+            "test_path": "game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()",
+            "notes": "Adds flat maximum ranged damage. Verified in ranged_modifier_tests.gd lines 73, 79."
         },
         "alter_ranged_damage_source_percent": {
             "status": "supported",
@@ -211,21 +133,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_ranged_damage_source_percent in items, affixes, sets (e.g. +10% Ranged Damage).",
             "runtime_consumer": "game/player/player_stats.gd:ranged_range()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Percentage scalar on total ranged damage."
-        },
-        "alter_cmagic_damage_percent": {
-            "status": "supported",
-            "category": "spell_multiplier",
-            "runtime_key": "spell_pct",
-            "units": "fractional_percent",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["spellbook", "ring", "amulet", "armor"],
-            "source_evidence": "alter_cmagic_damage_percent in items, affixes, sets (e.g. +<value>% Combat Magic Damage).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/abilities/fireball.gd",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Maps to spell_pct which scales Combat Magic spells like Fireball."
+            "test_path": "game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()",
+            "notes": "Percentage scalar on total ranged damage. Verified in ranged_modifier_tests.gd lines 74, 79."
         },
         "alter_armor": {
             "status": "supported",
@@ -237,8 +146,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "shield", "ring", "amulet"],
             "source_evidence": "alter_armor in items, affixes, sets (e.g. +<value> Armor).",
             "runtime_consumer": "game/player/player_stats.gd:total_armor()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Direct additive bonus to total armor."
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Direct additive bonus to total armor. Verified via Roadwarden set bonus in ds2_tests.gd lines 339-341."
         },
         "alter_armor_source_percent": {
             "status": "supported",
@@ -250,21 +159,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet"],
             "source_evidence": "alter_armor_source_percent in items, affixes (e.g. +100% Armor).",
             "runtime_consumer": "game/player/player_stats.gd:total_armor()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Percentage scalar on base item armor."
-        },
-        "alter_fire_resistance": {
-            "status": "supported",
-            "category": "resistance",
-            "runtime_key": "fire_resist",
-            "units": "fractional_percent",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["armor", "ring", "amulet", "shield"],
-            "source_evidence": "alter_fire_resistance in items, affixes, sets (e.g. +<value>% Fire Resistance).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Percentage reduction of incoming fire damage."
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Percentage scalar on base item armor. Verified via armor_pct_8 in ds2_tests.gd lines 335-337."
         },
         "alter_chance_to_block_melee_damage": {
             "status": "supported",
@@ -275,9 +171,9 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["shield", "amulet"],
             "source_evidence": "alter_chance_to_block_melee_damage in items, affixes, sets (e.g. +<value>% Chance to Block Melee Attacks).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Shield block chance against melee attacks."
+            "runtime_consumer": "game/player/player_stats.gd:refresh()",
+            "test_path": "game/dev/suites/ds2_tests.gd:_test_ds2_items()",
+            "notes": "Shield block chance against melee attacks. Verified via block_4 buckler in ds2_tests.gd lines 329-331."
         },
         "alter_chance_to_block_ranged_damage": {
             "status": "supported",
@@ -288,9 +184,9 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["shield", "amulet"],
             "source_evidence": "alter_chance_to_block_ranged_damage in items, affixes, sets (e.g. +<value>% Chance to Block Ranged Attacks).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Shield block chance against ranged attacks."
+            "runtime_consumer": "game/player/player_stats.gd:refresh()",
+            "test_path": "game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()",
+            "notes": "Shield block chance against ranged attacks. Verified in ranged_modifier_tests.gd lines 187-192."
         },
         "alter_life_steal": {
             "status": "supported",
@@ -301,9 +197,9 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_life_steal in items, affixes, sets (e.g. <value>% Health Steal).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_steal_resources()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Percentage of physical damage dealt returned as health on hit."
+            "runtime_consumer": "game/player.gd:_steal_resources()",
+            "test_path": "game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()",
+            "notes": "Percentage of physical damage dealt returned as health on hit. Verified in equipment_hit_tests.gd lines 44-48, 140-141 and ds2_tests.gd lines 355-359."
         },
         "alter_mana_steal": {
             "status": "supported",
@@ -314,61 +210,35 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_mana_steal in items, affixes, sets (e.g. <value>% Mana Steal).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_steal_resources()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Percentage of physical damage dealt returned as mana on hit."
+            "runtime_consumer": "game/player.gd:_steal_resources()",
+            "test_path": "game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()",
+            "notes": "Percentage of physical damage dealt returned as mana on hit. Verified in equipment_hit_tests.gd lines 44-48 and ds2_tests.gd lines 355-360."
         },
         "alter_life_bonus": {
             "status": "supported",
             "category": "sustain_hit",
-            "runtime_key": "life_on_hit",
+            "runtime_key": "life_per_hit",
             "units": "flat_integer",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_life_bonus in items, affixes, sets (e.g. +<value> Health on Hit).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_steal_resources()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Flat health restored on hit."
+            "runtime_consumer": "game/player.gd:_steal_resources()",
+            "test_path": "game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()",
+            "notes": "Flat health restored on hit. Verified in equipment_hit_tests.gd lines 44-48, 151-153 and ds2_tests.gd lines 355-359."
         },
         "alter_mana_bonus": {
             "status": "supported",
             "category": "sustain_hit",
-            "runtime_key": "mana_on_hit",
+            "runtime_key": "mana_per_hit",
             "units": "flat_integer",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_mana_bonus in items, affixes, sets (e.g. +<value> Mana on Hit).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_steal_resources()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Flat mana restored on hit."
-        },
-        "alter_life_recovery_unit": {
-            "status": "supported",
-            "category": "regen",
-            "runtime_key": "life_regen",
-            "units": "fractional_percent",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["armor", "ring", "amulet"],
-            "source_evidence": "alter_life_recovery_unit in items, affixes, sets (e.g. +<value>% Health Regeneration).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_process_regen()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Passive health regeneration rate multiplier."
-        },
-        "alter_mana_recovery_unit": {
-            "status": "supported",
-            "category": "regen",
-            "runtime_key": "mana_regen",
-            "units": "fractional_percent",
-            "target": "player_stats",
-            "stacking": "additive",
-            "applicable_families": ["armor", "ring", "amulet", "spellbook"],
-            "source_evidence": "alter_mana_recovery_unit in items, affixes, sets (e.g. +<value>% Mana Regeneration).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_process_regen()",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Passive mana regeneration rate multiplier."
+            "runtime_consumer": "game/player.gd:_steal_resources()",
+            "test_path": "game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()",
+            "notes": "Flat mana restored on hit. Verified in equipment_hit_tests.gd lines 44-48, 151-153 and ds2_tests.gd lines 355-360."
         },
         "alter_reflect_damage": {
             "status": "supported",
@@ -379,9 +249,9 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["shield", "armor", "ring", "amulet"],
             "source_evidence": "alter_reflect_damage in items, affixes, sets (e.g. <value>% Damage Reflected).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/player/player.gd:_on_received_hit()",
-            "test_path": "tests/test_equipment_hits.gd",
-            "notes": "Reflects incoming physical damage back to attacker."
+            "runtime_consumer": "game/player.gd:_on_received_hit()",
+            "test_path": "game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()",
+            "notes": "Reflects incoming physical damage back to attacker. Verified in equipment_hit_tests.gd lines 95-124, 142-146."
         },
         "alter_magic_find_chance": {
             "status": "supported",
@@ -392,9 +262,9 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet"],
             "source_evidence": "alter_magic_find_chance in items, affixes, sets (e.g. +<value>% Chance to Find Magic Items).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/loot.gd",
-            "test_path": "tests/test_find_rates.gd",
-            "notes": "Additive bonus to loot rarity roll chances."
+            "runtime_consumer": "game/party_manager.gd:loot_bonuses()",
+            "test_path": "game/dev/suites/find_tests.gd:_test_find()",
+            "notes": "Additive bonus to loot rarity roll chances. Verified in find_tests.gd lines 72-73, 80-99."
         },
         "alter_gold_dropped": {
             "status": "supported",
@@ -405,12 +275,144 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet"],
             "source_evidence": "alter_gold_dropped in items, affixes, sets (e.g. +<value>% Extra Gold From Monsters).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/loot.gd",
-            "test_path": "tests/test_find_rates.gd",
-            "notes": "Additive bonus to dropped gold quantity."
+            "runtime_consumer": "game/party_manager.gd:loot_bonuses()",
+            "test_path": "game/dev/suites/find_tests.gd:_test_find()",
+            "notes": "Additive bonus to dropped gold quantity. Verified in find_tests.gd lines 70, 80-99."
+        },
+
+        # --- IMPLEMENTED BUT UNTESTED ALTERATIONS (11) ---
+        "alter_intelligence": {
+            "status": "untested",
+            "category": "attribute",
+            "runtime_key": "int",
+            "units": "flat_integer",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["amulet", "ring", "armor", "weapon"],
+            "source_evidence": "alter_intelligence in items, affixes (e.g. +<value> Intelligence).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh()",
+            "test_path": None,
+            "notes": "Direct additive bonus to base Intelligence attribute. Runtime consumer exists in PlayerStats.refresh(), but existing dev suite tests only verify Fireball base scaling with character INT rather than equipping an intelligence gear affix."
+        },
+        "alter_max_mana": {
+            "status": "untested",
+            "category": "vital",
+            "runtime_key": "mana",
+            "units": "flat_integer",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["armor", "ring", "amulet", "spellbook"],
+            "source_evidence": "alter_max_mana in items, affixes, sets (e.g. +<value> Mana).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh()",
+            "test_path": None,
+            "notes": "Increases maximum player mana. Runtime consumer exists in PlayerStats.refresh(), but no dev suite test equips a flat mana item."
+        },
+        "alter_melee_damage_min": {
+            "status": "untested",
+            "category": "weapon_damage",
+            "runtime_key": "melee_min",
+            "units": "flat_integer",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["melee", "ring", "amulet"],
+            "source_evidence": "alter_melee_damage_min in items, affixes, sets.",
+            "runtime_consumer": "game/player/player_stats.gd:weapon_base_range()",
+            "test_path": None,
+            "notes": "Adds flat minimum melee damage. Runtime consumer exists in PlayerStats.weapon_base_range(), but dev suites only test ranged modifiers or base weapon curves."
+        },
+        "alter_melee_damage_max": {
+            "status": "untested",
+            "category": "weapon_damage",
+            "runtime_key": "melee_max",
+            "units": "flat_integer",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["melee", "ring", "amulet"],
+            "source_evidence": "alter_melee_damage_max in items, affixes, sets (e.g. +<value> Melee Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:weapon_base_range()",
+            "test_path": None,
+            "notes": "Adds flat maximum melee damage. Runtime consumer exists in PlayerStats.weapon_base_range(), but dev suites only test ranged modifiers or base weapon curves."
+        },
+        "alter_melee_damage_source_percent": {
+            "status": "untested",
+            "category": "damage_multiplier",
+            "runtime_key": "melee_pct",
+            "units": "fractional_percent",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["weapon", "ring", "amulet"],
+            "source_evidence": "alter_melee_damage_source_percent in items, affixes, sets (e.g. +10% Melee Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:weapon_range()",
+            "test_path": None,
+            "notes": "Percentage scalar on total melee damage. Runtime consumer exists in PlayerStats.weapon_range(), but no dev suite test equips a melee_pct affix."
+        },
+        "alter_custom_damage_fire": {
+            "status": "untested",
+            "category": "elemental_damage",
+            "runtime_key": "fire_added, fire_added_max",
+            "units": "damage_range",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["weapon", "ring", "amulet"],
+            "source_evidence": "alter_custom_damage_fire in items, affixes, sets (e.g. Adds <value> to <max_value> Fire Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
+            "test_path": None,
+            "notes": "Flat added fire damage evaluated in combat resolution. Runtime consumer exists in PlayerStats.refresh() and Combat.resolve(), but ds2_tests.gd tests via manual player.added_fire override rather than equipping a fire damage item."
+        },
+        "alter_cmagic_damage_percent": {
+            "status": "untested",
+            "category": "spell_multiplier",
+            "runtime_key": "spell_pct",
+            "units": "fractional_percent",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["spellbook", "ring", "amulet", "armor"],
+            "source_evidence": "alter_cmagic_damage_percent in items, affixes, sets (e.g. +<value>% Combat Magic Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:spell_range()",
+            "test_path": None,
+            "notes": "Maps to spell_pct which scales Combat Magic spells like Fireball. Runtime consumer exists in PlayerStats.spell_range(), but dev suite tests only exercise the Devastation passive skill."
+        },
+        "alter_fire_resistance": {
+            "status": "untested",
+            "category": "resistance",
+            "runtime_key": "fire_resist",
+            "units": "fractional_percent",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["armor", "ring", "amulet", "shield"],
+            "source_evidence": "alter_fire_resistance in items, affixes, sets (e.g. +<value>% Fire Resistance).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
+            "test_path": None,
+            "notes": "Percentage reduction of incoming fire damage. Runtime consumer exists in PlayerStats.refresh() and Combat.resolve(), but tests only verify manual player.fire_resist override and Survival passive rank 20."
+        },
+        "alter_life_recovery_unit": {
+            "status": "untested",
+            "category": "regen",
+            "runtime_key": "life_regen",
+            "units": "fractional_percent",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["armor", "ring", "amulet"],
+            "source_evidence": "alter_life_recovery_unit in items, affixes, sets (e.g. +<value>% Health Regeneration).",
+            "runtime_consumer": "game/player/player_stats.gd:regen()",
+            "test_path": None,
+            "notes": "Passive health regeneration rate multiplier. Runtime consumer exists in PlayerStats.regen(), but no dev suite test exercises gear_stat('life_regen')."
+        },
+        "alter_mana_recovery_unit": {
+            "status": "untested",
+            "category": "regen",
+            "runtime_key": "mana_regen",
+            "units": "fractional_percent",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["armor", "ring", "amulet", "spellbook"],
+            "source_evidence": "alter_mana_recovery_unit in items, affixes, sets (e.g. +<value>% Mana Regeneration).",
+            "runtime_consumer": "game/player/player_stats.gd:regen()",
+            "test_path": None,
+            "notes": "Passive mana regeneration rate multiplier. Runtime consumer exists in PlayerStats.regen(), but no dev suite test exercises gear_stat('mana_regen')."
         },
         "alter_power_reload": {
-            "status": "supported",
+            "status": "untested",
             "category": "utility",
             "runtime_key": "recharge",
             "units": "fractional_percent",
@@ -418,12 +420,12 @@ def build_manifest_data(catalog):
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_power_reload in items, affixes, sets (e.g. +<value>% Power Recharge Rate).",
-            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/powers/",
-            "test_path": "tests/test_stats.gd",
-            "notes": "Reduces power cooldowns and recharge timers."
+            "runtime_consumer": "game/player/player_stats.gd:power_recharge_damage()",
+            "test_path": None,
+            "notes": "Reduces power cooldowns and recharge timers. Runtime consumer exists in PlayerStats.power_recharge_damage(), but test suites only exercise Renewal passive ranks."
         },
 
-        # --- UNSUPPORTED ALTERATIONS (32) ---
+        # --- UNSUPPORTED ALTERATIONS (29) ---
         "alter_custom_damage_ice": {
             "status": "unsupported",
             "category": "elemental_damage",
@@ -863,38 +865,38 @@ def build_manifest_data(catalog):
             "notes": "Base template inheritance parent."
         },
         "pcontent_allowed": {
-            "status": "supported",
+            "status": "unsupported",
             "category": "loot_generation",
-            "runtime_key": "pcontent_allowed",
-            "consumer": "game/loot.gd",
-            "notes": "Determines if item can spawn via dynamic procedural loot."
+            "runtime_key": None,
+            "consumer": None,
+            "notes": "Determines if item can spawn via dynamic procedural loot. Curse currently generates loot via ItemDb tables without evaluating pcontent_allowed flags."
         },
         "allow_modifiers": {
-            "status": "supported",
+            "status": "unsupported",
             "category": "affix_generation",
-            "runtime_key": "allow_modifiers",
-            "consumer": "game/data/item_db.gd, game/data/affix_db.gd",
-            "notes": "Determines whether magical prefixes/suffixes can roll on this base item."
+            "runtime_key": None,
+            "consumer": None,
+            "notes": "Determines whether magical prefixes/suffixes can roll on this base item. Curse affix generation does not evaluate this flag."
         },
         "variants": {
             "status": "supported",
             "category": "level_scaling",
             "runtime_key": "variants",
-            "consumer": "game/data/item_db.gd",
-            "notes": "List of variant definitions with level and icon tiers."
+            "consumer": "game/data/item_db.gd, game/data/item_def.gd",
+            "notes": "List of variant definitions with level and icon tiers; parsed into ItemDef.levels."
         },
         "requirements": {
             "status": "supported",
             "category": "equip_requirement",
             "runtime_key": "requirements",
-            "consumer": "game/items.gd:can_equip()",
+            "consumer": "game/items.gd:meets_requirement()",
             "notes": "Discipline level requirements (single requirements supported; compound and passives unsupported)."
         },
         "slot": {
             "status": "supported",
             "category": "equipment_slot",
             "runtime_key": "slot",
-            "consumer": "game/items.gd, game/player/equipment.gd",
+            "consumer": "game/items.gd, game/player/player_stats.gd",
             "notes": "es_weapon_hand, es_shield_hand, es_chest, es_head, es_forearms, es_feet (es_spellbook unsupported, rings/amulets have empty slot string in source catalog)."
         },
         "class": {
@@ -915,7 +917,7 @@ def build_manifest_data(catalog):
             "status": "cosmetic_only",
             "category": "presentation",
             "runtime_key": "icon_texture",
-            "consumer": "UI asset pipelines",
+            "consumer": None,
             "notes": "Original DS2 bitmap texture reference string."
         },
         "attack": {
@@ -965,14 +967,14 @@ def build_manifest_data(catalog):
             "status": "supported",
             "category": "grip_type",
             "runtime_key": "is_two_handed",
-            "consumer": "game/items.gd, game/player/equipment.gd",
+            "consumer": "game/data/item_def.gd, game/player/player_stats.gd",
             "notes": "Flag indicating weapon occupies both hands and unequips shields."
         },
         "attack.reload_delay": {
             "status": "supported",
             "category": "attack_speed",
             "runtime_key": "attack_speed / cooldown",
-            "consumer": "game/player/player.gd",
+            "consumer": "game/player/player_stats.gd:attack_speed()",
             "notes": "Attack delay / recovery period in seconds."
         },
         "attack.skill_class": {
@@ -986,7 +988,7 @@ def build_manifest_data(catalog):
             "status": "supported",
             "category": "range",
             "runtime_key": "attack_range",
-            "consumer": "game/player/player.gd, game/combat.gd",
+            "consumer": "game/player.gd, game/combat.gd",
             "notes": "Maximum targeting/firing distance in world units (7.5 to 11.0 meters)."
         }
     }
@@ -998,7 +1000,7 @@ def build_manifest_data(catalog):
             "syntax": "<discipline>:#item_level - <offset>",
             "occurrences": 346,
             "examples": ["melee:#item_level - 2.0", "ranged:#item_level - 8.0", "combat magic:#item_level-2.0"],
-            "runtime_consumer": "game/items.gd:can_equip()",
+            "runtime_consumer": "game/items.gd:meets_requirement()",
             "notes": "Supported for single discipline level requirement offset from item level."
         },
         "discipline_fixed": {
@@ -1006,7 +1008,7 @@ def build_manifest_data(catalog):
             "syntax": "<discipline>:<level>",
             "occurrences": 2,
             "examples": ["melee:0"],
-            "runtime_consumer": "game/items.gd:can_equip()",
+            "runtime_consumer": "game/items.gd:meets_requirement()",
             "notes": "Supported for fixed discipline level requirements."
         },
         "alternative_or": {
@@ -1092,7 +1094,7 @@ def build_manifest_data(catalog):
     }
 
     # Summary counts
-    status_counts = {"supported": 0, "unsupported": 0, "unresolved": 0, "cosmetic_only": 0, "excluded": 0}
+    status_counts = {"supported": 0, "untested": 0, "unsupported": 0, "unresolved": 0, "cosmetic_only": 0, "excluded": 0}
     for alt in alterations.values():
         status_counts[alt["status"]] += 1
 

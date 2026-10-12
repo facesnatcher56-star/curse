@@ -5,11 +5,12 @@ Checks data/reference/ds2_effect_coverage_manifest.json against data/reference/d
 
 Verification Rules:
 1. Every alteration identifier occurring in items, affixes, or sets must be explicitly mapped in the manifest.
-2. Every alteration entry must have a valid status: 'supported', 'unsupported', 'unresolved', 'cosmetic_only', or 'excluded'.
-3. Any 'supported' alteration MUST specify a non-empty runtime_consumer and test_path.
-4. Any 'unsupported' or 'unresolved' alteration MUST NOT claim a runtime_consumer.
-5. All item template fields, attack sub-fields, and requirement syntax patterns must be explicitly classified.
-6. Returns exit code 0 if fully valid; exits with non-zero code on any unmapped property, silent omission, or inconsistency.
+2. Every alteration entry must have a valid status: 'supported', 'untested', 'unsupported', 'unresolved', 'cosmetic_only', or 'excluded'.
+3. Any 'supported' alteration MUST specify a verified runtime_consumer and test_path whose referenced files and symbols actually exist on disk.
+4. Any 'untested' alteration MUST specify a verified runtime_consumer on disk, but MUST NOT claim a test_path until demonstrated by active test coverage.
+5. Any 'unsupported' or 'unresolved' alteration MUST NOT claim a runtime_consumer or test_path.
+6. All item template fields, attack sub-fields, and requirement syntax patterns must be explicitly classified and verified.
+7. Returns exit code 0 if fully valid; exits with non-zero code on any unmapped property, silent omission, or inconsistency.
 """
 
 import json
@@ -20,10 +21,47 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG_PATH = os.path.join(BASE_DIR, "data", "reference", "ds2_equipment_catalog.json")
 MANIFEST_PATH = os.path.join(BASE_DIR, "data", "reference", "ds2_effect_coverage_manifest.json")
 
-VALID_STATUSES = {"supported", "unsupported", "unresolved", "cosmetic_only", "excluded"}
+VALID_STATUSES = {"supported", "untested", "unsupported", "unresolved", "cosmetic_only", "excluded"}
 
 
-def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH):
+def verify_consumer_or_test_path(item_label, path_spec, base_dir=BASE_DIR, kind="consumer"):
+    """
+    Verifies that all referenced files in path_spec exist on disk, and if a symbol/function
+    is specified (e.g. 'path/file.gd:function_name()'), verifies that the symbol is defined
+    or present in the file text.
+    """
+    if not path_spec:
+        return [f"{item_label}: Missing required {kind} path."]
+
+    errors = []
+    # Can contain multiple comma-separated entries
+    parts = [p.strip() for p in path_spec.split(",") if p.strip()]
+    for part in parts:
+        if ":" in part:
+            file_part, symbol_part = part.split(":", 1)
+            file_part = file_part.strip()
+            symbol = symbol_part.strip().rstrip("()").strip()
+        else:
+            file_part = part.strip()
+            symbol = None
+
+        full_path = os.path.join(base_dir, file_part)
+        if not os.path.exists(full_path):
+            errors.append(f"{item_label}: Referenced {kind} file does not exist on disk: '{file_part}'")
+            continue
+
+        if symbol:
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if symbol not in content:
+                    errors.append(f"{item_label}: Referenced {kind} symbol '{symbol}' not found in '{file_part}'")
+            except Exception as e:
+                errors.append(f"{item_label}: Failed reading '{file_part}': {e}")
+    return errors
+
+
+def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH, base_dir=BASE_DIR):
     errors = []
 
     if not os.path.exists(catalog_path):
@@ -79,15 +117,39 @@ def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH):
             continue
 
         if status == "supported":
-            if not alt_data.get("runtime_consumer"):
+            consumer = alt_data.get("runtime_consumer")
+            if not consumer:
                 errors.append(f"Supported alteration '{alt_id}' lacks required 'runtime_consumer'.")
-            if not alt_data.get("test_path"):
+            else:
+                errors.extend(verify_consumer_or_test_path(f"Supported alteration '{alt_id}'", consumer, base_dir, "runtime_consumer"))
+
+            test_p = alt_data.get("test_path")
+            if not test_p:
                 errors.append(f"Supported alteration '{alt_id}' lacks required 'test_path'.")
+            else:
+                errors.extend(verify_consumer_or_test_path(f"Supported alteration '{alt_id}'", test_p, base_dir, "test_path"))
+
             if not alt_data.get("runtime_key"):
                 errors.append(f"Supported alteration '{alt_id}' lacks required 'runtime_key'.")
+
+        elif status == "untested":
+            consumer = alt_data.get("runtime_consumer")
+            if not consumer:
+                errors.append(f"Untested alteration '{alt_id}' lacks required 'runtime_consumer'.")
+            else:
+                errors.extend(verify_consumer_or_test_path(f"Untested alteration '{alt_id}'", consumer, base_dir, "runtime_consumer"))
+
+            if alt_data.get("test_path"):
+                errors.append(f"Untested alteration '{alt_id}' specifies test_path '{alt_data['test_path']}' but must be null until demonstrated by active test coverage.")
+
+            if not alt_data.get("runtime_key"):
+                errors.append(f"Untested alteration '{alt_id}' lacks required 'runtime_key'.")
+
         elif status in ("unsupported", "unresolved"):
             if alt_data.get("runtime_consumer"):
                 errors.append(f"Alteration '{alt_id}' has status '{status}' but specifies runtime_consumer '{alt_data['runtime_consumer']}'.")
+            if alt_data.get("test_path"):
+                errors.append(f"Alteration '{alt_id}' has status '{status}' but specifies test_path '{alt_data['test_path']}'.")
 
         # Units and target should always be present
         if not alt_data.get("units"):
@@ -108,16 +170,22 @@ def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH):
         if k not in template_props:
             errors.append(f"Item template key '{k}' missing from manifest 'template_properties'.")
         else:
-            if template_props[k].get("status") not in VALID_STATUSES:
-                errors.append(f"Template property '{k}' has invalid status '{template_props[k].get('status')}'.")
+            t_status = template_props[k].get("status")
+            if t_status not in VALID_STATUSES:
+                errors.append(f"Template property '{k}' has invalid status '{t_status}'.")
+            if template_props[k].get("consumer"):
+                errors.extend(verify_consumer_or_test_path(f"Template property '{k}'", template_props[k]["consumer"], base_dir, "consumer"))
 
     for ak in attack_keys:
         full_ak = f"attack.{ak}"
         if full_ak not in template_props:
             errors.append(f"Attack sub-key '{full_ak}' missing from manifest 'template_properties'.")
         else:
-            if template_props[full_ak].get("status") not in VALID_STATUSES:
-                errors.append(f"Attack property '{full_ak}' has invalid status '{template_props[full_ak].get('status')}'.")
+            a_status = template_props[full_ak].get("status")
+            if a_status not in VALID_STATUSES:
+                errors.append(f"Attack property '{full_ak}' has invalid status '{a_status}'.")
+            if template_props[full_ak].get("consumer"):
+                errors.extend(verify_consumer_or_test_path(f"Attack property '{full_ak}'", template_props[full_ak]["consumer"], base_dir, "consumer"))
 
     # Check 4: Requirement patterns coverage
     req_patterns = manifest.get("requirement_patterns", {})
@@ -125,8 +193,14 @@ def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH):
         errors.append("Manifest missing 'requirement_patterns' mapping.")
     else:
         for p_name, p_data in req_patterns.items():
-            if p_data.get("status") not in VALID_STATUSES:
-                errors.append(f"Requirement pattern '{p_name}' has invalid status '{p_data.get('status')}'.")
+            r_status = p_data.get("status")
+            if r_status not in VALID_STATUSES:
+                errors.append(f"Requirement pattern '{p_name}' has invalid status '{r_status}'.")
+            if p_data.get("runtime_consumer"):
+                if r_status in ("unsupported", "unresolved"):
+                    errors.append(f"Requirement pattern '{p_name}' has status '{r_status}' but specifies runtime_consumer '{p_data['runtime_consumer']}'.")
+                else:
+                    errors.extend(verify_consumer_or_test_path(f"Requirement pattern '{p_name}'", p_data["runtime_consumer"], base_dir, "runtime_consumer"))
 
     # Check 5: Summary counts integrity
     summary = manifest.get("summary", {})
