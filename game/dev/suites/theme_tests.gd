@@ -33,7 +33,9 @@ func _test_ornate_theme() -> void:
 	hud.hide()
 	await _settle()
 	var ui := town.combat_hud
-	town.player.stats.add_to_bag(Items.build(ItemDb.get_def("greatsword"), 1, Items.Rarity.NORMAL))
+	# Keep the matrix's real hover card representative of the longest generated weapon modifier stack.
+	town.player.stats.add_to_bag(Items.build(ItemDb.get_def("short_bow"), 10, Items.Rarity.RARE,
+		["ranged_pct_1", "ranged_min_1", "ranged_max_1"]))
 	var old_scale := GameSettings.ui_size
 	var old_size := get_window().size
 	var old_screen := get_window().current_screen

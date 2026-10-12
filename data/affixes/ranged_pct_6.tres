@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ranged_pct_6"
+family = "ranged_pct"
+tier = 6
+stat = "ranged_pct"
+title = "Serrated"
+position = "prefix"
+level = 38
+value = 40.0
+max_value = 40.0
+value_ceiling = 40.0
+percent = true
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

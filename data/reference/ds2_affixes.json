@@ -1555,6 +1555,214 @@
       ]
     }
   ],
+  "ranged_max": [
+    {
+      "source": "ofaccuracy",
+      "title": "of Accuracy",
+      "level": 1,
+      "value": 1.0,
+      "max_value": 1.0,
+      "value_ceiling": 1.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "offocus",
+      "title": "of Focus",
+      "level": 11,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofsighting",
+      "title": "of Sighting",
+      "level": 24,
+      "value": 11.0,
+      "max_value": 11.0,
+      "value_ceiling": 11.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofprecision",
+      "title": "of Precision",
+      "level": 40,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofseeking",
+      "title": "of Seeking",
+      "level": 56,
+      "value": 44.0,
+      "max_value": 44.0,
+      "value_ceiling": 44.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofmastery",
+      "title": "of Mastery",
+      "level": 74,
+      "value": 72.0,
+      "max_value": 72.0,
+      "value_ceiling": 72.0,
+      "stat": "ranged_max",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    }
+  ],
+  "ranged_min": [
+    {
+      "source": "ofpiercing",
+      "title": "of Piercing",
+      "level": 3,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofdriving",
+      "title": "of Driving",
+      "level": 7,
+      "value": 4.0,
+      "max_value": 4.0,
+      "value_ceiling": 4.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofpuncturing",
+      "title": "of Puncturing",
+      "level": 13,
+      "value": 6.0,
+      "max_value": 6.0,
+      "value_ceiling": 6.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofboring",
+      "title": "of Boring",
+      "level": 21,
+      "value": 9.0,
+      "max_value": 9.0,
+      "value_ceiling": 9.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofperforating",
+      "title": "of Perforating",
+      "level": 33,
+      "value": 13.0,
+      "max_value": 13.0,
+      "value_ceiling": 13.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "ofpenetrating",
+      "title": "of Penetrating",
+      "level": 48,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "ranged_min",
+      "percent": false,
+      "position": "suffix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    }
+  ],
   "melee_pct": [
     {
       "source": "cruel",
@@ -1690,6 +1898,144 @@
       ],
       "classes": [
         "fighter"
+      ]
+    }
+  ],
+  "ranged_pct": [
+    {
+      "source": "sharp",
+      "title": "Sharp",
+      "level": 1,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "honed",
+      "title": "Honed",
+      "level": 10,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "stinging",
+      "title": "Stinging",
+      "level": 16,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "jagged",
+      "title": "Jagged",
+      "level": 23,
+      "value": 26.0,
+      "max_value": 26.0,
+      "value_ceiling": 26.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "fine",
+      "title": "Fine",
+      "level": 30,
+      "value": 33.0,
+      "max_value": 33.0,
+      "value_ceiling": 33.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "serrated",
+      "title": "Serrated",
+      "level": 38,
+      "value": 40.0,
+      "max_value": 40.0,
+      "value_ceiling": 40.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "keen",
+      "title": "Keen",
+      "level": 46,
+      "value": 48.0,
+      "max_value": 48.0,
+      "value_ceiling": 48.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "razor",
+      "title": "Razor",
+      "level": 55,
+      "value": 56.0,
+      "max_value": 56.0,
+      "value_ceiling": 56.0,
+      "stat": "ranged_pct",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
       ]
     }
   ],
