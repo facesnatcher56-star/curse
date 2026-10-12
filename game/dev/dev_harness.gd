@@ -33,6 +33,7 @@ const SUITES := [
 	preload("res://game/dev/suites/world_tests.gd"),
 	preload("res://game/dev/suites/quest_tests.gd"),
 	preload("res://game/dev/suites/ds2_tests.gd"),
+	preload("res://game/dev/suites/item_lab_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -140,7 +141,7 @@ const ONLY_TESTS := {
 	"movepriority": "_test_move_priority",
 	"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
 "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "swarm": "_test_swarm", "gibs": "_test_gibs",
-	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys",
+	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys", "itemlab": "_test_item_lab",
 }
 
 var _failures: PackedStringArray = []
@@ -240,6 +241,9 @@ func _run_selftest() -> void:
 	expect("roll restores collision and ends", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY) and not player.movement.rolling)
 	print("  roll: moved ", snappedf(player.global_position.distance_to(before), 0.1), " m, invulnerable during=", roll_invuln,
 		", mask restored=", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY), ", rolling=", player.movement.rolling)
+
+	# Run the registered developer-lab suite in the combined full test pass as well.
+	await _run("_test_item_lab")
 
 	# (Death behaviour has its own check: _test_death_ragdoll.)
 

@@ -16,12 +16,15 @@ var _settings_button: Button
 
 func _ready() -> void:
 	GameSettings.boot()
-	if SKIP_MENU and OS.get_cmdline_user_args().is_empty():
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if args.has("--itemlab"):
+		LoadingScreen.go.call_deferred(get_tree(), "res://game/dev/item_lab/item_test_lab.tscn")
+		return
+	if SKIP_MENU and args.is_empty():
 		LoadingScreen.go.call_deferred(get_tree(), GAME_SCENE)
 		return
 	_build_backdrop()
 	_build_ui()
-	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.has("--menushot"):
 		_capture(args)
 
