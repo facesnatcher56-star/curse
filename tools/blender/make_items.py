@@ -205,6 +205,481 @@ def build_greatsword(parts):
     sword(parts, 1.28, 0.046, 0.013, 0.34, 0.30, 0.040, guard_style="down", fuller=0.45)
 
 
+def build_axe_1h(parts):
+    wood = parts.bm("wood")
+    iron = parts.bm("iron")
+    dark = parts.bm("dark_steel")
+    steel = parts.bm("steel")
+    leather = parts.bm("leather_dark")
+    leather_wrap = parts.bm("leather")
+
+    # Hardwood haft: 0.66m long, slightly tapering toward grip, thicker near the head socket
+    cylinder(wood, (0.13, 0, 0), radius=0.016, radius2=0.020, depth=0.66, axis="X", segs=12)
+    # Exposed shaft top above socket with an iron wedge
+    cylinder(wood, (0.47, 0, 0), radius=0.019, depth=0.02, axis="X", segs=10)
+    box(iron, (0.481, 0, 0), (0.008, 0.016, 0.006))
+
+    # Grip: worn dark leather wrapping
+    grip_len = 0.15
+    cylinder(leather, (-0.10, 0, 0), 0.0195, grip_len, axis="X", segs=12)
+    for i in range(5):
+        cylinder(leather_wrap, (-0.155 + i * 0.028, 0, 0), 0.0215, 0.007, axis="X", segs=12)
+
+    # Butt cap and pommel knob at base
+    cylinder(iron, (-0.205, 0, 0), 0.022, 0.018, axis="X", segs=12)
+    sphere(iron, (-0.216, 0, 0), 0.015, (0.7, 1.0, 1.0), segs=10, rings=6)
+
+    # Langets: iron reinforcement straps along the haft
+    cylinder(iron, (0.375, 0, 0), 0.023, 0.09, axis="X", segs=12)
+    box(iron, (0.28, 0, 0.021), (0.12, 0.009, 0.004))
+    box(iron, (0.28, 0, -0.021), (0.12, 0.009, 0.004))
+    for x in (0.24, 0.30):
+        sphere(dark, (x, 0, 0.022), 0.004, segs=6, rings=4)
+        sphere(dark, (x, 0, -0.022), 0.004, segs=6, rings=4)
+
+    # Axe head eye / socket
+    box(dark, (0.38, 0.005, 0), (0.075, 0.046, 0.044), cuts=1)
+
+    # Rear hammer poll on -Y (sturdy square poll with beveled cap)
+    box(iron, (0.38, -0.045, 0), (0.048, 0.046, 0.038), cuts=1)
+    box(dark, (0.38, -0.072, 0), (0.040, 0.012, 0.032))
+
+    # Bearded blade cheek (dark steel) and cutting edge bit (steel)
+    rings_cheek = []
+    rings_bit = []
+    steps_cheek = 6
+    steps_bit = 3
+    total_steps = steps_cheek + steps_bit
+
+    for i in range(total_steps + 1):
+        v = i / total_steps
+        y = 0.025 + v * 0.125
+        # Bearded hook: curves significantly down toward grip in -X, top horn flares in +X
+        x_min = 0.345 - 0.095 * math.sin(v * math.pi * 0.90) - 0.025 * (v ** 2)
+        x_max = 0.415 + 0.065 * (v ** 1.1)
+        th = 0.018 * (1.0 - 0.85 * (v ** 0.6))
+        if i == total_steps:
+            th = 0.0012
+
+        bm_target = dark if i <= steps_cheek else steel
+        w_x = x_max - x_min
+        ring = [
+            bm_target.verts.new((x_max, y, 0.0)),
+            bm_target.verts.new((x_max - w_x * 0.25, y, th * 0.9)),
+            bm_target.verts.new((x_min + w_x * 0.50, y, th)),
+            bm_target.verts.new((x_min + w_x * 0.20, y, th * 0.9)),
+            bm_target.verts.new((x_min, y, 0.0)),
+            bm_target.verts.new((x_min + w_x * 0.20, y, -th * 0.9)),
+            bm_target.verts.new((x_min + w_x * 0.50, y, -th)),
+            bm_target.verts.new((x_max - w_x * 0.25, y, -th * 0.9)),
+        ]
+        if i <= steps_cheek:
+            rings_cheek.append(ring)
+        if i >= steps_cheek:
+            if i == steps_cheek:
+                ring_steel = [
+                    steel.verts.new((vert.co.x, vert.co.y, vert.co.z)) for vert in ring
+                ]
+                rings_bit.append(ring_steel)
+            else:
+                rings_bit.append(ring)
+
+    ring_grid(dark, rings_cheek)
+    ring_grid(steel, rings_bit)
+    dark.faces.new(rings_cheek[0])
+    steel.faces.new(rings_bit[-1][::-1])
+
+
+def build_mace(parts):
+    dark = parts.bm("dark_steel")
+    steel = parts.bm("steel")
+    brass = parts.bm("brass")
+    leather = parts.bm("leather")
+
+    # Octagonal/cylindrical steel shaft
+    cylinder(dark, (0.13, 0, 0), radius=0.014, depth=0.64, axis="X", segs=10)
+
+    # Leather wrapped grip
+    grip_len = 0.14
+    cylinder(leather, (-0.10, 0, 0), 0.0175, grip_len, axis="X", segs=12)
+    # Brass wire wraps
+    for i in range(6):
+        cylinder(brass, (-0.155 + i * 0.024, 0, 0), 0.0195, 0.005, axis="X", segs=12)
+
+    # Grip collar (small guard)
+    cylinder(brass, (-0.028, 0, 0), radius=0.022, depth=0.010, axis="X", segs=12)
+
+    # Pommel: faceted brass bulb with dark steel butt stud
+    sphere(brass, (-0.185, 0, 0), 0.026, scale=(1.2, 1.0, 1.0), segs=10, rings=6)
+    cylinder(dark, (-0.212, 0, 0), 0.011, 0.018, axis="X", segs=8)
+
+    # Upper shaft collar & flanged head core
+    cylinder(brass, (0.275, 0, 0), radius=0.022, depth=0.010, axis="X", segs=12)
+    cylinder(dark, (0.365, 0, 0), radius=0.023, depth=0.17, axis="X", segs=12)
+
+    # 6 Flanged wings radiating at 60 degree intervals
+    num_flanges = 6
+    flange_len = 0.16
+    for f in range(num_flanges):
+        angle = f * (math.tau / num_flanges)
+        ca = math.cos(angle)
+        sa = math.sin(angle)
+        flange_rings = []
+        steps_x = 6
+        for sx in range(steps_x + 1):
+            u = sx / steps_x
+            x = 0.285 + u * flange_len
+            if u < 0.70:
+                r_outer = 0.024 + 0.044 * (u / 0.70) ** 0.85
+            else:
+                r_outer = 0.068 - 0.038 * ((u - 0.70) / 0.30) ** 1.2
+            r_inner = 0.022
+            th_base = 0.007
+            th_tip = 0.002
+            p_inner = Vector((x, r_inner * ca, r_inner * sa))
+            p_outer = Vector((x, r_outer * ca, r_outer * sa))
+            perp = Vector((0, -sa, ca))
+            ring = [
+                steel.verts.new(p_inner + perp * (th_base * 0.5)),
+                steel.verts.new(p_outer + perp * (th_tip * 0.5)),
+                steel.verts.new(p_outer - perp * (th_tip * 0.5)),
+                steel.verts.new(p_inner - perp * (th_base * 0.5)),
+            ]
+            flange_rings.append(ring)
+        ring_grid(steel, flange_rings, close=True)
+        steel.faces.new(flange_rings[0])
+        steel.faces.new(flange_rings[-1][::-1])
+
+    # Crown collar & top pyramid spike
+    cylinder(brass, (0.452, 0, 0), radius=0.024, depth=0.012, axis="X", segs=12)
+    cylinder(steel, (0.485, 0, 0), radius=0.018, radius2=0.002, depth=0.065, axis="X", segs=4, rot=(math.pi / 4, 0, 0))
+
+
+def build_club(parts):
+    wood = parts.bm("wood")
+    iron = parts.bm("iron")
+    leather = parts.bm("leather_dark")
+    leather_cord = parts.bm("leather")
+
+    # Gnarled wooden cudgel body
+    club_rings = []
+    rows = 20
+    segs = 12
+    for r in range(rows + 1):
+        t = r / rows
+        x = -0.19 + t * 0.62
+        if t < 0.25:
+            rad = 0.018 + t * 0.010
+        elif t < 0.85:
+            u = (t - 0.25) / 0.60
+            rad = 0.0205 + 0.0315 * math.sin(u * math.pi * 0.5)
+        else:
+            u = (t - 0.85) / 0.15
+            rad = 0.052 * math.cos(u * math.pi * 0.45)
+
+        ring = []
+        for s in range(segs):
+            a = math.tau * s / segs
+            bump = 0.0
+            if t > 0.25:
+                bump = 0.0035 * math.sin(a * 3.0 + t * 14.0) + 0.0025 * math.cos(a * 2.0 - t * 8.0)
+            r_eff = max(rad + bump, 0.004)
+            ring.append(wood.verts.new((x, r_eff * math.cos(a), r_eff * math.sin(a))))
+        club_rings.append(ring)
+    ring_grid(wood, club_rings, close=True)
+    wood.faces.new(club_rings[0])
+    wood.faces.new(club_rings[-1][::-1])
+
+    # Worn leather grip wrap
+    cylinder(leather, (-0.10, 0, 0), radius=0.0225, depth=0.13, axis="X", segs=12)
+    for i in range(5):
+        cylinder(leather_cord, (-0.150 + i * 0.026, 0, 0), radius=0.024, depth=0.007, axis="X", segs=12)
+
+    # Butt knob & lanyard ring
+    sphere(wood, (-0.198, 0, 0), 0.027, scale=(1.0, 1.1, 0.95), segs=10, rings=6)
+    cylinder(leather_cord, (-0.218, 0, 0), radius=0.016, depth=0.012, axis="X", segs=10)
+
+    # 3 Heavy forged iron reinforcement bands with spikes
+    band_configs = [
+        (0.23, 0.046, 0.020, 4, 0.0),
+        (0.31, 0.054, 0.022, 6, math.pi / 6),
+        (0.38, 0.049, 0.020, 4, math.pi / 4),
+    ]
+    for bx, brad, bdepth, scount, aoffset in band_configs:
+        cylinder(iron, (bx, 0, 0), radius=brad, depth=bdepth, axis="X", segs=14)
+        for s in range(scount):
+            sa = aoffset + s * (math.tau / scount)
+            sca = math.cos(sa)
+            ssa = math.sin(sa)
+            sp_center = Vector((bx, (brad + 0.014) * sca, (brad + 0.014) * ssa))
+            cylinder(iron, sp_center, radius=0.009, radius2=0.0018, depth=0.030, axis="Y", segs=4,
+                     rot=(sa + math.pi, 0, 0))
+
+    # Frontal iron center stud
+    cylinder(iron, (0.435, 0, 0), radius=0.016, radius2=0.003, depth=0.032, axis="X", segs=6)
+
+
+def build_dagger(parts):
+    steel = parts.bm("steel")
+    dark = parts.bm("dark_steel")
+    brass = parts.bm("brass")
+    leather = parts.bm("leather_dark")
+
+    # Stiletto / combat dagger blade: 0.28m blade with needle tip and fuller
+    blade(steel, 0.28, 0.025, 0.008, tip_len=0.09, curve=0.0, belly=0.06, fuller=0.28, steps=26)
+
+    # Ricasso
+    box(steel, (-0.012, 0, 0), (0.024, 0.024, 0.011), cuts=1)
+
+    # Crossguard: down-curved quillons in dark steel
+    guard_w = 0.092
+    box(dark, (-0.026, 0, 0), (0.020, guard_w, 0.016), cuts=2)
+    box(dark, (-0.016, guard_w / 2 - 0.005, 0), (0.022, 0.014, 0.014), rot=(0, 0, 0.45))
+    box(dark, (-0.016, -guard_w / 2 + 0.005, 0), (0.022, 0.014, 0.014), rot=(0, 0, -0.45))
+    sphere(dark, (-0.010, guard_w / 2 + 0.004, 0), 0.010, segs=8, rings=6)
+    sphere(dark, (-0.010, -guard_w / 2 - 0.004, 0), 0.010, segs=8, rings=6)
+
+    # Grip: contoured leather wrap
+    grip_len = 0.11
+    cylinder(leather, (-0.090, 0, 0), 0.0145, grip_len, axis="X", segs=10)
+    for i in range(6):
+        cylinder(brass, (-0.046 - i * 0.016, 0, 0), 0.0160, 0.0035, axis="X", segs=10)
+
+    # Faceted pear pommel in brass, with peen block
+    sphere(brass, (-0.158, 0, 0), 0.022, scale=(1.25, 0.95, 0.95), segs=10, rings=6)
+    cylinder(dark, (-0.180, 0, 0), 0.007, 0.012, axis="X", segs=8)
+
+
+def build_axe_2h(parts):
+    wood = parts.bm("wood")
+    iron = parts.bm("iron")
+    dark = parts.bm("dark_steel")
+    steel = parts.bm("steel")
+    brass = parts.bm("brass")
+    leather = parts.bm("leather_dark")
+    leather_wrap = parts.bm("leather")
+
+    # --- 1. Long Reinforced Hardwood Haft ---
+    cylinder(wood, (0.19, 0, 0), radius=0.019, radius2=0.024, depth=1.30, axis="X", segs=12)
+
+    # Exposed shaft top inside/above socket with iron wedge
+    cylinder(wood, (0.845, 0, 0), radius=0.022, depth=0.02, axis="X", segs=10)
+    box(iron, (0.855, 0, 0), (0.010, 0.018, 0.008))
+
+    # --- 2. Lower Grip (Trailing Hand) ---
+    cylinder(leather, (-0.32, 0, 0), radius=0.0225, depth=0.22, axis="X", segs=12)
+    for i in range(7):
+        cylinder(leather_wrap, (-0.41 + i * 0.030, 0, 0), radius=0.0245, depth=0.008, axis="X", segs=12)
+
+    # Heavy iron butt cap and spiked pommel knob
+    cylinder(iron, (-0.445, 0, 0), radius=0.025, depth=0.024, axis="X", segs=12)
+    sphere(iron, (-0.460, 0, 0), radius=0.018, scale=(0.8, 1.0, 1.0), segs=10, rings=6)
+    cylinder(iron, (-0.478, 0, 0), radius=0.009, radius2=0.002, depth=0.020, axis="X", segs=6)
+
+    # Mid-shaft dividing ring between lower and upper grips
+    cylinder(iron, (-0.195, 0, 0), radius=0.025, depth=0.016, axis="X", segs=12)
+    cylinder(brass, (-0.195, 0, 0), radius=0.0265, depth=0.006, axis="X", segs=12)
+
+    # --- 3. Upper Grip (Primary / Lead Hand) ---
+    cylinder(leather, (-0.05, 0, 0), radius=0.023, depth=0.24, axis="X", segs=12)
+    for i in range(8):
+        cylinder(leather_wrap, (-0.155 + i * 0.030, 0, 0), radius=0.025, depth=0.008, axis="X", segs=12)
+    cylinder(iron, (0.08, 0, 0), radius=0.025, depth=0.016, axis="X", segs=12)
+
+    # --- 4. Long Steel Langets & Shaft Reinforcement ---
+    cylinder(iron, (0.71, 0, 0), radius=0.027, depth=0.12, axis="X", segs=12)
+    box(iron, (0.54, 0, 0.024), (0.24, 0.010, 0.004))
+    box(iron, (0.54, 0, -0.024), (0.24, 0.010, 0.004))
+    box(iron, (0.54, 0.024, 0), (0.24, 0.004, 0.010))
+    box(iron, (0.54, -0.024, 0), (0.24, 0.004, 0.010))
+    for x_rivet in (0.45, 0.53, 0.61):
+        sphere(dark, (x_rivet, 0, 0.025), 0.0045, segs=6, rings=4)
+        sphere(dark, (x_rivet, 0, -0.025), 0.0045, segs=6, rings=4)
+
+    # --- 5. Massive Axe Head Socket Eye ---
+    box(dark, (0.76, 0.01, 0), (0.10, 0.062, 0.056), cuts=1)
+
+    # --- 6. Rear Armor-Piercing Beak / Spike on -Y ---
+    beak_rings_dark = []
+    beak_rings_steel = []
+    beak_steps = 6
+    split_step = 4
+    for i in range(beak_steps + 1):
+        u = i / beak_steps
+        by = -0.03 - u * 0.12
+        bx = 0.76 - 0.035 * (u ** 1.6)
+        brad_z = 0.020 * (1.0 - 0.85 * u)
+        brad_x = 0.024 * (1.0 - 0.85 * u)
+        bm_beak = dark if i <= split_step else steel
+        r = [
+            bm_beak.verts.new((bx + brad_x, by, 0.0)),
+            bm_beak.verts.new((bx, by, brad_z)),
+            bm_beak.verts.new((bx - brad_x, by, 0.0)),
+            bm_beak.verts.new((bx, by, -brad_z)),
+        ]
+        if i <= split_step:
+            beak_rings_dark.append(r)
+        if i >= split_step:
+            if i == split_step:
+                r_steel = [steel.verts.new((v.co.x, v.co.y, v.co.z)) for v in r]
+                beak_rings_steel.append(r_steel)
+            else:
+                beak_rings_steel.append(r)
+
+    ring_grid(dark, beak_rings_dark)
+    ring_grid(steel, beak_rings_steel)
+    steel.faces.new(beak_rings_steel[-1][::-1])
+
+    # --- 7. Top Thrusting Spike on +X ---
+    cylinder(brass, (0.835, 0, 0), radius=0.028, depth=0.016, axis="X", segs=12)
+    cylinder(steel, (0.895, 0, 0), radius=0.020, radius2=0.002, depth=0.105, axis="X", segs=4, rot=(math.pi / 4, 0, 0))
+
+    # --- 8. Broad Sweeping Two-Handed Axe Blade on +Y ---
+    rings_cheek = []
+    rings_bit = []
+    steps_cheek = 8
+    steps_bit = 4
+    total_steps = steps_cheek + steps_bit
+
+    for i in range(total_steps + 1):
+        v = i / total_steps
+        y = 0.035 + v * 0.200
+        x_min = 0.710 - 0.125 * math.sin(v * math.pi * 0.88) - 0.035 * (v ** 2)
+        x_max = 0.810 + 0.125 * (v ** 1.15)
+        th = 0.024 * (1.0 - 0.88 * (v ** 0.55))
+        if i == total_steps:
+            th = 0.0015
+
+        bm_target = dark if i <= steps_cheek else steel
+        w_x = x_max - x_min
+        ring = [
+            bm_target.verts.new((x_max, y, 0.0)),
+            bm_target.verts.new((x_max - w_x * 0.22, y, th * 0.85)),
+            bm_target.verts.new((x_min + w_x * 0.55, y, th)),
+            bm_target.verts.new((x_min + w_x * 0.18, y, th * 0.85)),
+            bm_target.verts.new((x_min, y, 0.0)),
+            bm_target.verts.new((x_min + w_x * 0.18, y, -th * 0.85)),
+            bm_target.verts.new((x_min + w_x * 0.55, y, -th)),
+            bm_target.verts.new((x_max - w_x * 0.22, y, -th * 0.85)),
+        ]
+        if i <= steps_cheek:
+            rings_cheek.append(ring)
+        if i >= steps_cheek:
+            if i == steps_cheek:
+                ring_steel = [
+                    steel.verts.new((vert.co.x, vert.co.y, vert.co.z)) for vert in ring
+                ]
+                rings_bit.append(ring_steel)
+            else:
+                rings_bit.append(ring)
+
+    ring_grid(dark, rings_cheek)
+    ring_grid(steel, rings_bit)
+    dark.faces.new(rings_cheek[0])
+    steel.faces.new(rings_bit[-1][::-1])
+
+
+def build_hammer_2h(parts):
+    wood = parts.bm("wood")
+    iron = parts.bm("iron")
+    dark = parts.bm("dark_steel")
+    steel = parts.bm("steel")
+    brass = parts.bm("brass")
+    leather = parts.bm("leather_dark")
+    leather_wrap = parts.bm("leather")
+
+    # --- 1. Long Reinforced Hardwood Shaft ---
+    cylinder(wood, (0.18, 0, 0), radius=0.020, radius2=0.024, depth=1.28, axis="X", segs=12)
+
+    # Exposed shaft top inside socket with iron retention wedge
+    cylinder(wood, (0.825, 0, 0), radius=0.022, depth=0.02, axis="X", segs=10)
+    box(iron, (0.835, 0, 0), (0.010, 0.018, 0.008))
+
+    # --- 2. Lower Grip (Trailing Hand) ---
+    cylinder(leather, (-0.32, 0, 0), radius=0.023, depth=0.22, axis="X", segs=12)
+    for i in range(7):
+        cylinder(leather_wrap, (-0.41 + i * 0.030, 0, 0), radius=0.025, depth=0.008, axis="X", segs=12)
+
+    # Heavy iron butt cap with lanyard ring
+    cylinder(iron, (-0.445, 0, 0), radius=0.026, depth=0.024, axis="X", segs=12)
+    sphere(iron, (-0.460, 0, 0), radius=0.018, scale=(0.8, 1.0, 1.0), segs=10, rings=6)
+    cylinder(iron, (-0.480, 0, 0), radius=0.012, depth=0.018, axis="X", segs=8)
+
+    # Mid-shaft dividing ring
+    cylinder(iron, (-0.195, 0, 0), radius=0.025, depth=0.016, axis="X", segs=12)
+    cylinder(brass, (-0.195, 0, 0), radius=0.0265, depth=0.006, axis="X", segs=12)
+
+    # --- 3. Upper Grip (Lead Hand / Leverage) ---
+    cylinder(leather, (-0.05, 0, 0), radius=0.0235, depth=0.24, axis="X", segs=12)
+    for i in range(8):
+        cylinder(leather_wrap, (-0.155 + i * 0.030, 0, 0), radius=0.0255, depth=0.008, axis="X", segs=12)
+    cylinder(iron, (0.08, 0, 0), radius=0.026, depth=0.016, axis="X", segs=12)
+
+    # --- 4. Long Steel Langets & Throat Collar ---
+    cylinder(iron, (0.69, 0, 0), radius=0.028, depth=0.12, axis="X", segs=12)
+    box(dark, (0.52, 0, 0.025), (0.24, 0.012, 0.004))
+    box(dark, (0.52, 0, -0.025), (0.24, 0.012, 0.004))
+    box(dark, (0.52, 0.025, 0), (0.24, 0.004, 0.012))
+    box(dark, (0.52, -0.025, 0), (0.24, 0.004, 0.012))
+    for x_rivet in (0.43, 0.51, 0.59):
+        sphere(iron, (x_rivet, 0, 0.026), 0.0045, segs=6, rings=4)
+        sphere(iron, (x_rivet, 0, -0.026), 0.0045, segs=6, rings=4)
+
+    # --- 5. Massive Transverse Hammer Head Center Block ---
+    box(dark, (0.74, 0, 0), (0.11, 0.075, 0.075), cuts=1)
+
+    # Reinforcing side plates with large iron bolt nuts
+    cylinder(dark, (0.74, 0, 0.040), radius=0.032, depth=0.008, axis="Z", segs=8)
+    cylinder(dark, (0.74, 0, -0.040), radius=0.032, depth=0.008, axis="Z", segs=8)
+    sphere(iron, (0.74, 0, 0.045), 0.007, segs=6, rings=4)
+    sphere(iron, (0.74, 0, -0.045), 0.007, segs=6, rings=4)
+
+    # --- 6. Front Striking Head (Faceted Impact Block) on +Y ---
+    box(dark, (0.74, 0.065, 0), (0.085, 0.055, 0.070), cuts=1)
+    box(brass, (0.74, 0.095, 0), (0.090, 0.010, 0.075), cuts=0)
+    box(steel, (0.74, 0.125, 0), (0.088, 0.050, 0.072), cuts=1)
+    # Corrugated / 4-pronged diamond waffle striking face (y = 0.150 to 0.165)
+    for dx in (-0.022, 0.022):
+        for dz in (-0.018, 0.018):
+            cylinder(steel, (0.74 + dx, 0.156, dz), radius=0.014, radius2=0.003, depth=0.018, axis="Y",
+                     segs=4, rot=(math.pi / 2, 0, math.pi / 4))
+
+    # --- 7. Rear Armor-Piercing Crowbill Pick on -Y ---
+    pick_rings_dark = []
+    pick_rings_steel = []
+    pick_steps = 7
+    split_pick = 5
+    for i in range(pick_steps + 1):
+        u = i / pick_steps
+        py = -0.035 - u * 0.130
+        px = 0.74 - 0.045 * (u ** 1.7)
+        rad_z = 0.026 * (1.0 - 0.88 * u)
+        rad_x = 0.030 * (1.0 - 0.88 * u)
+        bm_pick = dark if i <= split_pick else steel
+        r = [
+            bm_pick.verts.new((px + rad_x, py, 0.0)),
+            bm_pick.verts.new((px, py, rad_z)),
+            bm_pick.verts.new((px - rad_x, py, 0.0)),
+            bm_pick.verts.new((px, py, -rad_z)),
+        ]
+        if i <= split_pick:
+            pick_rings_dark.append(r)
+        if i >= split_pick:
+            if i == split_pick:
+                r_steel = [steel.verts.new((v.co.x, v.co.y, v.co.z)) for v in r]
+                pick_rings_steel.append(r_steel)
+            else:
+                pick_rings_steel.append(r)
+
+    ring_grid(dark, pick_rings_dark)
+    ring_grid(steel, pick_rings_steel)
+    steel.faces.new(pick_rings_steel[-1][::-1])
+
+    # --- 8. Top Thrusting Armor-Piercing Spike on +X ---
+    cylinder(brass, (0.80, 0, 0), radius=0.030, depth=0.016, axis="X", segs=12)
+    cylinder(steel, (0.865, 0, 0), radius=0.022, radius2=0.003, depth=0.115, axis="X", segs=4, rot=(math.pi / 4, 0, 0))
+
+
 # --- Armour ----------------------------------------------------------------------------------------------------------------
 
 def torso(bm, height, profile, segs=36, rows=28, open_top=True, bump=None):
@@ -504,6 +979,8 @@ def build_band(parts):
 
 BUILDERS = {
     "falchion": build_falchion, "longsword": build_longsword, "greatsword": build_greatsword,
+    "axe_1h": build_axe_1h, "mace": build_mace, "club": build_club, "dagger": build_dagger,
+    "axe_2h": build_axe_2h, "hammer_2h": build_hammer_2h,
     "leather_jerkin": build_leather_jerkin, "mail_hauberk": build_mail_hauberk, "plate_cuirass": build_plate_cuirass,
     "charm": build_charm, "signet": build_signet, "talisman": build_talisman,
     "leather_cap": build_leather_cap, "iron_helm": build_iron_helm, "leather_gloves": build_leather_gloves,
@@ -640,7 +1117,7 @@ def render_icon(obj, name, size=192):
     world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.7
     scene.world = world
     long_axis = max(obj.dimensions.x, obj.dimensions.y)
-    obj.rotation_euler = (0, 0, math.radians(-38 if long_axis > 0.5 else -15))
+    obj.rotation_euler = (0, 0, math.radians(-38 if long_axis > 0.5 or "dagger" in name else -15))
     bpy.context.view_layer.update()
     corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
     centre = sum(corners, Vector()) / 8.0

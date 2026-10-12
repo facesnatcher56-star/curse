@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dagger"
+display_name = "Dagger"
+slot = 0
+order = 21
+model_path = "res://assets/models/items/dagger/model.glb"
+icon_path = "res://assets/icons/items/dagger.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([1, 11, 28, 48, 70])
+stats = {
+"damage": 1.0,
+"speed": 1.0
+}
+inventory_size = Vector2i(1, 2)
+profile = {
+"style": "Quick piercing blade"
+}

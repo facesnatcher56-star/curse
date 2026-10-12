@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "axe_1h"
+display_name = "War Axe"
+slot = 0
+order = 18
+model_path = "res://assets/models/items/axe_1h/model.glb"
+icon_path = "res://assets/icons/items/axe_1h.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([3, 15, 33, 52, 75])
+stats = {
+"damage": 1.0,
+"speed": 1.0
+}
+profile = {
+"style": "Heavy chopping blade"
+}

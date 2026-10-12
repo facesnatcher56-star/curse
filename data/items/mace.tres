@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mace"
+display_name = "Mace"
+slot = 0
+order = 19
+model_path = "res://assets/models/items/mace/model.glb"
+icon_path = "res://assets/icons/items/mace.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([4, 18, 36, 55, 78])
+stats = {
+"damage": 1.0,
+"speed": 1.0
+}
+profile = {
+"style": "Crushing mace"
+}
