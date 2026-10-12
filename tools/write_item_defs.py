@@ -128,6 +128,8 @@ def main() -> None:
             lines.append("inventory_size = Vector2i(%d, %d)" % (w, h))
         if ident in PROFILES:
             lines.append("profile = %s" % fmt(PROFILES[ident]))
+        if ident == "short_bow" and (OUT / "short_bow.tres").exists():
+            continue
         (OUT / (ident + ".tres")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     for old in OUT.glob("*.tres"):
         if old.name not in wanted:
