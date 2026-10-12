@@ -8,7 +8,9 @@ func _test_hotkeys() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
-	GameSettings.hotbar_slots[3] = "fireball"
+	var previous_hotbar := player.skills.hotbar.duplicate()
+	player.skills.assign_slot(3, "fireball")
+	expect("hotkey fixture configures this character's slot", player.character.hotbar[3] == "fireball")
 	var dummy: Enemy = _spawn_enemy(Vector3(1.8, 0, 0))
 	dummy.aggro_range = 0.0
 	dummy.max_health = 900.0
@@ -66,6 +68,7 @@ func _test_hotkeys() -> void:
 	dummy.queue_free()
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
+	player.skills.hotbar = previous_hotbar
 	await get_tree().process_frame
 
 ## Skills on keys can be changed freely: the layout is always the same seven skills (a change is a swap), it is shared by the hero, the

@@ -246,7 +246,7 @@ model_name = "gravestone"
 height = 0.32
 
 [node name="Gravestone3" type="Node3D" parent="Props"]
-transform = Transform3D(0.90631, 0, 0.42262, 0, 1, 0, -0.42262, 0, 0.90631, 15.8, 0, 16.2)
+transform = Transform3D(0.90631, 0, 0.42262, 0, 1, 0, -0.42262, 0, 0.90631, 14, 0, 13)
 script = ExtResource("1_prop")
 model_name = "gravestone"
 height = 0.32

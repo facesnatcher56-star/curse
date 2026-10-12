@@ -41,12 +41,25 @@ func _test_town_sim() -> void:
 		if brawled:
 			break
 	expect("NPCs who hate each other come to blows", brawled)
-	# A wretched hired recruit leaves.
+	# Cutter is permanent, not a hired recruit. Bad mood must not discard his character.
 	TownState.npcs["cutter"]["member"] = true
 	TownState.npcs["cutter"]["happiness"] = -90.0
 	sim.run_round()
-	expect("a wretched recruit leaves the clan", bool(TownState.npcs["cutter"]["left"]) and not bool(TownState.npcs["cutter"]["member"]))
-	expect("the others are shaken when someone leaves", TownState.present_ids().size() == 4)
+	expect("a wretched permanent companion stays", not bool(TownState.npcs["cutter"]["left"]) and bool(TownState.npcs["cutter"]["member"]))
+	# Keep the recruit/departure contract covered using an isolated recruit definition.
+	var recruit: NpcDef = TownDb.npc("cutter").duplicate() as NpcDef
+	recruit.id = "test_recruit"
+	recruit.role = "recruit"
+	TownDb.npcs()[recruit.id] = recruit
+	TownState.npcs[recruit.id] = TownState.npcs["cutter"].duplicate(true)
+	var before_departure: float = TownState.happiness("maren")
+	var present_before: int = TownState.present_ids().size()
+	sim._settle([recruit.id]) # No unrelated activities/brawls can mask the -3 departure reaction.
+	expect("a wretched recruit leaves the clan", bool(TownState.npcs[recruit.id]["left"]) and not bool(TownState.npcs[recruit.id]["member"]))
+	expect("the others are shaken when someone leaves", TownState.present_ids().size() == present_before - 1
+		and is_equal_approx(TownState.happiness("maren"), before_departure - 3.0))
+	TownDb.npcs().erase(recruit.id)
+	TownState.npcs.erase(recruit.id)
 	# Hunger.
 	TownState.reset()
 	var mood: float = TownState.happiness("maren")
@@ -243,7 +256,8 @@ func _test_run_modifiers() -> void:
 		and is_equal_approx(director.modifier_product("health_mult"), 1.5))
 	var big: Enemy = _spawn_enemy(Vector3(30, 0, 30), "zombie", 1.0)
 	await get_tree().process_frame
-	expect("Gigantism makes enemies tougher and bigger", big.max_health >= zombie.health * 1.49 and big.visual.scale.x > 1.2)
+	var base_life := MonsterScaling.life(big.level, big.def.tier, big.def.role)
+	expect("Gigantism makes enemies tougher and bigger", is_equal_approx(big.max_health, base_life * 1.5) and big.visual.scale.x > 1.2)
 	expect("the wave banner names the rules", director.modifier_names() == "Gigantism, Fleet of Foot")
 	big.queue_free()
 	director.wave = saved_wave
@@ -266,6 +280,9 @@ func _test_run_modifiers() -> void:
 
 ## The town scene: it builds, people and places can be found and used, the panels work and shopping changes what you own.
 func _test_town_scene() -> void:
+	# This nested scene registers its own common bodies. Restore the harness's
+	# registry afterward; otherwise later tests can control a freed/test-disabled body.
+	var harness_bodies := PartyManager.current().bodies.duplicate()
 	TownState.persist = false
 	TownState.reset()
 	TownState.gold = 500
@@ -414,6 +431,10 @@ func _test_town_scene() -> void:
 	await get_tree().process_frame
 	var stock: Array = TownState.stock
 	expect("the trader has wares", stock.size() == 3)
+	# Random vendor gear may legitimately fail this fresh character's requirements
+	# and go to the stash. This assertion specifically exercises buying AND wearing.
+	stock[0]["item"] = Items.starting_gear()[0].duplicate(true)
+	expect("shopping fixture meets the active member's ordinary requirements", Items.hero_can_wear(stock[0]["item"], town.player.member_id))
 	var gold: int = TownState.gold
 	var vendor_gold: int = TownState.vendor_gold
 	var ware: Dictionary = (stock[0] as Dictionary)["item"]
@@ -469,6 +490,9 @@ func _test_town_scene() -> void:
 	get_tree().paused = false
 	TownState.job = {}
 	TownState.reset()
+	PartyManager.current().bodies = harness_bodies
+	game._party_selected("", PartyManager.current().active_id)
+	expect("nested town restores the harness's active common body", PartyManager.current().active_body() == game.player and game.player.is_physics_processing())
 
 ## Nothing in the town may clip into anything else: no solid prop overlaps another or the palisade, none stands beyond the wall, and
 ## nobody's spot or station is inside one. Footprints are each model's bounds, scaled to its height, as a rotated rectangle.

@@ -33,4 +33,12 @@ Visible opening/potion-dock captures reviewed at 1280×720, 1600×900, 1920×108
 
 ## Remaining acceptance
 
+2026-10-12 review update: see [e0086af4 review](MAIN_E0086AF_REVIEW.md) for
+newer actual results. Visible 1440p opening traversal subsequently passed outside
+the restricted launch environment; the original pre-script engine crash remains
+unsymbolicated. Automated headless continuous traversal of all fourteen groups
+with combat-time switching passed without deaths (1,247 XP, level three), as did
+post-combat nest/quest XP, loot, isolated disk reload and party defeat checks.
+This does not replace visible full-road and complete UI interaction acceptance.
+
 Continuous traversal beyond the opening and at 1440p, nests together with combat, varied seeds, equipping found upgrades, actual later projectile collision checks, complete UI interaction matrix and legacy encounter-suite updates remain necessary. Container loot parity, tiered potions and complete miniboss consumable loot are not implemented. No production save was loaded for verification or written. This is not a player-test-ready certification.

@@ -458,6 +458,7 @@ func heal(amount: float) -> void:
 func collect_orbs() -> void:
 	for node in p.get_tree().get_nodes_in_group("orbs"):
 		var orb := node as Node3D
+		if orb == null or orb.is_queued_for_deletion(): continue # Another party member already collected it this frame.
 		if orb != null and orb.global_position.distance_to(p.global_position + Vector3(0, 0.6, 0)) < 1.3:
 			if orb is HealthOrb and (orb as HealthOrb).gold_amount > 0:
 				TownState.gold += (orb as HealthOrb).gold_amount

@@ -18,6 +18,7 @@ func run() -> void:
 	town.rig.global_position = town.player.global_position
 	TownState.mana_potions = 12
 	town.player.stats.mana = 0
+	var gaps := OS.get_cmdline_user_args().has("--gaps")
 	for dimensions in GameSettings.RESOLUTIONS:
 		root.mode = Window.MODE_WINDOWED
 		root.borderless = true
@@ -28,6 +29,18 @@ func run() -> void:
 		for scale in [0.5, 1.0, 1.5]:
 			GameSettings.ui_size = scale
 			GameSettings.apply_ui_scale()
+			if gaps:
+				for entry in [{"id": "town", "at": Vector3(16, 0, 17)}, {"id": "camp", "at": Vector3(-10, 0, -104)}]:
+					town.player.global_position = Nav.snap(town.player, entry.at)
+					town.player.reset_physics_interpolation()
+					town.rig.global_position = town.player.global_position
+					town.companion.global_position = town.player.global_position + Vector3(2, 0, 1)
+					await create_timer(0.5).timeout
+					await RenderingServer.frame_post_draw
+					var capture := OS.get_environment("TEMP").path_join("curse_gap_%s_%dx%d_%.1f.png" % [entry.id, dimensions.x, dimensions.y, scale])
+					root.get_texture().get_image().save_png(capture)
+					print("CAPTURE ", capture)
+				continue
 			await create_timer(0.3).timeout
 			var button: Button = town.combat_hud.ds2_potion_dock._mana_button
 			button.grab_focus()

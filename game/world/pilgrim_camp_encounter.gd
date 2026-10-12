@@ -115,4 +115,5 @@ static func _build_flank_cover(road: CryptRoad) -> void:
 	road._prop("dead_tree", -16.5, 105.0, 0.0, 6.0, true, false, 1.5)
 	road._prop("dead_tree", -15.5, 95.0, 0.5, 6.2, true, false, 1.5)
 	# Fallen boulder / rubble providing tactical waist-high cover on the flank trail.
-	road._prop("rubble", -11.5, 96.5, 0.4, 0.9, true, false, 0.7)
+	# Leave a full shared-agent-width exit between the shelter and flank cover.
+	road._prop("rubble", -13.5, 96.5, 0.4, 0.9, true, false, 0.7)

@@ -148,6 +148,7 @@ func in_reach(hero: Node3D) -> bool:
 
 ## The hero takes it: worn if the slot is empty, otherwise into the bag.
 func pick_up(hero: Player) -> void:
+	if is_queued_for_deletion(): return # A second member/click cannot collect a queued drop twice.
 	if not hero.stats.pickup(item).is_empty():
 		queue_free() # no space: leave the item on the ground, never delete carried loot
 

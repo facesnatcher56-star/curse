@@ -94,6 +94,13 @@ Use `tools/run_godot.ps1` with a suitable timeout and isolated developer argumen
 
 ## Remaining acceptance gaps
 
+2026-10-12 review: owner-approved town grave/camp rubble gap widening fixes the
+three disconnected endpoint pairs (two pockets) while retaining 0.75 m shared
+clearance. Final 180-query rubble scan has zero blocked/disconnected results;
+both common bodies actually arrive at all three original pairs. Eight AI rubble
+approaches also pass. Final town footprint check and 24 gap/HUD captures reviewed
+at all supported resolutions and scales. See [review record](MAIN_E0086AF_REVIEW.md).
+
 Visible checks drive real movement/AI in the actual world but freeze hostile enemies;
 they are not a full human-controlled combat playthrough of the entire road. All melee/bow
 equipment × controller combinations have not been traversed through every obstacle fixture.

@@ -596,11 +596,27 @@ func _test_pad_targeting() -> void:
 	confirms = confirms and backs
 	expect("A is attack and menu confirm, B is dodge, Start is pause", has_a and has_b and has_start and confirms)
 	Gamepad.active = false
+	# Changing input method does not put the pointer over an enemy. Supply real
+	# viewport mouse input instead of expecting the last controller target at (0,0).
+	player.skills.cancel_action()
+	player.attack_target = null
+	var motion := InputEventMouseMotion.new()
+	motion.position = rig.camera.unproject_position(behind.get_global_transform_interpolated().origin + Vector3.UP * behind.body_height * 0.5)
+	if DisplayServer.get_name() != "headless": get_viewport().warp_mouse(motion.position)
+	Input.parse_input_event(motion)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
+	if DisplayServer.get_name() == "headless":
+		# Dummy DisplayServer ignores pointer warps/events (mouse remains 0,0).
+		# Exercise the production picker with its explicit screen-coordinate API,
+		# then the production presentation tick; don't assert a fabricated OS hover.
+		player.hover_target = player._hover_pick(behind.global_position, motion.position)
+		player._process(0.0)
+	print("  mouse targeting: injected=", motion.position, " actual=", get_viewport().get_mouse_position(), " hover=", player.hover_target, " expected=", behind, " pad=", Gamepad.active, " ui=", player.mouse_over_ui(), " aiming=", player.skills.aiming_id)
 	expect("mouse hover keeps DS2's target silhouette instead of removing the controller glow",
-		(player.hover_target == behind and behind.highlighted and not ahead.highlighted)
-		or (player.hover_target == ahead and ahead.highlighted and not behind.highlighted))
+		player.hover_target == behind and behind.highlighted and not ahead.highlighted)
 	# Leave the hero idle for whatever test comes next (no swing in progress, no target, no queued skill).
 	player.skills.cancel_action()
 	player.skills.queued_skill = ""

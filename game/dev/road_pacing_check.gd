@@ -23,6 +23,8 @@ func run() -> void:
 	var hero := PartyManager.current().bodies.hero as Player
 	var cutter := PartyManager.current().bodies.cutter as Player
 	var continuous := OS.get_cmdline_user_args().has("--continuous")
+	var switching := OS.get_cmdline_user_args().has("--switching")
+	var switches := 0
 	var visible := OS.get_cmdline_user_args().has("--visible")
 	if visible:
 		var dimensions := Vector2i(2560, 1440) if OS.get_cmdline_user_args().has("--1440") else Vector2i(1920, 1080)
@@ -67,13 +69,20 @@ func run() -> void:
 			elapsed = frame
 			var live: Array = pack.filter(func(e): return is_instance_valid(e) and not e.dead)
 			if live.is_empty() or hero.dead: break
-			hero.cursor_override = live[0].global_position
-			hero.attack_target = live[0]
+			if switching and frame % 180 == 0:
+				Input.action_release("click")
+				PartyManager.current().cycle()
+				switches += 1
+				PartyManager.current().active_body()._physics_process(1.0 / 60.0) # Release held input before new orders.
+			var active := PartyManager.current().active_body()
+			var other := cutter if active == hero else hero
+			active.cursor_override = live[0].global_position
+			active.attack_target = live[0]
 			Input.action_press("click")
-			hero._physics_process(1.0 / 60.0)
-			if hero.health < hero.max_health * 0.4: hero.skills.drink_potion()
-			cutter._physics_process(1.0 / 60.0)
-		check("starter party clears group %d without death within 60s" % id, not hero.dead and pack.all(func(e): return not is_instance_valid(e) or e.dead))
+			active._physics_process(1.0 / 60.0)
+			if active.health < active.max_health * 0.4: active.skills.drink_potion()
+			other._physics_process(1.0 / 60.0)
+		check("starter party clears group %d without death within 60s" % id, not hero.dead and not cutter.dead and pack.all(func(e): return not is_instance_valid(e) or e.dead))
 		print("FIGHT group=", id, " seconds=", elapsed / 60.0, " HP=", hero.health, " XP=", hero.character.xp, " level=", hero.character.level)
 		if visible:
 			await RenderingServer.frame_post_draw
@@ -86,6 +95,9 @@ func run() -> void:
 			hero.stats.regen(1.0 / 60.0)
 			cutter.stats.regen(1.0 / 60.0)
 	if not fight_ids.is_empty(): check("opening earns level two", hero.character.level >= 2)
+	if switching:
+		check("switching occurs during real combat", switches >= fight_ids.size())
+		await integrated_checks(hero, cutter)
 	TownState.mana_potions = 2
 	hero.stats.mana = 0
 	check("mana potion restores resource and consumes one shared potion", hero.stats.use_mana_potion() and hero.stats.mana > 0 and TownState.mana_potions == 1)
@@ -96,6 +108,27 @@ func run() -> void:
 	mana_pickup.global_position = hero.global_position
 	hero.stats.collect_orbs()
 	check("mana pickup adds one to party inventory", TownState.mana_potions == 2)
+	cutter.global_position = hero.global_position
+	cutter.stats.collect_orbs()
+	check("two members cannot collect one potion in the same frame", TownState.mana_potions == 2)
+	await process_frame
+	var gold_before := TownState.gold
+	var gold_pickup := HealthOrb.new()
+	gold_pickup.gold_amount = 5
+	town.add_child(gold_pickup)
+	gold_pickup.global_position = hero.global_position
+	hero.stats.collect_orbs()
+	cutter.stats.collect_orbs()
+	check("two members cannot duplicate a gold pickup", TownState.gold == gold_before + 5)
+	await process_frame
+	var gear_pickup := LootDrop.new()
+	gear_pickup.item = Items.starting_gear()[0].duplicate(true)
+	town.add_child(gear_pickup)
+	var bag_before := hero.stats.bag.size()
+	gear_pickup.pick_up(hero)
+	gear_pickup.pick_up(cutter)
+	check("two members cannot duplicate equipment", hero.stats.bag.size() == bag_before + 1)
+	await process_frame
 	PartyManager.current().select("cutter")
 	cutter.stats.mana = 0
 	check("switching spends shared supply on the selected character", cutter.stats.use_mana_potion() and TownState.mana_potions == 1 and cutter.stats.mana > 0)
@@ -117,3 +150,61 @@ func run() -> void:
 	check("weak equipment approximately 5.75%", counts.item > 950 and counts.item < 1350)
 	print("ROAD PACING failures=", failures)
 	quit(1 if failures else 0)
+
+func integrated_checks(hero: Player, cutter: Player) -> void:
+	# Controlled fixture placement below is explicit: this checks the connected
+	# systems after real fights, not a claim of uninterrupted full-road playthrough.
+	for enemy in get_nodes_in_group("enemies"): enemy.set_physics_process(false)
+	Input.action_release("click")
+	for body in [hero, cutter]:
+		body.skills.cancel_action()
+		body.attack_target = null
+	var pickups := {"gold": 0, "health": 0, "mana": 0, "gear": 0}
+	for orb: HealthOrb in get_nodes_in_group("orbs"):
+		var kind := "gold" if orb.gold_amount > 0 else ("mana" if orb.is_mana else "health")
+		pickups[kind] += 1
+		hero.global_position = Vector3(orb.global_position.x, 0, orb.global_position.z)
+		hero.stats.collect_orbs()
+		await process_frame
+	for drop: LootDrop in get_nodes_in_group("loot"):
+		var before := hero.stats.bag.size()
+		drop.pick_up(hero)
+		check("real kill equipment enters shared backpack", hero.stats.bag.size() == before + 1)
+		pickups.gear += 1
+	print("ACTUAL KILL PICKUPS ", pickups)
+	check("real kills generate collectible loot", pickups.values().reduce(func(a, b): return a + b, 0) > 0)
+	for nest: Destructible in town.crypt.nests:
+		var before_hero := hero.character.xp
+		var before_cutter := cutter.character.xp
+		var reward := HeroProgression.nest_xp(WorldThreat.monster_level(town.crypt.threat_at(nest.global_position)))
+		var share := HeroProgression.party_share(reward, 2)
+		nest.hit(999.0, Vector3.FORWARD)
+		check("nest pays both living members their party share", hero.character.xp == before_hero + share and cutter.character.xp == before_cutter + share)
+		nest.hit(999.0, Vector3.FORWARD)
+		check("broken nest never pays twice", hero.character.xp == before_hero + share and cutter.character.xp == before_cutter + share)
+		for enemy in get_nodes_in_group("enemies"): enemy.set_physics_process(false)
+	check("three nests mark standing quest ready", town.crypt.nests_destroyed == 3 and TownState.has_reward())
+	var before_hero := hero.character.xp
+	var before_cutter := cutter.character.xp
+	var paid := TownState.claim_ready()
+	var quest_share := HeroProgression.party_share(int(paid.xp), 2)
+	check("quest hand-in pays both members shared XP once", int(paid.count) == 1 and hero.character.xp == before_hero + quest_share and cutter.character.xp == before_cutter + quest_share and int(TownState.claim_ready().count) == 0)
+	var path := SavePolicy.DEV_PATH.get_base_dir().path_join("road_integration_fixture.json")
+	var isolated := SavePolicy.may_modify(path, OS.get_cmdline_user_args()) and path != SavePolicy.PRODUCTION_PATH
+	check("road integration disk save is isolated", isolated)
+	if not isolated: return # A failed safety assertion must prevent the write itself.
+	SavePolicy.ensure_folder(path)
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(TownState.to_dict()))
+	file.close()
+	TownState.from_dict(JSON.parse_string(FileAccess.get_file_as_string(path)))
+	check("road XP survives disk reload independently", hero.character.xp == before_hero + quest_share and cutter.character.xp == before_cutter + quest_share)
+	var death_xp := [hero.character.xp, cutter.character.xp]
+	PartyManager.current().select("hero")
+	hero.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": null, "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
+	await create_timer(0.2).timeout
+	check("single death switches to living companion without party defeat", hero.dead and not cutter.dead and PartyManager.current().active_body() == cutter)
+	cutter.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": null, "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, cutter.global_position)
+	await create_timer(4.0).timeout
+	check("party defeat revives both without progression loss", not hero.dead and not cutter.dead and hero.character.xp == death_xp[0] and cutter.character.xp == death_xp[1])
+	for body in [hero, cutter]: body.set_physics_process(false)
