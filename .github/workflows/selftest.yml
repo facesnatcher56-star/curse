@@ -66,7 +66,7 @@ jobs:
       - name: Run Item Test Lab suite
         run: |
           set -o pipefail
-          timeout 120 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --verbose --path . res://game/main.tscn -- --selftest --only=itemlab 2>&1 | tee itemlab.log
+          timeout 120 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest --only=itemlab 2>&1 | tee itemlab.log
 
       - name: Check results
         if: always()
