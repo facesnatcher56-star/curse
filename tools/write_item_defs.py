@@ -35,8 +35,22 @@ ITEMS = [
     ("iron_greaves", "Iron Greaves", 6, "boots", "fighter", [5, 19, 37, 57, 83], {}),
     ("charm", "Charm", 7, "amulet", "", [3, 20, 40, 62, 86], {}),
     ("talisman", "Talisman", 7, "amulet", "", [10, 30, 50, 72, 95], {}),
+    ("axe_1h", "War Axe", 0, "1h", "", [3, 15, 33, 52, 75], {"damage": 1.0, "speed": 1.0}),
+    ("mace", "Mace", 0, "1h", "", [4, 18, 36, 55, 78], {"damage": 1.0, "speed": 1.0}),
+    ("club", "Club", 0, "1h", "", [1, 10, 24, 45, 68], {"damage": 1.0, "speed": 1.0}),
+    ("dagger", "Dagger", 0, "1h", "", [1, 11, 28, 48, 70], {"damage": 1.0, "speed": 1.0}),
+    ("axe_2h", "Battle Axe", 0, "2h", "", [9, 22, 42, 64, 88], {"damage": 1.0, "speed": 0.82}),
+    ("hammer_2h", "Warhammer", 0, "2h", "", [6, 24, 44, 66, 90], {"damage": 1.0, "speed": 0.82}),
+    ("short_bow", "Short Bow", 0, "bow", "", [2, 17, 38, 60, 84], {"damage": 1.0, "speed": 1.0}),
 ]
 
+TWO_HAND_CLIPS = {
+    "atk_slash_r": {"clip": "atk2_slash_r", "start": 0.0, "strike": 0.38, "end": 0.75},
+    "atk_thrust": {"clip": "atk2_thrust", "start": 0.0, "strike": 0.57, "end": 1.1},
+    "atk_slash_l": {"clip": "atk2_slash_l", "start": 0.0, "strike": 0.67, "end": 1.15},
+    "atk_slash": {"clip": "atk2_slash", "start": 0.0, "strike": 0.57, "end": 0.95},
+    "atk_finisher": {"clip": "atk2_finisher", "start": 0.0, "strike": 0.77, "end": 1.6},
+}
 
 # Weapons beyond damage and speed (see ItemDef.profile). The longsword is the baseline: its moveset is what the game always had.
 PROFILES = {
@@ -44,12 +58,36 @@ PROFILES = {
                  "style": "Fast combo and recovery, light stagger"},
     "longsword": {"style": "Balanced"},
     "greatsword": {"two_handed": True,
-                   "two_hand_clips": {"atk_slash_r": {"clip": "atk2_slash_r", "start": 0.0, "strike": 0.38, "end": 0.75},
-                                      "atk_thrust": {"clip": "atk2_thrust", "start": 0.0, "strike": 0.57, "end": 1.1},
-                                      "atk_slash_l": {"clip": "atk2_slash_l", "start": 0.0, "strike": 0.67, "end": 1.15},
-                                      "atk_slash": {"clip": "atk2_slash", "start": 0.0, "strike": 0.57, "end": 0.95},
-                                      "atk_finisher": {"clip": "atk2_finisher", "start": 0.0, "strike": 0.77, "end": 1.6}}, "recovery": 0.55, "weight": 1.5,
+                   "two_hand_clips": TWO_HAND_CLIPS, "recovery": 0.55, "weight": 1.5,
                    "style": "Single target, heavy stagger and knockback"},
+    "axe_1h": {"style": "Heavy chopping blade"},
+    "mace": {"style": "Crushing mace"},
+    "club": {"style": "Bludgeon"},
+    "dagger": {"style": "Quick piercing blade"},
+    "axe_2h": {"two_handed": True,
+               "two_hand_clips": TWO_HAND_CLIPS, "recovery": 0.55, "weight": 1.5,
+               "style": "Heavy two-handed axe, heavy stagger"},
+    "hammer_2h": {"two_handed": True,
+                 "two_hand_clips": TWO_HAND_CLIPS, "recovery": 0.55, "weight": 1.5,
+                 "style": "Heavy two-handed hammer, heavy stagger"},
+    "short_bow": {"style": "Bow", "ranged": True, "two_handed": True},
+}
+
+# Inventory size overrides (width, height). If omitted, ItemDef inherits DS2 defaults from item_type.
+INVENTORY_SIZES = {
+    "club": (1, 2),
+    "dagger": (1, 2),
+    "axe_2h": (2, 3),
+    "hammer_2h": (2, 3),
+}
+
+# Explicit model and icon path overrides. If omitted, default res://assets/... paths are used.
+CUSTOM_PATHS = {
+    "short_bow": ("res://assets/models/archer/bow/model.glb", "res://assets/icons/take_aim.png"),
+}
+
+CUSTOM_ORDERS = {
+    "short_bow": 20,
 }
 
 
@@ -72,14 +110,22 @@ def main() -> None:
     wanted = set()
     for order, (ident, name, slot, kind, armor_class, levels, stats) in enumerate(ITEMS):
         wanted.add(ident + ".tres")
+        item_order = CUSTOM_ORDERS.get(ident, order)
+        model_path, icon_path = CUSTOM_PATHS.get(ident, (
+            "res://assets/models/items/%s/model.glb" % ident,
+            "res://assets/icons/items/%s.png" % ident,
+        ))
         lines = [
             '[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]', "",
             '[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]', "", "[resource]",
-            'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name, "slot = %d" % slot, "order = %d" % order,
-            'model_path = "res://assets/models/items/%s/model.glb"' % ident, 'icon_path = "res://assets/icons/items/%s.png"' % ident,
+            'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name, "slot = %d" % slot, "order = %d" % item_order,
+            'model_path = "%s"' % model_path, 'icon_path = "%s"' % icon_path,
             'item_type = "%s"' % kind, 'armor_class = "%s"' % armor_class,
             "levels = Array[int]([%s])" % ", ".join(str(level) for level in levels), "stats = %s" % fmt(stats),
         ]
+        if ident in INVENTORY_SIZES:
+            w, h = INVENTORY_SIZES[ident]
+            lines.append("inventory_size = Vector2i(%d, %d)" % (w, h))
         if ident in PROFILES:
             lines.append("profile = %s" % fmt(PROFILES[ident]))
         (OUT / (ident + ".tres")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

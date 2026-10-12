@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "hammer_2h"
+display_name = "Warhammer"
+slot = 0
+order = 23
+model_path = "res://assets/models/items/hammer_2h/model.glb"
+icon_path = "res://assets/icons/items/hammer_2h.png"
+item_type = "2h"
+armor_class = ""
+levels = Array[int]([6, 24, 44, 66, 90])
+stats = {
+"damage": 1.0,
+"speed": 0.82
+}
+inventory_size = Vector2i(2, 3)
+profile = {
+"two_handed": true,
+"two_hand_clips": {
+"atk_slash_r": {
+"clip": "atk2_slash_r",
+"start": 0.0,
+"strike": 0.38,
+"end": 0.75
+},
+"atk_thrust": {
+"clip": "atk2_thrust",
+"start": 0.0,
+"strike": 0.57,
+"end": 1.1
+},
+"atk_slash_l": {
+"clip": "atk2_slash_l",
+"start": 0.0,
+"strike": 0.67,
+"end": 1.15
+},
+"atk_slash": {
+"clip": "atk2_slash",
+"start": 0.0,
+"strike": 0.57,
+"end": 0.95
+},
+"atk_finisher": {
+"clip": "atk2_finisher",
+"start": 0.0,
+"strike": 0.77,
+"end": 1.6
+}
+},
+"recovery": 0.55,
+"weight": 1.5,
+"style": "Heavy two-handed hammer, heavy stagger"
+}

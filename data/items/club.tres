@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "club"
+display_name = "Club"
+slot = 0
+order = 20
+model_path = "res://assets/models/items/club/model.glb"
+icon_path = "res://assets/icons/items/club.png"
+item_type = "1h"
+armor_class = ""
+levels = Array[int]([1, 10, 24, 45, 68])
+stats = {
+"damage": 1.0,
+"speed": 1.0
+}
+inventory_size = Vector2i(1, 2)
+profile = {
+"style": "Bludgeon"
+}
