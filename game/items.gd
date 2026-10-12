@@ -36,8 +36,7 @@ const DROPS := {
 const RARE_WINDOW := Vector2i(-4, 2)
 const UNIQUE_WINDOW := Vector2i(-40, 3)
 const SET_WINDOW := Vector2i(-50, 3)
-## DS2's "#" item: CURSE CHOICE, as the engine decides it there: half are plain, 30% have one modifier and 20% two.
-const ANY_ITEM := {"normal": 0.5, "magic1": 0.3, "magic2": 0.2}
+## pcontent.skrit calc_modifier_count: 40% plain, 40% one modifier, 20% two at zero MF.
 ## A miniboss always drops one piece: 30% one-modifier magic, 50% two, 12% rare, 4% unique, 4% set (DS2).
 const MINIBOSS := {"magic1": 0.3, "magic2": 0.5, "rare": 0.12, "unique": 0.04, "set": 0.04}
 ## DS2's quest-reward and class-chest macro: 70% rare, 15% unique, 15% set.
@@ -247,16 +246,31 @@ static func from_save(saved: Dictionary) -> Dictionary:
 # --- Loot (DS2 section 11) --------------------------------------------------------------------------------------------------------------
 
 ## What a dead monster of `tier` (MonsterScaling.TIERS) and `level` drops, or {} for nothing (most kills drop nothing). `magic_find` is the
-## hero's (percent): it multiplies the rare, unique and set chances (DS2: `x (1 + MF/100)`, so "nothing" is diluted, not removed).
+## supplied percent: it multiplies rare, unique and set weights (DS2: `x (1 + MF/100)`, so "nothing" is diluted, not removed).
 ## `chance_mult` scales every item chance (a world event's drop multiplier).
+static func rarity_weights(table: Dictionary, magic_find: float, chance_mult: float = 1.0) -> Dictionary:
+	var weights: Dictionary = {}
+	for kind in table:
+		weights[kind] = float(table[kind]) * chance_mult * (1.0 + maxf(magic_find, 0.0) / 100.0 if kind in ["rare", "unique", "set"] else 1.0)
+	return weights
+
+## Installed pcontent.skrit calc_modifier_count, ordered thresholds (not normalized weights).
+static func ordinary_mod_count(roll: float, magic_find: float) -> int:
+	var multiplier := 1.0 + maxf(magic_find, 0.0) / 100.0
+	if roll <= 0.4 * multiplier: return 1
+	if roll <= 0.6 * multiplier: return 2
+	return 0
+
+## Existing Curse container distribution is explicitly outside Task 2's economy changes.
+static func container_item_kind(roll: float) -> String:
+	return "normal" if roll < 0.5 else ("magic1" if roll < 0.8 else "magic2")
+
 static func roll_drop(level: int, tier: String, magic_find: float = 0.0, chance_mult: float = 1.0) -> Dictionary:
 	if tier == "miniboss":
 		return roll_reward(level, MINIBOSS, magic_find)
 	var table: Dictionary = DROPS.get(tier, DROPS["weak"] if tier == "trivial" else DROPS["normal"])
-	var mf: float = 1.0 + maxf(magic_find, 0.0) / 100.0
 	var nothing: float = 1.0 - float(table["item"]) - float(table["rare"]) - float(table["unique"]) - float(table["set"])
-	var weights: Dictionary = {"item": float(table["item"]) * chance_mult, "rare": float(table["rare"]) * mf * chance_mult,
-		"unique": float(table["unique"]) * mf * chance_mult, "set": float(table["set"]) * mf * chance_mult}
+	var weights := rarity_weights({"item": table.item, "rare": table.rare, "unique": table.unique, "set": table.set}, magic_find, chance_mult)
 	var total: float = nothing
 	for kind in weights:
 		total += float(weights[kind])
@@ -264,30 +278,28 @@ static func roll_drop(level: int, tier: String, magic_find: float = 0.0, chance_
 	for kind in weights:
 		roll -= float(weights[kind])
 		if roll < 0.0:
-			return item_of_kind(kind, level, table["window"])
+			return item_of_kind(kind, level, table["window"], Vector2i.ZERO, magic_find)
 	return {}
 
 ## A guaranteed piece by a weighted table of kinds (magic1, magic2, rare, unique, set): a miniboss, a quest reward, a named monster.
 static func roll_reward(level: int, table: Dictionary = REWARD, magic_find: float = 0.0) -> Dictionary:
-	var mf: float = 1.0 + maxf(magic_find, 0.0) / 100.0
-	var weights: Dictionary = {}
+	var weights := rarity_weights(table, magic_find)
 	var total: float = 0.0
 	for kind in table:
-		weights[kind] = float(table[kind]) * (mf if kind in ["rare", "unique", "set"] else 1.0)
 		total += float(weights[kind])
 	var roll: float = randf() * total
 	for kind in weights:
 		roll -= float(weights[kind])
 		if roll < 0.0:
-			return item_of_kind(kind, level, DROPS["strong"]["window"])
+			return item_of_kind(kind, level, DROPS["strong"]["window"], Vector2i.ZERO, magic_find)
 	return item_of_kind("rare", level, RARE_WINDOW)
 
-## One item of a drop kind: "item" (DS2's "#", see ANY_ITEM), "magic1", "magic2", "normal", "rare", "unique" or "set". A unique or set
+## One item of a drop kind: "item" (DS2's "#"), "magic1", "magic2", "normal", "rare", "unique" or "set". A unique or set
 ## piece comes from its own wide window; when none is authored inside it, a rare drops instead.
-static func item_of_kind(kind: String, level: int, window: Vector2i, rarity_window: Vector2i = Vector2i.ZERO) -> Dictionary:
+static func item_of_kind(kind: String, level: int, window: Vector2i, rarity_window: Vector2i = Vector2i.ZERO, magic_find: float = 0.0) -> Dictionary:
 	if kind == "item":
-		var r: float = randf()
-		kind = "normal" if r < ANY_ITEM["normal"] else ("magic1" if r < ANY_ITEM["normal"] + ANY_ITEM["magic1"] else "magic2")
+		var count := ordinary_mod_count(randf(), magic_find)
+		kind = ["normal", "magic1", "magic2"][count]
 	if kind == "unique" or kind == "set":
 		var w: Vector2i = UNIQUE_WINDOW if kind == "unique" else SET_WINDOW
 		if rarity_window != Vector2i.ZERO: w = rarity_window

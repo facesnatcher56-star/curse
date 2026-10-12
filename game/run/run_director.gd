@@ -153,9 +153,9 @@ func drop_level_at(point: Vector3) -> int:
 		return WorldThreat.monster_level(arena_level(wave))
 	return WorldThreat.monster_level(location.threat_at(point) if location != null else WorldThreat.for_distance(0.0))
 
-## The human racial bonus plus gear, for the drop tables.
+## Curse-specific living deployed party average, never the currently selected member.
 func magic_find() -> float:
-	return player.stats.magic_find() if player != null else 0.0
+	return float(PartyManager.current().loot_bonuses().magic_find)
 
 ## Starts the job in an authored location: every group is already there, doing its own thing, so there is no wave and no timer.
 func start_location(place: CryptRoad) -> void:
@@ -355,7 +355,8 @@ func _process(delta: float) -> void:
 		_end_run(false)
 
 ## What a kill means to the quests: a named monster done (and a good item from it), or one of a kind being counted (and maybe a quest item).
-func _report_to_quests(actor: Actor) -> int:
+func _report_to_quests(actor: Actor, bonuses: Dictionary = {}) -> int:
+	if bonuses.is_empty(): bonuses = PartyManager.current().loot_bonuses()
 	var enemy := actor as Enemy
 	if enemy == null:
 		return 0
@@ -363,13 +364,13 @@ func _report_to_quests(actor: Actor) -> int:
 		var named_level: float = float(Monsters.find(int(enemy.get_meta("monster_uid"))).get("level", enemy.level_scale))   # its own, not the road's
 		var paid: Dictionary = Monsters.killed(int(enemy.get_meta("monster_uid")))
 		for i in int(paid.get("items", 0)):
-			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_reward(drop_level(named_level), Items.REWARD, magic_find()))
+			drop_item(enemy.global_position + Vector3(0.6 * i, 0, 0), Items.roll_reward(drop_level(named_level), Items.REWARD, bonuses.magic_find))
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return int(paid.get("xp", 0)) if enemy.hero_credited() else 0   # the bounty is paid regardless; the XP is for the hero's own kill
 	if enemy.has_meta("quest_uid"):
 		if Quests.report_unique_killed(int(enemy.get_meta("quest_uid"))):
-			drop_item(enemy.global_position, Items.roll_reward(enemy.level, Items.REWARD, magic_find()))   # a named monster always leaves something good
+			drop_item(enemy.global_position, Items.roll_reward(enemy.level, Items.REWARD, bonuses.magic_find))   # a named monster always leaves something good
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return 0
@@ -439,11 +440,14 @@ func xp_report() -> Dictionary:
 
 ## A dead monster may drop an item, by DS2's table for its tier (Items.roll_drop) at its level: it lands near the body and waits to be
 ## walked over. Most kills drop nothing.
-func _drop_loot(actor: Actor) -> void:
+func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null:
 		return
-	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, magic_find(), Quests.world_mult("drop_mult") if world_mode else 1.0)
+	if enemy.has_meta("loot_generated"): return
+	enemy.set_meta("loot_generated", true)
+	if bonuses.is_empty(): bonuses = PartyManager.current().loot_bonuses()
+	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, bonuses.magic_find, Quests.world_mult("drop_mult") if world_mode else 1.0, bonuses.gold_find)
 	if not loot.item.is_empty():
 		drop_item(enemy.global_position, loot.item)
 	for kind in ["gold", "health", "mana"]:
@@ -477,12 +481,15 @@ func _end_run(completed: bool, walked_out: bool = false) -> void:
 	LoadingScreen.go(get_tree(), "res://game/town.tscn")
 
 func _on_enemy_died(actor: Actor) -> void:
+	if actor.has_meta("death_rewarded"): return
+	actor.set_meta("death_rewarded", true)
+	var bonuses := PartyManager.current().loot_bonuses()
 	kills += 1
 	if world_mode:
-		var named_xp: int = _report_to_quests(actor)
+		var named_xp: int = _report_to_quests(actor, bonuses)
 		_pay_kill_xp(actor, named_xp)
 	player.on_enemy_killed(actor)
-	_drop_loot(actor)
+	_drop_loot(actor, bonuses)
 	await get_tree().process_frame
 	if location != null:
 		return   # an authored location has no waves: the job ends when the hero walks out through the gate

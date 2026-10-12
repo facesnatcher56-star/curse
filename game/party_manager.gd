@@ -73,6 +73,18 @@ func living() -> Array[Player]:
 		if is_instance_valid(body) and not body.dead: result.append(body)
 	return result
 
+## Owner-approved Curse rule, NOT verified DS2 aggregation: living deployed party average.
+func loot_bonuses() -> Dictionary:
+	var result := {"magic_find": 0.0, "gold_find": 0.0}
+	var deployed := living()
+	for body in deployed:
+		result.magic_find += body.stats.magic_find()
+		result.gold_find += body.stats.gear_stat("gold_find")
+	if not deployed.is_empty():
+		result.magic_find /= deployed.size()
+		result.gold_find /= deployed.size()
+	return result
+
 func controller_for(member_id: String) -> Dictionary:
 	for controller_id in subgroups:
 		if member_id in subgroups[controller_id]:

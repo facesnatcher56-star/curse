@@ -8,7 +8,11 @@ const TABLES := {
 	"strong": [0.515, 0.14, 0.04, 0.08, 0.048],
 }
 
-static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0) -> Dictionary:
+## Owner-approved Curse amount/rounding fallback; does not change outcome weights.
+static func gold_amount(base: float, gold_find: float) -> int:
+	return maxi(1, roundi(base * (1.0 + maxf(gold_find, 0.0) / 100.0)))
+
+static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0, gold_find: float = 0.0) -> Dictionary:
 	var out := {"gold": 0, "health": 0, "mana": 0, "item": {}}
 	if tier == "miniboss":
 		out.item = Items.roll_reward(level, Items.MINIBOSS, mf)
@@ -16,8 +20,8 @@ static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0) -
 	var key := "weak" if tier == "trivial" else tier
 	var weights: Array = TABLES.get(key, TABLES.normal).duplicate()
 	var equipment: Dictionary = Items.DROPS.get(key, Items.DROPS.normal)
-	for kind in ["item", "rare", "unique", "set"]: weights.append(equipment[kind])
-	for i in range(5, 9): weights[i] = float(weights[i]) * mult * (1.0 + maxf(mf, 0.0) / 100.0 if i >= 6 else 1.0)
+	var gear_weights := Items.rarity_weights({"item": equipment.item, "rare": equipment.rare, "unique": equipment.unique, "set": equipment.set}, mf, mult)
+	for kind in ["item", "rare", "unique", "set"]: weights.append(gear_weights[kind])
 	var total := 0.0
 	for weight in weights: total += float(weight)
 	var pick := randf() * total
@@ -30,7 +34,7 @@ static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0) -
 	if selected in [1, 2]:
 		var l := float(maxi(level, 1))
 		var curve := (0.1 * l * l + 2.6 * l + 1.0) if key == "weak" else ((0.267 * l * l + 6.9 * l + 2.67) if key == "strong" else (0.2 * l * l + 5.2 * l + 2.0))
-		out.gold = maxi(1, int(round(curve * randf_range(0.375, 0.625) if selected == 2 else curve * randf_range(0.093, 0.156))))
+		out.gold = gold_amount(curve * (randf_range(0.375, 0.625) if selected == 2 else randf_range(0.093, 0.156)), gold_find)
 	elif selected == 3: out.health = 1
 	elif selected == 4: out.mana = 1
 	elif selected >= 5:
@@ -39,5 +43,5 @@ static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0) -
 		if kind == "rare": window = Vector2i(-5, 1) if key == "weak" else (Vector2i(-3, 2) if key == "strong" else Vector2i(-4, 2))
 		var rarity_window := window if kind == "rare" else Vector2i.ZERO
 		if kind in ["unique", "set"]: rarity_window = Vector2i(-40 if kind == "unique" else -50, 2 if key == "weak" else 3)
-		out.item = Items.item_of_kind(kind, level, window, rarity_window)
+		out.item = Items.item_of_kind(kind, level, window, rarity_window, mf)
 	return out

@@ -225,4 +225,4 @@ func _drop_loot(stats: Dictionary) -> void:
 	if roll < float(stats["item"]):
 		var director: Node = get_tree().get_first_node_in_group("director")
 		if director != null and director.has_method("drop_item"):
-			director.drop_item(at, Items.item_of_kind("item", director.drop_level_at(at), Items.DROPS["normal"]["window"]))
+			director.drop_item(at, Items.item_of_kind(Items.container_item_kind(randf()), director.drop_level_at(at), Items.DROPS["normal"]["window"]))

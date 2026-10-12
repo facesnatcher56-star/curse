@@ -26,7 +26,7 @@ func _test_class_skills() -> void:
 		and absf(HeroAttributes.max_life(fresh) - 64.1) < 0.05 and absf(HeroAttributes.max_mana(fresh) - 55.05) < 0.5)
 	expect("the human's DS2 racial magic find is added to gear in actual loot rolls",
 		is_equal_approx(player.stats.magic_find(), 10.0 + player.stats.gear_stat("magic_find"))
-		and is_equal_approx(game.director.magic_find(), player.stats.magic_find()))
+		and is_equal_approx(game.director.magic_find(), float(PartyManager.current().loot_bonuses().magic_find)))
 	# The split.
 	TownState.add_hero_xp(1000, false, {"melee": 300.0, "combat": 100.0})
 	expect("XP is split over the class skills by the damage each did (750 Melee, 250 Combat Magic)", int(TownState.class_xp["melee"]) == 750
