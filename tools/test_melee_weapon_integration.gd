@@ -167,14 +167,24 @@ func _test_loot_generation() -> void:
 		_expect(drops_seen[id] > 0, "Loot generator rolled '%s' (%d drops rolled)" % [id, drops_seen[id]])
 
 	# Also verify item_of_kind generates valid items with affixes
+	var bow_def: ItemDef = ItemDb.get_def("short_bow")
+	_expect(bow_def != null and Items._affix_class(bow_def) == "ranger", "Short Bow resolves to ranger affix class")
+
 	for id in NEW_WEAPONS:
 		var def: ItemDef = ItemDb.get_def(id)
+		_expect(Items._affix_class(def) == "fighter", "'%s' resolves to fighter affix class" % id)
 		var magic: Dictionary = Items.build(def, 30, Items.Rarity.MAGIC, Items.roll_mods(def, 30, Items.Rarity.MAGIC))
 		var rare: Dictionary = Items.build(def, 30, Items.Rarity.RARE, Items.roll_mods(def, 30, Items.Rarity.RARE))
 		_expect(magic["mods"].size() >= 1 and magic["mods"].size() <= 2, "Magic '%s' has 1-2 affixes (%d)" % [id, magic["mods"].size()])
 		_expect(rare["mods"].size() >= 3 and rare["mods"].size() <= 4, "Rare '%s' has 3-4 affixes (%d)" % [id, rare["mods"].size()])
 		_expect(magic["name"] != "", "Magic '%s' generated formatted name: '%s'" % [id, magic["name"]])
 		_expect(rare["name"] != "", "Rare '%s' generated formatted name: '%s'" % [id, rare["name"]])
+		# Verify no ranged affixes on melee weapons
+		var no_ranged := true
+		for mod_id in (magic["mods"] + rare["mods"]):
+			if String(mod_id).begins_with("ranged_"):
+				no_ranged = false
+		_expect(no_ranged, "'%s' does not carry ranger-exclusive affixes" % id)
 
 func _test_save_load_roundtrip() -> void:
 	print("\n--- Test 7: Serialization Save/Load Roundtrip ---")
