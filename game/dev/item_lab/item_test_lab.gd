@@ -26,7 +26,10 @@ var _stance_overbear_check: CheckBox
 var _stance_barricade_check: CheckBox
 
 func _ready() -> void:
-	GameSettings.boot()
+	# The main game already booted settings before launching self-tests. Rebooting
+	# here would restore saved audio settings in the middle of a test fixture.
+	if not OS.get_cmdline_user_args().has("--selftest"):
+		GameSettings.boot()
 	# Enforce strictly developer-only isolation
 	SavePolicy.ensure_folder(SAVE_NAMESPACE + "town.json")
 	TownState.persist = false

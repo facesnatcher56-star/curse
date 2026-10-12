@@ -30,8 +30,6 @@ func _test_item_lab() -> void:
 	Sfx.enabled = false
 
 	game.add_child(lab)
-	# ItemTestLab._ready() boots saved settings and may re-enable effects.
-	Sfx.enabled = false
 	await get_tree().process_frame
 	await get_tree().physics_frame
 
