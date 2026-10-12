@@ -242,9 +242,6 @@ func _run_selftest() -> void:
 	print("  roll: moved ", snappedf(player.global_position.distance_to(before), 0.1), " m, invulnerable during=", roll_invuln,
 		", mask restored=", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY), ", rolling=", player.movement.rolling)
 
-	# Run the registered developer-lab suite in the combined full test pass as well.
-	await _run("_test_item_lab")
-
 	# (Death behaviour has its own check: _test_death_ragdoll.)
 
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]
