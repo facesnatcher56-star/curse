@@ -355,7 +355,7 @@ func _test_ds2_items() -> void:
 	stats.gear = {"life_steal": 5.0, "life_per_hit": 2.0, "mana_steal": 3.0, "mana_per_hit": 2.0}
 	player.health = 10.0
 	stats.mana = 0.0
-	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "damage": 100.0})
+	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "weapon_hit": true, "damage": 100.0})
 	expect("life steal and life per hit heal on a blow (10 + 2 + 5% of 100)", is_equal_approx(player.health, 17.0))
 	expect("mana steal and mana per hit restore mana (2 + 3% of 100)", is_equal_approx(stats.mana, 5.0))
 	for invalid_hit in [{"type": Combat.DamageType.FIRE, "damage": 100.0},
@@ -363,11 +363,11 @@ func _test_ds2_items() -> void:
 			{"type": Combat.DamageType.PHYSICAL, "damage": 100.0, "skill_id": "reflect"},
 			{"type": Combat.DamageType.PHYSICAL, "damage": 100.0, "outcome": Combat.Outcome.BLOCK}]:
 		player._steal_resources(invalid_hit)
-	expect("spells, zero-damage hits, reflection and blocks do not steal resources", is_equal_approx(stats.mana, 5.0) and is_equal_approx(player.health, 17.0))
-	player._steal_resources({"type": Combat.DamageType.RANGED, "damage": 100.0})
+	expect("unclassified fire, zero-damage hits, reflection and blocks do not steal resources", is_equal_approx(stats.mana, 5.0) and is_equal_approx(player.health, 17.0))
+	player._steal_resources({"type": Combat.DamageType.RANGED, "weapon_hit": true, "damage": 100.0})
 	expect("ranged weapon hits also return resources", is_equal_approx(stats.mana, 10.0) and is_equal_approx(player.health, 24.0))
 	stats.mana = stats.max_mana - 1.0
-	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "damage": 100.0})
+	player._steal_resources({"type": Combat.DamageType.PHYSICAL, "weapon_hit": true, "damage": 100.0})
 	expect("mana steal cannot exceed maximum mana", is_equal_approx(stats.mana, stats.max_mana))
 	target.queue_free()
 	stats.equipment = saved_equipment

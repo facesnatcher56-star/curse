@@ -235,6 +235,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var damage: float = result["damage"]
 	if ward_time > 0.0:
 		damage *= 1.0 - ward_reduction   # a plague ward soaks part of every blow
+	if damage <= 0.0 and outcome >= Combat.Outcome.HIT:
+		return
 	var weight: float = result.get("weight", 1.0)
 	var source: Actor = result.get("source")
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
@@ -327,6 +329,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	# Equipment reacts to every landed hit (including the one that killed).
 	if source is Player and source != self:
 		(source as Player).on_dealt_hit(self, result)
+	_on_received_hit(result)
 	if killed:
 		return
 	var push: float = 2.5
@@ -728,6 +731,10 @@ func _make_flames() -> Node3D:
 ## Overridable: lets equipment change an incoming hit (block it, reduce it) before it is applied.
 func _filter_incoming(result: Dictionary) -> Dictionary:
 	return result
+
+## Post-mitigation, overkill-clamped damage, including lethal hits. Not called for avoided/quiet ticks.
+func _on_received_hit(_result: Dictionary) -> void:
+	pass
 
 func _popup_tint() -> Color:
 	return Color(0, 0, 0, 0)

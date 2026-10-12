@@ -835,10 +835,9 @@ func on_party_damage(damage: float, skill_id: String = "") -> void:
 		if body.bow != null and (body != self or skill_id != "take_aim"):
 			body.bow.reload_remaining = maxf(body.bow.reload_remaining - maxf(damage, 0.0), 0.0)
 
-## DS2 rules.skrit: life/mana + flat bonus + steal% x actual damage dealt, on weapon hits, never spells/reflection.
+## DS2 rules.skrit 1730-1767: weapons and direct spells qualify; DoT/secondary events do not.
 func _steal_resources(result: Dictionary) -> void:
-	if dead or int(result.get("type", 0)) not in [Combat.DamageType.PHYSICAL, Combat.DamageType.RANGED] \
-			or String(result.get("skill_id", "")) == "reflect" or float(result.get("damage", 0.0)) <= 0.0 \
+	if dead or not Combat.restoration_eligible(result) or float(result.get("damage", 0.0)) <= 0.0 \
 			or int(result.get("outcome", Combat.Outcome.HIT)) < Combat.Outcome.HIT:
 		return
 	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
@@ -865,15 +864,15 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
 		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true, self, skill)
 
-## DS2's reflect (gear): a share of a monster's physical blow goes back to it.
-func _filter_incoming(result: Dictionary) -> Dictionary:
+## DS2 rules.skrit 1769-1818: melee/ranged weapon damage, no second armor roll or recursive effects.
+func _on_received_hit(result: Dictionary) -> void:
 	var source: Variant = result.get("source")
 	var share: float = stats.gear_stat("reflect") / 100.0
-	if share > 0.0 and source is Enemy and not (source as Enemy).dead and int(result.get("type", 0)) == Combat.DamageType.PHYSICAL \
-			and int(result.get("outcome", 0)) >= Combat.Outcome.HIT and not result.get("quiet", false):
-		(source as Enemy).receive({"outcome": Combat.Outcome.HIT, "damage": maxf(float(result["damage"]) * share, 1.0), "weight": 0.3,
-			"source": self, "type": Combat.DamageType.PHYSICAL, "calm": true, "secondary": true, "skill_id": "reflect"}, global_position)
-	return result
+	if share > 0.0 and is_instance_valid(source) and source is Actor and source != self and not source.dead \
+			and Combat.weapon_hit_eligible(result) and float(result.get("damage", 0.0)) > 0.0:
+		source.receive({"outcome": Combat.Outcome.HIT, "damage": float(result["damage"]) * share, "weight": 0.3,
+			"source": self, "origin": combat_identity(), "type": Combat.DamageType.PHYSICAL,
+			"calm": true, "secondary": true, "skill_id": "reflect"}, global_position)
 
 func on_enemy_killed(enemy: Actor) -> void:
 	pass # Loot belongs to the dead enemy's tier, not the active member's missing health.

@@ -9,6 +9,7 @@ extends DevSuite
 
 ## Every file a check or tool may live in; a check or tool name is unique across them.
 const SUITES := [
+	preload("res://game/dev/suites/equipment_hit_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
 	preload("res://game/dev/suites/inventory_tests.gd"),
@@ -121,6 +122,7 @@ func _clip_arg() -> String:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
+"equipmenthits": "_test_equipment_hits",
 "navigation": "_test_navigation",
 "theme": "_test_ornate_theme",
 "uiaudit": "_test_ui_audit",
@@ -172,6 +174,7 @@ func _run_selftest() -> void:
 	await _run("_test_roll_shove")
 	await _run("_test_fireball")
 	await _run("_test_items")
+	await _run("_test_equipment_hits")
 	await _run("_test_ui_block")
 	await _run("_test_hover_behind_camera")
 	await _run("_test_camera_rotation")

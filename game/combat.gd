@@ -10,6 +10,16 @@ enum DamageType { PHYSICAL, FIRE, RANGED }
 ## The most a hero's resistance can be (DS2 caps it at 80%).
 const RESIST_CAP := 0.8
 
+## Shared eligibility, not inferred from the active character or equipped weapon at impact.
+static func weapon_hit_eligible(result: Dictionary) -> bool:
+	return not result.get("secondary", false) and not result.get("quiet", false) \
+		and int(result.get("type", -1)) in [DamageType.PHYSICAL, DamageType.RANGED] \
+		and bool(result.get("weapon_hit", false))
+
+static func restoration_eligible(result: Dictionary) -> bool:
+	return weapon_hit_eligible(result) or (not result.get("secondary", false) and not result.get("quiet", false)
+		and String(result.get("skill_id", "")) == "fireball")
+
 ## Optional counters used by the self test.
 static var tally: Dictionary = {}
 
@@ -39,6 +49,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false,
 		allow_crit: bool = true, damage_multiplier: float = 1.0) -> Dictionary:
 	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "weight": weight, "source": attacker, "type": damage_type}
+	result["weapon_hit"] = damage_type in [DamageType.PHYSICAL, DamageType.RANGED]
 	result["origin"] = attacker.combat_identity() if is_instance_valid(attacker) else {}
 	if can_miss and randf() < defender.dodge_chance:
 		return _done(result, Outcome.MISS)
