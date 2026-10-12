@@ -48,8 +48,11 @@ func _test_basic_single_target_physics() -> void:
 	player.set_physics_process(true)
 	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"), false)
 
-## A click attacks once; nothing keeps attacking afterwards, and skills drop the attack order.
+## One explicit engagement repeats, retargets actual attackers, and obeys cancellation.
 func _test_auto_attack() -> void:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	await get_tree().physics_frame
 	player.global_position = Vector3.ZERO
 	player.reset_physics_interpolation()
 	player.stats.mana = player.stats.max_mana
@@ -59,7 +62,7 @@ func _test_auto_attack() -> void:
 	dummy.max_health = 5000.0
 	dummy.health = 5000.0
 	await get_tree().physics_frame
-	# 1. Order an attack with the mouse NOT held: it should walk up and swing exactly once.
+	# 1. Order an attack with the mouse NOT held: approach and repeat.
 	player.attack_target = dummy
 	player.click_mode = 1
 	var swings: int = 0
@@ -72,6 +75,10 @@ func _test_auto_attack() -> void:
 		if player.skills.busy and not was_busy and player.skills.busy_skill == "basic":
 			swings += 1
 		was_busy = player.skills.busy
+	var retained_order: bool = player.attack_target == dummy
+	player.attack_target = null
+	player.skills.cancel_action()
+	player.movement.has_goal = false
 	var idle_after: bool = not player.skills.busy and player.attack_target == null
 	# 2. Standing idle with an enemy nearby must not turn the hero or start anything.
 	var yaw_before: float = player.visual.rotation.y
@@ -86,12 +93,35 @@ func _test_auto_attack() -> void:
 	var cleared_by_skill: bool = player.attack_target == null
 	await get_tree().create_timer(2.0).timeout
 	var swings_after_skill: bool = player.skills.busy and player.skills.busy_skill == "basic"
-	expect("click attacks exactly once", swings == 1)
-	expect("hero idles after a single click", idle_after)
+	expect("one click repeats basic attacks without holding input", swings >= 2 and retained_order)
+	expect("explicit cancellation clears engagement", idle_after)
 	expect("hero does not swing or turn with no input", not busy_during_idle and absf(yaw_drift) < 0.02)
 	expect("a skill clears the attack order", cleared_by_skill)
 	expect("no swinging resumes after a skill", not swings_after_skill)
-	print("  auto-attack: one click -> swings=", swings, " (expected 1), idle afterwards=", idle_after, ", idle with enemy near: busy=", busy_during_idle,
+	# Actual enemy targeting, not proximity or the globally selected member, controls continuation.
+	dummy.set_physics_process(false)
+	dummy.target = null
+	var attacker: Enemy = _spawn_enemy(player.global_position + Vector3(4, 0, 0))
+	attacker.target = player
+	attacker.wake()
+	attacker.set_physics_process(false)
+	var other: Enemy = _spawn_enemy(player.global_position + Vector3(2, 0, 0))
+	other.target = player
+	other.wake()
+	other.set_physics_process(false)
+	expect("continuation chooses nearest actual attacker", player._nearest_attacker() == other)
+	other.target = null
+	expect("nearer enemies attacking someone else are excluded", player._nearest_attacker() == attacker)
+	player.attack_target = dummy
+	dummy.dead = true
+	player._act(0.0, Vector3.ZERO)
+	expect("dead target automatically hands off to attacker", player.attack_target == attacker)
+	player.attack_target = null
+	player.skills.cancel_action()
+	player.movement.has_goal = false
+	attacker.queue_free()
+	other.queue_free()
+	print("  auto-attack: one click -> swings=", swings, " (expected repeated), idle after cancellation=", idle_after, ", idle with enemy near: busy=", busy_during_idle,
 		" turned ", snappedf(rad_to_deg(yaw_drift), 0.1), " deg, skill clears attack order=", cleared_by_skill, ", resumed swinging after skill=", swings_after_skill)
 	dummy.queue_free()
 	await get_tree().process_frame

@@ -5,6 +5,7 @@ extends Control
 ## levels is one event; awards landing while the plate is still up are folded into it, not stacked). Drawn in code like the rest of the HUD.
 
 const TOAST_SECONDS := 3.2
+const CLASS_NOTICE_SECONDS := 5.0 # Previously 2 seconds; owner requested three extra.
 const TOAST_IN := 0.22
 const TOAST_OUT := 0.7
 const STRIP_HEIGHT := 18.0
@@ -31,7 +32,7 @@ func _ready() -> void:
 	if not TownState.events.hero_leveled.is_connected(_on_hero_leveled):
 		TownState.events.hero_leveled.connect(_on_hero_leveled)
 		TownState.events.hero_xp_changed.connect(_on_xp_changed)
-		TownState.events.class_skills_leveled.connect(_on_class_skills_leveled)
+		TownState.events.member_class_skills_leveled.connect(_on_class_skills_leveled)
 		_connected = true
 
 func _exit_tree() -> void:
@@ -40,20 +41,21 @@ func _exit_tree() -> void:
 			TownState.events.hero_leveled.disconnect(_on_hero_leveled)
 		if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 			TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
-		if TownState.events.class_skills_leveled.is_connected(_on_class_skills_leveled):
-			TownState.events.class_skills_leveled.disconnect(_on_class_skills_leveled)
+		if TownState.events.member_class_skills_leveled.is_connected(_on_class_skills_leveled):
+			TownState.events.member_class_skills_leveled.disconnect(_on_class_skills_leveled)
 		_connected = false
 
-func _on_class_skills_leveled(levels: Dictionary) -> void:
-	if _hud == null or not is_instance_valid(_hud.player) or _hud.player.dead:
+## Discipline feedback follows the earner, never whichever member is selected.
+func _on_class_skills_leveled(member_id: String, levels: Dictionary) -> void:
+	var body := PartyManager.current().bodies.get(member_id) as Player
+	if _hud == null or not is_instance_valid(body) or body.dead:
 		return
 	var lines: PackedStringArray = []
 	for id in HeroAttributes.CLASSES:
 		if levels.has(id):
 			lines.append("%s increased to %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
 	if not lines.is_empty():
-		var hero: Player = _hud.player
-		Fx.text_at(hero, hero.global_position + Vector3(0, hero.body_height + 0.6, 0), "\n".join(lines), UiTheme.BRONZE_LIGHT, 32, 2.0)
+		Fx.text_at(body, body.global_position + Vector3(0, body.body_height + 0.6, 0), "\n".join(lines), UiTheme.BRONZE_LIGHT, 32, CLASS_NOTICE_SECONDS)
 
 func _on_xp_changed(old_xp: int, new_xp: int) -> void:
 	if new_xp > old_xp:
@@ -142,7 +144,10 @@ func _draw_toast(size_px: Vector2, font: Font) -> void:
 	var slide: float = (1.0 - clampf(age / TOAST_IN, 0.0, 1.0)) * -12.0
 	var lines: int = 1 if toast_levels > 1 else 0
 	var width: float = 240.0
-	var plate := Rect2(Vector2((size_px.x - width) * 0.5, 62.0 + slide), Vector2(width, 54.0 + 22.0 * lines))   # below the target bar
+	var target_bottom := 80.0
+	if _hud.use_ds2_ui and is_instance_valid(_hud.ds2_target_banner) and _hud.ds2_target_banner.visible:
+		target_bottom = _hud.ds2_target_banner.get_global_rect().end.y + 12.0
+	var plate := Rect2(Vector2((size_px.x - width) * 0.5, target_bottom + slide), Vector2(width, 54.0 + 22.0 * lines))
 	UiTheme.draw_panel(self, plate, 0.9 * fade, false)
 	var spread: float = clampf(age / 0.35, 0.0, 1.0)   # the ember line draws out from the middle
 	var line_w: float = (plate.size.x - 48.0) * spread

@@ -22,7 +22,11 @@ var combat_timer: float = 0.0
 var message: String = ""
 var message_time: float = 0.0
 var hurt_flash: float = 0.0
-var attack_target: Actor
+var _attack_engaged: bool = false
+var attack_target: Actor:
+	set(value):
+		attack_target = value
+		_attack_engaged = is_instance_valid(value)
 var pickup_target: LootDrop   # an item the hero was sent to take (click it, or its name): nothing is picked up by walking over it
 var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
 var hover_target: Actor  # enemy under the mouse cursor, for the health bar and highlight ring
@@ -558,8 +562,8 @@ func _read_input(cursor: Vector3) -> void:
 				movement.goal = Nav.snap(self, cursor)  # clicking inside a pillar goes to the nearest reachable spot
 				movement.has_goal = true
 			1:
-				if attack_target == null or attack_target.dead:
-					attack_target = enemy_near(cursor, 3.0)
+				if not is_instance_valid(attack_target) or attack_target.dead:
+					attack_target = _nearest_attacker() if _attack_engaged else null
 					if attack_target == null:
 						click_mode = 0
 			2:
@@ -736,6 +740,9 @@ func revive_at(pos: Vector3) -> void:
 # --- Acting ------------------------------------------------------------------
 
 func _act(delta: float, cursor: Vector3) -> void:
+	if _attack_engaged and (not is_instance_valid(attack_target) or attack_target.dead):
+		attack_target = _nearest_attacker()
+		movement.has_goal = false
 	var ctrl: bool = Input.is_action_pressed("stand_still")
 	if attack_prop != null:
 		if not is_instance_valid(attack_prop) or attack_prop.broken:
@@ -794,6 +801,21 @@ func _act(delta: float, cursor: Vector3) -> void:
 		move_with(Vector3.ZERO)
 		return
 	movement.move(delta)
+
+## Continue an explicit engagement only against enemies attacking this member.
+## Target identity belongs to the body, never whichever member is selected globally.
+func _nearest_attacker() -> Enemy:
+	var nearest: Enemy = null
+	var nearest_distance: float = INF
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or not enemy.is_aggro() or enemy.target != self:
+			continue
+		var distance: float = flat_distance_to(enemy)
+		if distance < nearest_distance:
+			nearest = enemy
+			nearest_distance = distance
+	return nearest
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	var outcome: int = result.get("outcome", 0)

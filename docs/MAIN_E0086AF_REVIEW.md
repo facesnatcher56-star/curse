@@ -99,3 +99,10 @@ verification; resolve/characterize intermittent renderer error and engine startu
 crash; complete visible full-road combat traversal at both target resolutions,
 varied seeds, equip found upgrades, and complete UI interaction acceptance.
 No networking, new combat architecture or expanded content was implemented.
+
+Follow-up: pushed fix commit 702190492e263a9f869139d0ae53e883fea19500.
+Actions run 38248434528 completed with one failed assertion, `roll shoves
+non-bosses aside` (attacker displacement printed 0.3 m against a strict >0.3 m
+check). The original invalid-property/four assertions did not recur. This new
+result is not a CI pass; the roll issue has not been fixed or weakened during
+the subsequent target-HUD presentation task.

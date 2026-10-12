@@ -1,5 +1,17 @@
 # Combat reference and decision rule
 
+Explicit engagement (2026-10-12, owner request): clicking an enemy now retains
+the basic attack order after button release. When that target dies or is freed,
+the common character selects the nearest living, aggro enemy whose target is
+that exact character. Idle enemies and enemies targeting another member are
+excluded; with no eligible attacker the order ends. Existing move, dodge, loot,
+replacement-skill and control-handoff cancellation remain in place. This uses
+DS2's documented real-time auto-attack baseline; the exact retarget filter is
+the owner's requested behavior, not a claim about DS2's hidden engine rules.
+Focused `autoattack` and `dodgecancel` assertions passed locally. Autoattack
+reported exit-time resource warnings; visible road and bow/switch integration
+are not yet verified for this change. Production saves were not modified.
+
 Gate filler correction (2026-10-11): the earliest all-zombie packs come from `_fill_gaps`, NOT the authored Waystation.
 Road In filler now spawns one body per member (two or three total), with DS2's `evil_dryad_npc_01_stats` tutorial
 fighter overrides: level 0, weak tier, 12 life, 2–3 damage, 8 defense. These are per-spawn overrides; the generic zombie

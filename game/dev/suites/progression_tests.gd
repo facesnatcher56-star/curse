@@ -24,12 +24,23 @@ func _test_class_notice() -> void:
 		var path: String = OS.get_environment("TEMP").path_join("curse_class_notice.png")
 		get_viewport().get_texture().get_image().save_png(path)
 		print("CLASS_NOTICE_CAPTURE ", path)
-	await get_tree().create_timer(1.3).timeout
-	expect("class text fades", is_instance_valid(label) and label.modulate.a < 1.0)
+	await get_tree().create_timer(2.2).timeout
+	expect("class notice remains readable beyond its former two-second lifetime", is_instance_valid(label) and label.modulate.a > 0.99)
 	await get_tree().create_timer(1.0).timeout
+	expect("class text fades", is_instance_valid(label) and label.modulate.a < 1.0)
+	await get_tree().create_timer(2.0).timeout
 	expect("class text cleans itself up", not is_instance_valid(label))
 	TownState.reset()
 	expect("reset does not celebrate a class increase", seen.size() == 1)
+	var cutter := PartyManager.current().bodies.get("cutter") as Player
+	if cutter != null:
+		TownState.add_member_xp("cutter", 300, false, {"ranged": 1})
+		var cutter_notices := 0
+		for node in get_tree().current_scene.get_children():
+			if node is Label3D and node.text == "Ranged increased to 1":
+				cutter_notices += 1
+				expect("inactive member's class notice appears above its earner", Vector2(node.global_position.x - cutter.global_position.x, node.global_position.z - cutter.global_position.z).length() < 0.01)
+		expect("inactive member gets one notice without duplicating Hero's legacy event", cutter_notices == 1 and seen.size() == 1)
 	TownState.class_xp = {"melee": 299, "ranged": 299, "combat": 299, "nature": 299}
 	TownState.add_hero_xp(4, false, {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})
 	expect("simultaneous increases combine all four classes into one event", seen.size() == 2 and seen[-1] == {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})

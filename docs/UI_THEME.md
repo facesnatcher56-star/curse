@@ -71,3 +71,40 @@ and captures item, skill and hotbar tooltips at every resolution/scale combinati
 Town tracker/help draws behind combat tooltips so text cannot overlay their contents.
 Every future visual change must repeat this capture-and-inspect workflow and related
 interaction tests, as required by CLAUDE.md; record any untested cases explicitly.
+
+### Enemy target readability and discipline notice — 2026-10-12
+
+Owner-approved presentation mapping: ordinary enemies remain cream/red, strong
+tier is blue, named/quest enemies and minibosses gold, boss flag red-orange. HP
+and level alone never imply special status. Target plaque grows from 400×44 to
+480×68, with 20-pixel heading, 18-pixel HP and 17-pixel level text, outlined
+numbers, separate level/HP columns, and minimum physical-pixel sizing. Shared
+formatting rounds both HP values upward and clamps current display to maximum.
+Overhead enemy bars are wider/thicker and share status colors. No combat stats,
+enemy names, spawns, or progression formulas change.
+
+Target presentation fits between party cards and the opposite objective region;
+paused menus hide it rather than exposing a half-covered name behind their crest.
+The character-level toast sits below the target plaque. Discipline feedback
+(`Melee increased to …`, etc.) now lasts five seconds, up from two, and follows
+the existing member-aware event to appear above the earner, including Cutter,
+not whichever member is selected. Character-level toast timing is unchanged.
+
+Executed: classnotice (headless and visible; headless also checks inactive Cutter
+attribution), uiaudit, padtarget and padmenus passed. The actual-road
+`target_hud_check.gd` captures ordinary/strong/unique/boss and inventory states
+at all four supported resolutions × scales 0.5/1/1.5. It asserts fractional HP,
+status precedence, no HP/level-based promotion, name/HP fit, minimum numeric
+size, and non-intercepting/menu-hidden target decoration. Captures were reviewed
+iteratively; low-scale sizing and menu overlap were corrected after inspection.
+
+The broader visible theme run completed all screen/hover/tooltip/focus cases,
+but FAILED three physical-monitor-fit assertions: this session exposes only one
+1080p display. 1440p images are rendered captures, NOT verified native 1440p
+monitor viewing; monitor-two verification is unavailable in this session.
+Not every broader theme capture was personally re-reviewed: changed target/HUD
+states and selected surrounding menus were reviewed, not a full independent UI
+recertification. Existing intro-log overlap at 720p/1.5, small-scale texture/text
+softness, exit ObjectDB warnings and the separate Linux roll-shove assertion
+remain acceptance gaps. No production save was used or written. Not player-test
+readiness certification; these changes remain local until separately committed.

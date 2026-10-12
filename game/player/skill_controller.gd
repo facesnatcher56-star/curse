@@ -488,9 +488,9 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 	p.combat_timer = 5.0
 	p.movement.has_goal = false
 	p.face(busy_aim)
-	# A click attacks once; the hero only keeps swinging while the attack button is held. Any other skill
-	# replaces the attack order, so the hero never starts auto-attacking again once the skill ends.
-	if id != "basic" or not (Input.is_action_pressed("click") or Input.is_action_pressed("alt_skill")):
+	# Basic attacks retain the explicit engagement after button release. Replacement
+	# skills still cancel that order; movement/dodge/loot cancellation lives with input.
+	if id != "basic":
 		p.attack_target = null
 	_release_started = false
 	_style_trail(id)
