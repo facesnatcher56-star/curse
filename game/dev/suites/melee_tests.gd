@@ -176,47 +176,99 @@ func _test_impact() -> void:
 
 ## Roll: immune for the whole roll, shoves non-boss enemies sideways and interrupts them; bosses stay put.
 func _test_roll_shove() -> void:
-	player.global_position = Vector3(20, 0, 20)
+	# The old (20,20) fixture put BOTH zombies inside arena scenery. Recovery
+	# moved them before the roll and could pin the attacker during its shove.
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var old_rate := Engine.physics_ticks_per_second
+	for rate in [30, 60, 120]:
+		Engine.physics_ticks_per_second = rate
+		await _roll_shove_case(rate)
+	Engine.physics_ticks_per_second = old_rate
+
+func _roll_shove_case(rate: int) -> void:
+	var origin := _clear_lane(9.0, 7.0)
+	expect("roll fixture has a world-clear corridor", origin != Vector3.ZERO)
+	var review := OS.get_cmdline_user_args().has("--rollreview") and DisplayServer.get_name() != "headless" and rate == 60
+	if review:
+		rig.set_process(false)
+		rig.camera.global_position = origin + Vector3(4, 5, 8)
+		rig.camera.look_at(origin + Vector3(2, 0, 0))
+	player.skills.cancel_action()
+	player.skills.clear_queue()
+	player.attack_target = null
+	player.movement.has_goal = false
+	player.knock = Vector3.ZERO
+	player.stats.cooldowns.erase("dodge")
+	player.global_position = origin
 	player.reset_physics_interpolation()
+	await get_tree().physics_frame
+	# In shove range, but outside physical contact: immunity is not immunity to
+	# ordinary collision recovery. Do not teleport an oversized body into others.
+	var boss: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, 2.0), "brute")
+	boss.is_boss = true
+	boss.global_position.z = player.global_position.z + player.body_radius + boss.body_radius + 0.35
+	boss.aggro_range = 0.0
+	boss.idle_mode = ""
+	await get_tree().physics_frame
 	await get_tree().process_frame
+	var boss_start := boss.global_position
+	player.movement.roll_dir = Vector3.RIGHT
+	player.movement.shoved.clear()
+	player.movement.shove_enemies(1.0 / rate)
+	expect("boss in shove range ignores displacement and interruption", boss.global_position == boss_start and boss.stun_time == 0.0 and not player.movement.shoved.has(boss.get_instance_id()))
 	var near: Enemy = _spawn_enemy(player.global_position + Vector3(1.4, 0, 0.1))
 	var attacker: Enemy = _spawn_enemy(player.global_position + Vector3(2.4, 0, -0.1))
-	# The boss stands off to the side of the other two so zombies being shoved cannot bump it.
-	var boss: Enemy = _spawn_enemy(player.global_position + Vector3(2.0, 0, 6.0), "brute")
-	boss.is_boss = true
-	for e in [near, attacker, boss]:
+	for e in [near, attacker]:
 		e.aggro_range = 0.0
+		e.idle_mode = ""
+	await get_tree().physics_frame
 	await get_tree().process_frame
+	expect("roll fixture bodies do not recover from initial overlaps", near.global_position.distance_to(origin + Vector3(1.4, 0, 0.1)) < 0.01 and attacker.global_position.distance_to(origin + Vector3(2.4, 0, -0.1)) < 0.01)
 	# Put one zombie mid-attack so we can see it get interrupted.
 	attacker._attacking = true
 	attacker.model.manual("attack")
-	var start: Vector3 = player.global_position
+	if review: await _roll_review_capture("before")
 	var near_start: Vector3 = near.global_position
 	var attacker_start: Vector3 = attacker.global_position
-	var boss_start: Vector3 = boss.global_position
 	player.stats.stamina = player.stats.max_stamina
 	player.movement.try_roll(player.global_position + Vector3(8, 0, 0))
+	expect("roll starts immediately and only collides with world", player.movement.rolling and player.collision_mask == Actor.LAYER_WORLD)
 	var immune_late: bool = false
-	boss.global_position = player.global_position + Vector3(2.4, 0, 0.9)  # inside the roll corridor
-	boss_start = boss.global_position
-	for i in 40:
+	var interrupted_during_roll := false
+	for i in ceili(rate * (PlayerMovement.ROLL_TIME + 0.4)):
 		await get_tree().physics_frame
+		if review and i == 12: await _roll_review_capture("during")
+		interrupted_during_roll = interrupted_during_roll or (player.movement.rolling and not attacker._attacking and attacker.stun_time > 0.0)
 		if player.movement.rolling and player.movement.roll_t > ROLL_CHECK_TIME and player.invulnerable_time > 0.0:
 			immune_late = true
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().process_frame
 	var lateral_near: float = absf(near.global_position.z - near_start.z)
 	var lateral_attacker: float = absf(attacker.global_position.z - attacker_start.z)
 	var boss_moved: float = boss.global_position.distance_to(boss_start)
 	expect("roll shoves non-bosses aside", lateral_near > 0.3 and lateral_attacker > 0.3)
-	expect("roll interrupts an attacker", not attacker._attacking)
+	expect("roll actually contacts both eligible enemies", player.movement.shoved.has(near.get_instance_id()) and player.movement.shoved.has(attacker.get_instance_id()))
+	expect("roll interrupts an attacker during the roll", interrupted_during_roll)
+	expect("roll leaves boss stationary and unstunned", boss_moved < 0.01 and boss.stun_time == 0.0)
+	expect("roll restores normal collision", not player.movement.rolling and player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY))
 	expect("roll is immune late in the roll", immune_late)
-	print("  roll shove: near moved sideways ", snappedf(lateral_near, 0.1), " m, attacker ", snappedf(lateral_attacker, 0.1),
+	if review:
+		await _roll_review_capture("after")
+		rig.set_process(true)
+	print("  roll shove at ", rate, " Hz: near moved sideways ", lateral_near, " m, attacker ", lateral_attacker,
 		" m (interrupted=", not attacker._attacking, "), boss displaced ", snappedf(boss_moved, 0.1), " m, immune late in roll=", immune_late)
 	for e in [near, attacker, boss]:
 		e.queue_free()
 	player.global_position = Vector3.ZERO
 	player.reset_physics_interpolation()
 	await get_tree().process_frame
+
+func _roll_review_capture(stage: String) -> void:
+	await RenderingServer.frame_post_draw
+	var path := OS.get_environment("TEMP").path_join("curse_roll_" + stage + ".png")
+	expect("roll review screenshot saved", get_viewport().get_texture().get_image().save_png(path) == OK)
+	print("ROLL_REVIEW ", path)
 
 const ROLL_CHECK_TIME := 0.4
 

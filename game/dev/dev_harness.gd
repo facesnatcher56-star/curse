@@ -123,6 +123,7 @@ func _clip_arg() -> String:
 
 ## `--only=NAME` runs a single check, so a change can be verified without the whole suite.
 const ONLY_TESTS := {
+"rollshove": "_test_roll_shove",
 "find": "_test_find",
 "equipmenthits": "_test_equipment_hits",
 "navigation": "_test_navigation",
