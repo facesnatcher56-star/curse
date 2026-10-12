@@ -331,6 +331,67 @@ func _test_ui_block() -> void:
 	expect("the player treats the minimap as interface, not world", player.mouse_over_ui(minimap_point) and not player.mouse_over_ui(open_point))
 	enemy.queue_free()
 	await get_tree().process_frame
+	# Regular Godot controls are not necessarily in the HUD's custom covers() group.
+	# A button that hides on press exercises the click-through race where it vanishes
+	# before Player's next physics tick.
+	var layer := CanvasLayer.new()
+	layer.layer = 90
+	game.add_child(layer)
+	var button := Button.new()
+	button.text = "Close on press"
+	button.position = Vector2(32.0, 32.0)
+	button.size = Vector2(180.0, 48.0)
+	button.button_down.connect(func() -> void: button.hide())
+	layer.add_child(button)
+	await get_tree().process_frame
+	var pointer: Vector2 = button.get_global_rect().get_center()
+	var motion := InputEventMouseMotion.new()
+	motion.position = pointer
+	get_viewport().push_input(motion, true)
+	await get_tree().process_frame
+	Gamepad.active = false
+	expect("a regular interactive Control is recognized as UI", get_viewport().gui_get_hovered_control() == button and player.mouse_over_ui())
+	player.cursor_override = Vector3(0.0, 0.0, -6.0)
+	player.attack_target = null
+	player.movement.has_goal = false
+	var idle_press := InputEventMouseButton.new()
+	idle_press.button_index = MOUSE_BUTTON_LEFT
+	idle_press.position = pointer
+	idle_press.pressed = true
+	get_viewport().push_input(idle_press, true)
+	await get_tree().physics_frame
+	expect("a UI button click while idle does not create a world movement order", not player.movement.has_goal and player.attack_target == null)
+	var idle_release := idle_press.duplicate() as InputEventMouseButton
+	idle_release.pressed = false
+	get_viewport().push_input(idle_release, true)
+	button.show()
+	var motion_again := InputEventMouseMotion.new()
+	motion_again.position = pointer
+	get_viewport().push_input(motion_again, true)
+	await get_tree().process_frame
+	var target: Enemy = _spawn_enemy(player.global_position + Vector3(4.0, 0.0, 0.0))
+	target.aggro_range = 0.0
+	await get_tree().physics_frame
+	player.attack_target = target
+	player.skills.start_skill("basic", target)
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.position = pointer
+	press.pressed = true
+	get_viewport().push_input(press, true)
+	await get_tree().physics_frame
+	expect("a UI button that closes on press does not cancel combat or issue world movement",
+		not button.visible and player.skills.busy and player.attack_target == target and not player.movement.has_goal)
+	var release := press.duplicate() as InputEventMouseButton
+	release.pressed = false
+	get_viewport().push_input(release, true)
+	await get_tree().physics_frame
+	player.skills.cancel_action()
+	player.attack_target = null
+	target.queue_free()
+	layer.queue_free()
+	player.cursor_override = Vector3.INF
+	await get_tree().process_frame
 
 ## An enemy behind the camera must never be picked: Camera3D.unproject_position mirrors such points back onto the screen, so one
 ## standing behind the view used to be "under" the cursor (highlighted and chased on click) while nothing visible was there.

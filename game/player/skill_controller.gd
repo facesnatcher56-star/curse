@@ -56,10 +56,9 @@ var _aim_line: MeshInstance3D
 var _highlighted: Array[Actor] = []
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
-	var kind: String = String(busy_def.get("kind", ""))
-	if kind != "melee":
-		return false
-	return busy_skill == "basic" or busy_hit_done
+	# Ground movement always supersedes the actor-side action. A launched projectile
+	# is scene-owned and remains committed, but wind-ups and recovery are abandoned.
+	return busy
 
 ## Hotkeys are read every frame, whatever the hero is doing, and cancel the current animation:
 ##  - the potion drinks at once (even while stunned);
@@ -120,28 +119,34 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 
 ## Aborts the current swing, cast or charge immediately.
 func cancel_action() -> void:
-	if p.bow != null and String(busy_def.get("kind", "")) == "ranged": p.bow.cancel()
+	var was_busy: bool = busy
 	cancel_take_aim_targeting()
 	clear_queue()
-	if not busy:
+	if not was_busy:
 		return
 	_refund_unreleased_cast()
 	if bool(busy_def.get("charged", false)):
 		drop_orb()
+	if p.bow != null and String(busy_def.get("kind", "")) == "ranged":
+		p.bow.cancel()
 	busy = false
-	busy_hit_done = true
+	busy_hit_done = false
 	queued_skill = ""
 	queued_target = null
-	if p._trail != null:
-		p._trail.active = false
-	if p.visual != null:
-		p.visual.rotation.x = 0.0
-	p.model.loop("idle_alert")
 	busy_skill = ""
 	busy_def = {}
 	busy_target = null
 	busy_t = 0.0
+	busy_time = 0.0
+	busy_aim = Vector3.ZERO
 	_release_started = false
+	_mana_spent = 0.0
+	if p._trail != null:
+		p._trail.active = false
+	if p.visual != null:
+		p.visual.rotation.x = 0.0
+	if p.model != null and p.stun_time <= 0.0 and not p.knockdown.active():
+		p.model.loop("idle_alert")
 
 ## What the skill under way cost (Fireball's cost grows with INT, so the refund is what was taken, not the data's number).
 var _mana_spent: float = 0.0
