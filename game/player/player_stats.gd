@@ -240,6 +240,22 @@ func use_potion() -> bool:
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 
+func use_mana_potion() -> bool:
+	if TownState.mana_potions <= 0:
+		p._say("No mana potions left")
+		return false
+	if mana >= max_mana:
+		p._say("Already at full mana")
+		return false
+	if float(cooldowns.get("mana_potion", 0.0)) > 0.0:
+		p._say("Mana potion not ready")
+		return false
+	TownState.mana_potions -= 1
+	cooldowns["mana_potion"] = float(SkillDb.all()["potion"]["cd"])
+	mana = minf(mana + 60.0, max_mana)
+	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60 mana", Color(0.4, 0.65, 1.0), 40)
+	return true
+
 ## The wielded weapon's own blow (its base's DS2 curve at its item level, ItemDef.stats_at) plus the gear's minimum and maximum melee
 ## damage. Bare hands are a level 1 one-handed blow.
 func weapon_base_range() -> Vector2:
@@ -443,7 +459,13 @@ func collect_orbs() -> void:
 	for node in p.get_tree().get_nodes_in_group("orbs"):
 		var orb := node as Node3D
 		if orb != null and orb.global_position.distance_to(p.global_position + Vector3(0, 0.6, 0)) < 1.3:
-			if bool(orb.get("is_potion")):
+			if orb is HealthOrb and (orb as HealthOrb).gold_amount > 0:
+				TownState.gold += (orb as HealthOrb).gold_amount
+				Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+%d gold" % (orb as HealthOrb).gold_amount, Color.GOLD, 40)
+			elif orb is HealthOrb and (orb as HealthOrb).is_mana:
+				TownState.mana_potions += 1
+				Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+1 mana potion", Color(0.4, 0.65, 1.0), 40)
+			elif bool(orb.get("is_potion")):
 				potions = mini(potions + 1, MAX_POTIONS)
 				Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+1 potion", Color(1.0, 0.45, 0.4), 40)
 			else:

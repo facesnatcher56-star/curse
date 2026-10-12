@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+[ext_resource type="Script" path="res://game/data/enemy_def.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "rock_thrower"
+display_name = "Rock Thrower"
+model_path = "res://assets/models/spitter"
+height = 1.7
+radius = 0.4
+clips = Array[String](["idle", "walk", "run", "hit", "death", "throw", "stagger"])
+tier = "weak"
+role = "ranged"
+speed = 3.0
+behavior = "rock_thrower"
+params = {"preferred": 8.0, "min_dist": 5.0, "fire_range": 13.0, "windup": 0.75, "cooldown_min": 2.4, "cooldown_max": 3.6}

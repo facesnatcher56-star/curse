@@ -20,6 +20,7 @@ static func save_path() -> String:
 static var gold: int = 40
 static var food: int = 12
 static var potions: int = 3
+static var mana_potions: int = 0
 static var jobs_done: int = 0
 static var orientation_seen: bool = false
 static var vendor_gold: int = 150
@@ -90,6 +91,7 @@ static func reset() -> void:
 	gold = 40
 	food = 12
 	potions = 3
+	mana_potions = 0
 	jobs_done = 0
 	orientation_seen = false
 	vendor_gold = 150
@@ -600,7 +602,7 @@ static func _progress_result(old_xp: int, new_xp: int) -> Dictionary:
 # --- Saving --------------------------------------------------------------------------------------------------------------
 
 static func to_dict() -> Dictionary:
-	return {"save_version": SAVE_VERSION, "gold": gold, "food": food, "potions": potions, "jobs_done": jobs_done,
+	return {"save_version": SAVE_VERSION, "gold": gold, "food": food, "potions": potions, "mana_potions": mana_potions, "jobs_done": jobs_done,
 		"orientation_seen": orientation_seen,
 		"vendor_gold": vendor_gold, "smith_gold": smith_gold, "smith_stock": _stock_to_save(smith_stock), "gear": _gear_to_save(),
 		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
@@ -706,6 +708,7 @@ static func from_dict(data: Dictionary) -> void:
 	gold = int(data.get("gold", 40))
 	food = int(data.get("food", 12))
 	potions = int(data.get("potions", 3))
+	mana_potions = maxi(int(data.get("mana_potions", 0)), 0)
 	jobs_done = int(data.get("jobs_done", 0))
 	orientation_seen = bool(data.get("orientation_seen", jobs_done > 0))
 	vendor_gold = int(data.get("vendor_gold", 150))

@@ -111,7 +111,7 @@ func _physics_process(delta: float) -> void:
 
 	match current_stage:
 		Stage.DORMANT:
-			if player != null and player.global_position.z <= FORECOURT_ENTRY_Z:
+			if player != null and road != null and player.global_position.z <= road.at(0, FORECOURT_ENTRY_Z).z:
 				activate_opening()
 			elif _has_any_aggro_or_damage(_center_enemies):
 				activate_opening()

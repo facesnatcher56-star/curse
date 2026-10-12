@@ -10,6 +10,8 @@ static func create(id: String) -> EnemyBehavior:
 			return PouncerBehavior.new()
 		"spitter":
 			return SpitterBehavior.new()
+		"rock_thrower":
+			return RockThrowerBehavior.new()
 		"bloater":
 			return BloaterBehavior.new()
 		"support":

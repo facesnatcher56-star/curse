@@ -5,6 +5,7 @@ var p: Player
 var leash_active: bool = false
 var _leader_id: int = 0
 var _trail: Array[Vector3] = []
+var _follow_fallback_at := Vector3(INF, 0, INF)
 
 func _init(character: Player) -> void:
 	p = character
@@ -20,6 +21,7 @@ func tick(delta: float) -> void:
 	if _leader_id != leader.get_instance_id():
 		_leader_id = leader.get_instance_id()
 		_trail.clear()
+		_follow_fallback_at = Vector3(INF, 0, INF)
 	if _trail.is_empty() or _trail.back().distance_to(leader.global_position) > 1.0:
 		_trail.append(leader.global_position)
 		if _trail.size() > 128: _trail.pop_front()
@@ -64,6 +66,14 @@ func tick(delta: float) -> void:
 	if gap > 6.0: leash_active = true
 	if gap <= 3.5: leash_active = false
 	if leash_active:
+		# A nearest nav point can lie in a disconnected pocket. Use the completed
+		# shared query to reject that formation; do not spend an extra reachability query.
+		var state := p.movement._nav_state
+		var path: PackedVector3Array = state.get("path", PackedVector3Array())
+		if state.has("queries") and (state.get("goal", Vector3.INF) as Vector3).distance_to(formation) < 0.5:
+			if path.is_empty() or path[path.size() - 1].distance_to(state.get("endpoint", formation)) > 0.5:
+				_follow_fallback_at = leader.global_position
+		if _follow_fallback_at.distance_to(leader.global_position) <= 1.0: formation = leader.global_position
 		_travel(formation, delta, 1.25 if gap > 8.0 else 1.0)
 	else:
 		p.movement.has_goal = false

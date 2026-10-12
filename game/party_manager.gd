@@ -26,6 +26,9 @@ var food: int:
 var potions: int:
 	get: return TownState.potions
 	set(value): TownState.potions = value
+var mana_potions: int:
+	get: return TownState.mana_potions
+	set(value): TownState.mana_potions = value
 
 static func current() -> PartyManager:
 	if instance == null:

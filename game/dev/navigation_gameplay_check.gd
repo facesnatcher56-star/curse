@@ -100,6 +100,9 @@ func run() -> void:
 		GameSettings.ui_size = 1.0
 		GameSettings.apply_ui_scale()
 		await create_timer(0.5).timeout
+		if OS.get_cmdline_user_args().has("--rubble-only"):
+			await follow_rubble(hero, cutter)
+			continue
 		await traverse(town.arena, "town", "hero")
 		var start := Nav.snap(hero, Vector3(0, 0, 10))
 		var goal := Nav.snap(hero, town.crypt.at(town.crypt.road_centre_x(CryptRoad.EXIT_Z - 20), CryptRoad.EXIT_Z - 20))
@@ -120,3 +123,30 @@ func run() -> void:
 		cutter.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow"), false)
 	print("VISIBLE NAVIGATION: %d failure(s)" % failures)
 	quit(1 if failures else 0)
+
+func follow_rubble(hero: Player, cutter: Player) -> void:
+	PartyManager.current().select("hero")
+	var centre := Vector3(-2.8, 0, -62.5)
+	hero.global_position = Nav.snap(hero, centre + Vector3.RIGHT * 8.0)
+	cutter.global_position = Nav.snap(cutter, centre + Vector3.LEFT * 4.0)
+	hero.reset_physics_interpolation()
+	cutter.reset_physics_interpolation()
+	hero.attack_target = null
+	cutter.attack_target = null
+	Nav.reset(cutter, cutter.movement._nav_state)
+	cutter.ai.leash_active = false
+	town.rig.set_zoom_now(3.2)
+	town.rig.global_position = hero.global_position
+	await create_timer(0.5).timeout
+	await capture("rubble_follow_start")
+	var arrived := false
+	for frame in 900:
+		await physics_frame
+		cutter.ai.tick(1.0 / 60.0)
+		if frame == 45: await capture("rubble_follow_route")
+		if cutter.flat_distance_to(hero) <= 6.0:
+			arrived = true
+			break
+	await capture("rubble_follow_end")
+	print("%s: stationary leader across formerly blocked rubble; Cutter gap %.2f" % ["PASS" if arrived else "FAIL", cutter.flat_distance_to(hero)])
+	if not arrived: failures += 1

@@ -149,6 +149,16 @@ func run() -> void:
 	PartyManager.current().select("cutter")
 	check("switching does not transfer navigation caches", hero.movement._nav_state == hero_cache and hero.movement._nav_state != cutter.movement._nav_state)
 	PartyManager.current().select("hero")
+	hero.global_position = Vector3(27, 0, 18)
+	hero.visual.rotation.y = 0
+	cutter.global_position = Vector3(20, 0, 18)
+	Nav.reset(cutter, cutter.movement._nav_state)
+	cutter.ai.leash_active = false
+	cutter.ai._follow_fallback_at = Vector3(INF, 0, INF)
+	for frame in 180:
+		await physics_frame
+		cutter.ai.tick(1.0 / 60.0)
+	check("disconnected formation falls back to reachable leader", cutter.ai._follow_fallback_at.distance_to(hero.global_position) < 0.1 and cutter.flat_distance_to(hero) <= 3.6)
 	var camera := Camera3D.new()
 	world.add_child(camera)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL

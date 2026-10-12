@@ -1,8 +1,7 @@
 class_name Ds2PotionDock
 extends Control
 ## Dungeon Siege II-style bottom-left potion and utility dock.
-## The game's single real consumable lives here; mana is already represented
-## by the party bars and has no separate potion inventory.
+## Health and mana potions are shared party supplies, used by the active member.
 
 const HEALTH_FLASK_TEX := preload("res://assets/ui/ds2/potion_flask_health.png")
 
@@ -10,6 +9,7 @@ var player: Player
 var _hp_flask: TextureRect
 var _hp_count_lbl: Label
 var _hp_key_lbl: Label
+var _mana_button: Button
 
 signal potion_requested
 
@@ -64,6 +64,17 @@ func _ready() -> void:
 	_hp_key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hp_box.add_child(_hp_key_lbl)
 
+	_mana_button = Button.new()
+	_mana_button.name = "mana_potion"
+	_mana_button.icon = preload("res://assets/ui/ds2/potion_flask_mana.png")
+	_mana_button.expand_icon = true
+	_mana_button.custom_minimum_size = Vector2(54, 28)
+	_mana_button.add_theme_constant_override("icon_max_width", 22)
+	UiTheme.style_button(_mana_button, Color.WHITE, true)
+	_mana_button.pressed.connect(func():
+		if not get_tree().paused and player != null: player.skills.drink_mana_potion())
+	hbox.add_child(_mana_button)
+
 	# Utility buttons (Bag/Inventory 'I', Character 'C', Journal 'J')
 	for btn_info in [["I", "Inventory"], ["C", "Character"], ["J", "Journal"]]:
 		var u_box := Button.new()
@@ -103,6 +114,9 @@ func update_dock(p: Player) -> void:
 	_hp_count_lbl.text = str(potions)
 	_hp_key_lbl.text = GameSettings.short_binding_text("use_potion")
 	_hp_flask.modulate = Color(1, 1, 1, 1.0 if potions > 0 else 0.45)
+	_mana_button.text = str(TownState.mana_potions)
+	_mana_button.tooltip_text = "Mana potion (%s) — restores 60 mana\nShared party supply: %d" % [GameSettings.binding_text("use_mana_potion"), TownState.mana_potions]
+	_mana_button.disabled = p.dead or TownState.mana_potions <= 0 or p.stats.mana >= p.stats.max_mana or float(p.stats.cooldowns.get("mana_potion", 0.0)) > 0.0
 
 func _on_hp_input(event: InputEvent) -> void:
 	if get_tree().paused: return

@@ -70,6 +70,8 @@ func handle_hotkeys(cursor: Vector3) -> void:
 		return
 	if Input.is_action_just_pressed("use_potion"):
 		drink_potion()
+	if Input.is_action_just_pressed("use_mana_potion"):
+		drink_mana_potion()
 	for i in hotbar.size():
 		var action: String = "skill_%d" % (i + 1)
 		var id: String = hotbar[i]
@@ -103,6 +105,10 @@ func interrupt_for(id: String, cursor: Vector3) -> void:
 ## Drinks a potion at once, even mid-swing or stunned (it cancels a swing that was in progress).
 func drink_potion() -> void:
 	if not p.dead and p.stats.use_potion() and not p.movement.rolling:
+		cancel_action()
+
+func drink_mana_potion() -> void:
+	if not p.dead and p.stats.use_mana_potion() and not p.movement.rolling:
 		cancel_action()
 
 ## Whether pressing this skill's key right now would actually start it (targeted skills need an enemy near the cursor).

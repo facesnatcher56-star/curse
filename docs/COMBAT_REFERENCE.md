@@ -81,20 +81,7 @@ Implemented from `ds2-combat-and-loot.md` and locked by `--only=classskills`, `-
   `0.2 x STR` (0.75 / 1.25 on the low / high roll); thrown uses DEX; Fireball is a DS2 spell (damage and mana grow with INT).
 * **Monsters** (`MonsterScaling`): DS2 life, damage per hit and armour by level, tier (`EnemyDef.tier`) and role (`EnemyDef.role`).
 
-Opening encounter parity (2026-10-11, revised): the first version mapped the opening to the level-one Bracken Defender. That was
-wrong. The Bracken Defenders in DS2's tutorial (`a0_01_02_tutarena`, `tutcommand`) are hand-placed target dummies the player skips,
-so they are not the baseline. DS2's first real fights are in `a1_02_01_jnglight`, read from `World.ds2map` and `Logic.ds2res`:
-Haku Slayers (melee trivial, level 3), Haku Hunters (ranged weak, level 4), Urg Thugs (melee weak, level 3 and 5), a Haku Shaman
-(magic normal, level 4), a Drummer (melee normal, level 5) and a Boarbeast (melee strong, level 7), in groups of 2 to 5: a boarbeast
-with four hunters, a shaman or drummer with three slayers, pairs of thugs and hunters, and a few singles. The road ramps from DS2's tutorial fighters that actually attack (skipping only the Bracken Defender dummies): Forest Golem (ranged
-weak, level 2), Ketril (melee normal tank, level 2) and Mystic Protector (magic weak, level 3), in groups of one to three, read from
-`a1_01_03_tutcommand`, `tuttrenches` and `tutcav`. The Waystation uses these (spitter = golem, brute at normal tier = ketril, plague
-priest = protector); the Pilgrim Camp is the step into jnglight (slayers, a thug); the Graveyard Threshold is jnglight itself:
-zombie = slayer (trivial, 3), spitter = hunter (weak, 4), ghoul = thug (weak, 3-5), plague priest = shaman (4), the Brute = boarbeast
-(level 5, a deliberate departure from DS2's 7 because the hero meets it earlier). Zones run level 2 (Road In), 3 (Graveyard), 5 (Wood)
-and 6 (Crypt Approach) in `data/zones`.
-Members list an exact level and tier (`CryptRoad._group`), one body each: the old three-copy packs are gone from these beats.
-The level appears on every enemy's health bar and in the target banner (`LV n`).
+Opening rebuild (2026-10-12): the previous mapping of acid spitters to Forest Golems was not valid attack parity. The previous blanket dismissal of Bracken Defenders also must not be treated as established evidence. Owner excludes target dummies, but wants actual low-threat opening fighters. `RoadEncounterRoster` now starts with level-one trivial melee fighters (7.56 HP), then small groups at levels two and three. Two later groups introduce physical rock throwers using the weak ranged template (23.808 HP at level two), with no acid/puddle/splash/slow. The original rock weapon has speed 15. Presentation borrows existing native models; this is not an exact DS2 map/model import. See `ROAD_PACING_VERIFICATION.md` for measured results and remaining acceptance.
 Player human starting attributes (12/11/11), life (64.1), mana (55.05), and 1% regeneration already match the verified formulas.
 The missing human +10% racial magic find is now included in actual loot rolls and displayed on the character sheet.
 The class-XP-to-attribute conversion remains the engine-side approximation documented below, not claimed exact parity.
@@ -148,7 +135,7 @@ Curse choices (labelled in code):
   modifiers (DS2: engine-side).
 * **DS2's "#" item** drops plain half the time, with one modifier 30% and two 20%. Jewellery is never plain.
 * **Stance passives** DS2 also asks for (Barricade for a shield, Overbear for two hands) arrive with the passive trees.
-* **Gold and potions** stay Curse's own (gold per kill, health orbs); only the item columns of DS2's tables are used.
+* **Gold and potions**: common-monster outcomes now use DS2's complete oneof alternatives, including health and mana potions. Automatic kill gold and health-dependent kill orbs are removed. Potion sizes/tiers and container/miniboss consumable parity remain incomplete; do not claim full loot parity.
 * **The hero's thrown blade** is his melee weapon, so it keeps the melee damage modifiers.
 
 ## DS2 skill points and passives (2026-10, owner decision; locked by `--only=skilltree`)

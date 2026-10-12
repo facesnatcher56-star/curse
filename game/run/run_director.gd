@@ -16,10 +16,9 @@ const LOOT_BREATHER := 6.0
 var job: Dictionary = {}
 var modifiers: Array[RunModifierDef] = []
 var _ending: bool = false
-## True when the director serves the one connected world (TownScene) instead of a run: no waves, gold for every kill paid as it happens,
+## True when the director serves the connected world (TownScene) instead of a run: no waves,
 ## and a fallen hero is dragged home (`hero_fell`) instead of the run ending.
 var world_mode: bool = false
-var gold_per_kill: int = 0
 var _fell: bool = false
 signal hero_fell
 ## The quests heard something on the road (see Quests): a line to show, and where a quest item dropped.
@@ -444,9 +443,17 @@ func _drop_loot(actor: Actor) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null:
 		return
-	var item: Dictionary = Items.roll_drop(enemy.level, enemy.def.tier, magic_find(), Quests.world_mult("drop_mult") if world_mode else 1.0)
-	if not item.is_empty():
-		drop_item(enemy.global_position, item)
+	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, magic_find(), Quests.world_mult("drop_mult") if world_mode else 1.0)
+	if not loot.item.is_empty():
+		drop_item(enemy.global_position, loot.item)
+	for kind in ["gold", "health", "mana"]:
+		if int(loot[kind]) <= 0: continue
+		var pickup := HealthOrb.new()
+		pickup.is_potion = kind == "health"
+		pickup.is_mana = kind == "mana"
+		pickup.gold_amount = int(loot.gold) if kind == "gold" else 0
+		get_tree().current_scene.add_child(pickup)
+		pickup.global_position = enemy.global_position
 
 func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)
@@ -471,8 +478,6 @@ func _end_run(completed: bool, walked_out: bool = false) -> void:
 
 func _on_enemy_died(actor: Actor) -> void:
 	kills += 1
-	if gold_per_kill > 0:
-		TownState.gold += int(round(gold_per_kill * Quests.world_mult("gold_mult") * (1.0 + player.stats.gear_stat("gold_find") / 100.0)))
 	if world_mode:
 		var named_xp: int = _report_to_quests(actor)
 		_pay_kill_xp(actor, named_xp)

@@ -22,7 +22,7 @@ extends Node3D
 const SITE_ID := "crypt_road"
 const HALF_X := 30.0
 const HALF_Z := 180.0
-const START := Vector3(1.0, 0.0, 150.0)
+const START := Vector3(1.0, 0.0, 166.0)
 ## The road's centre line (x, z), south (town) to north (crypt); it wanders a little so it is a road, not a ruler.
 const ROAD: Array[Vector2] = [Vector2(0, 176), Vector2(0, 160), Vector2(4, 138), Vector2(-3, 114), Vector2(2, 92), Vector2(-2, 66),
 	Vector2(1, 42), Vector2(0, 16), Vector2(0, -4), Vector2(0, -40), Vector2(0, -90), Vector2(0, -140), Vector2(0, -156)]
@@ -34,13 +34,6 @@ const AMBIENT_MULT := 0.8
 const FOG_MULT := 1.7
 
 ## The nests: where they are (x, z, yaw). They are placed once at the start and put back by `regrow()` when the quest is handed in.
-## Monster density: four times what the hand-placed groups alone held. Every zombie and ghoul in a placed group is `PACK_COPIES`
-## strong (the rarer kinds stay single), and `_fill_gaps` puts a smaller group wherever the placed ones leave a stretch of road empty.
-const PACK_COPIES := 3
-const FILL_CELL := 17.0          # the grid the empty stretches are looked for on
-const FILL_COVER := 18.0         # a cell this close to a placed group's home is not empty
-const FILL_KEEP_FROM_START := 22.0
-const FILL_SEED := 4242          # its own generator, so the dressing (props) is the same as ever
 const NEST_SPOTS: Array[Vector3] = [Vector3(-21.0, 58.0, 0.6), Vector3(20.0, 52.0, 2.4), Vector3(14.0, -98.0, 1.4)]
 
 signal nest_destroyed(count: int, total: int)
@@ -55,8 +48,6 @@ var return_waystone: CryptReturnWaystone = null
 var forecourt_climax: CryptForecourtClimax = null
 
 var _rng := RandomNumberGenerator.new()
-var _fill_rng := RandomNumberGenerator.new()
-var _homes: Array[Vector2] = []   # (x, z) of every group put out, so the gaps between them can be found
 var _keep_clear: Array[Vector3] = []   # (x, z, radius) circles the filler stays out of
 var _exit: Area3D
 var _exit_time: float = 0.0
@@ -363,16 +354,15 @@ func _exit_gate() -> void:
 # --- The monsters -------------------------------------------------------------------------------------------------------------
 
 ## A hand-placed group. `mode` is what they do until they notice the hero: "" stands guard, "wander" strolls about `home` (or round
-## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples, drawn at the stretch's threat with `PACK_COPIES` bodies for
-## zombies and ghouls; or [kind, x, z, monster_level] / [kind, x, z, monster_level, tier] for a DS2-sized group, one body each at exactly
+## `patrol`), "feed" hunches over `feed_at`. `members` is [kind, x, z] triples, or
+## [kind, x, z, monster_level] / [kind, x, z, monster_level, tier], always one body each at exactly
 ## that level (and tier, when it is not the kind's own).
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
 		patrol: Array[Vector2] = [], tutorial: bool = false) -> void:
-	_homes.append(home)
 	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
 	for m in members:
 		var exact: bool = m.size() > 3
-		var copies: int = 1 if exact or tutorial else (PACK_COPIES if String(m[0]) in ["zombie", "ghoul"] else 1)
+		var copies: int = 1
 		var level_threat: float = WorldThreat.threat_for_level(int(m[3])) if exact else threat
 		var tier: String = String(m[4]) if m.size() > 4 else ""
 		for c in copies:
@@ -380,6 +370,11 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 			if c > 0:   # the extra bodies stand round the one that was placed
 				spot += Vector2.from_angle(float(c) * 2.4 + float(m[1])) * (1.3 + 0.4 * c)
 			var e: Enemy = director.spawn_enemy(Nav.snap(self, at(spot.x, spot.y)), String(m[0]), level_threat, tier)
+			if e.def.behavior == "melee":
+				# DS2 Bracken attack animation is 2 s. No legacy random heavy/lunge on this introductory road.
+				e.def = e.def.duplicate(true) as EnemyDef
+				e.def.params["heavy_chance"] = 0.0
+				e.attack_time = 2.0
 			if tutorial and e.variant == "zombie":
 				e.use_tutorial_fighter_stats()
 			e.group_id = id
@@ -397,112 +392,8 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 ## Every group, standing where the layout says. Called once the navigation map is ready (see Main).
 func spawn_encounters(for_director: RunDirector) -> void:
 	director = for_director
-	_homes.clear()
-	# The ruined roadside waystation: breached barricade defenders, tollhouse sentry, and flank roamer.
-	WaystationEncounter.spawn_encounters(self, director)
-	# The burned pilgrim camp: feeding pack, flank ambushers, and wagon scavengers.
-	PilgrimCampEncounter.spawn_encounters(self, director)
-	# The broken funeral procession: hearse pack, threshold lookout, and flank prowler.
-	GraveyardThresholdEncounter.spawn_encounters(self, director)
-	# The graveyard: strollers among the stones, a bloater lying in wait among the graves, and the nest's keepers.
-	_group(4, "wander", [["zombie", -14, 80, 3, "trivial"], ["zombie", -18, 74, 3, "weak"], ["zombie", -12, 70, 3, "weak"], ["zombie", -16, 73, 3, "trivial"], ["zombie", -13, 76, 3, "trivial"], ["zombie", -17, 78, 3, "trivial"]], Vector2(-14, 77), 7.0)
-	# An isolated ritual hollow off the western graveyard verge: a plague priest alone with no nearby packs to aggro.
-	# He initiates combat by raising his own undead minions from the earth.
-	_group(32, "", [["priest", -27.0, 70.0, 3, "weak"]], Vector2(-27.0, 70.0), 3.0)
-	_group(5, "", [["bloater", -16.5, 64, 3, "weak"]], Vector2(-16.5, 64))
-	_group(6, "wander", [["zombie", -23, 55, 3, "weak"], ["zombie", -19, 51, 3, "weak"], ["zombie", -24, 61, 3, "trivial"], ["zombie", -21, 57, 3, "trivial"], ["zombie", -25, 53, 3, "trivial"], ["ghoul", -17, 56, 3, "weak"], ["ghoul", -20, 58, 3, "weak"]], Vector2(-21, 57), 5.0)
-	# The cottage: a line of fighters across the way in, spitters standing back behind them, the nest's keepers behind the house.
-	_group(7, "", [["zombie", 13, 84, 3, "weak"], ["zombie", 17.5, 85, 3, "weak"], ["zombie", 22, 83.5, 3, "weak"], ["zombie", 15.0, 83.0, 3, "trivial"], ["zombie", 20.0, 84.0, 3, "trivial"], ["zombie", 18.0, 82.5, 3, "trivial"]], Vector2(17, 84))
-	_group(7, "", [["spitter", 16, 75, 3, "weak"], ["spitter", 22, 74, 3, "weak"]], Vector2(19, 74))
-	_group(8, "wander", [["zombie", 23, 57, 3, "weak"], ["zombie", 17, 49, 3, "weak"], ["zombie", 20, 52, 3, "trivial"], ["zombie", 24, 52, 3, "trivial"], ["zombie", 18, 54, 3, "trivial"], ["ghoul", 19, 46, 3, "weak"]], Vector2(20, 53), 4.0)
-	# Between the graveyard and the cottage, a support-protected knot (melee only, no ranged, no area denial): a plague priest stands
-	# on the road's west shoulder behind a screen of zombies, so the problem is breaking through the screen to the caster, not dodging
-	# a crossfire. 13+ m from every neighbouring group, and the road north stays open to fall back on.
-	_group(31, "", [["priest", 6, 57, 3, "weak"], ["zombie", 9.5, 60, 3, "weak"], ["zombie", 7.5, 61, 3, "trivial"], ["zombie", 4.5, 59, 3, "trivial"], ["zombie", 8.0, 56.5, 3, "trivial"]], Vector2(7.5, 58.5))
-	# The choke: a brute that has been standing in the road a long while, and a pair of ghouls working the trees.
-	_group(9, "wander", [["brute", 3, 22]], Vector2(2, 22), 3.0)
-	_group(10, "wander", [["ghoul", -7, 31], ["ghoul", -9, 27]], Vector2(-8, 29), 4.0)
-	# The shrine: a plague priest among its guard, a spitter at its back.
-	_group(11, "", [["priest", 0, -9.5], ["zombie", 4, -5], ["zombie", -4, -5.5], ["zombie", 5.5, -1.5], ["zombie", -5.5, -2],
-		["spitter", 1, -15]], Vector2(0, -8))
-	# Between the shrine and the courtyard wall, a crossfire stretch (one wave, three roles, three different tells): a brute holds the
-	# road, a spitter stands back in the west trees covering it, and a ghoul pack works the east verge to cut round behind you.
-	# Everything is 12+ m from the shrine group, and the road south to the shrine stays open to fall back on.
-	_group(30, "", [["brute", 0.5, -31], ["spitter", -10.5, -38]], Vector2(-2, -34))
-	_group(30, "wander", [["ghoul", 11, -27]], Vector2(11, -27), 3.5, Vector2.ZERO, [Vector2(11, -24), Vector2(10, -34)])
-	# The courtyard: patrols on the avenue, a bloater at the wall, the third nest's pack, a priest with spitters behind, brutes at the door.
-	_group(12, "wander", [["zombie", -7, -62], ["zombie", 7, -66], ["zombie", -6, -74], ["zombie", 8, -72]], Vector2(0, -68), 4.0, Vector2.ZERO,
-		[Vector2(-8, -68), Vector2(8, -68), Vector2(8, -118), Vector2(-8, -118)])
-	_group(13, "", [["bloater", -15, -84]], Vector2(-15, -84))
-	_group(14, "wander", [["ghoul", 12, -95], ["ghoul", 16, -101], ["zombie", 11, -102], ["zombie", 17, -94]], Vector2(14, -98), 5.0)
-	_group(15, "", [["priest", -14, -112], ["spitter", -14, -121], ["spitter", -9, -124], ["zombie", -11, -108], ["zombie", -17, -108]], Vector2(-13, -114))
-	_group(16, "", [["brute", -9, -138], ["brute", 9, -138], ["zombie", 0, -142]], Vector2(0, -139))
-	# The ruined mortuary and ossuary forecourt before the crypt entrance: vanguard, ossuary sentry, mortuary feeder.
-	CryptForecourtEncounter.spawn_encounters(self, director)
-	_fill_gaps()
+	RoadEncounterRoster.spawn(self)
 
-## Wherever the placed groups leave the road empty (no group's home within FILL_COVER), a small group of whatever lives in that stretch:
-## zombies near the town, ghouls and the odd spitter in the middle, bloaters in the wood, spitters, brutes and priests towards the crypt.
-## Every cell of a grid across the whole strip is checked, and the same seed gives the same monsters each time.
-func _fill_gaps() -> void:
-	_fill_rng.seed = FILL_SEED + TownState.road_seed * 977   # every reset of the road (TownState.road_seed) stocks the empty stretches differently
-	var group: int = 200
-	var z: float = HALF_Z - 12.0
-	while z > -HALF_Z + 14.0:
-		var x: float = -HALF_X + 9.0
-		while x < HALF_X - 6.0:
-			var spot := Vector2(x + _fill_rng.randf_range(-3.0, 3.0), z + _fill_rng.randf_range(-3.0, 3.0))
-			x += FILL_CELL
-			if spot.distance_to(Vector2(START.x, START.z)) < FILL_KEEP_FROM_START or absf(spot.y) > HALF_Z - 10.0:
-				continue
-			var covered: bool = false
-			for h in _homes:
-				covered = covered or h.distance_to(spot) < FILL_COVER
-			if covered:
-				continue
-			var snapped: Vector3 = Nav.snap(self, at(spot.x, spot.y))
-			if snapped.distance_to(at(spot.x, spot.y)) > 4.0:   # inside a tree stand or a wall: nothing lives there
-				continue
-			_homes.append(spot)
-			group += 1
-			var zone: ZoneDef = TownDb.zone_at(EXIT_Z - spot.y)
-			if zone == null or _fill_rng.randf() >= zone.density:
-				continue
-			var members: Array = []
-			for kind in _fill_kinds(zone):
-				var offset: Vector2 = Vector2.from_angle(_fill_rng.randf() * TAU) * _fill_rng.randf_range(0.6, 2.8)
-				members.append([kind, spot.x + offset.x, spot.y + offset.y])
-			# The near-gate filler is the FIRST fight, before the authored waystation.
-			# Match DS2's tutorial fighters, not generic normal monsters or multiplied hordes.
-			_group(group, "wander" if _fill_rng.randf() < 0.6 else "", members, spot, 5.0, Vector2.ZERO, [], zone.id == "road_in")
-		z -= FILL_CELL
-
-## What a gap-filling group is made of in this stretch: one of the zone's group templates, picked by weight (the run's modifiers make some
-## likelier: a Spitters' Nest favours the groups with spitters in them), and made bigger or smaller by the modifiers' count multiplier.
-func _fill_kinds(zone: ZoneDef) -> Array[String]:
-	var total: float = 0.0
-	var weights: Array[float] = []
-	for template in zone.groups:
-		var w: float = float(template["weight"]) * director.group_weight(template["members"])
-		weights.append(w)
-		total += w
-	var roll: float = _fill_rng.randf() * total
-	var chosen: Array = zone.groups[0]["members"]
-	for i in zone.groups.size():
-		roll -= weights[i]
-		if roll <= 0.0:
-			chosen = zone.groups[i]["members"]
-			break
-	var out: Array[String] = []
-	for kind in chosen:
-		out.append(String(kind))
-	var mult: float = director.group_count_mult()
-	var wanted: int = maxi(int(round(float(out.size()) * mult)), 1)
-	while out.size() < wanted:
-		out.append(out[_fill_rng.randi() % out.size()])
-	while out.size() > wanted:
-		out.pop_back()
-	return out
 
 # --- The nests ------------------------------------------------------------------------------------------------------------------
 
@@ -518,15 +409,17 @@ func _on_nest_destroyed(prop: Destructible) -> void:
 	# What lived nearby is stirred up: every monster within a good throw of the nest turns on the hero (and so does its group).
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
-		if enemy != null and not enemy.dead and enemy.global_position.distance_to(at) < 26.0:
+		if enemy != null and not enemy.dead and enemy.global_position.distance_to(at) < 8.0:
 			enemy.wake()
 	# And what was inside comes out: a few things claw up out of the broken mound (not a wave; it happens once, here).
 	var kinds: Array[String] = []
-	kinds.assign(["zombie", "zombie", "ghoul"] if nests_destroyed < total_nests else ["zombie", "ghoul", "ghoul", "brute"])
+	kinds.assign(["zombie", "zombie"])
 	for i in kinds.size():
 		var angle: float = TAU * float(i) / kinds.size()
 		var spot: Vector3 = Nav.snap(self, at + Vector3(cos(angle), 0.0, sin(angle)) * 2.4)
-		var e: Enemy = director.spawn_enemy(spot, kinds[i], threat_at(at))
+		var nest_level: int = 2 if at.z > self.at(0, 0).z else 3
+		var e: Enemy = director.spawn_enemy(spot, kinds[i], WorldThreat.threat_for_level(nest_level), "trivial")
+		e.set_meta("exact_level", true)
 		e.group_id = 100 + nests_destroyed
 		e.alert_delay = 0.0
 		e.wake()
@@ -598,10 +491,11 @@ func spawn_named(mon: Dictionary) -> Enemy:
 	return e
 
 ## A horde climbs out of the ground around a named monster (its uprising).
-func spawn_horde(mon: Dictionary, count: int = 8) -> void:
+func spawn_horde(mon: Dictionary, count: int = 3) -> void:
 	if director == null:
 		return
 	var centre: Vector3 = monster_spot(mon)
+	count = mini(count, 3) # Campaign events cannot restore eight-body road packs.
 	for i in count:
 		var angle: float = TAU * float(i) / count
 		var spot: Vector3 = Nav.snap(self, centre + Vector3(cos(angle), 0.0, sin(angle)) * randf_range(3.0, 6.0))

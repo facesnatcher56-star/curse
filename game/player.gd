@@ -854,7 +854,7 @@ func _filter_incoming(result: Dictionary) -> Dictionary:
 	return result
 
 func on_enemy_killed(enemy: Actor) -> void:
-	HealthOrb.drop_for_kill(self, enemy)
+	pass # Loot belongs to the dead enemy's tier, not the active member's missing health.
 
 ## The throw samples aim at release, after the short catch beat. Stick input wins
 ## while it is active; otherwise the controller uses current combat facing.

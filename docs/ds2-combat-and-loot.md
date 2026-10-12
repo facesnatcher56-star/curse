@@ -532,7 +532,7 @@ Each source is a **weighted pick** (`oneof`, weights sum to ~1). A kill rolls on
 | **Strong** | 51.5% | 14% | 4% | 8% | 4.8% | 15% | 1.35% | 0.45% | 0.45% |
 
 (Rare/unique/set weights are multiplied by `(1 + magicFind/100)`; the "nothing" weight is not, so magic find has a slightly *diluted* effect.)
-**Item level window** for the drop: `monster_level − 5 … +1` (normal), `−4 … +2` (strong), `−6 … 0` (weak). Rares `−4…+2` with a modifier window of `−25…+5`; uniques `−40…+3`; sets `−50…+3`. So uniques and sets can be far below the monster's level.
+**Item level window** for ordinary gear: `monster_level − 5 … +1` (normal), `−4 … +2` (strong), `−6 … 0` (weak). Rare windows are `−5…+1` (weak), `−4…+2` (normal), `−3…+2` (strong), with a modifier window of `−25…+5`. Uniques use `−40…+2` (weak) or `−40…+3` (normal/strong); sets use `−50…+2` (weak) or `−50…+3` (normal/strong). So uniques and sets can be far below the monster's level.
 
 **Miniboss** (guaranteed): 2–3 piles of gold (`0.187…0.312 × (2L² + 42L + 20)`, 10% jackpot), 74% a potion, and one gear roll: **30% 1-mod magic, 50% 2-mod magic, 12% rare, 4% unique, 4% set** (each MF-scaled).
 

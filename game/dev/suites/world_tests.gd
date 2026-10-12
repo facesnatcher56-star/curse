@@ -73,7 +73,7 @@ func _test_road_rules() -> void:
 	var town := TownScene.new()
 	game.add_child(town)
 	var waited: int = 0
-	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 36) and waited < 900:
 		await get_tree().physics_frame
 		waited += 1
 	var crypt: CryptRoad = town.crypt
@@ -86,37 +86,12 @@ func _test_road_rules() -> void:
 	await crypt.regrow()
 	await get_tree().process_frame
 	var plain_total: int = get_tree().get_nodes_in_group("enemies").size()
-	# Stocking, over many groups: a Spitters' Nest makes the groups with spitters in them much likelier, and Shambling makes them bigger.
-	var zone: ZoneDef = TownDb.zones()["crypt_approach"]
-	var with_spitter: Callable = func() -> int:
-		crypt._fill_rng.seed = 5
-		var n: int = 0
-		for i in 300:
-			n += 1 if "spitter" in crypt._fill_kinds(zone) else 0
-		return n
-	town.director.set_job({})
-	var plain_groups: int = with_spitter.call()
-	town.director.set_job({"modifiers": ["nest"], "objective": JobObjective.destroy_nest(3), "site": CryptRoad.SITE_ID})
-	town.director.wave = 3
-	var nest_groups: int = with_spitter.call()
-	expect("with a Spitters' Nest far more groups have spitters (%d of 300 against %d)" % [nest_groups, plain_groups], nest_groups > plain_groups * 1.3)
-	town.director.set_job({"modifiers": ["shambling"], "objective": JobObjective.destroy_nest(3), "site": CryptRoad.SITE_ID})
-	town.director.wave = 3
-	crypt._fill_rng.seed = 5
-	var sizes: int = 0
-	for i in 100:
-		sizes += crypt._fill_kinds(zone).size()
-	town.director.set_job({})
-	crypt._fill_rng.seed = 5
-	var plain_sizes: int = 0
-	for i in 100:
-		plain_sizes += crypt._fill_kinds(zone).size()
-	expect("and with Shambling the groups are bigger (%d against %d monsters in 100 groups)" % [sizes, plain_sizes], sizes > plain_sizes)
-	TownState.road_seed = 8
-	town.director.set_job({})
+	# Road composition is authored; event modifiers must not restore filler or multiply packs.
+	town.director.set_job({"modifiers": ["shambling", "nest"]})
 	await crypt.regrow()
 	await get_tree().process_frame
-	expect("each reset of the road stocks it differently", get_tree().get_nodes_in_group("enemies").size() != plain_total or count_kind.call("ghoul") != 0)
+	expect("road modifiers cannot multiply authored encounters", get_tree().get_nodes_in_group("enemies").size() == plain_total)
+	town.director.set_job({})
 	# Light: a Darkness road is darker out on the road than a plain one, and the same in the plaza.
 	var hero: Player = town.player
 	hero.global_position = crypt.at(0, 100)
@@ -182,32 +157,20 @@ func _test_world() -> void:
 	var town := TownScene.new()
 	game.add_child(town)
 	var waited: int = 0
-	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 36) and waited < 900:
 		await get_tree().physics_frame
 		waited += 1
 	var crypt: CryptRoad = town.crypt
 	expect("the plaza and the road are both there from the start", town.npcs.size() == 5 and crypt != null and crypt.nests.size() == 3)
 	var monsters: Array = get_tree().get_nodes_in_group("enemies")
-	var gate_groups: Dictionary = {}
-	var gate_stats_ok: bool = true
-	var gate_max_damage: float = 0.0
-	for node in monsters:
-		var enemy := node as Enemy
-		if enemy.tutorial_fighter:
-			gate_groups[enemy.group_id] = int(gate_groups.get(enemy.group_id, 0)) + 1
-			gate_stats_ok = gate_stats_ok and enemy.variant == "zombie" and enemy.level == 0 and enemy.def.tier == "weak" \
-				and is_equal_approx(enemy.max_health, 12.0) and is_equal_approx(enemy.damage_min, 2.0) \
-				and is_equal_approx(enemy.damage_max, 3.0) and is_equal_approx(enemy.armor, 8.0)
-			gate_max_damage = maxf(gate_max_damage, float(Combat.resolve(enemy, town.player, enemy.damage_max, Combat.DamageType.PHYSICAL, false, 1.0, false, false)["damage"]))
-	expect("real near-gate filler spawns use DS2 tutorial fighter overrides", not gate_groups.is_empty() and gate_stats_ok)
-	expect("gate filler groups contain two or three zombies, never the old six or nine", gate_groups.values().all(func(n: int) -> bool: return n >= 2 and n <= 3))
-	expect("three maximum gate hits cannot kill the fresh hero", gate_max_damage <= 3.0 and town.player.health > gate_max_damage * 3.0)
+	var opening: Array = monsters.filter(func(e: Enemy): return e.group_id in [1, 2, 3, 4, 5])
+	expect("authored opening uses fourteen low-threat fighters", opening.size() == 14 and opening.all(func(e: Enemy): return e.level == 1 and e.def.tier == "trivial" and e.max_health < 8 and e.damage_max <= 6.5))
 	var awake: int = 0
 	var beyond_gate: int = 0
 	for node in monsters:
 		awake += 1 if (node as Enemy)._aggro else 0
 		beyond_gate += 1 if (node as Enemy).global_position.z < -TownScene.HALF else 0
-	expect("every monster is already out on the road, asleep to the hero", monsters.size() >= 40 and awake == 0 and beyond_gate == monsters.size())
+	expect("every monster is already out on the road, asleep to the hero", monsters.size() >= 36 and awake == 0 and beyond_gate == monsters.size())
 	expect("there is no gate to load: leaving town is not a function any more", not town.has_method("leave_through_gate"))
 	# One walkable world: from the plaza through the gate, all the way to the crypt, and to every nest.
 	var map: RID = town.get_world_3d().navigation_map
@@ -271,14 +234,14 @@ func _test_world() -> void:
 		and not bool(TownState.board[0].get("ready", false)) and not hale.has_reward_marker())
 	town.panel.close()
 	waited = 0
-	while get_tree().get_nodes_in_group("enemies").size() < 40 and waited < 300:
+	while get_tree().get_nodes_in_group("enemies").size() < 36 and waited < 300:
 		await get_tree().physics_frame
 		waited += 1
 	var grown: int = 0
 	for nest in crypt.nests:
 		grown += 1 if is_instance_valid(nest) and not nest.broken else 0
 	expect("the road is corrupted again: three nests and the monsters are back", grown == 3 and crypt.nests_destroyed == 0
-		and get_tree().get_nodes_in_group("enemies").size() >= 40)
+		and get_tree().get_nodes_in_group("enemies").size() >= 36)
 	# A fallen hero is dragged back to the plaza, whole.
 	hero.global_position = crypt.at(0, 100)
 	hero.reset_physics_interpolation()
@@ -286,9 +249,11 @@ func _test_world() -> void:
 	hero.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "source": null, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
 	await get_tree().process_frame
 	expect("the hero fell", hero.dead)
+	for member in PartyManager.current().living():
+		member.receive({"outcome": Combat.Outcome.HIT, "damage": 9999.0, "source": null, "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, member.global_position)
 	await get_tree().create_timer(4.0).timeout
 	expect("he is dragged back to the plaza on his feet, with the world as it was", not hero.dead and hero.health > hero.max_health * 0.9
-		and hero.global_position.z > -TownScene.HALF and get_tree().get_nodes_in_group("enemies").size() >= 40)
+		and hero.global_position.z > -TownScene.HALF and get_tree().get_nodes_in_group("enemies").size() >= 36)
 	town.queue_free()
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -342,112 +307,27 @@ func _test_crypt_road() -> void:
 	expect("every nest can be walked to from the start", reachable == 3)
 	var crypt_path: PackedVector3Array = NavigationServer3D.map_get_path(map, CryptRoad.START, Vector3(0, 0, -150), true)
 	expect("the road runs the whole length, to the crypt courtyard", not crypt_path.is_empty() and crypt_path[crypt_path.size() - 1].z < -140.0)
-	# The monsters.
+	# Structural checks complement real starter combat in road_pacing_check.gd.
 	var run: RunDirector = game.director
 	run.set_job(offer)
 	run.start_location(place)
 	await get_tree().process_frame
 	var all: Array = get_tree().get_nodes_in_group("enemies")
-	var near_start: int = 0
-	var awake: int = 0
-	var kinds: Dictionary = {}
-	for node in all:
-		var e: Enemy = node
-		near_start += 1 if e.global_position.distance_to(CryptRoad.START) < 12.0 else 0
-		awake += 1 if e._aggro else 0
-		kinds[e.variant] = true
-	print("  monsters ", all.size(), " awake ", awake, " within 12 m of the start ", near_start)
-	expect("monsters already exist across the road, none awake and none on the hero", all.size() >= 40 and awake == 0 and near_start == 0)
-	expect("it uses the whole cast: zombies, ghouls, spitters, a bloater, a priest, brutes and a warden", kinds.size() == 7 and kinds.has("zombie") and kinds.has("ghoul")
-		and kinds.has("spitter") and kinds.has("bloater") and kinds.has("priest") and kinds.has("brute") and kinds.has("warden"))
-	expect("the road is crowded: about four times the old hand-placed count", all.size() >= 170 and all.size() <= 280)
-	# No long stretch is left empty: from the first walkers to the crypt door, across the road and out under the trees.
-	var worst: float = 0.0
-	var worst_at: Vector2 = Vector2.ZERO
-	var z_probe: float = 128.0
-	while z_probe > -150.0:
-		for x_probe in [-18.0, 0.0, 18.0]:
-			var probe: Vector3 = place.at(x_probe, z_probe)
-			var nearest: float = 9999.0
-			for node in all:
-				nearest = minf(nearest, (node as Enemy).global_position.distance_to(probe))
-			if nearest > worst:
-				worst = nearest
-				worst_at = Vector2(x_probe, z_probe)
-		z_probe -= 10.0
-	print("  road monsters ", all.size(), "; the emptiest probe point is ", snappedf(worst, 0.1), " m from the nearest one, at ", worst_at)
-	expect("nowhere along the road is more than 32 m from a monster", worst <= 32.0)
-	var feeder: Enemy = null
-	var spitter: Enemy = null
-	var melee_front: float = -INF
-	for node in all:
-		var e: Enemy = node
-		if e.idle_mode == "feed" and feeder == null:
-			feeder = e
-		if e.variant == "spitter" and e.global_position.z < 80.0 and e.global_position.z > 60.0:
-			spitter = e
-		if e.variant == "zombie" and e.group_id == 7:
-			melee_front = maxf(melee_front, e.global_position.z)
-	expect("some are feeding at a corpse", feeder != null)
-	expect("the cottage spitters stand behind its melee line (farther from the way in)", spitter != null and spitter.global_position.z < melee_front - 4.0)
-	await get_tree().create_timer(1.0).timeout
-	expect("a feeder is hunched over, a sleeper has not walked off", feeder.visual.rotation.x > 0.3 and not feeder._aggro)
-	var walkers: Array[Enemy] = []
-	var walked_from: Array[Vector3] = []
-	for node in all:
-		if (node as Enemy).group_id in [1, 21]:   # the waystation's two strolling groups (a small group may all be mid-pause)
-			walkers.append(node)
-			walked_from.append((node as Enemy).global_position)
-	await get_tree().create_timer(2.5).timeout
-	var strolled: bool = false
-	var calm: bool = true
-	for i in walkers.size():   # (any of the group may be in a pause)
-		strolled = strolled or walkers[i].global_position.distance_to(walked_from[i]) > 0.6
-		calm = calm and not walkers[i]._aggro
-	var walker_report: String = ""
-	for w in walkers:
-		walker_report += " %s(aggro=%s moved=%.1f)" % [w.variant, w._aggro, w.global_position.distance_to(walked_from[walkers.find(w)])]
-	expect("a walker strolls about on its own:" + walker_report, strolled and calm)
-	# Far, unaware monsters sleep and wake as the hero comes near, so the crowd costs little.
-	run.player.global_position = place.at(0.0, -100.0)
-	await get_tree().create_timer(0.8).timeout
-	var asleep_far: int = 0
-	var asleep_near: int = 0
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var sleeper: Enemy = node
-		if sleeper.process_mode == Node.PROCESS_MODE_DISABLED:
-			if sleeper.global_position.distance_to(run.player.global_position) > RunDirector.SLEEP_BEYOND:
-				asleep_far += 1
-			elif sleeper.global_position.distance_to(run.player.global_position) < RunDirector.WAKE_WITHIN:
-				asleep_near += 1
-	expect("monsters far from the hero (at the crypt) sleep and none near him do (%d far)" % asleep_far, asleep_far > 60 and asleep_near == 0)
-	run.player.global_position = CryptRoad.START
-	await get_tree().create_timer(0.8).timeout
-	var woken: int = 0
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var sleeper: Enemy = node
-		if sleeper.global_position.distance_to(run.player.global_position) < RunDirector.WAKE_WITHIN and sleeper.process_mode != Node.PROCESS_MODE_DISABLED:
-			woken += 1
-	expect("and they wake when he comes close", woken > 20)
-	run.player.global_position = CryptRoad.START
-	await get_tree().create_timer(0.8).timeout
-	# Noticing one wakes its group.
-	var mates: Array[Enemy] = []
-	for node in all:
-		if (node as Enemy).group_id == 6:
-			mates.append(node)
+	var groups: Dictionary = {}
+	for e: Enemy in all:
+		groups[e.group_id] = int(groups.get(e.group_id, 0)) + 1
+	expect("road has fourteen authored groups and no multiplied filler", groups.size() == 14 and all.size() == 36 and groups.values().all(func(n): return int(n) <= 3))
+	expect("road has no acid or explosive/support packs", all.all(func(e: Enemy): return e.variant in ["zombie", "rock_thrower"]))
+	var mates: Array = all.filter(func(e: Enemy): return e.group_id == 6)
 	mates[0].wake()
-	var all_awake: bool = true
-	for m in mates:
-		all_awake = all_awake and m._aggro
-	expect("when one of a group notices the hero the whole group does", mates.size() >= 3 and all_awake)
+	expect("only the small local group wakes together", mates.size() == 2 and mates.all(func(e: Enemy): return e._aggro))
 	# The nests.
 	var count_before: int = get_tree().get_nodes_in_group("enemies").size()
 	var first: Destructible = place.nests[0]
 	var nearby: Enemy = null
 	for node in all:
 		var e: Enemy = node
-		if not e._aggro and e.global_position.distance_to(first.global_position) < 20.0:
+		if not e._aggro and e.global_position.distance_to(first.global_position) < 8.0:
 			nearby = e
 	first.hit(999.0, Vector3.FORWARD)
 	await get_tree().process_frame
@@ -455,7 +335,7 @@ func _test_crypt_road() -> void:
 	expect("destroying a nest counts once and shows on the HUD line", place.nests_destroyed == 1 and run.progress()["stage"] == 1
 		and run.objective_line() == "Destroy nests: 1 / 3")
 	expect("it stirs up what lived nearby", nearby == null or nearby._aggro)
-	expect("something climbs out of the broken nest", get_tree().get_nodes_in_group("enemies").size() >= count_before + 3)
+	expect("something climbs out of the broken nest", get_tree().get_nodes_in_group("enemies").size() >= count_before + 2)
 	expect("there is no wave (the world does not borrow one), and the run does not end when the field is cleared", run.location == null or run.wave == 0)
 	place.nests[1].hit(999.0, Vector3.FORWARD)
 	place.nests[2].hit(999.0, Vector3.FORWARD)

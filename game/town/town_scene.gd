@@ -297,7 +297,7 @@ func _welcome_back() -> void:
 		if not TownState.orientation_seen:
 			TownState.orientation_seen = true
 			TownState.save()
-			hud.show_banner("The Last Hearth - North Gate leads to the Crypt Road.\nStanding contract: Destroy 3 Corrupted Nests to claim reward.\nDeep Crypt Forecourt & Warden beyond are an optional challenge.", 6.0)
+			hud.show_banner("The Last Hearth - North Gate leads to the Crypt Road.\nStanding contract: Destroy 3 Corrupted Nests to claim reward.\nClear the far forecourt to reveal the return waystone.", 6.0)
 		else:
 			hud.show_banner("The Last Hearth")
 		return
@@ -521,7 +521,6 @@ func _start_director() -> void:
 	director.player = player
 	director.hud = combat_hud
 	director.world_mode = true
-	director.gold_per_kill = 2
 	director.hero_fell.connect(_hero_fell)
 	director.quest_news.connect(_on_quest_news)
 	director.quest_item_dropped.connect(_on_quest_item)

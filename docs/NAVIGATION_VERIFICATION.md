@@ -19,6 +19,38 @@ not a test-side forced map update, establishes readiness.
 
 ## Actual checks
 
+### Rubble failure reported after the initial pass
+
+The owner's screenshot exposed a missing class of obstacle. The initial visible test selected
+a prevalidated clear route, masking bad bake geometry. An unbiased scan found 126 blocked
+segments among 165 valid-endpoint rubble approaches: Recast considered sloped rubble tops
+walkable, while `Actor.move_with` fixes actors at y=0. Replanning therefore returned the same
+impossible route. The prior passing traversal evidence did not cover this failure.
+
+Solid props now project their actual collider hull footprints into height-extruded bake
+exclusions, retaining agent-radius clearance. These exclusions share the prop's lifetime,
+including destruction/rebaking. This uses the engine's documented
+[bake-obstruction support](https://docs.godotengine.org/en/latest/classes/class_navigationobstacle3d.html).
+Companions also fall back from a disconnected formation point to the leader using the
+existing query result rather than an extra unbudgeted query.
+
+After the correction: 180 rubble approaches scanned, zero body-blocked path segments;
+three destinations are on disconnected baked islands (two town-edge approaches and one
+road-camp approach), reported separately rather than silently counted as successful routes.
+Their full connectivity still needs inspection. Cutter's actual AI follows around two
+previously blocked road rubble piles from four directions each (8/8 arrivals within follow
+range). A stationary-Hero/opposite-side-Cutter visible reproduction passes at 1080p and
+1440p; route/end screenshots were personally reviewed. Production saves remained untouched.
+The expanded shared-routing suite passes 43 assertions, including disconnected-formation
+fallback; the FIFO still peaks at four queries/tick and six ticks of waiting under crowd load.
+
+Additional developer checks:
+
+```
+--headless --script game/dev/navigation_rubble_check.gd -- --navigation-check
+--script game/dev/navigation_gameplay_check.gd -- --navigation-check --rubble-only
+```
+
 - Deterministic real-physics fixtures: pillar, nearby wall, narrow corridor, U obstacle,
   moving destination, disconnected region, unusable map, real destroyed-prop rebake.
 - Hero and Cutter share movement; inactive Cutter follows a detour; selection preserves

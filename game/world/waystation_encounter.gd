@@ -29,33 +29,8 @@ static func build(road: CryptRoad, arena: Arena) -> void:
 ## Populates the waystation encounter groups.
 ## All enemies are placed at z <= 132 so they are > 18 m from the player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# The road opens with DS2's tutorial fighters that actually attack (skipping only its attack-less Bracken Defender target dummies),
-	# read from the a1_01_03..05 tutorial regions: Forest Golems (weak ranged, level 2), Ketrils (normal tank, level 2) and Mystic
-	# Protectors (weak magic, level 3), in groups of one to three. Here: spitter = golem, brute at normal tier = ketril, priest = protector.
-	# Group 1: Barricade defenders holding the breached road gate: a ketril with a golem behind it.
-	road._group(1, "wander", [
-		["brute", 2.0, 126.4, 2, "normal"],
-		["spitter", 3.8, 128.6, 2, "weak"]
-	], Vector2(2.5, 127.0), 3.5, Vector2.ZERO, [
-		Vector2(1.5, 129.5),
-		Vector2(3.5, 125.5),
-		Vector2(0.8, 126.0)
-	])
-
-	# Group 20: Tollhouse sentry: a golem with a watchful sentry.
-	road._group(20, "", [
-		["spitter", 9.5, 128.0, 2, "weak"],
-		["zombie", 12.0, 126.5, 2, "trivial"]
-	], Vector2(11.0, 127.0), 2.5)
-
-	# Group 21: Western flank: a pair of golems working the ditch bypass.
-	road._group(21, "wander", [
-		["spitter", -10.0, 127.0, 2, "weak"],
-		["spitter", -11.5, 125.2, 2, "weak"]
-	], Vector2(-10.0, 127.0), 4.0, Vector2.ZERO, [
-		Vector2(-9.5, 133.0),
-		Vector2(-10.5, 122.0)
-	])
+	road.director = director
+	RoadEncounterRoster.spawn(road, [1,2])
 
 ## Roadside approach silhouettes and early visual cues visible from z = 150.
 static func _build_approach_silhouettes(road: CryptRoad) -> void:

@@ -284,18 +284,20 @@ static func roll_reward(level: int, table: Dictionary = REWARD, magic_find: floa
 
 ## One item of a drop kind: "item" (DS2's "#", see ANY_ITEM), "magic1", "magic2", "normal", "rare", "unique" or "set". A unique or set
 ## piece comes from its own wide window; when none is authored inside it, a rare drops instead.
-static func item_of_kind(kind: String, level: int, window: Vector2i) -> Dictionary:
+static func item_of_kind(kind: String, level: int, window: Vector2i, rarity_window: Vector2i = Vector2i.ZERO) -> Dictionary:
 	if kind == "item":
 		var r: float = randf()
 		kind = "normal" if r < ANY_ITEM["normal"] else ("magic1" if r < ANY_ITEM["normal"] + ANY_ITEM["magic1"] else "magic2")
 	if kind == "unique" or kind == "set":
 		var w: Vector2i = UNIQUE_WINDOW if kind == "unique" else SET_WINDOW
+		if rarity_window != Vector2i.ZERO: w = rarity_window
 		var authored: Array[UniqueDef] = UniqueDb.within(level + w.x, level + w.y, kind == "set")
 		if not authored.is_empty():
 			return unique(authored[randi() % authored.size()])
 		kind = "rare"
+		rarity_window = RARE_WINDOW # Catalogue fallback must not reuse a unique/set's much wider window.
 	if kind == "rare":
-		window = RARE_WINDOW
+		window = rarity_window if rarity_window != Vector2i.ZERO else RARE_WINDOW
 	var picked: Dictionary = pick_base(level + window.x, level + window.y)
 	var def: ItemDef = picked["def"]
 	var lvl: int = int(picked["level"])

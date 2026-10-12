@@ -207,6 +207,7 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 		else:
 			_add_hull_shapes(body, prop, factor)
 		holder.add_child(body)
+		_add_ground_navigation_obstructions(holder, body, height)
 	if lit:
 		light = OmniLight3D.new()
 		light.light_color = Color(1.0, 0.55, 0.2)
@@ -229,6 +230,35 @@ func _place(prop_name: String, scene: PackedScene, pos: Vector3, yaw: float, hei
 	return holder
 
 var _hulls: Dictionary = {}   # mesh -> its convex hull: every copy of a prop shares one hull instead of recomputing it
+
+## Actors move on y=0, so even a sloped prop top is not a walkable ramp. Project
+## each actual collider footprint into the bake instead of letting Recast climb it.
+## These children disappear with their destructible owner and participate in rebakes.
+func _add_ground_navigation_obstructions(holder: Node3D, body: StaticBody3D, height: float) -> void:
+	for collider in body.get_children():
+		if not collider is CollisionShape3D: continue
+		var outline := PackedVector2Array()
+		if collider.shape is ConvexPolygonShape3D:
+			for point in collider.shape.points:
+				var local: Vector3 = collider.transform * point
+				outline.append(Vector2(local.x, local.z))
+		elif collider.shape is CylinderShape3D:
+			for index in 16:
+				var angle := TAU * index / 16.0
+				var local: Vector3 = collider.transform * Vector3(cos(angle) * collider.shape.radius, 0, sin(angle) * collider.shape.radius)
+				outline.append(Vector2(local.x, local.z))
+		if outline.size() < 3: continue
+		var hull := Geometry2D.convex_hull(outline)
+		var vertices := PackedVector3Array()
+		# convex_hull repeats the first point at the end; obstacle outlines do not.
+		for index in hull.size() - 1: vertices.append(Vector3(hull[index].x, 0, hull[index].y))
+		var obstacle := NavigationObstacle3D.new()
+		obstacle.avoidance_enabled = false
+		obstacle.affect_navigation_mesh = true
+		obstacle.carve_navigation_mesh = false # retain the bake's actor-radius margin
+		obstacle.height = maxf(height + 1.0, 3.0)
+		obstacle.vertices = vertices
+		holder.add_child(obstacle)
 
 func _hull_for(mesh: Mesh) -> Shape3D:
 	if not _hulls.has(mesh):

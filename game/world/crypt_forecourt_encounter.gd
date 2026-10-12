@@ -51,49 +51,8 @@ static func build(road: CryptRoad, _arena: Arena) -> void:
 ## Populates the crypt forecourt encounter groups and attaches the staged climax controller.
 ## All enemies are placed at z <= -151 so they are > 300 m from player start (z = 150).
 static func spawn_encounters(road: CryptRoad, director: RunDirector) -> void:
-	# Group 27: Crypt Portal Vanguard (Center & Crypt Gate Threshold, z = -158..-162).
-	# 1 elite (CENTER_ELITE_ID, single copy) presiding over the sealed crypt steps + 2 placed zombies (pallbearer wardens,
-	# 3 pack copies each = 6 zombies). Total = 7 enemies.
-	# Mode "": holding ground at the sacred sealed entrance.
-	road._group(GROUP_CENTER, "", [
-		[CENTER_ELITE_ID, 0.0, -161.0],
-		["zombie", -2.4, -158.8],
-		["zombie", 2.4, -158.8]
-	], Vector2(0.0, -159.5), 3.5)
-
-	# Group 28: Ossuary Sentry & Scavengers (Eastern Ossuary Wall & Niches, z = -151..-155).
-	# 1 spitter lookout (single copy) stationed behind low stone wall cover + 1 placed ghoul (3 pack copies = 3 ghouls).
-	# Total = 4 enemies.
-	road._group(GROUP_EAST, "wander", [
-		["spitter", 7.8, -154.5],
-		["ghoul", 9.5, -152.0]
-	], Vector2(8.5, -153.5), 3.5, Vector2.ZERO, [
-		Vector2(7.5, -155.0),
-		Vector2(9.5, -152.0),
-		Vector2(6.5, -153.0)
-	])
-
-	# Group 29: Mortuary Shelter Feeder & Scavengers (Western Mortuary Shelter & Bier, z = -151..-156).
-	# 1 bloater (single copy) corrupted by embalming fluid + 1 placed ghoul (3 pack copies = 3 ghouls).
-	# Total = 4 enemies.
-	road._group(GROUP_WEST, "wander", [
-		["bloater", -9.0, -154.5],
-		["ghoul", -7.5, -152.0]
-	], Vector2(-8.5, -153.5), 3.5, Vector2.ZERO, [
-		Vector2(-7.0, -152.5),
-		Vector2(-10.0, -155.0),
-		Vector2(-8.0, -156.5)
-	])
-
-	# Attach and initialize the staged encounter climax controller
-	var old_climax: Node = road.get_node_or_null("CryptForecourtClimax")
-	if old_climax != null:
-		old_climax.queue_free()
-	var climax := CryptForecourtClimax.new()
-	climax.name = "CryptForecourtClimax"
-	road.add_child(climax)
-	climax.setup(road, director)
-	road.forecourt_climax = climax
+	road.director = director
+	RoadEncounterRoster.spawn(road, [27])
 
 ## Returns the staged climax controller attached to the CryptRoad instance.
 static func get_climax(road: CryptRoad) -> CryptForecourtClimax:

@@ -17,6 +17,7 @@ static func apply() -> void:
 	_key("interact", KEY_E)
 	_key("chronicle", KEY_J)
 	_key("use_potion", KEY_Q)
+	_key("use_mana_potion", KEY_W)
 	_key("companion_attack", KEY_A)
 	_key("party_switch", KEY_C)
 	for i in 6:

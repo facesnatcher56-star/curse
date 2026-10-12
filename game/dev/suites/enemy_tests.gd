@@ -334,39 +334,9 @@ func _test_balance() -> void:
 		for node in get_tree().get_nodes_in_group("enemies"):
 			node.queue_free()
 		await get_tree().process_frame
-	# Loot rates.
-	var dummy: Enemy = _spawn_enemy(Vector3(30, 0, 30))
-	await get_tree().process_frame
-	for hp in [1.0, 0.3]:
-		player.health = player.max_health * hp
-		var orbs: int = 0
-		var potions: int = 0
-		for i in 400:
-			HealthOrb.drop_for_kill(player, dummy)
-		for node in get_tree().get_nodes_in_group("orbs"):
-			if bool(node.get("is_potion")):
-				potions += 1
-			else:
-				orbs += 1
-			node.queue_free()
-		await get_tree().process_frame
-		print("  loot per 100 zombie kills at ", int(hp * 100), "% health: orbs=", orbs / 4.0, " potions=", potions / 4.0)
-	dummy.queue_free()
-	var brute: Enemy = _spawn_enemy(Vector3(30, 0, 30), "brute")
-	await get_tree().process_frame
-	var brute_orbs: int = 0
-	var brute_potions: int = 0
-	for i in 100:
-		HealthOrb.drop_for_kill(player, brute)
-	for node in get_tree().get_nodes_in_group("orbs"):
-		if bool(node.get("is_potion")):
-			brute_potions += 1
-		else:
-			brute_orbs += 1
-		node.queue_free()
-	expect("a Brute always drops 2 orbs", brute_orbs == 200)
-	print("  per 100 Brute kills: orbs=", brute_orbs, " potions=", brute_potions)
-	brute.queue_free()
+	# DS2 loot is independent of missing health and body size (road_pacing_check verifies rates).
+	var loot := MonsterLoot.roll(2, "weak")
+	expect("shared monster loot has health, mana, gold and equipment results", loot.has("health") and loot.has("mana") and loot.has("gold") and loot.has("item"))
 	# Potion pickup.
 	player.stats.potions = 2
 	var pickup := HealthOrb.new()
