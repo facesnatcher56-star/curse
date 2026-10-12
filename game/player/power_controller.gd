@@ -64,7 +64,7 @@ func blocker(id: String) -> String:
 	var def: PowerDef = PowerDb.get_def(id)
 	if def == null or not LIVE.has(id):
 		return "Not a power"
-	if PowerDb.hero_rank(id) <= 0:
+	if PowerDb.hero_rank(id, p.member_id) <= 0:
 		return "%s is not open yet" % def.display_name
 	if not stance_ok(def.stance):
 		return "%s needs %s" % [def.display_name, {"shield": "a shield", "two_handed": "a two-handed weapon", "melee": "a melee weapon"}.get(def.stance, def.stance)]
@@ -79,9 +79,9 @@ func stance_ok(stance: String) -> bool:
 	var weapon: Variant = p.stats.equipment.get(Items.Slot.WEAPON)
 	match stance:
 		"melee":
-			return weapon != null
+			return weapon != null and not p.stats.is_ranged()
 		"two_handed":
-			return weapon != null and PlayerStats._two_handed(weapon)
+			return weapon != null and not p.stats.is_ranged() and PlayerStats._two_handed(weapon)
 		"shield":
 			return p.stats.equipment.has(Items.Slot.SHIELD)
 		"any":
@@ -89,7 +89,7 @@ func stance_ok(stance: String) -> bool:
 	return false
 
 func value(id: String, key: String) -> float:
-	return PowerDb.hero_value(id, key)
+	return PowerDb.hero_value(id, key, p.member_id)
 
 # --- Using them -------------------------------------------------------------------------------------------------------------
 

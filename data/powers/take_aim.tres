@@ -14,6 +14,6 @@ values = {
 "damage_pct": ["1500 + 25 * ranged", "1700 + 48 * ranged", "2500 + 60 * ranged"]
 }
 estimated = Array[String]([])
-summary = "The next shot deals massive damage (Cutter's)."
+summary = "The next bow shot deals massive damage."
 order = 7
 needs = ""

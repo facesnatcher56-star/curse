@@ -91,14 +91,13 @@ func _test_character_ui() -> void:
 func _test_owner_feedback_1() -> void:
 	TownState.persist = false
 	await get_tree().process_frame
-	# 6: an actor refused the path budget over and over is served anyway (it used to keep a stale route while a crowd drained the budget)
-	var nav_state: Dictionary = {"path": PackedVector3Array([Vector3.ZERO, Vector3(0, 0, 5), Vector3(0, 0, 255)]), "index": 1,
-			"goal": Vector3(0, 0, 255), "timer": 99.0, "denied": 6}
+	# Retries must wait for fair service, never bypass the per-tick cap.
+	var nav_state: Dictionary = {}
 	var fresh_goal: Vector3 = Nav.snap(player, player.global_position + Vector3(8.0, 0.0, 0.0))
-	for i in Nav.QUERIES_PER_TICK + 1:
-		Nav._may_query()   # the whole budget for this tick is spent
-	Nav.next_point(player, fresh_goal, nav_state, 0.016)
-	expect("a starved actor is re-pathed to its new goal even when the tick's budget is spent", (nav_state["goal"] as Vector3).is_equal_approx(fresh_goal))
+	for i in 12:
+		Nav.route(player, fresh_goal, nav_state, 0.016)
+		await get_tree().physics_frame
+	expect("queued routing serves an actor without exceeding the tick budget", nav_state.has("queries") and Nav.queries_peak <= Nav.QUERIES_PER_TICK)
 	# 1: checkbox states share their padding (otherwise the label jumps onto the tick under the mouse)
 	var theme: Theme = UiTheme.get_theme()
 	var reference: Vector4 = Vector4.ZERO

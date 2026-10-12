@@ -24,6 +24,7 @@ const ACTIONS: Array = [
 	["skill_6", "Hotbar 6 (Earthshatter)"],
 	["use_potion", "Use health potion"],
 	["companion_attack", "Direct companion to target (A)"],
+	["party_switch", "Switch active party member"],
 	["dodge", "Dodge roll"],
 	["stand_still", "Stand still (hold)"],
 	["gear", "Open / close character and inventory"],
@@ -75,6 +76,10 @@ static func reset_hotbar() -> void:
 
 ## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.
 static func assign_hotbar(slot: int, id: String) -> void:
+	var body := PartyManager.current().active_body()
+	if body != null:
+		body.skills.assign_slot(slot, id)
+		return
 	hotbar_alt = HotbarLayout.assign(hotbar_slots, hotbar_alt, slot, id)
 	if not OS.get_cmdline_user_args().has("--selftest"):
 		save_to_disk()

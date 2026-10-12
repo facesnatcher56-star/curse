@@ -105,8 +105,9 @@ the ghoul's combination remains a labelled Curse approximation. No DS2 model/AI/
 
 Curse choices where DS2's engine is not visible, or the owner chose differently (each is a deliberate, labelled departure):
 
-* **XP on the kill** (owner): DS2 pays hit by hit; Curse pays when the monster dies, and splits the hero's share over his class skills
-  by the damage each did. XP no hit earned (quests, nests) goes to his most-used class skill.
+* **XP on the kill** (owner): DS2 pays hit by hit; Curse pays when the monster dies, and splits each member's share over their class skills
+  by the damage each did. Owner decision for quests, board rewards and nests: apply the existing party-share multiplier to every living
+  recipient, then advance that member's most-used class skill. Non-combat rewards have no monster level-gap adjustment.
 * **Class-skill table**: a class skill uses the character table one step behind (0 untrained, 1 at 300 XP), so a pure level 30 fighter
   is Melee 29 = 99 / 40 / 40, matching DS2's design note (about 100 / 40 / 40). Each class level adds its 3/1/1 weights.
 * **Experience table**: all 100 thresholds now come directly from `formulas.gas` (`data/reference/ds2_xp.json`). Save version 10

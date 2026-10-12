@@ -491,8 +491,10 @@ func _test_powers() -> void:
 	TownState.passive_ranks["critical_strike"] = 8
 	expect("Critical Strike 8 opens rank 3: 2000 + 60 x Melee %", PowerDb.hero_rank("brutal_attack") == 3
 		and is_equal_approx(player.stats.brutal_mult(), (2000.0 + 60.0 * melee) / 100.0))
-	TownState.cutter_xp = HeroProgression.xp_for_level(11)
-	expect("Cutter's Take Aim grows with his Ranged level (rank 1)", is_equal_approx(ArcherCompanion.take_aim_mult(), (1500.0 + 25.0 * 10.0) / 100.0))
+	TownState.add_member_xp("cutter", HeroProgression.xp_for_level(11), false, {"ranged": 1.0})
+	expect("Cutter earns no free Take Aim entitlement", PowerDb.hero_rank("take_aim", "cutter") == 0)
+	expect("Cutter opens Take Aim through the common purchase rule", TownState.buy_passives({"critical_shot": 1}, "cutter"))
+	expect("earned Take Aim grows with the member's Ranged level (rank 1)", is_equal_approx(PowerDb.hero_value("take_aim", "damage_pct", "cutter") / 100.0, (1500.0 + 25.0 * 10.0) / 100.0))
 	expect("Provoke's ranks need Barricade (DS2's aegis)", PowerDb.get_def("provoke").ranks[0].has("barricade"))
 	TownState.reset()
 	await get_tree().process_frame
@@ -501,6 +503,8 @@ func _test_powers() -> void:
 func _test_live_powers() -> void:
 	TownState.persist = false
 	TownState.reset()
+	# Reset now resets the actual common equipment store, not only legacy Hero fields.
+	for item in Items.starting_gear(): player.stats.equip(item, false)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame

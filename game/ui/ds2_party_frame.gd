@@ -32,7 +32,7 @@ func _ready() -> void:
 	hero_card = Ds2PartyCardClass.new("Hero", false)
 	box.add_child(hero_card)
 
-	companion_card = Ds2PartyCardClass.new("Cutter (Archer)", true)
+	companion_card = Ds2PartyCardClass.new("Cutter", true)
 	companion_card.visible = false
 	box.add_child(companion_card)
 
@@ -43,31 +43,22 @@ func _ready() -> void:
 	companion_card.set_icons(BASIC_ICON, TAKE_AIM_ICON)
 
 func update_frame(p: Player) -> void:
-	if p == null:
-		return
+	if p == null: return
 	player = p
+	var party := PartyManager.current()
+	_update_card(hero_card, party.bodies.get("hero") as Player)
+	_update_card(companion_card, party.bodies.get("cutter") as Player)
 
-	# 1. Update Hero Card
-	var hp_pct: float = p.health / maxf(p.max_health, 0.001)
-	var mana_pct: float = p.stats.mana / maxf(p.stats.max_mana, 0.001)
-	var xp_pct: float = HeroProgression.level_fraction(TownState.hero_xp)
-	
-	var brutal_charge: float = p.stats.ult_fraction("brutal_attack")
-	hero_card.update_vitals(hp_pct, mana_pct, xp_pct, brutal_charge,
-		preload("res://game/ui/power_button_visual.gd").armed(p, "brutal_attack"), p.stats.can_use("brutal_attack"))
-
-	# 2. Update Companion Card (Cutter)
-	var cutter: Node = p.stats._cutter()
-	if cutter != null and is_instance_valid(cutter) and not bool(cutter.get("dead")):
-		companion_card.visible = true
-		var c_hp_pct: float = float(cutter.get("health")) / maxf(float(cutter.get("max_health")), 0.001)
-		var c_mana_pct: float = 1.0
-		var c_xp_pct: float = HeroProgression.level_fraction(TownState.cutter_xp)   # his own level (a DS2 party member)
-		var take_aim_charge: float = 1.0
-		var reload_req: float = float(cutter.get("take_aim_reload_required"))
-		var reload_rem: float = float(cutter.get("take_aim_reload_remaining"))
-		if reload_req > 0.0:
-			take_aim_charge = clampf(1.0 - reload_rem / maxf(reload_req, 0.001), 0.0, 1.0)
-		companion_card.update_vitals(c_hp_pct, c_mana_pct, c_xp_pct, take_aim_charge, bool(cutter.get("take_aim_armed")))
-	else:
-		companion_card.visible = false
+func _update_card(card: Control, body: Player) -> void:
+	card.visible = is_instance_valid(body)
+	if not is_instance_valid(body): return
+	var power_id := "take_aim" if body.stats.is_ranged() else "brutal_attack"
+	card.set_icons(BASIC_ICON, TAKE_AIM_ICON if power_id == "take_aim" else BRUTAL_ICON)
+	card.update_vitals(body.health / maxf(body.max_health, 0.001),
+		body.stats.mana / maxf(body.stats.max_mana, 0.001), HeroProgression.level_fraction(body.character.xp),
+		body.stats.ult_fraction(power_id), preload("res://game/ui/power_button_visual.gd").armed(body, power_id),
+		not body.dead and body.stats.can_use(power_id))
+	card.tooltip_text = "%s — Level %d\n%s\n%s\nSelect this party member" % [
+		body.display_name, body.character.level, HeroProgression.progress_text(body.character.xp),
+		"Fallen" if body.dead else ("Active" if body.is_controlled() else "Companion")]
+	card.queue_redraw()

@@ -16,24 +16,25 @@ var _portrait_viewport: SubViewport
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
+	set_meta("reserve_party_cards", true)
 	add_theme_stylebox_override("panel", UiTheme.panel_box())
 	UiTheme.crest(self)
-	UiTheme.responsive_window(self, Vector2(640, 590))
-	position = Vector2(260, 40) if get_viewport_rect().size.x >= 1100 else Vector2(20, 30)
-	size = Vector2(640, 590) # Fit the completed window, not a prematurely shortened backpack.
+	UiTheme.responsive_window(self, Vector2(560, 640))
+	position = Vector2(260, 40)
+	size = Vector2(560, 640) # Keep the window close to its content, with room for a larger preview.
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
+	row.add_theme_constant_override("separation", 16)
 	add_child(row)
 	var left := VBoxContainer.new()
 	left.custom_minimum_size.x = 280
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_horizontal = Control.SIZE_FILL
 	row.add_child(left)
 	left.add_child(ItemTile._label(hero.display_name + " — Character", 24, UiTheme.TEXT))
 	_add_progression(left)
 	var portrait := TextureRect.new()
 	_portrait = portrait
 	portrait.name = "CharacterPortrait"
-	portrait.custom_minimum_size = Vector2(280, 120)
+	portrait.custom_minimum_size = Vector2(280, 180)
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -56,7 +57,7 @@ func _ready() -> void:
 	# Bone-mounted weapons/fists have unreliable rest AABBs; frame the known actor body instead.
 	var centre := Vector3(0, hero.body_height * 0.5, 0)
 	camera.fov = 35
-	camera.position = centre + Vector3(0, 0, hero.body_height * 2.4)
+	camera.position = centre + Vector3(0, 0, hero.body_height * 1.75)
 	viewport.add_child(camera)
 	camera.look_at(centre)
 	var light := DirectionalLight3D.new()
@@ -64,7 +65,7 @@ func _ready() -> void:
 	light.light_color = Color(0.92, 0.79, 0.61)
 	light.light_energy = 2.0
 	viewport.add_child(light)
-	var skills_button: Button = UiTheme.button("Skills (%d)" % TownState.skill_points_left(), 140)
+	var skills_button: Button = UiTheme.button("Skills (%d)" % TownState.skill_points_left({}, hero.member_id), 140)
 	skills_button.name = "skills"
 	skills_button.pressed.connect(func() -> void: (get_parent() as Hud).open_skills())
 	left.add_child(skills_button)
@@ -94,7 +95,7 @@ func _ready() -> void:
 	var grid := BagView.new()
 	grid.name = "BackpackGrid"
 	grid.stats = hero.stats
-	grid.cell_size = floorf(clampf((size.y - 200) / BagRules.HEIGHT, 20, 34))
+	grid.cell_size = 34.0 # Fit the window as a whole; do not leave a narrow grid in a wide column.
 	grid.item_activated.connect(_equip_bag_index)
 	grid.equipment_dropped.connect(_take_off)
 	scroll.add_child(grid)
@@ -172,7 +173,7 @@ func _take_off(place: int, cell: Vector2i = BagRules.NONE) -> void:
 	if _equipping or not hero.stats.unequip_to_bag(place, cell): return
 	_equipping = true
 	if hero.get_parent() is TownScene:
-		TownState.take_gear(hero.stats.equipment)
+		hero.capture_state()
 		TownState.save()
 	(get_parent() as Hud)._open_character()
 	if Gamepad.active:
@@ -185,12 +186,12 @@ func _focus_doll(index: int) -> void:
 ## The hero's permanent level and how far through it, read from TownState (the only place it lives). At the cap: "MAX LEVEL" and a full bar.
 ## It follows the progression events while the screen is open (no polling), so XP earned in play shows without closing it.
 func _add_progression(parent: Control) -> void:
-	var xp: int = TownState.hero_xp
-	TownState.events.hero_xp_changed.connect(_on_xp_changed)
+	var xp: int = hero.character.xp
+	TownState.events.member_xp_changed.connect(_on_member_xp_changed)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
-	level_label = ItemTile._label("Level %d" % TownState.hero_level, 20, UiTheme.BRONZE_LIGHT.lightened(0.3))
+	level_label = ItemTile._label("Level %d" % hero.character.level, 20, UiTheme.BRONZE_LIGHT.lightened(0.3))
 	row.add_child(level_label)
 	xp_label = ItemTile._label(HeroProgression.progress_text(xp), 15, UiTheme.TEXT_DIM)
 	xp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -201,9 +202,9 @@ func _add_progression(parent: Control) -> void:
 	xp_bar.custom_minimum_size = Vector2(280, 10)
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	xp_bar.draw.connect(func() -> void:
-		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(TownState.hero_xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
+		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(hero.character.xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
 	parent.add_child(xp_bar)
-	classes_label = ItemTile._label(classes_text(), 14, UiTheme.TEXT)
+	classes_label = ItemTile._label(classes_text(hero.member_id), 14, UiTheme.TEXT)
 	classes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(classes_label)
 	attributes_label = ItemTile._label(attributes_text(), 14, UiTheme.TEXT_DIM)
@@ -211,8 +212,8 @@ func _add_progression(parent: Control) -> void:
 	parent.add_child(attributes_label)
 
 ## "Melee 4   Ranged 1   Combat Magic 0   Nature Magic 0": the DS2 class skills, which rise with use.
-static func classes_text() -> String:
-	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
+static func classes_text(member_id: String = "hero") -> String:
+	var levels: Dictionary = HeroAttributes.levels_from_xp(PartyManager.current().member(member_id).class_xp)
 	var parts: PackedStringArray = []
 	for id in HeroAttributes.CLASSES:
 		parts.append("%s %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
@@ -224,25 +225,28 @@ func attributes_text() -> String:
 	return "STR %d  DEX %d  INT %d    Life %d  Mana %d" % [int(a.x), int(a.y), int(a.z), int(hero.max_health if hero != null else 0.0),
 		int(hero.stats.max_mana if hero != null else 0.0)]
 
+func _on_member_xp_changed(member_id: String, old_xp: int, new_xp: int) -> void:
+	if is_instance_valid(hero) and hero.member_id == member_id: _on_xp_changed(old_xp, new_xp)
+
 func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	if level_label == null:
 		return
 	level_label.text = "Level %d" % HeroProgression.level_for_xp(new_xp)
 	xp_label.text = HeroProgression.progress_text(new_xp)
 	xp_bar.queue_redraw()
-	classes_label.text = classes_text()
+	classes_label.text = classes_text(hero.member_id)
 	attributes_label.text = attributes_text()
 
 func _exit_tree() -> void:
-	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
-		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
+	if TownState.events.member_xp_changed.is_connected(_on_member_xp_changed):
+		TownState.events.member_xp_changed.disconnect(_on_member_xp_changed)
 
 func _equip_bag_index(index: int, place: int = -1) -> void:
 	if _equipping or not hero.stats.equip_from_bag(index, place): return
 	_equipping = true
 	var town := hero.get_parent() as TownScene
 	if town != null:
-		TownState.take_gear(hero.stats.equipment)
+		hero.capture_state()
 		TownState.save()
 	(get_parent() as Hud)._open_character()
 	if Gamepad.active:

@@ -28,6 +28,7 @@ const ICONS := {
 	"devastation": "detonation", "searing_flames": "fireball", "quickened_casting": "silence",
 	"ignite": "flame_nexus", "arcane_fury": "earthshatter",
 }
+var member_id: String = "hero"
 var tree: String = "melee"
 var staged: Dictionary = {}
 var points: Dictionary = {}
@@ -58,7 +59,7 @@ static func style_icon_button(button: Button) -> void:
 
 func _build() -> void:
 	for def in PassiveDb.of_tree(tree):
-		var rank := TownState.passive_rank(def.id, staged)
+		var rank := TownState.passive_rank(def.id, staged, member_id)
 		var button := Button.new()
 		button.name = def.id + "_plus"
 		button.icon = icon_for(def.id)
@@ -68,7 +69,7 @@ func _build() -> void:
 		button.size = Vector2(48, 48)
 		button.focus_mode = Control.FOCUS_ALL
 		button.set_meta("passive_id", def.id)
-		button.self_modulate = Color.WHITE if rank > 0 or TownState.passive_blocker(def.id, staged) == "" else Color(0.60, 0.57, 0.53)
+		button.self_modulate = Color.WHITE if rank > 0 or TownState.passive_blocker(def.id, staged, member_id) == "" else Color(0.60, 0.57, 0.53)
 		button.pressed.connect(func() -> void: raise_rank.emit(def.id))
 		button.mouse_entered.connect(func() -> void: inspect_node.emit(def.id, false, button))
 		button.focus_entered.connect(func() -> void: inspect_node.emit(def.id, false, button))
@@ -115,14 +116,14 @@ func _layout() -> void:
 		for required in def.prereqs:
 			if points.has(required):
 				links.append({"from": String(required), "to": def.id,
-					"met": TownState.passive_rank(String(required), staged) >= int(def.prereqs[required])})
+					"met": TownState.passive_rank(String(required), staged, member_id) >= int(def.prereqs[required])})
 	queue_redraw()
 
 func _draw() -> void:
 	for i in TIERS.size():
 		var y: float = 38 + i * 65
 		draw_line(Vector2(64, y), Vector2(size.x - 18, y), Color(0.34, 0.28, 0.20, 0.25))
-		var level: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get(tree, 0))
+		var level: int = int(HeroAttributes.levels_from_xp(PartyManager.current().member(member_id).class_xp).get(tree, 0))
 		var diamond := PackedVector2Array([Vector2(26, y - 20), Vector2(46, y), Vector2(26, y + 20), Vector2(6, y), Vector2(26, y - 20)])
 		draw_colored_polygon(diamond, UiTheme.INK)
 		draw_polyline(diamond, UiTheme.BRONZE_LIGHT, 2, true)

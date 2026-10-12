@@ -65,7 +65,7 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 
 ## Shared by inventory/shop cards and ground-loot cards.
 static func stat_line_color(it: Dictionary, line: String) -> Color:
-	return Color(0.93, 0.30, 0.24) if line.contains("Requires ") and not Items.hero_can_wear(it) else Color(0.9, 0.88, 0.82)
+	return Color(0.93, 0.30, 0.24) if line.contains("Requires ") and not Items.hero_can_wear(it, PartyManager.current().active_id) else Color(0.9, 0.88, 0.82)
 
 static func _label(text: String, size: int, color: Color) -> Label:
 	var label := Label.new()

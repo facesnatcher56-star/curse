@@ -480,7 +480,7 @@ func _page_stash() -> void:
 	worn_row.add_theme_constant_override("separation", 14)
 	_box.add_child(worn_row)
 	for slot in Items.SLOT_NAMES.size():
-		var worn: Variant = TownState.gear.get(slot)
+		var worn: Variant = town.player.character.equipment.get(slot)
 		if worn != null:
 			worn_row.add_child(ItemTile.create(worn, null))
 	if worn_row.get_child_count() == 0:
@@ -502,7 +502,7 @@ func _wear(index: int) -> void:
 	var item: Dictionary = TownState.stash[index]
 	var off: Variant = town.equip_town_item(item)
 	if off == null:
-		notice = "You cannot wear %s yet: %s." % [item["name"], Items.requirement_text(item)] if not Items.hero_can_wear(item) else "Recall your weapon first."
+		notice = "You cannot wear %s yet: %s." % [item["name"], Items.requirement_text(item)] if not Items.hero_can_wear(item, town.player.member_id) else "Recall your weapon first."
 		_rebuild()
 		return
 	TownState.stash.remove_at(index)
@@ -546,13 +546,13 @@ func _row(text: String, button_text: String, disabled: bool, action: Callable) -
 func _item_card(item: Dictionary, button_text: String, disabled: bool, action: Callable) -> Control:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
-	var tile: ItemTile = ItemTile.create(item, TownState.gear.get(int(item["slot"])), 56.0)
+	var tile: ItemTile = ItemTile.create(item, town.player.character.equipment.get(int(item["slot"])), 56.0)
 	tile.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(tile)
-	column.add_child(ItemTile.name_label(item, TownState.gear.get(int(item["slot"]))))
+	column.add_child(ItemTile.name_label(item, town.player.character.equipment.get(int(item["slot"]))))
 	var button := UiTheme.button(button_text, 110.0)
 	button.disabled = disabled
 	button.pressed.connect(action)
-	ItemTile.decorate_button(button, item, TownState.gear.get(int(item["slot"])))
+	ItemTile.decorate_button(button, item, town.player.character.equipment.get(int(item["slot"])))
 	column.add_child(button)
 	return column

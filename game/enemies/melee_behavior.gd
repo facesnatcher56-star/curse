@@ -24,7 +24,7 @@ func tick(delta: float, dist: float) -> void:
 		e.move_with(_move)
 		return
 	var can_swing: bool = _cool <= 0.0 and e.tokens_available()
-	if dist <= e.attack_range and can_swing and e.take_token():
+	if dist <= e.attack_range and can_swing and Nav.line_clear(e, e.target.global_position) and e.take_token():
 		_begin()
 		return
 	if dist > e.attack_range * 0.9 and (can_swing or dist > e.ring + 0.5):

@@ -24,16 +24,14 @@ func skill_damage_text(id: String) -> String:
 				var brutal: Vector2 = weapon_range(brutal_mult())
 				return "Empowered hit %d-%d" % [int(brutal.x), int(brutal.y)]
 			elif id == "take_aim":
-				var cutter := _cutter()
-				if cutter == null: return "Cutter unavailable"
-				var damage: Vector2 = cutter.arrow_damage_range() * ArcherCompanion.take_aim_mult()
-				return "Cutter's arrow deals %d-%d" % [int(damage.x), int(damage.y)]
+				var damage := ranged_range() * PowerDb.hero_value(id, "damage_pct", p.member_id) / 100.0
+				return "Empowered arrow %d-%d" % [int(damage.x), int(damage.y)]
 		"potion":
 			return "Heals 60"
 	return ""
 
 # --- Attributes, life and mana (Dungeon Siege II, see HeroAttributes) ---------------------------------------------------------------
-## STR, DEX, INT from the hero's class skill levels (TownState.class_xp). Refreshed whenever his XP changes (`refresh`).
+## STR, DEX, INT from the hero's class skill levels (p.character.class_xp). Refreshed whenever his XP changes (`refresh`).
 var attributes: Vector3 = HeroAttributes.START
 var strength: float:
 	get: return attributes.x
@@ -46,7 +44,7 @@ var intelligence: float:
 ## he has left of each), his armour, resistance, block and added fire. His character level becomes his combat level.
 func refresh() -> void:
 	gear = gear_totals()
-	attributes = HeroAttributes.attributes(HeroAttributes.levels_from_xp(TownState.class_xp)) \
+	attributes = HeroAttributes.attributes(HeroAttributes.levels_from_xp(p.character.class_xp)) \
 		+ Vector3(gear_stat("str"), gear_stat("dex"), gear_stat("int"))
 	var life_share: float = p.health / maxf(p.max_health, 1.0)
 	var mana_share: float = mana / maxf(max_mana, 1.0)
@@ -54,22 +52,23 @@ func refresh() -> void:
 	max_mana = (HeroAttributes.max_mana(attributes) + gear_stat("mana")) * (1.0 + passive("brilliance") / 100.0)
 	p.health = clampf(p.max_health * life_share, 0.0, p.max_health) if not p.dead else p.health
 	mana = max_mana * mana_share
-	p.level = TownState.hero_level
+	p.level = p.character.level
 	p.armor = total_armor()
 	p.fire_resist = (gear_stat("fire_resist") + passive("survival")) / 100.0
 	p.block_chance = (gear_stat("block") + passive("barricade")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.added_fire = gear_stat("fire_added")
 	p.added_fire_max = gear_stat("fire_added_max")
 	p.ranged_block_chance = (passive("barricade") + gear_stat("block_ranged")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
-	p.crit_chance = passive("critical_strike") / 100.0
-	p.crit_mult = passive("deadly_strike") / 100.0 if TownState.passive_rank("deadly_strike") > 0 else 2.0
+	p.crit_chance = passive("critical_shot" if is_ranged() else "critical_strike") / 100.0
+	var critical_damage := "mortal_wound" if is_ranged() else "deadly_strike"
+	p.crit_mult = passive(critical_damage) / 100.0 if TownState.passive_rank(critical_damage, {}, p.member_id) > 0 else 2.0
 	p.toughness = passive("toughness") / 100.0
 	p.dodge_chance = passive("dodge") / 100.0
 
 ## A DS2 passive's effect at the hero's rank in it (PassiveDef.value; 0 when he has none).
 func passive(id: String) -> float:
 	var def: PassiveDef = PassiveDb.get_def(id)
-	return def.value(TownState.passive_rank(id)) if def != null else 0.0
+	return def.value(TownState.passive_rank(id, {}, p.member_id)) if def != null else 0.0
 
 func magic_find() -> float:
 	return HeroAttributes.HUMAN_MAGIC_FIND + gear_stat("magic_find")
@@ -109,7 +108,7 @@ func total_armor() -> float:
 	for place in equipment:
 		var piece: float = float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
 		if place == Items.Slot.SHIELD:
-			shield_bonus = piece * PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade")) / 100.0
+			shield_bonus = piece * PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade", {}, p.member_id)) / 100.0
 		armor += piece
 	var provoke: float = p.powers.provoke_armor_pct if p.powers != null else 0.0   # DS2's Provoke, while it holds
 	return ((armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) + shield_bonus) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)
@@ -142,12 +141,18 @@ const STAMINA_ON := false
 var max_stamina: float = 100.0
 var stamina: float = 100.0
 const MAX_POTIONS := 6
-var potions: int = 3
+var potions: int:
+	get: return TownState.potions
+	set(value): TownState.potions = value
 var run_speed: float = 4.5   # DS2 heroes_ds2.gas avg_move_velocity
 var cooldowns: Dictionary = {}
 # Equipment (see items.gd)
-var equipment: Dictionary = {}  # Items.Slot -> item Dictionary
-var bag: Array[Dictionary] = []   # found this run, not worn; goes to the town stash when the run ends
+var equipment: Dictionary: # CharacterState is the only equipment store.
+	get: return p.character.equipment
+	set(value): p.character.equipment = value
+var bag: Array[Dictionary]:
+	get: return PartyManager.current().backpack
+	set(value): PartyManager.current().backpack = value   # found this run, not worn; goes to the town stash when the run ends
 const BagGrid := preload("res://game/inventory_grid.gd")
 const MAX_BAG := BagGrid.WIDTH * BagGrid.HEIGHT # upper bound for 1x1 items; actual capacity is geometric
 var base_armor: float = 0.0   # DS2: a hero's armour is all his gear's
@@ -156,16 +161,11 @@ var brutal_reload_required: float = 0.0
 var brutal_reload_remaining: float = 0.0
 
 func brutal_active_members() -> int:
-	var members: int = 1
-	if p != null and p.is_inside_tree():
-		for node in p.get_tree().get_nodes_in_group("companions"):
-			if node is Actor and is_instance_valid(node) and not (node as Actor).dead:
-				members += 1
-	return members
+	return maxi(PartyManager.current().living().size(), 1)
 
 ## Dungeon Siege II's fast-power baseline, copied directly: secondsOfCombat × (6 + 1.5L) × (1 + .022L) × active group members.
 func power_recharge_damage(seconds_of_combat: float, tree: String = "", caster: Actor = null) -> float:
-	var level: float = maxf(float(caster.level if caster != null else TownState.hero_level), 1.0)
+	var level: float = maxf(float(caster.level if caster != null else p.character.level), 1.0)
 	var hero: bool = caster == null or caster == p
 	var renewal: float = (passive("fierce_renewal") if tree == "melee" else passive("cunning_renewal") if tree == "ranged" else 0.0) if hero else 0.0
 	var gear_bonus: float = gear_stat("recharge") if hero else 0.0
@@ -177,7 +177,7 @@ func brutal_recharge_damage() -> float:
 
 ## Brutal Attack's weapon-damage multiplier at the hero's rank (DS2: 1500 + 25 x Melee % at rank 1, to 2000 + 60 x Melee % at rank 3).
 func brutal_mult() -> float:
-	return maxf(PowerDb.hero_value("brutal_attack", "damage_pct"), 1500.0) / 100.0
+	return maxf(PowerDb.hero_value("brutal_attack", "damage_pct", p.member_id), 1500.0) / 100.0
 
 func spend_brutal_attack() -> void:
 	brutal_reload_required = brutal_recharge_damage()
@@ -196,10 +196,7 @@ func ult_cost(id: String) -> float:
 	if id == "brutal_attack":
 		return brutal_reload_required if brutal_reload_required > 0.0 else brutal_recharge_damage()
 	if id == "take_aim":
-		var cutter := _cutter()
-		if cutter != null:
-			return cutter.take_aim_reload_required if cutter.take_aim_reload_required > 0.0 else power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
-		return power_recharge_damage(ArcherCompanion.TAKE_AIM_COMBAT_SECONDS)
+		return p.bow.reload_required if p.bow != null and p.bow.reload_required > 0.0 else power_recharge_damage(21.0, "ranged")
 	return 0.0
 
 func ult_fraction(id: String) -> float:
@@ -209,10 +206,9 @@ func ult_fraction(id: String) -> float:
 	if id == "brutal_attack":
 		return 1.0 if brutal_reload_remaining <= 0.0 else clampf(1.0 - brutal_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
 	if id == "take_aim":
-		var cutter := _cutter()
-		if cutter == null:
+		if p.bow == null:
 			return 0.0
-		return 1.0 if cutter.take_aim_reload_remaining <= 0.0 else clampf(1.0 - cutter.take_aim_reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
+		return 1.0 if p.bow.reload_remaining <= 0.0 else clampf(1.0 - p.bow.reload_remaining / maxf(cost, 0.001), 0.0, 1.0)
 	return 1.0
 
 func gain_brutal_charge(damage: float) -> void:
@@ -223,10 +219,9 @@ func can_use(id: String) -> bool:
 		return p.powers != null and p.powers.ready(id)
 	var skill: Dictionary = SkillDb.all()[id]
 	if id == "brutal_attack":
-		return brutal_reload_remaining <= 0.0 and PowerDb.hero_rank("brutal_attack") > 0
+		return not is_ranged() and brutal_reload_remaining <= 0.0 and PowerDb.hero_rank("brutal_attack", p.member_id) > 0
 	if id == "take_aim":
-		var cutter := _cutter()
-		return cutter != null and not cutter.dead and cutter.take_aim_reload_remaining <= 0.0
+		return is_ranged() and p.bow != null and p.bow.reload_remaining <= 0.0 and PowerDb.hero_rank(id, p.member_id) > 0
 	return float(cooldowns.get(id, 0.0)) <= 0.0 and mana >= mana_cost(id)
 
 func use_potion() -> bool:
@@ -251,7 +246,8 @@ func weapon_base_range() -> Vector2:
 	var item: Variant = equipment.get(Items.Slot.WEAPON)
 	var low: float = float((item as Dictionary)["stats"].get("min", 3.105)) if item != null else 3.105
 	var high: float = float((item as Dictionary)["stats"].get("max", 5.175)) if item != null else 5.175
-	return Vector2(low + gear_stat("melee_min"), maxf(high + gear_stat("melee_max"), low + gear_stat("melee_min")))
+	var discipline := "ranged" if is_ranged() else "melee"
+	return Vector2(low + gear_stat(discipline + "_min"), maxf(high + gear_stat(discipline + "_max"), low + gear_stat(discipline + "_min")))
 
 ## DS2's hero blow: the weapon plus 0.2 x STR (DEX for a thrown weapon), 0.75 of that on the low roll and 1.25 on the high, then x (1 +
 ## melee damage %), times `mult` (the skill's multiplier, DS2's power damage multiplier). CURSE CHOICE: the hero's thrown blade is his
@@ -265,6 +261,14 @@ func weapon_range(mult: float, thrown: bool = false) -> Vector2:
 func weapon_damage(mult: float, thrown: bool = false) -> float:
 	var r: Vector2 = weapon_range(mult, thrown)
 	return randf_range(r.x, r.y)
+
+func is_ranged() -> bool:
+	return bool(weapon_profile("ranged", false))
+
+func ranged_range() -> Vector2:
+	var base := weapon_base_range()
+	var bonus := 0.2 * maxf(dexterity, 10.0)
+	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + passive("biting_arrow") / 100.0)
 
 # --- Equipment -----------------------------------------------------------------
 
@@ -301,7 +305,7 @@ func skill_speed(id: String) -> float:
 ## Puts `item` on. Returns what came off to make room (the piece in its place, and a shield for a two-handed weapon or a two-handed weapon
 ## for a shield), or null when the hero does not meet its requirement (DS2: class skill at least item level - 2, and the stance passive). A ring goes on a free hand, else replaces the first ring.
 func equip(item: Dictionary, announce: bool = true, target_place: int = -1) -> Variant:
-	if not Items.hero_can_wear(item):
+	if not Items.hero_can_wear(item, p.member_id):
 		if announce:
 			p._say(Items.requirement_text(item))
 		return null
@@ -363,7 +367,7 @@ func unequip(place: int) -> Variant:
 ## Whether `item` would be put on at once when picked up: only into an empty place, if he may wear it and it pushes nothing off. Rarity
 ## never decides it, because a rarer piece may not fit the build; everything else goes to the bag and the player chooses.
 func takes_empty_slot(item: Dictionary) -> bool:
-	return not equipment.has(place_for(item)) and Items.hero_can_wear(item) \
+	return not equipment.has(place_for(item)) and Items.hero_can_wear(item, p.member_id) \
 		and (_hand_conflict(item) < 0 or not equipment.has(_hand_conflict(item)))
 
 ## Picks a dropped item up: an empty slot is filled at once, anything else goes to the bag.

@@ -492,14 +492,14 @@ func _test_xp() -> void:
 	var after_nest: int = TownState.hero_xp
 	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
 	await get_tree().process_frame
-	expect("a nest pays a miniboss of its level when it breaks, once", after_nest - xp_before == nest_xp and TownState.hero_xp == after_nest)
+	expect("a nest pays its miniboss XP with party share, once", after_nest - xp_before == HeroProgression.party_share(nest_xp, PartyManager.current().living().size()) and TownState.hero_xp == after_nest)
 	# The standing quest: on hand-in, once.
 	TownState.board[0]["ready"] = true
 	xp_before = TownState.hero_xp
 	var claimed: Dictionary = TownState.claim_ready()
 	var after_claim: int = TownState.hero_xp
 	var claimed_again: Dictionary = TownState.claim_ready()
-	expect("handing in the standing quest pays its XP once", after_claim - xp_before == HeroProgression.STANDING_QUEST_XP and int(claimed["xp"]) == HeroProgression.STANDING_QUEST_XP
+	expect("handing in the standing quest pays shared XP once", after_claim - xp_before == HeroProgression.party_share(HeroProgression.STANDING_QUEST_XP, PartyManager.current().living().size()) and int(claimed["xp"]) == HeroProgression.STANDING_QUEST_XP
 		and int(claimed_again["count"]) == 0 and TownState.hero_xp == after_claim)
 	expect("the new standing quest carries its XP", int(TownState.board[0].get("xp", 0)) == HeroProgression.STANDING_QUEST_XP)
 	# Dynamic quests: the quest's own XP, once; matters pay none.
@@ -509,7 +509,7 @@ func _test_xp() -> void:
 	var first: Dictionary = Quests.claim(int(inst["uid"]))
 	var after_first: int = TownState.hero_xp
 	var second: Dictionary = Quests.claim(int(inst["uid"]))
-	expect("a quest pays the XP written in it once (%d)" % (after_first - xp_before), bool(first["ok"]) and after_first - xp_before == int(TownDb.quest("ghoul_cull").reward["xp"])
+	expect("a quest pays its written XP with party share once (%d)" % (after_first - xp_before), bool(first["ok"]) and after_first - xp_before == HeroProgression.party_share(int(TownDb.quest("ghoul_cull").reward["xp"]), PartyManager.current().living().size())
 		and not bool(second["ok"]) and TownState.hero_xp == after_first)
 	var matter: QuestDef = TownDb.quest("fever")
 	expect("a matter in town pays no XP", not matter.reward.has("xp"))
@@ -526,7 +526,10 @@ func _test_xp() -> void:
 	expect("save and load keep XP earned in play", TownState.hero_xp == kept and TownState.hero_level == kept_level)
 	hero._apply_damage(hero.max_health + 100.0)
 	await get_tree().create_timer(3.6).timeout
-	expect("dying costs no XP", TownState.hero_xp == kept and not hero.dead)
+	expect("dying costs no XP and control passes to the survivor", TownState.hero_xp == kept and hero.dead and PartyManager.current().active_body() == town.companion)
+	# Continue the Hero-specific UI checks after explicitly reviving and selecting him.
+	hero.revive_at(hero.global_position)
+	PartyManager.current().select("hero")
 	# Levels from one reward: one event, one plate; the cap; the open character screen.
 	TownState.dev_set_hero_level(1)
 	var events: Array = []

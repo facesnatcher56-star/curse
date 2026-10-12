@@ -6,6 +6,7 @@ extends Node3D
 const BLAST_RADIUS := 2.6
 
 var owner_actor: Actor
+var origin: Dictionary = {}
 var direction: Vector3 = Vector3.FORWARD
 var destination: Vector3 = Vector3.ZERO
 var speed: float = 18.0
@@ -15,6 +16,7 @@ var blast_radius: float = BLAST_RADIUS
 var _done: bool = false
 
 func _ready() -> void:
+	if is_instance_valid(owner_actor): origin = owner_actor.combat_identity()
 	var orb := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.28
@@ -93,10 +95,11 @@ func _hit(enemy: Enemy, center: Vector3) -> void:
 	var closeness: float = clampf(1.0 - dist / blast_radius, 0.0, 1.0)   # 1 at the centre, 0 at the rim
 	var result: Dictionary = Combat.resolve(owner_actor, enemy, damage * (0.8 + 0.4 * closeness), Combat.DamageType.FIRE, false, 1.4, false, false)
 	result["skill_id"] = "fireball"
+	result["origin"] = origin.duplicate(true)
 	enemy.receive(result, center)
 	if not is_instance_valid(enemy):
 		return
-	enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness, owner_actor is Player)
+	enemy.apply_burn(maxf(damage * 0.18, 3.0), 4.0 + 2.0 * closeness, not origin.is_empty(), owner_actor, "fireball", origin)
 	# Close to the blast: thrown clear by the shockwave, further out only staggered.
 	if closeness >= 0.4 and not enemy.is_boss and enemy.impalable:
 		var away: Vector3 = enemy.global_position - center

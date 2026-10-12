@@ -63,7 +63,7 @@ POWERS = [
     ("take_aim", "Take Aim", "ranged", 21, "any",
      [{"critical_shot": 1}, {"critical_shot": 5}, {"critical_shot": 8, "penetrate": 1}],
      {"damage_pct": r3("1500 + 25 * ranged", "1700 + 48 * ranged", "2500 + 60 * ranged")}, [], "",
-     "The next shot deals massive damage (Cutter's)."),
+     "The next bow shot deals massive damage."),
     ("thunderous_shot", "Thunderous Shot", "ranged", 35, "bow",
      [{"biting_arrow": 1}, {"biting_arrow": 8, "far_shot": 1}, {"biting_arrow": 12, "far_shot": 8, "mortal_wound": 5}],
      {"damage_pct": r3("530 + 9 * ranged", "1025 + 16 * ranged", "1225 + 21 * ranged"), "stun": r3(6, 8, 10)}, [], "bows",

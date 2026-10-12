@@ -55,16 +55,27 @@ func credit_hero() -> void:
 ## damage by class skill ({melee, ranged, combat, nature}) and Cutter's. Only damage that took life counts.
 var hero_damage: Dictionary = {}
 var cutter_damage: float = 0.0
+var member_damage: Dictionary = {} # member ID -> class -> effective damage.
+var member_owners: Dictionary = {}
+## Summoned actors may inherit a captured origin; ordinary enemies leave it empty.
+var combat_origin: Dictionary = {}
 
-func _tally_damage(source: Actor, skill_id: String, amount: float) -> void:
+func combat_identity() -> Dictionary:
+	return combat_origin.duplicate(true)
+
+func _tally_damage(source: Actor, skill_id: String, amount: float, origin: Dictionary = {}) -> void:
 	var dealt: float = minf(amount, maxf(health, 0.0))
 	if dealt <= 0.0:
 		return
-	if source is Player:
+	if origin.is_empty() and is_instance_valid(source): origin = source.combat_identity()
+	if not String(origin.get("character_id", "")).is_empty():
 		var id: String = HeroAttributes.class_of_skill(skill_id)
-		hero_damage[id] = float(hero_damage.get(id, 0.0)) + dealt
-	elif source is ArcherCompanion:
-		cutter_damage += dealt
+		var member_id: String = String(origin.character_id)
+		member_owners[member_id] = String(origin.get("owner_id", ""))
+		if not member_damage.has(member_id): member_damage[member_id] = {}
+		member_damage[member_id][id] = float(member_damage[member_id].get(id, 0.0)) + dealt
+		if member_id == "hero": hero_damage[id] = float(hero_damage.get(id, 0.0)) + dealt
+		elif member_id == "cutter": cutter_damage += dealt
 
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
@@ -76,6 +87,7 @@ var bleed_dps: float = 0.0
 var burn_time: float = 0.0
 var burn_dps: float = 0.0
 var burn_source: Actor
+var burn_origin: Dictionary = {}
 var burn_skill_id: String = ""
 var _flames: Node3D
 
@@ -202,7 +214,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	_last_hit_from = source_pos
 	_last_hit_ms = Time.get_ticks_msec()
-	if result.get("source") is Player:
+	if result.get("source") is Player or not String(result.get("origin", {}).get("character_id", "")).is_empty():
 		credit_hero()
 	if result.get("source") is Actor:
 		last_hit_by = result["source"]
@@ -216,6 +228,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if result.get("quiet", false):
 		# Damage-over-time style tick: apply it, show the health bar, nothing else.
 		bar_timer = 4.0
+		_tally_damage(result.get("source"), String(result.get("skill_id", "")), float(result["damage"]), result.get("origin", {}))
 		_apply_damage(float(result["damage"]))
 		return
 	var outcome: int = result["outcome"]
@@ -261,7 +274,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 				or (not calm and outcome == Combat.Outcome.CRITICAL):
 			_pending_gib = "gore"
 		_gib_from = source_pos
-	_tally_damage(source, String(result.get("skill_id", "")), damage)
+	_tally_damage(source, String(result.get("skill_id", "")), damage, result.get("origin", {}))
 	result["damage"] = minf(damage, maxf(health, 0.0))   # Recharge/leech count actual life removed, not overkill.
 	_apply_damage(damage)
 
@@ -603,12 +616,13 @@ func _make_daze() -> Node3D:
 
 
 ## Sets the actor alight: fire damage over time with visible flames until it burns out or dies.
-func apply_burn(dps: float, seconds: float, by_hero: bool = false, source: Actor = null, skill_id: String = "") -> void:
+func apply_burn(dps: float, seconds: float, by_hero: bool = false, source: Actor = null, skill_id: String = "", origin: Dictionary = {}) -> void:
 	if dead:
 		return
 	if dps >= burn_dps:
 		burn_source = source
 		burn_skill_id = skill_id
+		burn_origin = origin.duplicate(true) if not origin.is_empty() else source.combat_identity() if is_instance_valid(source) else {}
 	if by_hero:
 		_burn_by_hero = true
 		credit_hero()
@@ -630,7 +644,7 @@ func _tick_burn(delta: float) -> void:
 	var dealt: float = minf(maxf(damage, 0.0), maxf(health, 0.0))
 	if _burn_by_hero:
 		credit_hero()   # fire the hero lit keeps the credit while it burns
-		hero_damage["combat"] = float(hero_damage.get("combat", 0.0)) + dealt
+		_tally_damage(burn_source if is_instance_valid(burn_source) else null, burn_skill_id, dealt, burn_origin)
 		if is_instance_valid(burn_source) and burn_source is Player:
 			(burn_source as Player).on_party_damage(dealt, burn_skill_id)
 	if damage >= health and burn_skill_id in GIBBING_POWERS and not is_in_group("player"):
@@ -660,6 +674,7 @@ func _tick_burn(delta: float) -> void:
 
 func stop_burning() -> void:
 	burn_source = null
+	burn_origin = {}
 	burn_skill_id = ""
 	_burn_by_hero = false
 	burn_time = 0.0

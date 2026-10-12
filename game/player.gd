@@ -42,6 +42,50 @@ var skills: SkillController
 var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
 var knockdown: Knockdown
 var hit_reaction: HitReaction
+var member_id: String = "hero"
+var character: CharacterState:
+	get: return PartyManager.current().member(member_id)
+var ai: PartyCharacterAI
+var bow: BowAttack
+var input_locked: bool = false
+
+func is_controlled() -> bool:
+	return PartyManager.current().active_id == member_id
+
+func combat_identity() -> Dictionary:
+	return {"character_id": member_id, "owner_id": character.owner_id}
+
+func release_control() -> void:
+	skills.cancel_take_aim_targeting()
+	skills.clear_aim()
+	skills.clear_queue()
+	click_mode = 0
+	pickup_target = null
+	attack_prop = null
+	movement.has_goal = false
+	hover_target = null
+	set_highlighted(false)
+
+func receive_control() -> void:
+	input_locked = true
+	attack_target = null
+	skills.clear_queue()
+	movement.has_goal = false
+
+func capture_state() -> void:
+	var saved_bow: Dictionary = character.power_state.get("bow", {})
+	if bow != null:
+		saved_bow = {"armed": bow.armed, "required": bow.reload_required, "remaining": bow.reload_remaining}
+	character.health = health
+	character.mana = stats.mana
+	character.equipment = stats.equipment
+	character.power_state = {"initialized": true, "brutal_armed": skills.brutal_armed,
+		"brutal_required": stats.brutal_reload_required, "brutal_remaining": stats.brutal_reload_remaining,
+		"required": powers.reload_required.duplicate(true), "remaining": powers.reload_remaining.duplicate(true),
+		"staggering_armed": powers.staggering_armed, "forced_crits": forced_crits, "bow": saved_bow,
+		"provoke_time": powers.provoke_time, "provoke_armor_pct": powers.provoke_armor_pct,
+		"repulse_time": powers.repulse_time, "repulse_radius": powers._repulse_radius,
+		"repulse_push": powers._repulse_push, "repulse_stun": powers._repulse_stun}
 
 func _init() -> void:
 	movement = PlayerMovement.new(self)
@@ -56,7 +100,9 @@ var _held_path: String = SWORD_PATH
 
 func _ready() -> void:
 	add_to_group("player")
-	display_name = "Knight"
+	PartyManager.current().bodies[member_id] = self
+	ai = PartyCharacterAI.new(self)
+	display_name = "Hero" if member_id == "hero" else "Cutter"
 	collision_layer = LAYER_PLAYER
 	collision_mask = LAYER_WORLD | LAYER_ENEMY
 	stats.refresh()   # DS2: life and mana from his attributes, which come from his class skills; his level is his character level
@@ -64,7 +110,11 @@ func _ready() -> void:
 	stats.mana = stats.max_mana
 	armor = stats.base_armor
 	block_chance = 0.0   # DS2: blocking needs a shield
-	_build_model(MODEL_DIR, CLIPS, 1.8, 0.4)
+	var folder := CharacterPresentation.folder(member_id)
+	var clips: Array[String] = []
+	clips.assign(CLIPS if member_id == "hero" else ["idle", "calm", "walk", "run"])
+	_build_model(folder, clips, 1.8, 0.4)
+	CharacterPresentation.share_combat_clips(model)
 	model.loop("idle_alert")
 	if ResourceLoader.exists(SWORD_PATH):
 		for arg in OS.get_cmdline_user_args():
@@ -75,14 +125,52 @@ func _ready() -> void:
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
 		add_child(_trail)
-	for item in Items.starting_gear():
-		stats.equip(item, false)
+	stats.equipment = character.equipment
+	if stats.equipment.is_empty() and not character.power_state.has("initialized"):
+		var kit: Array = Items.starting_gear() if member_id == "hero" else [Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")]
+		for item in kit: stats.equip(item, false)
+	stats.refresh()
+	refresh_weapon_model()
+	if character.health >= 0.0: health = clampf(character.health, 0.0, max_health)
+	if character.mana >= 0.0: stats.mana = clampf(character.mana, 0.0, stats.max_mana)
+	var saved := character.power_state
+	stats.brutal_reload_required = float(saved.get("brutal_required", 0.0))
+	stats.brutal_reload_remaining = float(saved.get("brutal_remaining", 0.0))
+	powers.reload_required = saved.get("required", {}).duplicate(true)
+	powers.reload_remaining = saved.get("remaining", {}).duplicate(true)
+	powers.staggering_armed = bool(saved.get("staggering_armed", false))
+	skills.brutal_armed = bool(saved.get("brutal_armed", false))
+	if skills.brutal_armed: skills._ensure_brutal_visual()
+	forced_crits = int(saved.get("forced_crits", 0))
+	powers.provoke_time = float(saved.get("provoke_time", 0.0))
+	powers.provoke_armor_pct = float(saved.get("provoke_armor_pct", 0.0))
+	powers.repulse_time = float(saved.get("repulse_time", 0.0))
+	powers._repulse_radius = float(saved.get("repulse_radius", 0.0))
+	powers._repulse_push = float(saved.get("repulse_push", 0.0))
+	powers._repulse_stun = float(saved.get("repulse_stun", 0.0))
+	character.power_state["initialized"] = true
+	if health <= 0.0: _die()
 
 ## The hero holds the model of the weapon that is equipped (the same models the weapons lie on the ground as), at a size that
 ## follows the weapon; a base with no model keeps the old sword.
 func refresh_weapon_model() -> void:
 	if model == null or not ResourceLoader.exists(SWORD_PATH):
 		return
+	if stats.is_ranged():
+		if bow == null:
+			model.clear_weapon()
+			bow = BowAttack.new(self)
+			bow.attach()
+			var saved_bow: Dictionary = character.power_state.get("bow", {})
+			bow.reload_required = float(saved_bow.get("required", 0.0))
+			bow.reload_remaining = float(saved_bow.get("remaining", 0.0))
+			if bool(saved_bow.get("armed", false)): bow.arm()
+		return
+	if bow != null:
+		capture_state()
+		bow.detach()
+		bow = null
+		_held_path = ""
 	var worn: Variant = stats.equipment.get(Items.Slot.WEAPON)
 	var path: String = SWORD_PATH
 	if worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):
@@ -157,16 +245,27 @@ func _physics_process(delta: float) -> void:
 	if skills.combo_timer <= 0.0 and not skills.busy:
 		skills.combo_step = 0
 
+	if not is_controlled():
+		if movement.rolling: movement.tick_roll(delta)
+		elif skills.busy:
+			skills.tick_busy(delta)
+			move_with(Vector3.ZERO)
+		elif stun_time <= 0.0: ai.tick(delta)
+		else: move_with(Vector3.ZERO)
+		return
+	if input_locked:
+		input_locked = Input.is_action_pressed("click") or Input.is_action_pressed("alt_skill")
+		for i in 6: input_locked = input_locked or Input.is_action_pressed("skill_%d" % (i + 1))
+		if input_locked:
+			if skills.busy: skills.tick_busy(delta)
+			return
 	_update_pad_aim(delta)
 	var cursor: Vector3 = cursor_world()
 	hover_target = _hover_pick(cursor)
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
 		skills.clear_aim()
 	skills.check_cancel()
-	if skills.take_aim_targeting:
-		var cutter := stats._cutter()
-		if cutter == null or cutter.dead:
-			skills.cancel_take_aim_targeting()
+	if skills.take_aim_targeting and bow == null: skills.cancel_take_aim_targeting()
 	skills.update_aim(cursor)
 	skills.handle_hotkeys(cursor)
 	if movement.rolling:
@@ -328,8 +427,12 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 				best = e
 	return best
 func _process(_delta: float) -> void:
+	if bow != null and not skills.busy: bow._release = maxf(bow._release - _delta, 0.0)
 	if skills.fire_orb != null and is_instance_valid(skills.fire_orb):
 		skills.fire_orb.global_position = skills.orb_home()
+	if not is_controlled():
+		if _ring != null: _ring.hide()
+		return
 	# Crosshair cursor and a ring under whatever enemy the mouse is over (or that we are attacking).
 	var on_enemy: bool = hover_target != null
 	if on_enemy != _cursor_on_enemy:
@@ -528,15 +631,15 @@ func _pursue_pickup(stand_still: bool) -> void:
 	if Input.is_action_just_pressed("companion_attack"):
 		var hover_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor_world()) as Enemy)
 		if hover_enemy != null and not hover_enemy.dead:
-			var cutter := stats._cutter()
-			if cutter != null and not cutter.dead:
-				if skills.take_aim_targeting:
-					skills.confirm_take_aim(hover_enemy)
-				else:
-					cutter.set_manual_target(hover_enemy)
+			if skills.take_aim_targeting:
+				skills.confirm_take_aim(hover_enemy)
+			else:
+				for body in PartyManager.current().living():
+					if body != self: body.attack_target = hover_enemy
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:
+	if not is_controlled(): return
 	var here: Vector2 = Vector2(global_position.x, global_position.z)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
@@ -546,10 +649,18 @@ func _manage_dormancy() -> void:
 		e.set_dormant(d > (Enemy.WAKE_RANGE if e.dormant else Enemy.SLEEP_RANGE))
 
 func _enter_tree() -> void:
-	if not TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
-		TownState.events.hero_xp_changed.connect(_on_xp_changed)
-		TownState.events.hero_leveled.connect(_on_leveled)
-		TownState.events.passives_changed.connect(stats.refresh)
+	TownState.events.member_xp_changed.connect(_member_xp_changed)
+	TownState.events.member_leveled.connect(_member_leveled)
+	TownState.events.member_passives_changed.connect(_member_passives_changed)
+
+func _member_xp_changed(id: String, old_xp: int, new_xp: int) -> void:
+	if id == member_id: _on_xp_changed(old_xp, new_xp)
+
+func _member_leveled(id: String, old_level: int, new_level: int, xp: int) -> void:
+	if id == member_id: _on_leveled(old_level, new_level, xp)
+
+func _member_passives_changed(id: String) -> void:
+	if id == member_id: stats.refresh()
 
 func _on_xp_changed(_old_xp: int, _new_xp: int) -> void:
 	stats.refresh()
@@ -564,11 +675,16 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.cooldowns.clear()
 	stats.brutal_reload_remaining = 0.0
 	powers.reset()
-	var cutter := stats._cutter()
-	if cutter != null:
-		cutter.take_aim_reload_remaining = 0.0
+	if bow != null: bow.reload_remaining = 0.0
 
 func _exit_tree() -> void:
+	Nav.reset(self, movement._nav_state)
+	capture_state()
+	if PartyManager.current().bodies.get(member_id) == self:
+		PartyManager.current().bodies.erase(member_id)
+	TownState.events.member_xp_changed.disconnect(_member_xp_changed)
+	TownState.events.member_leveled.disconnect(_member_leveled)
+	TownState.events.member_passives_changed.disconnect(_member_passives_changed)
 	if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 		TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
 	if TownState.events.hero_leveled.is_connected(_on_leveled):
@@ -580,6 +696,10 @@ func _on_death() -> void:
 	hit_reaction.clear()
 	knockdown.die()   # dying supersedes the fall (no get-up, no Iron Recovery) and the death clip carries on from his pose
 	skills.reset()
+	if bow != null:
+		bow.cancel()
+		bow.disarm()
+	if is_controlled(): PartyManager.current().cycle()
 
 ## Back on his feet at `pos` (the world has no run to end when the hero falls: he is dragged home): whole, standing, the death
 ## animation put away, and a moment of grace before anything can hurt him.
@@ -608,6 +728,7 @@ func revive_at(pos: Vector3) -> void:
 	skills.reset()
 	movement.has_goal = false
 	global_position = pos
+	Nav.reset(self, movement._nav_state)
 	reset_physics_interpolation()
 	model.current = ""   # the death clip is over: the next loop() must really start the idle
 	model.loop("idle_alert")
@@ -648,7 +769,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 	if skill_id != "" and target != null:
 		var skill: Dictionary = SkillDb.all()[skill_id]
 		var dist: float = flat_distance_to(target) - target.body_radius
-		if dist <= float(skill["range"]):
+		if dist <= (17.0 if skill_id == "basic" and stats.is_ranged() else float(skill["range"])) and Nav.line_clear(self, target.global_position):
 			if (skills.brutal_armed or powers.staggering_armed) and skills.busy and skills.busy_skill == "basic":
 				skills.cancel_action()
 			if stats.can_use(skill_id):
@@ -686,12 +807,11 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 
 ## All party damage feeds every power except the power that produced it.
 func on_party_damage(damage: float, skill_id: String = "") -> void:
-	if skill_id != "brutal_attack":
-		stats.gain_brutal_charge(damage)
-	powers.gain(damage, skill_id)
-	for companion in get_tree().get_nodes_in_group("companions"):
-		if skill_id != "take_aim" and companion.has_method("gain_take_aim_charge"):
-			companion.gain_take_aim_charge(damage)
+	for body in PartyManager.current().living():
+		if body != self or skill_id != "brutal_attack": body.stats.gain_brutal_charge(damage)
+		body.powers.gain(damage, skill_id if body == self else "")
+		if body.bow != null and (body != self or skill_id != "take_aim"):
+			body.bow.reload_remaining = maxf(body.bow.reload_remaining - maxf(damage, 0.0), 0.0)
 
 ## DS2 rules.skrit: life/mana + flat bonus + steal% x actual damage dealt, on weapon hits, never spells/reflection.
 func _steal_resources(result: Dictionary) -> void:
@@ -714,11 +834,11 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 		return
 	var skill: String = String(result.get("skill_id", ""))
 	var damage: float = float(result.get("damage", 0.0))
-	var smite: int = TownState.passive_rank("smite")
+	var smite: int = TownState.passive_rank("smite", {}, member_id)
 	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
 			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
 		target._gain_stun(PassiveDb.get_def("smite").extra_value("stun", smite))
-	var ignite: int = TownState.passive_rank("ignite")
+	var ignite: int = TownState.passive_rank("ignite", {}, member_id)
 	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
 			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
 		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true, self, skill)
@@ -770,9 +890,9 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 func _on_avoided(outcome: int) -> void:
 	combat_timer = 5.0
 	# DS2's Rebuke: a block hits back for 0.4-2.5 x Melee level and stuns for 1-2 s.
-	var rebuke: int = TownState.passive_rank("rebuke")
+	var rebuke: int = TownState.passive_rank("rebuke", {}, member_id)
 	if rebuke > 0 and outcome == Combat.Outcome.BLOCK and last_hit_by is Enemy and not last_hit_by.dead:
-		var melee: int = int(HeroAttributes.levels_from_xp(TownState.class_xp).get("melee", 0))
+		var melee: int = int(HeroAttributes.levels_from_xp(character.class_xp).get("melee", 0))
 		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,
 			"source": self, "type": Combat.DamageType.PHYSICAL, "secondary": true, "skill_id": "rebuke"}, global_position)
 		last_hit_by._gain_stun(PassiveDb.get_def("rebuke").extra_value("stun", rebuke))

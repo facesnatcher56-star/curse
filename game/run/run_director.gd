@@ -347,12 +347,12 @@ func _process(delta: float) -> void:
 	_sleep_far_monsters(delta)
 	if world_mode:
 		TownState.flush_progression()   # ordinary kills' XP reaches the disk within a few seconds
-		if player != null and player.dead and not _fell:
+		if player != null and PartyManager.current().living().is_empty() and not _fell:
 			_fell = true
 			hero_fell.emit()
 		return
 	# A job run ends in the town: the hero fell, or the last wave is done (see _on_enemy_died).
-	if not job.is_empty() and not _ending and not selftest and player != null and player.dead:
+	if not job.is_empty() and not _ending and not selftest and player != null and PartyManager.current().living().is_empty():
 		_end_run(false)
 
 ## What a kill means to the quests: a named monster done (and a good item from it), or one of a kind being counted (and maybe a quest item).
@@ -392,19 +392,14 @@ func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 	if enemy == null or enemy.def == null or not enemy.xp_eligible or not enemy.hero_credited():
 		return
 	var kill: int = HeroProgression.monster_xp(enemy.level, enemy.def.tier)
-	var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, enemy.level)
-	var total: int = int(round(float(kill + bounty_xp) * gap))
-	if total <= 0:
-		return
-	var cutter := _living_cutter()
-	var members: int = 2 if cutter != null else 1
-	var share: int = HeroProgression.party_share(total, members)
-	HeroProgression.log_xp("kill: %s L%d %s kill=%d%s gap=x%.2f party=%d share=%d" % [enemy.display_name, enemy.level, enemy.def.tier, kill,
-		(" named bounty=%d" % bounty_xp) if bounty_xp > 0 else "", gap, members, share])
-	if cutter != null:
-		TownState.add_cutter_xp(share)
-		cutter.refresh_level()
-	TownState.add_hero_xp(share, bounty_xp > 0, enemy.hero_damage)
+	var party := PartyManager.current()
+	var recipients := party.living()
+	for body in recipients:
+		var member_id := body.member_id
+		var gap := HeroProgression.level_gap_mult(body.character.level, enemy.level)
+		var total := int(round(float(kill + bounty_xp) * gap))
+		var share := HeroProgression.party_share(total, recipients.size())
+		TownState.add_member_xp(member_id, share, bounty_xp > 0, enemy.member_damage.get(member_id, {}))
 
 func _living_cutter() -> ArcherCompanion:
 	for node in get_tree().get_nodes_in_group("companions"):

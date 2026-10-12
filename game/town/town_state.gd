@@ -8,7 +8,7 @@ extends RefCounted
 const SAVE_PATH := SavePolicy.PRODUCTION_PATH
 ## Bump this when a saved field changes shape or meaning, and add a step to `migrate`. A save with no version is version 0 (from before
 ## versions existed); a save newer than this build is never loaded or overwritten (it is copied aside, see `load_or_start`).
-const SAVE_VERSION := 10
+const SAVE_VERSION := 11
 const LOW_FOOD := 3
 
 static var persist: bool = SavePolicy.persists_by_default(OS.get_cmdline_user_args())
@@ -23,7 +23,9 @@ static var potions: int = 3
 static var jobs_done: int = 0
 static var orientation_seen: bool = false
 static var vendor_gold: int = 150
-static var gear: Dictionary = {}          # Items.Slot (int) -> item Dictionary, worn at the start of every run
+static var gear: Dictionary:
+	get: return PartyManager.current().member("hero").equipment
+	set(value): PartyManager.current().member("hero").equipment = value
 static var stash: Array = []              # spare items
 static var npcs: Dictionary = {}          # id -> {happiness: float, traits: [id], member: bool, left: bool}
 static var relations: Dictionary = {}     # "a|b" (ids sorted) -> 0..100, 50 is neutral
@@ -53,15 +55,25 @@ static var monster_uid: int = 0
 static var chronicle: Array = []          # what has happened: {day, kind, text} (see Chronicle)
 ## The hero's permanent progression (see HeroProgression). `hero_xp` is the total lifetime XP and the only authority: `hero_level` is
 ## always derived from it (here and on load), kept as a field so everything can simply read `TownState.hero_level`. Nothing else holds a level.
-static var hero_xp: int = 0
-static var hero_level: int = 1
+static var hero_xp: int:
+	get: return PartyManager.current().member("hero").xp
+	set(value): PartyManager.current().member("hero").xp = value
+static var hero_level: int:
+	get: return PartyManager.current().member("hero").level
+	set(_value): pass # Legacy callers assign the derived level after XP; XP remains authoritative.
 ## The hero's Dungeon Siege II class skills: XP in Melee, Ranged, Combat Magic and Nature Magic. Every award to his character XP is split
 ## over these too (by the damage each skill did, see `add_hero_xp`), and they decide his STR / DEX / INT (HeroAttributes).
-static var class_xp: Dictionary = {"melee": 0, "ranged": 0, "combat": 0, "nature": 0}
+static var class_xp: Dictionary:
+	get: return PartyManager.current().member("hero").class_xp
+	set(value): PartyManager.current().member("hero").class_xp = value
 ## Cutter levels as the hero's party member (DS2's group XP): his character XP, which is all Ranged.
-static var cutter_xp: int = 0
+static var cutter_xp: int:
+	get: return PartyManager.current().member("cutter").xp
+	set(value): PartyManager.current().member("cutter").xp = value
 ## Ranks bought in DS2's passive skills (PassiveDef id -> rank). Bought with skill points, kept for good (DS2 has no respec).
-static var passive_ranks: Dictionary = {}
+static var passive_ranks: Dictionary:
+	get: return PartyManager.current().member("hero").passive_ranks
+	set(value): PartyManager.current().member("hero").passive_ranks = value
 ## Announces XP and level changes (see ProgressionEvents); the HUD listens, this never knows about any scene.
 static var events := ProgressionEvents.new()
 
@@ -74,6 +86,7 @@ const JOB_NAMES: Array[String] = ["Marrow Fields", "the Drowned Chapel", "Ashen 
 
 ## A fresh town: starting gold and food, everyone at their starting mood, a first job board.
 static func reset() -> void:
+	PartyManager.current().reset()
 	gold = 40
 	food = 12
 	potions = 3
@@ -292,7 +305,7 @@ static func claim_ready() -> Dictionary:
 	smith_stock = []
 	roll_board()
 	save()
-	add_hero_xp(xp_paid)   # after the board is settled: the claim is done, so it can only be paid once
+	add_party_reward_xp(xp_paid)   # after the board is settled: the claim can only be paid once
 	return {"gold": gold_paid, "count": names.size(), "names": names, "xp": xp_paid}
 
 ## True while the hero is out beyond the town. The clan eats once per expedition, not every time the hero steps through the gate.
@@ -426,20 +439,41 @@ static func item_price(item: Dictionary) -> int:
 ## goes to the class skill he has used most (Melee for a new hero). CURSE CHOICE: DS2 pays only for hits.
 ## Returns {xp_gained (what was actually kept), old_xp, new_xp, old_level, new_level, levels_gained}.
 static func add_hero_xp(amount: int, save_now: bool = true, damage_by_class: Dictionary = {}) -> Dictionary:
+	return add_member_xp("hero", amount, save_now, damage_by_class)
+
+## Owner decision: non-combat rewards use the same party share as kills, with no
+## monster level-gap adjustment. Each recipient advances their own most-used class.
+static func add_party_reward_xp(amount: int, save_now: bool = true) -> Dictionary:
+	var party := PartyManager.current()
+	var recipients: Array[String] = []
+	for id in party.members:
+		var body: Variant = party.bodies.get(id)
+		var alive: bool = not body.dead if is_instance_valid(body) else party.member(id).health != 0.0
+		if alive: recipients.append(String(id))
+	var awards: Dictionary = {}
+	if amount <= 0 or recipients.is_empty(): return awards
+	var share := HeroProgression.party_share(amount, recipients.size())
+	for id in recipients:
+		awards[id] = add_member_xp(id, share, false)
+	if save_now: save()
+	return awards
+
+static func add_member_xp(member_id: String, amount: int, save_now: bool = true, damage_by_class: Dictionary = {}) -> Dictionary:
+	var member := PartyManager.current().member(member_id)
 	if amount <= 0:
-		return _progress_result(hero_xp, hero_xp)
-	var capped: int = mini(amount, HeroProgression.max_xp())   # nothing past the cap is kept: this also keeps the sum from overflowing
-	var shares: Dictionary = HeroAttributes.split(capped, damage_by_class, main_class())
+		return _progress_result(member.xp, member.xp)
+	var capped: int = mini(amount, HeroProgression.max_xp() - member.xp)
+	var shares := HeroAttributes.split(capped, damage_by_class, member.main_class())
 	var increased: Dictionary = {}
-	for id in shares:
-		var old_level: int = HeroAttributes.class_level(int(class_xp.get(id, 0)))
-		class_xp[id] = mini(int(class_xp.get(id, 0)) + int(shares[id]), HeroProgression.max_xp())
-		var new_level: int = HeroAttributes.class_level(int(class_xp[id]))
-		if new_level > old_level:
-			increased[id] = new_level
-	var result: Dictionary = _set_hero_xp(hero_xp + capped, save_now)
+	for tree in shares:
+		var old_level := HeroAttributes.class_level(int(member.class_xp.get(tree, 0)))
+		member.class_xp[tree] = mini(int(member.class_xp.get(tree, 0)) + int(shares[tree]), HeroProgression.max_xp())
+		var new_level := HeroAttributes.class_level(int(member.class_xp[tree]))
+		if new_level > old_level: increased[tree] = new_level
+	var result := _set_member_xp(member_id, member.xp + capped, save_now)
 	if not increased.is_empty():
-		events.class_skills_leveled.emit(increased)
+		events.member_class_skills_leveled.emit(member_id, increased)
+		if member_id == "hero": events.class_skills_leveled.emit(increased)
 	return result
 
 ## The class skill the hero has the most XP in (Melee when he has none).
@@ -454,55 +488,57 @@ static func main_class() -> String:
 # --- Skill points and passives (DS2: one point per character level, two more for a human) --------------------------------------------
 const BONUS_SKILL_POINTS := 2
 
-static func skill_points_total() -> int:
-	return maxi(hero_level - 1, 0) + BONUS_SKILL_POINTS
+static func skill_points_total(member_id: String = "hero") -> int:
+	return maxi(PartyManager.current().member(member_id).level - 1, 0) + BONUS_SKILL_POINTS
 
-static func skill_points_left(staged: Dictionary = {}) -> int:
+static func skill_points_left(staged: Dictionary = {}, member_id: String = "hero") -> int:
 	var spent: int = 0
-	for id in passive_ranks:
-		spent += int(passive_ranks[id])
+	var ranks := PartyManager.current().member(member_id).passive_ranks
+	for id in ranks:
+		spent += int(ranks[id])
 	for id in staged:
 		spent += int(staged[id])
-	return skill_points_total() - spent
+	return skill_points_total(member_id) - spent
 
-static func passive_rank(id: String, staged: Dictionary = {}) -> int:
-	return int(passive_ranks.get(id, 0)) + int(staged.get(id, 0))
+static func passive_rank(id: String, staged: Dictionary = {}, member_id: String = "hero") -> int:
+	return int(PartyManager.current().member(member_id).passive_ranks.get(id, 0)) + int(staged.get(id, 0))
 
 ## Why one more rank of `id` cannot be bought on top of `staged` (points chosen but not yet confirmed), or "" when it can: a point to
 ## spend, the rank cap, its tree's class skill level and the ranks it needs in other passives.
-static func passive_blocker(id: String, staged: Dictionary = {}) -> String:
+static func passive_blocker(id: String, staged: Dictionary = {}, member_id: String = "hero") -> String:
 	var def: PassiveDef = PassiveDb.get_def(id)
 	if def == null:
 		return "Unknown skill"
-	if passive_rank(id, staged) >= PassiveDef.MAX_RANK:
+	if passive_rank(id, staged, member_id) >= PassiveDef.MAX_RANK:
 		return "At its highest rank"
-	var level: int = int(HeroAttributes.levels_from_xp(class_xp).get(def.tree, 0))
+	var level: int = int(HeroAttributes.levels_from_xp(PartyManager.current().member(member_id).class_xp).get(def.tree, 0))
 	if level < def.class_level:
 		return "Needs %s %d" % [HeroAttributes.CLASS_NAMES[def.tree], def.class_level]
 	for other in def.prereqs:
-		if passive_rank(String(other), staged) < int(def.prereqs[other]):
+		if passive_rank(String(other), staged, member_id) < int(def.prereqs[other]):
 			return "Needs %s %d" % [PassiveDb.get_def(String(other)).display_name, int(def.prereqs[other])]
-	if skill_points_left(staged) <= 0:
+	if skill_points_left(staged, member_id) <= 0:
 		return "No skill points left"
 	return ""
 
 ## Commits the chosen ranks (each checked in turn, as if bought one at a time). Returns false, changing nothing, if any could not be bought.
-static func buy_passives(staged: Dictionary) -> bool:
+static func buy_passives(staged: Dictionary, member_id: String = "hero") -> bool:
 	var trial: Dictionary = {}
 	for id in staged:
 		for i in int(staged[id]):
-			if passive_blocker(String(id), trial) != "":
+			if passive_blocker(String(id), trial, member_id) != "":
 				return false
 			trial[id] = int(trial.get(id, 0)) + 1
+	var member := PartyManager.current().member(member_id)
 	for id in trial:
-		passive_ranks[id] = int(passive_ranks.get(id, 0)) + int(trial[id])
-	events.passives_changed.emit()
+		member.passive_ranks[id] = int(member.passive_ranks.get(id, 0)) + int(trial[id])
+	events.member_passives_changed.emit(member_id)
+	if member_id == "hero": events.passives_changed.emit()
 	save()
 	return true
 
 static func add_cutter_xp(amount: int) -> void:
-	if amount > 0:
-		cutter_xp = mini(cutter_xp + amount, HeroProgression.max_xp())
+	add_member_xp("cutter", amount, false, {"ranged": 1.0})
 
 const XP_SAVE_DELAY_MS := 8000
 static var _xp_unsaved_ms: int = 0   # when the oldest XP not yet on disk was earned (0: all of it is saved)
@@ -535,21 +571,24 @@ static func apply_dev_progression(args: PackedStringArray) -> Array:
 	return applied
 
 static func _set_hero_xp(total: int, save_now: bool = true) -> Dictionary:
-	var old_xp: int = hero_xp
-	var old_level: int = hero_level
-	hero_xp = HeroProgression.sanitize_xp(total)
-	hero_level = HeroProgression.level_for_xp(hero_xp)
-	var result: Dictionary = _progress_result(old_xp, hero_xp)
-	result["old_level"] = old_level
-	result["levels_gained"] = maxi(hero_level - old_level, 0)
-	if hero_xp != old_xp:
-		if save_now or hero_level > old_level:
+	return _set_member_xp("hero", total, save_now)
+
+static func _set_member_xp(member_id: String, total: int, save_now: bool = true) -> Dictionary:
+	var member := PartyManager.current().member(member_id)
+	var old_xp := member.xp
+	var old_level := member.level
+	member.xp = HeroProgression.sanitize_xp(total)
+	var result := _progress_result(old_xp, member.xp)
+	if member.xp != old_xp:
+		events.member_xp_changed.emit(member_id, old_xp, member.xp)
+		if member_id == "hero": events.hero_xp_changed.emit(old_xp, member.xp)
+		if member.level > old_level:
+			events.member_leveled.emit(member_id, old_level, member.level, member.xp)
+			if member_id == "hero": events.hero_leveled.emit(old_level, member.level, member.xp)
+		if save_now or member.level > old_level:
 			save()
 		elif _xp_unsaved_ms == 0:
 			_xp_unsaved_ms = maxi(Time.get_ticks_msec(), 1)
-		events.hero_xp_changed.emit(old_xp, hero_xp)
-		if hero_level > old_level:
-			events.hero_leveled.emit(old_level, hero_level, hero_xp)
 	return result
 
 static func _progress_result(old_xp: int, new_xp: int) -> Dictionary:
@@ -567,7 +606,8 @@ static func to_dict() -> Dictionary:
 		"stash": _items_to_save(stash), "npcs": npcs, "relations": relations, "board": board, "stock": _stock_to_save(stock), "job": job, "last_run": last_run, "run_in_progress": run_in_progress,
 		"quests": quests, "road_seed": road_seed, "quest_uid": quest_uid, "day": day, "world_mods": world_mods, "quest_clock": quest_clock, "quest_history": quest_history,
 		"monsters": monsters, "monster_uid": monster_uid, "chronicle": chronicle, "hero_level": hero_level, "hero_xp": hero_xp,
-		"class_xp": class_xp.duplicate(), "cutter_xp": cutter_xp, "passive_ranks": passive_ranks.duplicate()}
+		"class_xp": class_xp.duplicate(), "cutter_xp": cutter_xp, "passive_ranks": passive_ranks.duplicate(),
+		"party": PartyManager.current().to_dict()}
 
 ## Brings a loaded save up to SAVE_VERSION, one step at a time. Returns {} for a save from a newer build (do not touch it).
 static func migrate(data: Dictionary) -> Dictionary:
@@ -577,6 +617,21 @@ static func migrate(data: Dictionary) -> Dictionary:
 		return {}
 	while version < SAVE_VERSION:
 		match version:
+			10:
+				var hero := CharacterState.new("hero")
+				hero.xp = HeroProgression.sanitize_xp(data.get("hero_xp", 0))
+				hero.class_xp = data.get("class_xp", hero.class_xp).duplicate(true)
+				hero.passive_ranks = data.get("passive_ranks", {}).duplicate(true)
+				hero.equipment = _gear_from_save(data.get("gear", {}))
+				hero.hotbar.assign(GameSettings.hotbar_slots)
+				hero.hotbar_alt = GameSettings.hotbar_alt
+				hero.power_state["initialized"] = true
+				var cutter := CharacterState.new("cutter")
+				cutter.xp = HeroProgression.sanitize_xp(data.get("cutter_xp", 0))
+				cutter.class_xp["ranged"] = cutter.xp
+				cutter.equipment[Items.Slot.WEAPON] = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")
+				cutter.power_state["initialized"] = true
+				data["party"] = {"members": {"hero": hero.to_dict(), "cutter": cutter.to_dict()}, "active_id": "hero", "backpack": []}
 			9:   # Replace the interpolated XP curve without taking away earned levels or level progress.
 				if original_version >= 7:
 					data["hero_xp"] = HeroProgression.migrate_interpolated_xp(int(data.get("hero_xp", 0)))
@@ -726,6 +781,8 @@ static func from_dict(data: Dictionary) -> void:
 		for id in saved_ranks:
 			if PassiveDb.get_def(String(id)) != null:
 				passive_ranks[String(id)] = clampi(int(saved_ranks[id]), 0, PassiveDef.MAX_RANK)
+	if data.has("party"):
+		PartyManager.current().load_data(data["party"])
 	run_in_progress = false   # the world is not a run: nothing is "in progress" when the game is closed
 	job =(board[0] as Dictionary).duplicate(true)   # the posted quest is the one measured; nothing has to be taken
 

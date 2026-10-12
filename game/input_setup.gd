@@ -18,6 +18,7 @@ static func apply() -> void:
 	_key("chronicle", KEY_J)
 	_key("use_potion", KEY_Q)
 	_key("companion_attack", KEY_A)
+	_key("party_switch", KEY_C)
 	for i in 6:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()
@@ -42,6 +43,8 @@ static func _apply_gamepad() -> void:
 	_pad_button("pause", JOY_BUTTON_START)
 	_pad_button("interact", JOY_BUTTON_A)
 	_pad_button("chronicle", JOY_BUTTON_DPAD_LEFT)
+	_remove_pad_button("party_switch", JOY_BUTTON_DPAD_RIGHT)
+	_pad_trigger("party_switch", JOY_AXIS_TRIGGER_LEFT)
 	_pad_button("zoom_in", JOY_BUTTON_DPAD_UP)
 	_pad_button("zoom_out", JOY_BUTTON_DPAD_DOWN)
 

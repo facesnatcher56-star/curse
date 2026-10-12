@@ -79,14 +79,15 @@ static func _fit_window(window, design_size: Vector2) -> void:
 	# Wrapped labels can temporarily request a huge height before the first
 	# container pass. Recompute from the settled minimum, not that stale height.
 	window.size = design_size.max(window.get_combined_minimum_size())
-	var factor := minf(1, minf((viewport.x - 32) / maxf(window.size.x, 1), (viewport.y - 114) / maxf(window.size.y, 1)))
+	var reserved := 252.0 if window.get_meta("reserve_party_cards", false) else 0.0
+	var factor := minf(1, minf((viewport.x - reserved - 32) / maxf(window.size.x, 1), (viewport.y - 114) / maxf(window.size.y, 1)))
 	window.scale = Vector2.ONE * factor
 	if window.get_parent() is CenterContainer:
 		window.pivot_offset = Vector2.ZERO
 		window.position = Vector2((viewport.x - window.size.x * factor) * 0.5,
 			maxf(24, (viewport.y - 90 - window.size.y * factor) * 0.5))
 	else:
-		window.position.x = clampf(window.position.x, 16, maxf(16, viewport.x - window.size.x * factor - 16))
+		window.position.x = clampf(window.position.x, maxf(16, reserved), maxf(maxf(16, reserved), viewport.x - window.size.x * factor - 16))
 		window.position.y = clampf(window.position.y, 24, maxf(24, viewport.y - window.size.y * factor - 90))
 
 static func paper_detail(parent: Control) -> void:

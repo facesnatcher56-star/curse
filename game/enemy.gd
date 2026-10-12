@@ -158,6 +158,15 @@ func _physics_process(delta: float) -> void:
 	if frozen:
 		move_with(Vector3.ZERO)
 		return
+	if not dead and (not is_instance_valid(target) or target.dead):
+		var closest: Player = null
+		var distance: float = INF
+		for member in PartyManager.current().living():
+			var gap := flat_distance_to(member)
+			if gap < distance:
+				distance = gap
+				closest = member
+		target = closest
 	if dead or target == null or target.dead:
 		move_with(Vector3.ZERO)
 		return
@@ -205,6 +214,9 @@ func _physics_process(delta: float) -> void:
 			return
 		delta = _far_delta
 		_far_delta = 0.0
+	if not behavior.is_attacking() and not Nav.line_clear(self, target.global_position):
+		advance_on_target(delta, dist)
+		return
 	behavior.tick(delta, dist)
 
 ## Anything the hero hits turns on them at once, however far away it was and whether or not it had noticed them.
@@ -303,19 +315,22 @@ func locomotion_rate(speed: float, clip: String = "") -> float:
 		return clampf(speed / WALK_REF_SPEED, 0.78, 1.2)
 	return clampf(speed / RUN_REF_SPEED, 0.75, 1.8)
 
-## Runs toward `point`, pathing around obstacles when it is far away, and drifting away from crowd-mates.
+## Runs toward `point` through shared routing at every distance, with collision-checked crowd drift.
 ## `clip` is the clip to play while doing it (the strolling idle uses "walk"; asking for it here, not after, keeps the model from being told two
 ## different clips every frame, which left a strolling monster sliding along in a half-blended pose).
-func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: bool = true, clip: String = "") -> void:
-	var dist: float = Vector2(point.x - global_position.x, point.z - global_position.z).length()
-	var aim: Vector3 = point
-	if use_nav and dist > 3.5:
-		aim = Nav.next_point(self, point, _nav_state, delta, 0.5)
+func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, _use_nav: bool = true, clip: String = "", separation_weight: float = 1.0) -> void:
+	var route := Nav.route(self, point, _nav_state, delta)
+	if route.status != Nav.Status.FOLLOWING:
+		move_with(Vector3.ZERO)
+		return
+	var aim: Vector3 = route.waypoint
 	var dir: Vector3 = aim - global_position
 	dir.y = 0.0
 	face(global_position + dir, 0.2)
 	var speed: float = pace() * speed_mult
-	move_with(dir.normalized() * speed + separation() * speed)
+	var desired := dir.normalized() * speed + separation() * speed * separation_weight
+	if not Nav.clearance(self, global_position, global_position + desired * delta): desired = dir.normalized() * speed
+	move_with(desired)
 	if clip != "":
 		model.loop(clip, locomotion_rate(speed, clip))
 	else:
@@ -323,7 +338,7 @@ func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, use_nav: boo
 
 ## Closes in on the target.
 func advance_on_target(delta: float, dist: float) -> void:
-	walk_to(target.global_position, delta, 1.0, dist > 3.5)
+	walk_to(target.global_position, delta)
 
 ## Backs straight away from a point (keeping its face to the target) at `speed_mult` of its walking speed.
 func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
@@ -334,7 +349,8 @@ func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
 	if _kite_rest > 0.0:
 		_kite_rest -= dt
 		face(target.global_position, 0.25)
-		move_with(separation() * pace() * 0.5)
+		var drift := separation() * pace() * 0.5
+		move_with(drift if Nav.clearance(self, global_position, global_position + drift * dt) else Vector3.ZERO)
 		model.loop("idle_alert" if has_clip("idle_alert") else locomotion_clip(), 0.9)
 		return
 	_kite_run += dt
@@ -346,9 +362,9 @@ func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
 	away.y = 0.0
 	away = away.normalized() if away.length() > 0.01 else Vector3.BACK
 	face(target.global_position, 0.25)
-	var speed: float = pace() * speed_mult
-	move_with(away * speed + separation() * speed * 0.5)
-	model.loop(locomotion_clip(), locomotion_rate(speed))
+	walk_to(global_position + away * 3.0, dt, speed_mult, true, "", 0.5)
+	face(target.global_position, 0.25)
+	model.loop(locomotion_clip(), locomotion_rate(pace() * speed_mult))
 
 ## Waiting for a turn: shuffle around the target at a respectful distance instead of standing in a stack.
 func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> void:
@@ -362,7 +378,8 @@ func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> 
 	var speed: float = pace() * pace_mult
 	var desired: Vector3 = (tangent * 0.75 + radial * radial_push).limit_length(1.0) * speed + separation() * speed
 	face(target.global_position, 0.25)
-	move_with(desired)
+	walk_to(global_position + desired.normalized() * 2.0, get_physics_process_delta_time(), desired.length() / maxf(pace(), 0.001), true, "", 0.0)
+	face(target.global_position, 0.25)
 	if desired.length() > 0.25:
 		model.loop(locomotion_clip(), locomotion_rate(desired.length()))
 	else:
@@ -508,6 +525,7 @@ func average_hit() -> float:
 
 ## One melee blow at the target. `power` scales the damage roll, `weight` the knock-back and stagger.
 func strike_target(power: float, weight: float) -> void:
+	if not is_instance_valid(target) or not Nav.line_clear(self, target.global_position): return
 	var result: Dictionary = Combat.resolve(self, target, randf_range(damage_min, damage_max) * power,
 		Combat.DamageType.PHYSICAL, true, weight)
 	target.receive(result, global_position)

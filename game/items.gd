@@ -177,10 +177,12 @@ static func requirement(item: Dictionary) -> Dictionary:
 		skill = "uber"
 	elif def != null and def.is_armor():
 		skill = String(ARMOR_CLASS_SKILL.get(def.armor_class, "melee"))
+	elif def != null and def.item_type == "bow":
+		skill = "ranged"
 	var stance: String = ""
 	if def != null and def.item_type == "shield":
 		stance = "barricade"
-	elif def != null and bool(def.profile.get("two_handed", false)):
+	elif def != null and bool(def.profile.get("two_handed", false)) and not bool(def.profile.get("ranged", false)):
 		stance = "overbear"
 	return {"class": skill, "level": maxi(int(item["level"]) - 2, 0), "passive": stance}
 
@@ -191,10 +193,11 @@ static func meets_requirement(item: Dictionary, levels: Dictionary, ranks: Dicti
 	return int(levels.get(need["class"], 0)) >= int(need["level"]) and (String(need["passive"]) == "" or int(ranks.get(need["passive"], 0)) >= 1)
 
 ## Whether the hero (TownState's level, class XP and passives) may wear `item`.
-static func hero_can_wear(item: Dictionary) -> bool:
-	var levels: Dictionary = HeroAttributes.levels_from_xp(TownState.class_xp)
-	levels["uber"] = TownState.hero_level
-	return meets_requirement(item, levels, TownState.passive_ranks)
+static func hero_can_wear(item: Dictionary, member_id: String = "hero") -> bool:
+	var member := PartyManager.current().member(member_id)
+	var levels: Dictionary = HeroAttributes.levels_from_xp(member.class_xp)
+	levels["uber"] = member.level
+	return meets_requirement(item, levels, member.passive_ranks)
 
 static func requirement_text(item: Dictionary) -> String:
 	var need: Dictionary = requirement(item)

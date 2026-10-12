@@ -338,8 +338,8 @@ static func apply_bundle(bundle: Dictionary, inst: Dictionary = {}) -> Array[Str
 		lines.append("%+d food" % moved)
 	var xp: int = int(bundle.get("xp", 0))   # the quest's own XP, named by whoever wrote it (never worked out from the gold)
 	if xp > 0:
-		TownState.add_hero_xp(xp)
-		lines.append("%d XP" % xp)
+		TownState.add_party_reward_xp(xp)
+		lines.append("%d party XP (shared)" % xp)
 	var potions: int = int(bundle.get("potions", 0))
 	if potions != 0:
 		var delta: int = potions if potions > 0 else -mini(-potions, TownState.potions)

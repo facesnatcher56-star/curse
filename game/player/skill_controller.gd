@@ -9,16 +9,19 @@ func _init(player: Player) -> void:
 
 const COMBO_WINDOW := 0.9
 ## The numbered slots: the very array the settings keep (HotbarLayout), so a change anywhere is a change everywhere.
-var hotbar: Array[String] = GameSettings.hotbar_slots
+var hotbar: Array[String]:
+	get: return p.character.hotbar
+	set(value): p.character.hotbar = value
 var right_click_skill: String:
 	get:
-		return GameSettings.hotbar_alt
+		return p.character.hotbar_alt
 	set(value):
-		GameSettings.hotbar_alt = value
+		p.character.hotbar_alt = value
 
 ## Puts a skill on a slot (0.. numbered, HotbarLayout.ALT for the right mouse button); if it was on another slot the two swap.
 func assign_slot(slot: int, id: String) -> void:
-	GameSettings.assign_hotbar(slot, id)
+	p.character.hotbar_alt = HotbarLayout.assign(hotbar, right_click_skill, slot, id)
+	TownState.save()
 	clear_aim()
 
 const TAKE_AIM_CURSOR := preload("res://assets/ui/cursors/take_aim_reticle.png")
@@ -111,6 +114,7 @@ func _hotkey_would_start(id: String, cursor: Vector3) -> bool:
 
 ## Aborts the current swing, cast or charge immediately.
 func cancel_action() -> void:
+	if p.bow != null and String(busy_def.get("kind", "")) == "ranged": p.bow.cancel()
 	cancel_take_aim_targeting()
 	clear_queue()
 	if not busy:
@@ -172,7 +176,7 @@ func activate_brutal_attack() -> void:
 	if brutal_armed:
 		p._say("Brutal Attack is armed")
 		return
-	if PowerDb.hero_rank("brutal_attack") <= 0:   # DS2: a power opens with passive ranks (Critical Strike 1)
+	if PowerDb.hero_rank("brutal_attack", p.member_id) <= 0:   # DS2: a power opens with passive ranks (Critical Strike 1)
 		p._say("Brutal Attack needs Critical Strike")
 		return
 	if not p.stats.can_use("brutal_attack"):
@@ -194,27 +198,29 @@ func activate_brutal_attack() -> void:
 		start_skill("basic", immediate_target)
 
 func activate_take_aim() -> void:
-	var cutter: ArcherCompanion = p.stats._cutter()
-	if cutter == null or cutter.dead:
-		p._say("Cutter is not here")
-		return
-	if cutter.take_aim_armed:
-		p._say("Take Aim is armed")
-		return
 	if not p.stats.can_use("take_aim"):
-		p._say("Take Aim is %d%% charged" % int(p.stats.ult_fraction("take_aim") * 100.0))
+		p._say("Take Aim requires Critical Shot, a bow, and full charge")
+		return
+	if p.bow.armed:
+		p._say("Take Aim is armed")
 		return
 	if take_aim_targeting:
 		cancel_take_aim_targeting()
-		p._say("Cancelled")
 		return
 	if Gamepad.active:
-		var target: Actor = p.pad_facing_target()
-		if target != null and not target.dead and target is Enemy:
-			cutter.set_manual_target(target as Enemy)
-		cutter.activate_take_aim_now()
+		var target := p.pad_facing_target() as Enemy
+		if target != null: _arm_take_aim(target)
+		else: p.bow.arm()
 		return
 	start_take_aim_targeting()
+
+func _arm_take_aim(target: Enemy) -> void:
+	if not p.stats.can_use("take_aim"): return
+	cancel_action()
+	p.bow.arm()
+	p.attack_target = target
+	p.movement.has_goal = false
+	if p.flat_distance_to(target) <= 17.0: start_skill("basic", target)
 
 func start_take_aim_targeting() -> void:
 	take_aim_targeting = true
@@ -229,15 +235,9 @@ func cancel_take_aim_targeting() -> void:
 	Input.set_custom_mouse_cursor(null, Input.CURSOR_CROSS)
 
 func confirm_take_aim(target_enemy: Enemy) -> void:
-	if not take_aim_targeting:
-		return
+	if not take_aim_targeting: return
 	cancel_take_aim_targeting()
-	var cutter: ArcherCompanion = p.stats._cutter()
-	if cutter == null or cutter.dead:
-		p._say("Cutter is not here")
-		return
-	cutter.set_manual_target(target_enemy)
-	cutter.activate_take_aim_now()
+	_arm_take_aim(target_enemy)
 
 func _ensure_brutal_visual() -> void:
 	if p == null:
@@ -460,6 +460,10 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		return
 	if aim == null and not is_instance_valid(target):
 		return
+	if id == "basic" and p.stats.is_ranged() and p.bow != null:
+		clear_queue()
+		p.bow.start(target)
+		return
 	var skill: Dictionary = SkillDb.all()[id]
 	clear_queue()   # an accepted immediate action replaces any pending order
 	if id == "basic":
@@ -524,6 +528,9 @@ func _next_basic() -> Dictionary:
 
 func tick_busy(delta: float) -> void:
 	if not busy or p.dead:
+		return
+	if String(busy_def.get("kind", "")) == "ranged" and p.bow != null:
+		p.bow.tick(delta)
 		return
 	var skill: Dictionary = busy_def
 	busy_t += delta
@@ -632,7 +639,8 @@ func _apply_skill(skill: Dictionary) -> void:
 			# The basic combo's stagger and knockback follow the weapon: light for a falchion, heavy for a greatsword.
 			var weight: float = float(skill["weight"]) * (float(p.stats.weapon_profile("weight", 1.0)) if busy_skill == "basic" else 1.0)
 			if busy_target != null and not busy_target.dead \
-					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5:
+					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5 \
+					and Nav.line_clear(p, busy_target.global_position):
 				var brutal: bool = busy_skill == "basic" and brutal_armed
 				var damage: float = p.stats.weapon_damage(mult)
 				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight, false, not brutal, p.stats.brutal_mult() if brutal else 1.0)
@@ -641,7 +649,7 @@ func _apply_skill(skill: Dictionary) -> void:
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 					var brutal_dir: Vector3 = busy_target.global_position - p.global_position
 					brutal_dir.y = 0.0
-					SkillFx.brutal_impact(p, busy_target.global_position, brutal_dir, PowerDb.hero_rank("brutal_attack"))
+					SkillFx.brutal_impact(p, busy_target.global_position, brutal_dir, PowerDb.hero_rank("brutal_attack", p.member_id))
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 					brutal_armed = false
 					p.stats.spend_brutal_attack()

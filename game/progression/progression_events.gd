@@ -11,3 +11,7 @@ signal hero_leveled(old_level: int, new_level: int, new_xp: int)
 signal class_skills_leveled(levels: Dictionary)
 ## Passive ranks were bought (the hero's numbers follow them).
 signal passives_changed()
+signal member_xp_changed(member_id: String, old_xp: int, new_xp: int)
+signal member_leveled(member_id: String, old_level: int, new_level: int, new_xp: int)
+signal member_class_skills_leveled(member_id: String, levels: Dictionary)
+signal member_passives_changed(member_id: String)

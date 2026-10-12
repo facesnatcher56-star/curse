@@ -18,6 +18,18 @@ var alive: int = 0
 # Gear panel.
 var show_gear: bool = false
 var character_panel: Control
+var _member_staged: Dictionary = {}
+
+func select_member(body: Player) -> void:
+	var was_skills: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
+	if was_skills and player != null:
+		_member_staged[player.member_id] = character_panel.staged.duplicate(true)
+	player = body
+	picker.close()
+	if is_instance_valid(character_panel):
+		character_panel.hide()
+		if was_skills: open_skills()
+		else: _open_character()
 var banner_text: String = ""
 var banner_time: float = 0.0
 ## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
@@ -705,6 +717,7 @@ func open_skills() -> void:
 		character_panel.queue_free()
 	character_panel = preload("res://game/ui/skill_tree_view.gd").new()
 	character_panel.hero = player
+	character_panel.staged = _member_staged.get(player.member_id, {}).duplicate(true)
 	character_panel.z_index = 20
 	add_child(character_panel)
 	get_tree().paused = true

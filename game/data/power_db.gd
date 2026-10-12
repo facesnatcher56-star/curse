@@ -31,13 +31,13 @@ static func of_tree(tree: String) -> Array[PowerDef]:
 	return out
 
 ## The hero's rank in a power (0: not open yet), from his passive ranks.
-static func hero_rank(id: String) -> int:
+static func hero_rank(id: String, member_id: String = "hero") -> int:
 	var def: PowerDef = get_def(id)
-	return def.rank_for(TownState.passive_ranks) if def != null else 0
+	return def.rank_for(PartyManager.current().member(member_id).passive_ranks) if def != null else 0
 
 ## A power's value at the hero's rank and class levels.
-static func hero_value(id: String, key: String) -> float:
+static func hero_value(id: String, key: String, member_id: String = "hero") -> float:
 	var def: PowerDef = get_def(id)
 	if def == null:
 		return 0.0
-	return def.value(key, hero_rank(id), HeroAttributes.levels_from_xp(TownState.class_xp))
+	return def.value(key, hero_rank(id, member_id), HeroAttributes.levels_from_xp(PartyManager.current().member(member_id).class_xp))

@@ -3,6 +3,11 @@ extends DevSuite
 
 ## Navigation: a path across the biggest obstacle must detour around it, and the hero must actually walk it.
 func _test_navigation() -> void:
+	for i in 120:
+		if Nav.ready(player): break
+		await get_tree().physics_frame
+	expect("navigation region is synchronized", Nav.ready(player))
+	print("  nav regions ", NavigationServer3D.map_get_regions(Nav.map_of(player)).size(), " polygons ", arena._nav_region.navigation_mesh.get_polygon_count())
 	var largest: Dictionary = {}
 	for ob in arena.obstacles:
 		if largest.is_empty() or float(ob["radius"]) > float(largest["radius"]):
@@ -17,16 +22,27 @@ func _test_navigation() -> void:
 	var from: Vector3 = Nav.snap(player, centre + Vector3(-span, 0, 0))
 	var to: Vector3 = Nav.snap(player, centre + Vector3(span, 0, 0))
 	var map: RID = Nav.map_of(player)
+	print("  nav centre ", centre, " map ", map, " region map ", NavigationServer3D.region_get_map(arena._nav_region.get_rid()), " layer ", arena._nav_region.navigation_layers, " region closest ", NavigationServer3D.region_get_closest_point(arena._nav_region.get_rid(), centre))
+	await get_tree().physics_frame
+	print("  closest origin ", NavigationServer3D.map_get_closest_point(map, Vector3(0, 1, 0)), " owner ", NavigationServer3D.map_get_closest_point_owner(map, centre), " iteration ", NavigationServer3D.map_get_iteration_id(map))
+	from = Nav.snap(player, centre + Vector3(-span, 0, 0))
+	to = Nav.snap(player, centre + Vector3(span, 0, 0))
 	var path: PackedVector3Array = NavigationServer3D.map_get_path(map, from, to, true)
+	print("  nav endpoints ", from, " -> ", to, " active ", NavigationServer3D.map_is_active(map), " debug ", Nav.debug_broken_snap, " region bounds ", NavigationServer3D.region_get_bounds(arena._nav_region.get_rid()))
+	expect("obstacle route is nonempty", path.size() >= 3)
 	var length: float = 0.0
 	var clearance: float = 9999.0
+	var body_clear := true
 	for i in path.size() - 1:
+		body_clear = body_clear and Nav.clearance(player, path[i], path[i + 1])
 		length += path[i].distance_to(path[i + 1])
 		var seg: Vector3 = path[i + 1] - path[i]
 		var t: float = clampf((centre - path[i]).dot(seg) / maxf(seg.length_squared(), 0.0001), 0.0, 1.0)
 		var nearest: Vector3 = path[i] + seg * t
 		clearance = minf(clearance, Vector2(nearest.x - centre.x, nearest.z - centre.z).length())
 	var straight: float = from.distance_to(to)
+	expect("obstacle route detours with clearance", length > straight and clearance > radius)
+	expect("every path segment clears the actual actor body", body_clear)
 	# Now walk it with the real controller.
 	player.global_position = from
 	player.reset_physics_interpolation()

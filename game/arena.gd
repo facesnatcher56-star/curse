@@ -115,6 +115,10 @@ func build(bake_navigation: bool = true) -> void:
 
 ## Bakes a navigation mesh from the static colliders (ground, walls, props) so characters can path around them.
 func _bake_navigation() -> void:
+	# This engine's asynchronous initial iteration can publish an empty map despite
+	# a ready region. Build map iterations synchronously; Recast rebakes still run
+	# on a worker. Nav.ready also verifies that map-level owner queries work.
+	NavigationServer3D.map_set_use_async_iterations(get_world_3d().navigation_map, false)
 	var mesh := NavigationMesh.new()
 	mesh.agent_radius = 0.75       # whole cells (3 x 0.25); comfortably clears the widest regular enemy
 	mesh.agent_height = 1.75
@@ -125,6 +129,7 @@ func _bake_navigation() -> void:
 	mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_ROOT_NODE_CHILDREN
 	_nav_region.navigation_mesh = mesh
 	_nav_region.bake_navigation_mesh(false)
+	NavigationServer3D.map_force_update(get_world_3d().navigation_map)
 
 func _build_ground() -> void:
 	var ground := StaticBody3D.new()
@@ -155,10 +160,11 @@ func place_prop(prop_name: String, pos: Vector3, yaw: float, height: float, coll
 func request_nav_refresh() -> void:
 	if _nav_refresh_pending or _nav_region == null or not is_inside_tree():
 		return
-	if OS.get_cmdline_user_args().has("--selftest"):
-		return   # a re-bake in the middle of a check would change the navigation map under it
 	_nav_refresh_pending = true
 	await get_tree().create_timer(0.8).timeout
+	# A destruction during an in-flight bake must produce another bake, not get lost.
+	while is_inside_tree() and is_instance_valid(_nav_region) and _nav_region.is_baking():
+		await get_tree().physics_frame
 	_nav_refresh_pending = false
 	if _nav_region != null and is_instance_valid(_nav_region) and _nav_region.navigation_mesh != null:
 		_nav_region.bake_navigation_mesh(true)

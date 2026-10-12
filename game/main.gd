@@ -21,6 +21,14 @@ func _mark(label: String) -> void:
 		print("[boot] %-22s +%4d ms  (total %d ms since engine start)" % [label, now - _boot_ms, now])
 		_boot_ms = now
 
+func _party_selected(_previous: String, _id: String) -> void:
+	var selected := PartyManager.current().active_body()
+	if selected == null: return
+	player = selected
+	rig.target = selected
+	hud.select_member(selected)
+	director.player = selected
+
 func _ready() -> void:
 	_boot_ms = Time.get_ticks_msec()
 	if OS.get_cmdline_user_args().has("--crypt") and TownState.job.is_empty():   # developer shortcut: straight into the Crypt Road
@@ -89,6 +97,8 @@ func _ready() -> void:
 	director.hud = hud
 	director.selftest = OS.get_cmdline_user_args().has("--selftest")
 	add_child(director)
+	PartyManager.current().active_member_changed.connect(_party_selected)
+	_party_selected("", PartyManager.current().active_id)
 	if not TownState.job.is_empty() and not director.selftest:
 		director.set_job(TownState.job)
 

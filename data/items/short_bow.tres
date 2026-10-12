@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "short_bow"
+display_name = "Short Bow"
+slot = 0
+order = 20
+model_path = "res://assets/models/archer/bow/model.glb"
+icon_path = "res://assets/icons/take_aim.png"
+item_type = "bow"
+levels = Array[int]([2, 17, 38, 60, 84])
+stats = {"damage": 1.0, "speed": 1.0}
+profile = {"style": "Bow", "ranged": true, "two_handed": true}

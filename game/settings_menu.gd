@@ -14,6 +14,8 @@ var _resolution_option: OptionButton
 var _hotbar_options: Dictionary = {}   # slot number -> its OptionButton (see _build_hotbar_rows)
 
 func _ready() -> void:
+	add_to_group("settings_menu")
+	PartyManager.current().active_member_changed.connect(_member_selected)
 	process_mode = Node.PROCESS_MODE_ALWAYS  # must work while the game is paused
 	theme = UiTheme.get_theme()
 	UiTheme.responsive_window(self)
@@ -259,7 +261,7 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	for id in HotbarLayout.ASSIGNABLE:
 		names.append(String(SkillDb.all()[id]["name"]))
 	var slots: Array[int] = []
-	for i in GameSettings.hotbar_slots.size():
+	for i in _hotbar_member().hotbar.size():
 		slots.append(i)
 	slots.append(HotbarLayout.ALT)
 	for slot in slots:
@@ -268,17 +270,23 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 			if index == 0:
 				if slot == HotbarLayout.ALT:
 					return
-				GameSettings.hotbar_slots[slot] = ""
+				_hotbar_member().hotbar[slot] = ""
+				TownState.save()
 			else:
-				GameSettings.assign_hotbar(slot, ids[index])
+				var member := _hotbar_member()
+				member.hotbar_alt = HotbarLayout.assign(member.hotbar, member.hotbar_alt, slot, ids[index])
+				TownState.save()
 			_refresh_hotbar_options())
 		_hotbar_options[slot] = option
 		page.add_child(_row(label, option))
 	_refresh_hotbar_options()
 
+func _hotbar_member() -> CharacterState:
+	return PartyManager.current().member(PartyManager.current().active_id)
+
 func _refresh_hotbar_options() -> void:
 	for slot in _hotbar_options:
-		var id: String = HotbarLayout.skill_at(GameSettings.hotbar_slots, GameSettings.hotbar_alt, int(slot))
+		var id: String = HotbarLayout.skill_at(_hotbar_member().hotbar, _hotbar_member().hotbar_alt, int(slot))
 		(_hotbar_options[slot] as OptionButton).select(0 if id == "" else HotbarLayout.ASSIGNABLE.find(id) + 1)
 
 # --- rebinding --------------------------------------------------------------------
@@ -337,3 +345,6 @@ func _input(event: InputEvent) -> void:
 		GameSettings.rebind(_listening_action, mouse)
 		_listening_action = ""
 		_refresh_bindings()
+
+func _member_selected(_old: String, _new: String) -> void:
+	_refresh_hotbar_options()

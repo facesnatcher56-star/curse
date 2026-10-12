@@ -63,8 +63,8 @@ func stick_move(stick: Vector2, delta: float) -> void:
 		p.face(p.global_position + direction, 0.35)   # (while an aimed skill is held the hero faces the target area instead)
 	p.move_with(direction * speed)
 
-func move(delta: float) -> void:
-	var stick: Vector2 = Gamepad.move_vector()
+func move(delta: float, speed_mult: float = 1.0) -> void:
+	var stick: Vector2 = Gamepad.move_vector() if p.is_controlled() else Vector2.ZERO
 	if stick.length() > 0.0:
 		stick_move(stick, delta)
 		return
@@ -77,13 +77,19 @@ func move(delta: float) -> void:
 		has_goal = false
 		p.move_with(Vector3.ZERO)
 		return
-	var speed: float = _travel_speed(delta)
+	var speed: float = _travel_speed(delta) * speed_mult
 	# Steer along the navmesh path so we walk around pillars, walls and ruins instead of grinding against them.
-	var steer: Vector3 = Nav.next_point(p, goal, _nav_state, delta)
+	var route := Nav.route(p, goal, _nav_state, delta)
+	if route.status != Nav.Status.FOLLOWING:
+		if route.status == Nav.Status.ARRIVED: has_goal = false
+		p.move_with(Vector3.ZERO)
+		return
+	var steer: Vector3 = route.waypoint
 	var to_steer: Vector3 = steer - p.global_position
 	to_steer.y = 0.0
 	if to_steer.length() < 0.05:
-		to_steer = to_goal
+		p.move_with(Vector3.ZERO)
+		return
 	p.face(p.global_position + to_steer, 0.35)
 	p.move_with(to_steer.normalized() * speed)
 

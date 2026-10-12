@@ -39,6 +39,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		damage_type: int = DamageType.PHYSICAL, can_miss: bool = true, weight: float = 1.0, force_crit: bool = false,
 		allow_crit: bool = true, damage_multiplier: float = 1.0) -> Dictionary:
 	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "weight": weight, "source": attacker, "type": damage_type}
+	result["origin"] = attacker.combat_identity() if is_instance_valid(attacker) else {}
 	if can_miss and randf() < defender.dodge_chance:
 		return _done(result, Outcome.MISS)
 	var physical: bool = damage_type in [DamageType.PHYSICAL, DamageType.RANGED]

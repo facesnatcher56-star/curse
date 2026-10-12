@@ -1,0 +1,108 @@
+class_name PartyCharacterAI
+extends RefCounted
+## AI chooses orders; the common character's existing skills and movement execute them.
+var p: Player
+var leash_active: bool = false
+var _leader_id: int = 0
+var _trail: Array[Vector3] = []
+
+func _init(character: Player) -> void:
+	p = character
+
+func tick(delta: float) -> void:
+	var party := PartyManager.current()
+	var assignment := party.controller_for(p.member_id)
+	var leader := party.active_body(String(assignment.controller_id))
+	if leader == null or leader == p or leader.dead:
+		p.move_with(Vector3.ZERO)
+		return
+	var gap := p.flat_distance_to(leader)
+	if _leader_id != leader.get_instance_id():
+		_leader_id = leader.get_instance_id()
+		_trail.clear()
+	if _trail.is_empty() or _trail.back().distance_to(leader.global_position) > 1.0:
+		_trail.append(leader.global_position)
+		if _trail.size() > 128: _trail.pop_front()
+	var formation := Nav.snap(p, leader.global_position + Vector3(2.4, 0, 3.8).rotated(Vector3.UP, leader.visual.rotation.y))
+	if not Nav.clearance(p, formation, formation): formation = leader.global_position
+	if try_rescue(leader): return
+	var target := p.attack_target as Enemy
+	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > 16.0:
+		target = null
+		for node in p.get_tree().get_nodes_in_group("enemies"):
+			var enemy := node as Enemy
+			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < 12.0:
+				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
+	p.attack_target = target
+	if gap > 16.0: target = null
+	if target != null:
+		leash_active = false
+		if p.stats.is_ranged():
+			var distance := p.flat_distance_to(target)
+			if not Nav.line_clear(p, target.global_position):
+				_travel(target.global_position, delta)
+				return
+			if distance < 7.0:
+				var away := (p.global_position - target.global_position).normalized()
+				for angle in [0.0, 0.6, -0.6, 1.2, -1.2]:
+					var retreat := Nav.snap(p, p.global_position + away.rotated(Vector3.UP, angle) * 3.0)
+					if retreat.distance_to(target.global_position) > distance and Nav.clearance(p, p.global_position, retreat):
+						_travel(retreat, delta)
+						return
+				p.move_with(Vector3.ZERO)
+				return
+			if distance <= 17.0 and Nav.line_clear(p, target.global_position):
+				p.skills.start_skill("basic", target)
+				p.move_with(Vector3.ZERO)
+				return
+		elif p.flat_distance_to(target) - target.body_radius <= 1.8 and Nav.line_clear(p, target.global_position):
+			p.skills.start_skill("basic", target)
+			p.move_with(Vector3.ZERO)
+			return
+		_travel(target.global_position, delta)
+		return
+	if gap > 6.0: leash_active = true
+	if gap <= 3.5: leash_active = false
+	if leash_active:
+		_travel(formation, delta, 1.25 if gap > 8.0 else 1.0)
+	else:
+		p.movement.has_goal = false
+		p.move_with(Vector3.ZERO)
+		p.movement.update_locomotion_anim()
+
+func _travel(goal: Vector3, delta: float, speed_mult: float = 1.0) -> void:
+	p.movement.goal = Nav.snap(p, goal)
+	p.movement.has_goal = true
+	p.movement.move(delta, speed_mult)
+	p.movement.update_locomotion_anim()
+
+func off_camera(point: Vector3) -> bool:
+	var camera := p.get_viewport().get_camera_3d()
+	if camera == null: return false
+	var screen := p.get_viewport().get_visible_rect().grow(48)
+	for offset in [Vector3.ZERO, Vector3.UP * p.body_height, Vector3.LEFT * p.body_radius, Vector3.RIGHT * p.body_radius]:
+		var sample: Vector3 = point + offset
+		if not camera.is_position_behind(sample) and screen.has_point(camera.unproject_position(sample)): return false
+	return true
+
+func rescue_eligible(leader: Player) -> bool:
+	var state := p.movement._nav_state
+	return p.flat_distance_to(leader) > 30.0 and float(state.get("failed_time", 0.0)) >= 5.0 \
+		and int(state.get("failed_replans", 0)) >= 2 and not p.dead and not p.skills.busy \
+		and p.stun_time <= 0.0 and not p.knockdown.active() and not p.movement.rolling and not p.is_ragdolled() and off_camera(p.global_position)
+
+func try_rescue(leader: Player) -> bool:
+	if not rescue_eligible(leader) or not Nav.ready(p): return false
+	for i in range(_trail.size() - 1, -1, -1):
+		var candidate := Nav.snap(p, _trail[i])
+		if candidate.distance_to(_trail[i]) > 1.0 or candidate.distance_to(leader.global_position) > 30.0: continue
+		if not off_camera(candidate) or not Nav.clearance(p, candidate, candidate, true): continue
+		# A clear segment from the leader proves this breadcrumb is on the reachable side.
+		if not Nav.clearance(p, leader.global_position, candidate): continue
+		p.global_position = Vector3(candidate.x, 0, candidate.z)
+		p.velocity = Vector3.ZERO
+		p.reset_physics_interpolation()
+		Nav.reset(p, p.movement._nav_state)
+		leash_active = false
+		return true
+	return false

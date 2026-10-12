@@ -1,88 +1,151 @@
 class_name Nav
 extends RefCounted
-## Thin wrapper over the navigation map so the hero and zombies walk around solid objects instead of
-## sliding along them. Falls back to straight-line movement until the arena's navmesh exists.
+## Shared, budgeted routing. Failed queries never authorize straight-line movement.
+enum Status { FOLLOWING, ARRIVED, WAITING, UNREACHABLE }
+const QUERIES_PER_TICK := 4
+static var debug_broken_snap: bool = false
+static var _budget_tick: int = -1
+static var _budget_used: int = 0
+static var _pending: Array[Dictionary] = []
+static var queries_peak: int = 0
+static var longest_wait_ticks: int = 0
+static var _ready_iterations: Dictionary = {}
 
 static func map_of(node: Node3D) -> RID:
 	return node.get_world_3d().navigation_map
 
-## Tests set this to simulate a navigation map that is not usable yet (every query answers with the origin).
-static var debug_broken_snap: bool = false
-
 static func ready(node: Node3D) -> bool:
-	return debug_broken_snap or NavigationServer3D.map_get_iteration_id(map_of(node)) > 0
+	var map := map_of(node)
+	if debug_broken_snap or NavigationServer3D.map_get_iteration_id(map) == 0: return false
+	var iteration := NavigationServer3D.map_get_iteration_id(map)
+	if int(_ready_iterations.get(map, -1)) == iteration: return true
+	for rid in NavigationServer3D.map_get_regions(map):
+		if NavigationServer3D.region_get_enabled(rid) and NavigationServer3D.region_get_iteration_id(rid) > 0:
+			if NavigationServer3D.map_get_closest_point_owner(map, node.global_position).is_valid():
+				_ready_iterations[map] = iteration
+				return true
+	return false
 
-## Nearest walkable point; clicking inside a pillar sends you to the closest reachable spot beside it.
 static func snap(node: Node3D, point: Vector3) -> Vector3:
-	if debug_broken_snap:
-		return Vector3.ZERO
-	if not ready(node):
-		return point
+	if debug_broken_snap: return Vector3.ZERO
+	if not ready(node): return point
 	return NavigationServer3D.map_get_closest_point(map_of(node), point)
 
-## Path queries a physics tick may spend (a crowd chasing a moving hero used to ask for a new path every tick, each).
-const QUERIES_PER_TICK := 4
-static var _budget_tick: int = -1
-static var _budget_used: int = 0
+static func _flat_gap(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
-static func _may_query() -> bool:
-	var tick: int = Engine.get_physics_frames()
+## World-only body clearance; floor lies below the swept cylinder.
+static func clearance(node: Node3D, from: Vector3, to: Vector3, include_actors: bool = false) -> bool:
+	var shape := CylinderShape3D.new()
+	shape.radius = float(node.get("body_radius")) + 0.05 if node is Actor else 0.45
+	shape.height = maxf(float(node.get("body_height")) - 0.2, 0.2) if node is Actor else 1.6
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.collision_mask = Actor.LAYER_WORLD
+	if include_actors:
+		query.collision_mask |= Actor.LAYER_PLAYER | Actor.LAYER_ENEMY
+		if node is CollisionObject3D: query.exclude = [node.get_rid()]
+	query.transform = Transform3D(Basis.IDENTITY, Vector3(from.x, shape.height * 0.5 + 0.1, from.z))
+	query.motion = Vector3(to.x - from.x, 0, to.z - from.z)
+	var space := node.get_world_3d().direct_space_state
+	if not space.intersect_shape(query, 1).is_empty(): return false
+	if query.motion.length_squared() < 0.0001: return true
+	var fractions := space.cast_motion(query)
+	return fractions.size() == 2 and fractions[0] >= 0.999
+
+static func line_clear(node: Node3D, to: Vector3) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(node.global_position + Vector3.UP * 0.8, Vector3(to.x, 0.8, to.z), Actor.LAYER_WORLD)
+	return node.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+static func reset(node: Node3D, state: Dictionary) -> void:
+	for i in range(_pending.size() - 1, -1, -1):
+		if int(_pending[i].id) == node.get_instance_id(): _pending.remove_at(i)
+	state.clear()
+
+static func _request(node: Node3D, goal: Vector3, state: Dictionary) -> void:
+	for entry in _pending:
+		if int(entry.id) == node.get_instance_id():
+			entry.goal = goal
+			return
+	_pending.append({"id": node.get_instance_id(), "node": weakref(node), "goal": goal,
+		"state": state, "tick": Engine.get_physics_frames()})
+
+## FIFO service. New paths and retries share the same strict cap.
+static func _service() -> void:
+	var tick := Engine.get_physics_frames()
 	if tick != _budget_tick:
 		_budget_tick = tick
 		_budget_used = 0
-	if _budget_used >= QUERIES_PER_TICK:
-		return false
-	_budget_used += 1
-	return true
+	while _budget_used < QUERIES_PER_TICK and not _pending.is_empty():
+		var entry: Dictionary = _pending.pop_front()
+		var node := entry.node.get_ref() as Node3D
+		if not is_instance_valid(node) or not node.is_inside_tree(): continue
+		var state: Dictionary = entry.state
+		if not ready(node): continue
+		_budget_used += 1
+		queries_peak = maxi(queries_peak, _budget_used)
+		longest_wait_ticks = maxi(longest_wait_ticks, tick - int(entry.tick))
+		var map := map_of(node)
+		var from := NavigationServer3D.map_get_closest_point(map, node.global_position)
+		var to := NavigationServer3D.map_get_closest_point(map, entry.goal)
+		var path := NavigationServer3D.map_get_path(map, from, to, true)
+		state["path"] = path
+		state["index"] = 1 if path.size() > 1 else 0
+		state["goal"] = entry.goal
+		state["endpoint"] = to
+		state["iteration"] = NavigationServer3D.map_get_iteration_id(map)
+		state["map"] = map
+		state["timer"] = 1.0 if path.is_empty() or float(state.get("failed_time", 0.0)) >= 5.0 else 0.4
+		state["retry_grace"] = 0.2
+		state["queries"] = int(state.get("queries", 0)) + 1
+		if float(state.get("failed_time", 0.0)) >= 1.0:
+			state["failed_replans"] = int(state.get("failed_replans", 0)) + 1
+		state["blocked"] = false
 
-## The next point to steer toward on the way to `goal`. `state` is a per-actor Dictionary that caches the path. A new path is asked for
-## only when the old one has run its time, the goal has really moved (a fraction of the way left, not a fixed 0.6 m: a hero running
-## about is always moving), or the actor has stopped getting anywhere (stuck on a corner), and never more than a few a tick.
-static func next_point(node: Node3D, goal: Vector3, state: Dictionary, delta: float, refresh: float = 0.4) -> Vector3:
+static func route(node: Node3D, goal: Vector3, state: Dictionary, delta: float) -> Dictionary:
+	var here := node.global_position
 	if not ready(node):
-		return goal
-	var here: Vector3 = node.global_position
+		state["path"] = PackedVector3Array()
+		return {"status": Status.WAITING, "waypoint": here}
+	var map := map_of(node)
+	var iteration := NavigationServer3D.map_get_iteration_id(map)
+	if state.get("map", map) != map or int(state.get("iteration", iteration)) != iteration:
+		reset(node, state)
 	state["timer"] = float(state.get("timer", 0.0)) - delta
+	state["retry_grace"] = maxf(float(state.get("retry_grace", 0.0)) - delta, 0.0)
+	var anchor: Vector3 = state.get("progress_pos", here)
+	if _flat_gap(anchor, here) >= 0.5:
+		state["progress_pos"] = here
+		state["failed_time"] = 0.0
+		state["failed_replans"] = 0
+	else:
+		state["progress_pos"] = anchor
+		state["failed_time"] = float(state.get("failed_time", 0.0)) + delta
 	var path: PackedVector3Array = state.get("path", PackedVector3Array())
-	var remaining: float = Vector2(goal.x - here.x, goal.z - here.z).length()
-	var moved_goal: float = (state.get("goal", Vector3(INF, INF, INF)) as Vector3).distance_to(goal)
-	var stale_goal: bool = moved_goal > maxf(2.0, remaining * 0.25)
-	# Stuck: a second of trying to get somewhere without covering half a metre.
-	state["stuck_t"] = float(state.get("stuck_t", 0.0)) + delta
-	var stuck: bool = false
-	if float(state["stuck_t"]) >= 1.0:
-		var last_pos: Vector3 = state.get("stuck_pos", Vector3(INF, INF, INF))
-		stuck = Vector2(last_pos.x - here.x, last_pos.z - here.z).length() < 0.5 and remaining > 2.0
-		state["stuck_t"] = 0.0
-		state["stuck_pos"] = here
-	if float(state["timer"]) <= 0.0 or path.size() < 2 or stale_goal or stuck:
-		# An actor refused a few times running is served anyway: with a crowd the same early-updated ones used to win the budget every
-		# tick and the rest kept following a stale route (stood pushing at a prop long after the hero had moved on).
-		var starved: int = int(state.get("denied", 0))
-		if _may_query() or path.size() < 2 or starved >= 6:
-			state["denied"] = 0
-			var map: RID = map_of(node)
-			var from: Vector3 = NavigationServer3D.map_get_closest_point(map, here)
-			var to: Vector3 = NavigationServer3D.map_get_closest_point(map, goal)
-			path = NavigationServer3D.map_get_path(map, from, to, true)
-			state["path"] = path
-			state["index"] = 1
-			state["goal"] = goal
-			state["timer"] = refresh + randf() * 0.25
-			if stuck and path.size() > 2:
-				state["index"] = 2   # skip the corner it was wedged on
-		else:
-			state["denied"] = starved + 1
-	if path.is_empty():
-		return goal
-	var index: int = int(state.get("index", 1))
-	while index < path.size() - 1:
-		var waypoint: Vector3 = path[index]
-		if Vector2(waypoint.x - here.x, waypoint.z - here.z).length() < 0.55:
-			index += 1
-		else:
-			break
+	var moved := _flat_gap(state.get("goal", Vector3(INF, 0, INF)), goal) > 0.5
+	var stalled := float(state.get("failed_time", 0.0)) >= 1.0
+	var exhausted := float(state.get("failed_time", 0.0)) >= 5.0 and int(state.get("failed_replans", 0)) >= 2
+	if float(state["timer"]) <= 0.0 and (path.is_empty() or moved or stalled or bool(state.get("blocked", false))):
+		_request(node, goal, state)
+	_service()
+	path = state.get("path", PackedVector3Array())
+	if path.is_empty(): return {"status": Status.UNREACHABLE if state.has("queries") else Status.WAITING, "waypoint": here}
+	var index := mini(int(state.get("index", 0)), path.size() - 1)
+	while index < path.size() - 1 and _flat_gap(here, path[index]) <= 0.25:
+		if not clearance(node, here, path[index + 1]): break
+		index += 1
 	state["index"] = index
-	if index >= path.size() - 1:
-		return goal   # on the last leg it heads for where the target is now, not where it was when the path was made
-	return path[index]
+	var endpoint := path[path.size() - 1]
+	if index == path.size() - 1 and _flat_gap(here, endpoint) <= 0.2:
+		if _flat_gap(state.get("goal", goal), goal) > 0.5:
+			return {"status": Status.WAITING, "waypoint": here}
+		return {"status": Status.ARRIVED if _flat_gap(endpoint, state.endpoint) <= 0.5 else Status.UNREACHABLE, "waypoint": here}
+	if exhausted and float(state.get("retry_grace", 0.0)) <= 0.0: return {"status": Status.UNREACHABLE, "waypoint": here}
+	if not clearance(node, here, path[index]):
+		state["blocked"] = true
+		return {"status": Status.WAITING, "waypoint": here}
+	return {"status": Status.FOLLOWING, "waypoint": path[index]}
+
+## Compatibility for developer callers; runtime consumers use the explicit result.
+static func next_point(node: Node3D, goal: Vector3, state: Dictionary, delta: float, _refresh: float = 0.4) -> Vector3:
+	return route(node, goal, state, delta).waypoint

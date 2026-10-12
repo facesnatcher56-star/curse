@@ -63,7 +63,7 @@ func _notification(what: int) -> void:
 func _commit_road_inventory() -> void:
 	if not outside or player == null or not is_instance_valid(player) or player.stats == null:
 		return
-	TownState.take_gear(player.stats.equipment)
+	PartyManager.current().to_dict() # Snapshot each member; selected equipment is never Hero's global equipment.
 	TownState.stash_carried(player.stats.bag)
 	player.stats.bag.clear()
 	TownState.save()
@@ -116,6 +116,8 @@ func _ready() -> void:
 	_build_ui()
 	if with_road:
 		_start_director()
+	PartyManager.current().active_member_changed.connect(_party_selected)
+	_party_selected("", PartyManager.current().active_id)
 	_welcome_back()
 	_refresh_reward_marker()
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -131,9 +133,18 @@ func _ready() -> void:
 
 ## The gear the hero wears this run: whatever the town holds, over the starting kit.
 static func _apply_run_gear(hero: Player) -> void:
-	for place in TownState.gear:
-		hero.stats.wear(int(place), TownState.gear[place])
 	hero.stats.potions = TownState.potions
+
+func _party_selected(_previous: String, _id: String) -> void:
+	var selected := PartyManager.current().active_body()
+	if selected == null: return
+	player = selected
+	rig.target = selected
+	combat_hud.select_member(selected)
+	if director != null: director.player = selected
+	pending = ""
+	near = {}
+	if panel.visible: panel._rebuild()
 
 func _build_world() -> void:
 	var env := WorldEnvironment.new()
@@ -475,7 +486,7 @@ func equip_town_item(item: Dictionary) -> Variant:
 	var off: Variant = player.stats.equip(item, true)
 	if off == null:
 		return null
-	TownState.gear = player.stats.equipment.duplicate()
+	player.capture_state()
 	return off
 
 ## The one way the potion count changes in town. The hero's own count is the live one (he can drink in town), TownState mirrors it
@@ -821,7 +832,7 @@ func _arrive_in_town() -> void:
 	populate_quests()
 	_flush_quest_news()
 	_refresh_reward_marker()
-	TownState.take_gear(player.stats.equipment)
+	PartyManager.current().to_dict()
 	var carried: int = player.stats.bag.size()
 	TownState.stash_carried(player.stats.bag)
 	player.stats.bag.clear()
@@ -857,7 +868,8 @@ func _hero_fell() -> void:
 	var taunt: String = _killer_takes_credit()
 	hud.show_banner("You were dragged back" + ("\n" + taunt if taunt != "" else ""), 4.0)
 	await get_tree().create_timer(3.2).timeout
-	player.revive_at(Vector3(0, 0, 10.0))
+	for body in PartyManager.current().bodies.values():
+		if is_instance_valid(body): body.revive_at(Vector3(0 if body.member_id == "hero" else 2.4, 0, 10.0))
 	rig.global_position = player.global_position
 	outside = false
 	_arrive_in_town()

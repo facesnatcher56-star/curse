@@ -9,17 +9,19 @@ const GRAVITY := 2.8
 const LIFE := 3.0
 const STICK_TIME := 4.0
 
-var shooter: ArcherCompanion
+var shooter: Actor
+var origin: Dictionary = {}
 var velocity: Vector3
 var damage: float = 16.0
 var take_aim: bool = false
 var age: float = 0.0
 var struck: Actor
 
-static func fire(parent: Node, archer: ArcherCompanion, from: Vector3, toward: Vector3, hit_damage: float,
+static func fire(parent: Node, archer: Actor, from: Vector3, toward: Vector3, hit_damage: float,
 		empowered: bool = false) -> CompanionArrow:
 	var arrow := CompanionArrow.new()
 	arrow.shooter = archer
+	arrow.origin = archer.combat_identity()
 	arrow.damage = hit_damage
 	arrow.take_aim = empowered
 	arrow.velocity = (toward - from).normalized() * SPEED * (2.0 if empowered else 1.0)
@@ -47,7 +49,7 @@ func _physics_process(delta: float) -> void:
 	var to: Vector3 = from + velocity * delta
 	var query := PhysicsRayQueryParameters3D.create(from, to, Actor.LAYER_WORLD | Actor.LAYER_ENEMY)
 	query.collide_with_areas = false
-	if shooter != null:
+	if is_instance_valid(shooter):
 		query.exclude = [shooter.get_rid()]
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.is_empty():
@@ -75,13 +77,12 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 	var result: Dictionary = Combat.resolve(shooter, enemy, damage, Combat.DamageType.RANGED, not take_aim,
 		1.6 if take_aim else 0.9, false, not take_aim)
 	result["skill_id"] = "take_aim" if take_aim else "companion_arrow"
+	result["origin"] = origin.duplicate(true)
 	if take_aim and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
 		SkillFx.take_aim_hit(self, enemy.global_position, velocity.normalized())
 	enemy.receive(result, from)
-	if shooter != null:
-		shooter.last_hit_target = enemy
-	if result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] and shooter != null and shooter.player != null:
-		shooter.player.on_party_damage(float(result.get("damage", 0.0)), String(result["skill_id"]))
+	if is_instance_valid(shooter) and shooter is ArcherCompanion:
+		(shooter as ArcherCompanion).last_hit_target = enemy
 	struck = enemy
 	_stick(enemy)
 

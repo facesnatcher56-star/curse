@@ -8,6 +8,7 @@ var _portrait_rect: TextureRect
 var _weapon_slot: TextureRect
 var _hp_fill: ColorRect
 var _mana_fill: ColorRect
+var _xp_fill: ColorRect
 var _level: Label
 var _power_icons: Array[TextureRect] = []
 var _power_sweeps: Array[Control] = []
@@ -21,12 +22,24 @@ var _pending_power: Texture2D
 func _init(title: String = "Hero", companion: bool = false) -> void:
 	character_name = title
 	is_companion = companion
-	custom_minimum_size = Vector2(240, 84)
+	custom_minimum_size = Vector2(240, 96)
 	size = custom_minimum_size
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
+	gui_input.connect(_select_input)
+
+func _select_input(event: InputEvent) -> void:
+	var click := event as InputEventMouseButton
+	if (click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT) or event.is_action_pressed("ui_accept"):
+		PartyManager.current().select("cutter" if is_companion else "hero")
+		accept_event()
 
 func _ready() -> void:
+	theme = UiTheme.get_theme()
 	draw.connect(func() -> void: UiTheme.draw_panel(self, Rect2(Vector2.ZERO, size), 1.0))
+	draw.connect(func() -> void:
+		if PartyManager.current().active_id == ("cutter" if is_companion else "hero"):
+			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), UiTheme.BRONZE_LIGHT, false, 1.5))
 	var disc := Control.new()
 	disc.position = Vector2(6, 5)
 	disc.size = Vector2(72, 72)
@@ -43,6 +56,7 @@ func _ready() -> void:
 	add_child(title)
 	_hp_fill = _vital(Vector2(83, 30), UiTheme.BLOOD)
 	_mana_fill = _vital(Vector2(83, 42), UiTheme.MANA)
+	_xp_fill = _vital(Vector2(83, 83), UiTheme.BRONZE_LIGHT)
 	_weapon_slot = _texture(self, _pending_weapon, Rect2(83, 56, 20, 20))
 	for i in 4:
 		var cell := Control.new()
@@ -115,9 +129,10 @@ func set_icons(weapon: Texture2D, power: Texture2D) -> void:
 	if _weapon_slot != null: _weapon_slot.texture = weapon
 	if not _power_icons.is_empty(): _power_icons[0].texture = power
 
-func update_vitals(hp_pct: float, mana_pct: float, _xp_pct: float, power_charge: float = 1.0, power_armed: bool = false, power_available: bool = true) -> void:
+func update_vitals(hp_pct: float, mana_pct: float, xp_pct: float, power_charge: float = 1.0, power_armed: bool = false, power_available: bool = true) -> void:
 	if _hp_fill != null: _hp_fill.size.x = clampf(hp_pct, 0, 1) * 143.0
 	if _mana_fill != null: _mana_fill.size.x = clampf(mana_pct, 0, 1) * 143.0
+	if _xp_fill != null: _xp_fill.size.x = clampf(xp_pct, 0, 1) * 143.0
 	if _level != null:
 		_level.text = str(HeroProgression.level_for_xp(TownState.cutter_xp if is_companion else TownState.hero_xp))
 	_power_charge = clampf(power_charge, 0, 1)
