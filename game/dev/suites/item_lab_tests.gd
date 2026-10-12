@@ -24,6 +24,10 @@ func _test_item_lab() -> void:
 	expect("lab instantiates as ItemTestLab", lab != null)
 	if lab == null:
 		return
+	# This suite validates equipment and combat state, not audio playback. The lab's
+	# impact sounds attach voices to the outer self-test scene and outlive the lab.
+	var sfx_was_enabled: bool = Sfx.enabled
+	Sfx.enabled = false
 
 	game.add_child(lab)
 	await get_tree().process_frame
@@ -104,3 +108,4 @@ func _test_item_lab() -> void:
 
 	lab.queue_free()
 	await get_tree().process_frame
+	Sfx.enabled = sfx_was_enabled
