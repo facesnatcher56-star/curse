@@ -74,7 +74,7 @@ func refresh() -> void:
 	p.ranged_block_chance = (passive("barricade") + gear_stat("block_ranged")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.crit_chance = passive("critical_shot" if is_ranged() else "critical_strike") / 100.0
 	var critical_damage := "mortal_wound" if is_ranged() else "deadly_strike"
-	p.crit_mult = passive(critical_damage) / 100.0 if TownState.passive_rank(critical_damage, {}, p.member_id) > 0 else 2.0
+	p.crit_mult = passive(critical_damage) / 100.0 if TownState.effective_passive_rank(critical_damage, p.member_id) > 0 else 2.0
 	p.toughness = passive("toughness") / 100.0
 	# DS2: the Dodge skill and general dodge gear count against melee and ranged blows alike; melee-only and ranged-only gear against their own kind.
 	var dodge_base: float = passive("dodge") + gear_stat("dodge")
@@ -84,7 +84,7 @@ func refresh() -> void:
 ## A DS2 passive's effect at the hero's rank in it (PassiveDef.value; 0 when he has none).
 func passive(id: String) -> float:
 	var def: PassiveDef = PassiveDb.get_def(id)
-	return def.value(TownState.passive_rank(id, {}, p.member_id)) if def != null else 0.0
+	return def.value(TownState.effective_passive_rank(id, p.member_id)) if def != null else 0.0
 
 func magic_find() -> float:
 	return HeroAttributes.HUMAN_MAGIC_FIND + gear_stat("magic_find")
@@ -124,7 +124,7 @@ func total_armor() -> float:
 	for place in equipment:
 		var piece: float = float((equipment[place] as Dictionary)["stats"].get("armor", 0.0))
 		if place == Items.Slot.SHIELD:
-			shield_bonus = piece * PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.passive_rank("barricade", {}, p.member_id)) / 100.0
+			shield_bonus = piece * PassiveDb.get_def("barricade").extra_value("shield_armor", TownState.effective_passive_rank("barricade", p.member_id)) / 100.0
 		armor += piece
 	var provoke: float = p.powers.provoke_armor_pct if p.powers != null else 0.0   # DS2's Provoke, while it holds
 	return ((armor + gear_stat("armor")) * (1.0 + passive("reinforced_armor") / 100.0) + shield_bonus) * (1.0 + (gear_stat("armor_pct") + provoke) / 100.0)

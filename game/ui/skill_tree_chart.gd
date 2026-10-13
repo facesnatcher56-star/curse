@@ -82,6 +82,15 @@ func _build() -> void:
 		badge.add_theme_constant_override("outline_size", 4)
 		badge.add_theme_color_override("font_outline_color", Color.BLACK)
 		button.add_child(badge)
+		var gear_rank: int = TownState.gear_passive_bonus(def.id, member_id)
+		if gear_rank != 0:
+			var gear_badge := ItemTile._label("%+d" % gear_rank, 10, UiTheme.BRONZE_LIGHT)
+			gear_badge.position = Vector2(27, -5)
+			gear_badge.custom_minimum_size = Vector2(30, 16)
+			gear_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			gear_badge.add_theme_constant_override("outline_size", 4)
+			gear_badge.add_theme_color_override("font_outline_color", Color.BLACK)
+			button.add_child(gear_badge)
 		if int(staged.get(def.id, 0)) > 0:
 			var minus := UiTheme.button("-", 22)
 			minus.name = def.id + "_minus"

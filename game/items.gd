@@ -171,6 +171,22 @@ static func mods_of(item: Dictionary) -> Dictionary:
 			out[stat] = float(out.get(stat, 0.0)) + float(u.mods[stat])
 	return out
 
+## Passive alterations supplied by this item instance's inline payload, affixes, and unique definition. Set-tier payloads are aggregated by
+## TownState from SetDef so that each active tier is counted once for the worn set.
+static func passive_effects_of(item: Dictionary) -> Array:
+	var out: Array = []
+	for effect in item.get("effects", []):
+		if effect is Dictionary:
+			out.append(effect)
+	for id in item.get("mods", []):
+		var affix: AffixDef = AffixDb.get_def(String(id))
+		if affix != null:
+			out.append_array(affix.passive_effects)
+	var unique: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
+	if unique != null:
+		out.append_array(unique.passive_effects)
+	return out
+
 # --- Requirements (DS2: class skill >= item level - 2) ---------------------------------------------------------------------------------
 
 ## Which class skill an armour class's pieces ask for (DS2's `equip_requirements`).
@@ -232,7 +248,7 @@ static func _member_requirement_context(member: CharacterState) -> Dictionary:
 	var levels: Dictionary = HeroAttributes.levels_from_xp(member.class_xp)
 	levels["uber"] = member.level
 	var attributes: Dictionary = _member_effective_attributes(member)
-	return {"levels": levels, "attributes": attributes, "passive_ranks": member.passive_ranks}
+	return {"levels": levels, "attributes": attributes, "passive_ranks": TownState.effective_passive_ranks(member.id)}
 
 static func _member_effective_attributes(member: CharacterState) -> Dictionary:
 	var body: Variant = PartyManager.current().bodies.get(member.id)
@@ -506,6 +522,46 @@ static func lines(item: Dictionary, member_id: String = "hero") -> Array[String]
 				for stat in set_def.bonuses[count]:
 					parts.append(AffixDb.describe_stat(String(stat), float(set_def.bonuses[count][stat])))
 				out.append("  %s worn: %s" % [count, ", ".join(parts)])
+			for count in set_def.passive_effect_tiers:
+				var parts: PackedStringArray = []
+				for effect in set_def.passive_effect_tiers[count]:
+					if effect is Dictionary:
+						var line := passive_effect_line(effect)
+						if line != "": parts.append(line)
+				if not parts.is_empty():
+					out.append("  %s worn: %s" % [count, ", ".join(parts)])
+	for effect in passive_effects_of(item):
+		var line := passive_effect_line(effect)
+		if line != "":
+			out.append(line)
 	var need: String = requirement_text(item, member_id)
 	out.append("Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""])
 	return out
+
+static func passive_effect_line(effect: Dictionary) -> String:
+	var raw_value: Variant = effect.get("value", 0)
+	var amount: int = int(String(raw_value).to_float()) if raw_value is String else int(raw_value)
+	var description := String(effect.get("description", ""))
+	if description != "":
+		return description.replace("<value>", str(amount))
+	var alteration := String(effect.get("alteration", "")).strip_edges().to_lower()
+	if alteration == "alter_skill_suite":
+		var suite := String(effect.get("suite", "")).strip_edges().to_lower()
+		return "+%d to %s" % [amount, _supported_passive_names(TownState.GEAR_SUITE_PASSIVES.get(suite, []))] \
+			if not TownState.GEAR_SUITE_PASSIVES.get(suite, []).is_empty() else ""
+	var discipline := String(TownState.GEAR_DISCIPLINE_ALTERATIONS.get(alteration, ""))
+	if discipline == "": return ""
+	var ids: Array[String] = []
+	for id in TownState.GEAR_SUPPORTED_PASSIVES:
+		var def: PassiveDef = PassiveDb.get_def(String(id))
+		if def != null and def.tree == discipline:
+			ids.append(String(id))
+	return "+%d to %s Skills" % [amount, _supported_passive_names(ids)] if not ids.is_empty() else ""
+
+static func _supported_passive_names(ids: Array) -> String:
+	var names: Array[String] = []
+	for id in ids:
+		var def: PassiveDef = PassiveDb.get_def(String(id))
+		if def != null:
+			names.append(def.display_name)
+	return ", ".join(names)

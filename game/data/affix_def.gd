@@ -21,6 +21,8 @@ extends Resource
 @export var percent: bool = false
 ## The item kinds it may roll on (weapon, body, helm, gloves, boots, shield, ring, amulet).
 @export var slots: Array[String] = []
+## Source-backed passive alterations carried by this affix, in addition to its ordinary stat.
+@export var passive_effects: Array[Dictionary] = []
 
 ## "+12 Strength", "+18% Melee damage": the line on an item card.
 func describe() -> String:

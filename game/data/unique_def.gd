@@ -14,3 +14,5 @@ extends Resource
 @export var requirements: String = ""
 ## The SetDef it belongs to ("" for a unique).
 @export var set_id: String = ""
+## Source-backed passive alterations carried by this unique.
+@export var passive_effects: Array[Dictionary] = []

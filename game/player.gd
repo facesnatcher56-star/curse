@@ -929,11 +929,11 @@ func _passive_on_hit(target: Actor, result: Dictionary) -> void:
 		return
 	var skill: String = String(result.get("skill_id", ""))
 	var damage: float = float(result.get("damage", 0.0))
-	var smite: int = TownState.passive_rank("smite", {}, member_id)
+	var smite: int = TownState.effective_passive_rank("smite", member_id)
 	if smite > 0 and skill in SWORD_SKILLS and PlayerStats._two_handed(stats.equipment.get(Items.Slot.WEAPON, {})) \
 			and randf() < PassiveDb.get_def("smite").value(smite) / 100.0:
 		target._gain_stun(PassiveDb.get_def("smite").extra_value("stun", smite))
-	var ignite: int = TownState.passive_rank("ignite", {}, member_id)
+	var ignite: int = TownState.effective_passive_rank("ignite", member_id)
 	if ignite > 0 and int(result.get("type", 0)) == Combat.DamageType.FIRE \
 			and randf() < PassiveDb.get_def("ignite").extra_value("chance", ignite) / 100.0 * damage / (1.2 + 0.6 * stats.intelligence):
 		target.apply_burn(PassiveDb.get_def("ignite").value(ignite) * stats.intelligence, 3.0, true, self, skill)
@@ -985,7 +985,7 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 func _on_avoided(outcome: int) -> void:
 	combat_timer = 5.0
 	# DS2's Rebuke: a block hits back for 0.4-2.5 x Melee level and stuns for 1-2 s.
-	var rebuke: int = TownState.passive_rank("rebuke", {}, member_id)
+	var rebuke: int = TownState.effective_passive_rank("rebuke", member_id)
 	if rebuke > 0 and outcome == Combat.Outcome.BLOCK and last_hit_by is Enemy and not last_hit_by.dead:
 		var melee: int = int(HeroAttributes.levels_from_xp(character.class_xp).get("melee", 0))
 		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,

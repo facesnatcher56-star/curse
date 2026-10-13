@@ -490,6 +490,39 @@ static func main_class() -> String:
 # --- Skill points and passives (DS2: one point per character level, two more for a human) --------------------------------------------
 const BONUS_SKILL_POINTS := 2
 
+## Only passives with a verified gameplay consumer may receive equipment ranks. Dormant definitions such as Quick Draw, Bleed, Far Shot,
+## Penetrate and Ricochet remain out until their combat hooks exist.
+const GEAR_SUPPORTED_PASSIVES := [
+	"alacrity", "arcane_fury", "barricade", "biting_arrow", "brilliance", "critical_shot", "critical_strike",
+	"cunning_renewal", "deadly_strike", "devastation", "dodge", "fierce_renewal", "fortitude", "ignite",
+	"overbear", "quickened_casting", "rebuke", "reinforced_armor", "searing_flames", "smite", "survival", "toughness", "mortal_wound",
+]
+
+## Canonical DS2 skill-suite IDs mapped only to passives whose current behavior is wired. The incomplete suites deliberately omit dormant or
+## missing constituents; their authored definitions are not made live by gear.
+const GEAR_SUITE_PASSIVES := {
+	"melee_suite_1": ["barricade", "toughness", "reinforced_armor"],
+	"melee_suite_2": ["fortitude", "overbear", "smite"],
+	"melee_suite_3": ["critical_strike", "alacrity"],
+	"ranged_suite_1": ["critical_shot", "dodge", "survival"],
+	"ranged_suite_2": ["biting_arrow"],
+	"ranged_suite_3": [],
+	"cmagic_suite_1": [],
+	"cmagic_suite_2": ["brilliance"],
+	"cmagic_suite_3": ["devastation", "searing_flames", "ignite"],
+	"nmagic_suite_1": [], "nmagic_suite_2": [], "nmagic_suite_3": [],
+	"special_suite_1": ["quickened_casting"],
+	"special_suite_2": ["fortitude", "toughness"],
+}
+
+## The source uses case variants of these alteration IDs. Normalize before lookup. Combat/Nature use Curse's tree keys.
+const GEAR_DISCIPLINE_ALTERATIONS := {
+	"alter_melee_passive_skills": "melee",
+	"alter_ranged_passive_skills": "ranged",
+	"alter_combat_magic_passive_skills": "combat",
+	"alter_nature_magic_passive_skills": "nature",
+}
+
 static func skill_points_total(member_id: String = "hero") -> int:
 	return maxi(PartyManager.current().member(member_id).level - 1, 0) + BONUS_SKILL_POINTS
 
@@ -504,6 +537,56 @@ static func skill_points_left(staged: Dictionary = {}, member_id: String = "hero
 
 static func passive_rank(id: String, staged: Dictionary = {}, member_id: String = "hero") -> int:
 	return int(PartyManager.current().member(member_id).passive_ranks.get(id, 0)) + int(staged.get(id, 0))
+
+## Equipment adds effective ranks without changing invested ranks or progression. Recomputed from the currently worn items so equip/unequip
+## never leaves cached or duplicate bonuses behind.
+static func gear_passive_bonus(id: String, member_id: String = "hero") -> int:
+	if not GEAR_SUPPORTED_PASSIVES.has(id):
+		return 0
+	var member := PartyManager.current().member(member_id)
+	var total := 0
+	var set_pieces: Dictionary = {}
+	for item_value in member.equipment.values():
+		if not item_value is Dictionary:
+			continue
+		var item: Dictionary = item_value
+		for effect in Items.passive_effects_of(item):
+			total += _passive_bonus_from_effect(effect, id)
+		var unique: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
+		if unique != null and unique.set_id != "":
+			set_pieces[unique.set_id] = int(set_pieces.get(unique.set_id, 0)) + 1
+	for set_id in set_pieces:
+		var set_def: SetDef = UniqueDb.get_set(String(set_id))
+		if set_def == null:
+			continue
+		for effect in set_def.passive_effects_for(int(set_pieces[set_id])):
+			total += _passive_bonus_from_effect(effect, id)
+	return total
+
+static func effective_passive_rank(id: String, member_id: String = "hero") -> int:
+	return clampi(passive_rank(id, {}, member_id) + gear_passive_bonus(id, member_id), 0, PassiveDef.MAX_RANK)
+
+## The ranks used for equipment stance requirements. Skill purchases, their prerequisites and power unlocks continue to use invested ranks.
+static func effective_passive_ranks(member_id: String = "hero") -> Dictionary:
+	var ranks: Dictionary = PartyManager.current().member(member_id).passive_ranks.duplicate()
+	for id in GEAR_SUPPORTED_PASSIVES:
+		var bonus := gear_passive_bonus(id, member_id)
+		if bonus != 0:
+			ranks[id] = clampi(int(ranks.get(id, 0)) + bonus, 0, PassiveDef.MAX_RANK)
+	return ranks
+
+static func _passive_bonus_from_effect(effect: Dictionary, passive_id: String) -> int:
+	var def: PassiveDef = PassiveDb.get_def(passive_id)
+	if def == null:
+		return 0
+	var alteration := String(effect.get("alteration", "")).strip_edges().to_lower()
+	var value: Variant = effect.get("value", 0)
+	var amount: int = int(String(value).to_float()) if value is String else int(value)
+	if alteration == "alter_skill_suite":
+		var suite := String(effect.get("suite", "")).strip_edges().to_lower()
+		return amount if passive_id in GEAR_SUITE_PASSIVES.get(suite, []) else 0
+	var discipline: String = String(GEAR_DISCIPLINE_ALTERATIONS.get(alteration, ""))
+	return amount if discipline != "" and discipline == def.tree else 0
 
 ## Why one more rank of `id` cannot be bought on top of `staged` (points chosen but not yet confirmed), or "" when it can: a point to
 ## spend, the rank cap, its tree's class skill level and the ranks it needs in other passives.

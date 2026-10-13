@@ -1,5 +1,5 @@
 extends DevSuite
-## Dedicated automated gameplay tests for the 11 implemented Dungeon Siege II equipment alterations:
+## Dedicated automated gameplay tests for implemented Dungeon Siege II equipment alterations and passive rank payloads:
 ## alter_intelligence, alter_max_mana, alter_melee_damage_min, alter_melee_damage_max,
 ## alter_melee_damage_source_percent, alter_custom_damage_fire, alter_cmagic_damage_percent,
 ## alter_fire_resistance, alter_life_recovery_unit, alter_mana_recovery_unit, alter_power_reload.
@@ -422,6 +422,85 @@ func _test_equipment_effects() -> void:
 	hero.stats.refresh()
 	expect("alter_power_reload returns to unaccelerated baseline on unequip",
 		is_equal_approx(hero.stats.power_recharge_damage(21.0, "melee"), baseline_recharge_required))
+
+	# -------------------------------------------------------------------------------------------------
+	# Equipment passive ranks: source-accurate payload fixtures, independent of the absent source uniques.
+	# -------------------------------------------------------------------------------------------------
+	var invested := {"barricade": 2, "toughness": 19}
+	hero.character.passive_ranks = invested.duplicate()
+	hero.character.class_xp["melee"] = HeroProgression.xp_for_level(6)
+	var passive_ring := Items.build(ring_def, 10, Items.Rarity.NORMAL)
+	passive_ring["effects"] = [
+		{"alteration": "alter_skill_suite", "suite": "MELEE_SUITE_1", "value": 2},
+		{"alteration": "ALTER_MELEE_PASSIVE_SKILLS", "value": 1},
+		{"alteration": "alter_skill_suite", "suite": "ranged_suite_1", "value": 1},
+		{"alteration": "alter_skill_suite", "suite": "cmagic_suite_3", "value": 1},
+		{"alteration": "alter_skill_suite", "suite": "special_suite_2", "value": 1},
+		{"alteration": "alter_skill_suite", "suite": "ranged_suite_3", "value": 5},
+	]
+	hero.character.equipment = {Items.Slot.RING: passive_ring}
+	expect("suite and discipline payloads grant only verified passive ranks",
+		TownState.gear_passive_bonus("barricade") == 3 and TownState.gear_passive_bonus("toughness") == 4
+		and TownState.gear_passive_bonus("critical_shot") == 2 and TownState.gear_passive_bonus("survival") == 1
+		and TownState.gear_passive_bonus("searing_flames") == 1 and TownState.gear_passive_bonus("fortitude") == 2
+		and TownState.gear_passive_bonus("quick_draw") == 0)
+	expect("equipment ranks change effective rank without changing invested ranks",
+		TownState.passive_rank("barricade") == 2 and TownState.effective_passive_rank("barricade") == 5
+		and TownState.passive_rank("toughness") == 19 and TownState.effective_passive_rank("toughness") == PassiveDef.MAX_RANK)
+	expect("gear ranks do not satisfy purchase prerequisites", TownState.passive_blocker("overbear") == "Needs Critical Strike")
+	expect("equipment passive payload is visible on item card", Items.lines(passive_ring).has("+2 to Barricade, Toughness, and Reinforced Armor"))
+	hero.character.equipment.clear()
+	expect("passive ranks disappear immediately when unequipped",
+		TownState.effective_passive_rank("barricade") == 2 and TownState.effective_passive_rank("critical_shot") == 0)
+	var affix_id := "fixture_passive_rank"
+	var unique_id := "fixture_passive_unique"
+	var affix_def := AffixDef.new()
+	affix_def.id = affix_id
+	affix_def.passive_effects = [{"alteration": "alter_skill_suite", "suite": "melee_suite_2", "value": 1}]
+	AffixDb.all()[affix_id] = affix_def
+	var unique_def := UniqueDef.new()
+	unique_def.id = unique_id
+	unique_def.base = ring_def.id
+	unique_def.passive_effects = [{"alteration": "Alter_Combat_Magic_Passive_Skills", "value": 1}]
+	UniqueDb.uniques()[unique_id] = unique_def
+	var affix_ring := Items.build(ring_def, 10, Items.Rarity.MAGIC, [affix_id])
+	var unique_ring := Items.build(ring_def, 10, Items.Rarity.UNIQUE, [], unique_id)
+	hero.character.equipment = {Items.Slot.RING: affix_ring, Items.Slot.RING2: unique_ring}
+	expect("affix and unique definition payloads are aggregated", TownState.gear_passive_bonus("smite") == 1
+		and TownState.gear_passive_bonus("devastation") == 1 and TownState.gear_passive_bonus("ignite") == 1)
+	hero.character.equipment = {Items.Slot.RING: Items.from_save(Items.to_save(affix_ring)),
+		Items.Slot.RING2: Items.from_save(Items.to_save(unique_ring))}
+	expect("passive affix and unique effects rebuild from saved item identifiers", TownState.gear_passive_bonus("smite") == 1
+		and TownState.gear_passive_bonus("devastation") == 1)
+	var set_id := "fixture_passive_set"
+	var set_unique_a := UniqueDef.new()
+	set_unique_a.id = "fixture_set_piece_a"
+	set_unique_a.base = ring_def.id
+	set_unique_a.set_id = set_id
+	var set_unique_b := UniqueDef.new()
+	set_unique_b.id = "fixture_set_piece_b"
+	set_unique_b.base = ring_def.id
+	set_unique_b.set_id = set_id
+	UniqueDb.uniques()[set_unique_a.id] = set_unique_a
+	UniqueDb.uniques()[set_unique_b.id] = set_unique_b
+	var set_def := SetDef.new()
+	set_def.id = set_id
+	set_def.passive_effect_tiers = {"2": [{"alteration": "alter_skill_suite", "suite": "special_suite_2", "value": 1}]}
+	UniqueDb.sets()[set_id] = set_def
+	var set_ring_a := Items.build(ring_def, 10, Items.Rarity.UNIQUE, [], set_unique_a.id)
+	var set_ring_b := Items.build(ring_def, 10, Items.Rarity.UNIQUE, [], set_unique_b.id)
+	hero.character.equipment = {Items.Slot.RING: set_ring_a, Items.Slot.RING2: set_ring_b}
+	expect("set passive tiers activate at their worn-piece threshold", TownState.gear_passive_bonus("fortitude") == 1
+		and TownState.gear_passive_bonus("toughness") == 1)
+	expect("set passive tier is described on its item card", Items.lines(set_ring_a).has("  2 worn: +1 to Fortitude, Toughness"))
+	hero.character.equipment.erase(Items.Slot.RING2)
+	expect("set passive tiers deactivate as soon as a piece is removed", TownState.gear_passive_bonus("fortitude") == 0)
+	AffixDb.all().erase(affix_id)
+	UniqueDb.uniques().erase(unique_id)
+	UniqueDb.uniques().erase(set_unique_a.id)
+	UniqueDb.uniques().erase(set_unique_b.id)
+	UniqueDb.sets().erase(set_id)
+	hero.character.passive_ranks = {}
 
 	# Cleanup
 	party.members["hero"] = CharacterState.from_dict("hero", saved_hero)

@@ -155,13 +155,23 @@ Requirements (%s):" % ("unlocks the power" if rank == 0 else "next rank")
 Not implemented: " + _plain(def.needs)
 	else:
 		var def := PassiveDb.get_def(id)
-		var rank := TownState.passive_rank(id, staged, member_id)
-		text = "%s  %d/%d" % [_plain(def.display_name), rank, PassiveDef.MAX_RANK]
-		if rank > 0: text += "
-Current: " + _plain(def.describe(rank))
-		if rank < PassiveDef.MAX_RANK: text += "
-Next: " + _plain(def.describe(rank + 1))
-		if rank < PassiveDef.MAX_RANK:
+		var invested_rank: int = TownState.passive_rank(id, {}, member_id)
+		var staged_rank: int = int(staged.get(id, 0))
+		var equipment_rank: int = TownState.gear_passive_bonus(id, member_id)
+		var effective_now: int = TownState.effective_passive_rank(id, member_id)
+		var effective_after_confirm: int = clampi(invested_rank + staged_rank + equipment_rank, 0, PassiveDef.MAX_RANK)
+		text = "%s\nInvested: %d/%d" % [_plain(def.display_name), invested_rank, PassiveDef.MAX_RANK]
+		if staged_rank > 0: text += "\nPending purchase: +%d" % staged_rank
+		if equipment_rank != 0: text += "\nEquipment: %+d" % equipment_rank
+		text += "\nEffective: %d/%d" % [effective_now, PassiveDef.MAX_RANK]
+		if staged_rank > 0: text += " (after confirm: %d)" % effective_after_confirm
+		if effective_now > 0: text += "\nCurrent effect: " + _plain(def.describe(effective_now))
+		if invested_rank < PassiveDef.MAX_RANK:
+			if effective_now < PassiveDef.MAX_RANK:
+				text += "\nNext invested rank: " + _plain(def.describe(mini(effective_now + 1, PassiveDef.MAX_RANK)))
+			else:
+				text += "\nEquipment already supplies the maximum effect; invested ranks remain separate."
+		if invested_rank < PassiveDef.MAX_RANK:
 			text += "\n\nRequirements (next rank):"
 			var levels := HeroAttributes.levels_from_xp(PartyManager.current().member(member_id).class_xp)
 			text += requirement_line(HeroAttributes.CLASS_NAMES[def.tree], def.class_level, int(levels.get(def.tree, 0)))
