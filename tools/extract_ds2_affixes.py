@@ -99,7 +99,7 @@ def main():
             kinds = [kind.strip() for kind in affix.get("object_types", "").split(",")]
             slots = []
             for kind in kinds:
-                slots += ["body", "helm", "gloves", "boots", "shield"] if kind == "armor" else [kind] if kind in {"amulet", "ring", "weapon"} else []
+                slots += ["body", "helm", "gloves", "boots", "shield"] if kind == "armor" else [kind] if kind in {"amulet", "ring", "weapon", "shield"} else []
             value = round(float(effect["value"]) * 100.0, 6)
             records.append(dict(source=affix["id"], title=affix.get("screen_name", affix["id"]),
                                 level=int(float(affix["level"])), value=value, max_value=value, value_ceiling=value,

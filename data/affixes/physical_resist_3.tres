@@ -15,5 +15,5 @@ value = 7.0
 max_value = 7.0
 value_ceiling = 7.0
 percent = true
-slots = Array[String](["amulet"])
+slots = Array[String](["amulet", "shield"])
 classes = Array[String](["fighter"])

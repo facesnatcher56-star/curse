@@ -4861,7 +4861,8 @@
       "percent": true,
       "position": "prefix",
       "slots": [
-        "amulet"
+        "amulet",
+        "shield"
       ],
       "classes": [
         "fighter"
@@ -4878,7 +4879,8 @@
       "percent": true,
       "position": "prefix",
       "slots": [
-        "amulet"
+        "amulet",
+        "shield"
       ],
       "classes": [
         "fighter"
@@ -4895,7 +4897,8 @@
       "percent": true,
       "position": "prefix",
       "slots": [
-        "amulet"
+        "amulet",
+        "shield"
       ],
       "classes": [
         "fighter"
@@ -4912,7 +4915,8 @@
       "percent": true,
       "position": "prefix",
       "slots": [
-        "amulet"
+        "amulet",
+        "shield"
       ],
       "classes": [
         "fighter"
