@@ -141,7 +141,7 @@ func _build_video() -> Control:
 	var page := _page()
 	page.add_child(_row("Window mode", _options(GameSettings.WINDOW_MODES, GameSettings.window_mode, func(i: int) -> void:
 		GameSettings.window_mode = i
-		_resolution_option.disabled = i != 0
+		_refresh_resolution_options()
 		GameSettings.apply_video())))
 	_monitor_option = OptionButton.new()
 	_monitor_option.item_selected.connect(func(i: int) -> void:
@@ -153,6 +153,13 @@ func _build_video() -> Control:
 		GameSettings.resolution_index = _resolution_choices[i]
 		GameSettings.apply_video())
 	page.add_child(_row("Resolution (windowed)", _resolution_option))
+	var note := Label.new()
+	note.text = ("Resolutions are a filtered list of fixed presets that fit the monitor. They are not the monitor's full hardware mode list, "
+		+ "which Godot does not report. Windowed sizes fit the usable area (the display minus the taskbar); fullscreen and borderless use the full display.")
+	note.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(640, 0)
+	page.add_child(note)
 	_refresh_monitor_options()
 	var ui_slider := HSlider.new()
 	ui_slider.min_value = 0.5
@@ -187,7 +194,8 @@ func _refresh_monitor_options() -> void:
 ## The resolutions that fit the monitor in use. Changing the monitor refreshes this list; a resolution that does not fit falls back to the
 ## largest one that does (the saved choice is kept for a bigger monitor).
 func _refresh_resolution_options() -> void:
-	var monitor_size: Vector2i = GameSettings.current_monitor_size()
+	# Windowed lists use the usable area; fullscreen and borderless (which disable this list) use the full display.
+	var monitor_size: Vector2i = GameSettings.current_monitor_size(GameSettings.window_mode == 0)
 	_resolution_choices = GameSettings.fitting_resolution_indices(monitor_size)
 	_resolution_option.clear()
 	for index in _resolution_choices:
