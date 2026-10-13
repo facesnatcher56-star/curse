@@ -104,6 +104,8 @@ var _held_path: String = SWORD_PATH
 
 func _ready() -> void:
 	add_to_group("player")
+	# The window sees every pointer event before it is routed to a popup or control, so a press that a dropdown consumes is still latched.
+	get_tree().root.window_input.connect(_latch_ui_click)
 	PartyManager.current().bodies[member_id] = self
 	ai = PartyCharacterAI.new(self)
 	display_name = "Hero" if member_id == "hero" else "Cutter"
@@ -495,15 +497,24 @@ func _update_focus_glow(focus: Variant) -> void:
 	if _glowing != null:
 		_glowing.set_highlighted(true)
 
-## Latch UI clicks before a button can close its popup before the next physics tick.
-func _input(event: InputEvent) -> void:
+## Latch UI clicks before a button can close its popup before the next physics tick. Connected to the root window's `window_input`, not
+## `_input`: an open dropdown (OptionButton, MenuButton) is an embedded sub-window that consumes the press and release that choose an entry or
+## dismiss it, and polling `Input` for the click does not know that.
+func _latch_ui_click(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton) or not event.is_action("click"):
 		return
 	var click := event as InputEventMouseButton
 	if click.pressed and not click.is_echo():
-		_ui_click = _point_over_ui(click.position, true)
+		_ui_click = _point_over_ui(click.position, true) or _popup_is_open()
 	elif not click.pressed:
 		_ui_click = false
+
+## Whether any popup (a dropdown list, a menu) is showing: the press that picks from it or dismisses it is the interface's, wherever it lands.
+func _popup_is_open() -> bool:
+	for node in get_tree().root.find_children("*", "Popup", true, false):
+		if (node as Popup).visible:
+			return true
+	return false
 
 func _point_over_ui(mouse: Vector2, check_hovered_control: bool = false) -> bool:
 	# Polling Input actions does not respect Control.accept_event(). The active GUI control
@@ -714,6 +725,8 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	if bow != null: bow.reload_remaining = 0.0
 
 func _exit_tree() -> void:
+	if get_tree() != null and get_tree().root.window_input.is_connected(_latch_ui_click):
+		get_tree().root.window_input.disconnect(_latch_ui_click)
 	Nav.reset(self, movement._nav_state)
 	capture_state()
 	if PartyManager.current().bodies.get(member_id) == self:

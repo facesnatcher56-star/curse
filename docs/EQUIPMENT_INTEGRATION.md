@@ -54,3 +54,19 @@ The suite was mutation-checked: disabling the requirement gate and the ice-resis
   `docs/ELEMENTAL_EQUIPMENT_VERIFICATION.md`).
 - The Lab combat log reports `added_elements` amounts after resistance and before crit, armour and level gap, as `Combat.resolve` records them.
 - No manual GUI playtest or screenshot inspection of the integrated build has been done; checks are automated and headless.
+
+## Owner playtest fixes: dropdown click-through and ultrawide layout
+
+- **Root cause.** An OptionButton's list is an embedded sub-window. It consumes the press and release that choose an entry or dismiss it, so
+  `Player._input` never saw them, and `gui_get_hovered_control()` is null while the pointer is over the list. The hero polls
+  `Input.is_action_just_pressed("click")`, which ignores that consumption, so the click was read as open terrain.
+- **Fix.** `Player` latches the click from the root window's `window_input` signal (it sees every event before sub-window routing) and treats any
+  visible `Popup` as interface, so opening, choosing and dismissing never move the hero. The latch clears on release; the next press on terrain
+  moves at once. No timer or lockout.
+- **Layout.** The Lab positioned its right dock with window pixels, but the project stretches a scaled canvas (3440x1440 is a 1720x720 canvas).
+  The dock is now anchored to the canvas right edge, panels sit below the boss bar, party frame and top bar, the dock height is shared between
+  Character Stats and Combat Log above the HUD bars, and the overlay scales down only when the canvas is smaller than 1080x730 (a large interface
+  scale on a small window).
+- **Tests.** `popupclick` (real events through `Input.parse_input_event`, an OptionButton, dismissal, the next ground click), `itemlabdropdowns`
+  (the Lab's five dropdowns, attack cancellation afterwards) and `itemlablayout` (five window sizes including 3440x1440, interface scale 0.5 / 1.0 / 1.5).
+  Real-window evidence: `--labsizes=1920x1080,3440x1440 --labdir=<dir>` captures the Lab and drives a dropdown with injected pointer events.

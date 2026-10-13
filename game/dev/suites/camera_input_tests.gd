@@ -798,3 +798,104 @@ func _test_pause_stops_game() -> void:
 		ball.queue_free()
 	chaser.queue_free()
 	await get_tree().process_frame
+
+## Real mouse events through Input.parse_input_event (what the operating system delivers): the action state AND the viewport routing,
+## including an OptionButton's popup, which consumes the click that selects an entry.
+func _popup_press(point: Vector2, pressed: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.position = point
+	event.global_position = point
+	event.pressed = pressed
+	event.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+func _popup_move(point: Vector2) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = point
+	event.global_position = point
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+func _test_popup_click_through() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	Gamepad.active = false
+	var window_was: Vector2i = get_window().size
+	get_window().size = Vector2i(1280, 720)   # a headless window starts 64 x 64, which would clip every synthesized pointer position
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.cursor_override = Vector3(0.0, 0.0, -6.0)   # open terrain wherever the pointer is
+	player.movement.has_goal = false
+	player.attack_target = null
+	var layer := CanvasLayer.new()
+	layer.layer = 90
+	game.add_child(layer)
+	var menu := OptionButton.new()
+	for entry in ["Alpha", "Bravo", "Charlie", "Delta"]:
+		menu.add_item(entry)
+	menu.position = Vector2(40.0, 40.0)
+	menu.size = Vector2(160.0, 32.0)
+	var chosen: Array[int] = []
+	menu.item_selected.connect(func(index: int) -> void: chosen.append(index))
+	layer.add_child(menu)
+	await get_tree().process_frame
+	var center: Vector2 = menu.get_global_rect().get_center()
+	_popup_move(center)
+	await get_tree().process_frame
+
+	# Open: press and release on the button.
+	_popup_press(center, true)
+	await get_tree().physics_frame
+	_popup_press(center, false)
+	await get_tree().physics_frame
+	var popup: PopupMenu = menu.get_popup()
+	expect("the dropdown popup opened", popup.visible)
+	expect("opening a dropdown does not move the hero", not player.movement.has_goal and player.click_mode == 0)
+
+	# Select the third entry: the popup consumes press and release; the world must never see them.
+	var pick: Vector2 = Vector2(popup.position) + Vector2(popup.size.x * 0.5, popup.size.y * 0.62)
+	_popup_move(pick)
+	await get_tree().process_frame
+	_popup_press(pick, true)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("pressing an entry does not move the hero", not player.movement.has_goal)
+	_popup_press(pick, false)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("an entry was selected through the popup", not chosen.is_empty() and not popup.visible)
+	expect("selecting an entry does not move the hero or start an order", not player.movement.has_goal and player.attack_target == null)
+
+	# Open again and cancel by clicking open terrain: the click that closes a popup is not a move order.
+	_popup_move(center)
+	await get_tree().process_frame
+	_popup_press(center, true)
+	await get_tree().physics_frame
+	_popup_press(center, false)
+	await get_tree().physics_frame
+	expect("the dropdown reopened", popup.visible)
+	var terrain := Vector2(640.0, 500.0)
+	_popup_move(terrain)
+	await get_tree().process_frame
+	_popup_press(terrain, true)
+	await get_tree().physics_frame
+	_popup_press(terrain, false)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	expect("clicking terrain only to dismiss the dropdown does not move the hero", not popup.visible and not player.movement.has_goal)
+
+	# The very next real terrain click is a normal move order, immediately.
+	_popup_press(terrain, true)
+	await get_tree().physics_frame
+	_popup_press(terrain, false)
+	await get_tree().physics_frame
+	expect("the next genuine ground click moves the hero at once", player.movement.has_goal and player.click_mode == 0)
+
+	player.movement.has_goal = false
+	layer.queue_free()
+	player.cursor_override = Vector3.INF
+	await get_tree().process_frame

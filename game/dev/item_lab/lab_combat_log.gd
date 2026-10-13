@@ -8,7 +8,7 @@ var _scroll: ScrollContainer
 var _max_entries: int = 50
 
 func _init() -> void:
-	custom_minimum_size = Vector2(360, 200)
+	custom_minimum_size = Vector2(360, 140)
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UiTheme.panel_box())
@@ -33,7 +33,7 @@ func _ready() -> void:
 
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_scroll.custom_minimum_size = Vector2(340, 160)
+	_scroll.custom_minimum_size = Vector2(340, 90)
 	vbox.add_child(_scroll)
 
 	_log_list = VBoxContainer.new()

@@ -109,3 +109,151 @@ func _test_item_lab() -> void:
 	lab.queue_free()
 	await get_tree().process_frame
 	Sfx.enabled = sfx_was_enabled
+
+## The Lab's panels stay inside the visible canvas at every supported window size, ultrawide included.
+func _test_item_lab_layout() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var sfx_was_enabled: bool = Sfx.enabled
+	Sfx.enabled = false
+	var lab: ItemTestLab = (load("res://game/dev/item_lab/item_test_lab.tscn") as PackedScene).instantiate() as ItemTestLab
+	game.add_child(lab)
+	var window_was: Vector2i = get_window().size
+	for ui_size in [0.5, 1.0, 1.5]:   # the supported interface-scale boundaries (GameSettings clamps ui_size to 0.5..1.5)
+		for size in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3440, 1440)]:
+			get_window().size = size
+			# GameSettings.apply_ui_scale does nothing headless, so apply its formula here.
+			var fitted: float = maxf(minf(float(size.x) / 1280.0, float(size.y) / 720.0), 0.01)
+			get_window().content_scale_factor = clampf(pow(fitted, -0.45) * ui_size, 0.3, 3.0)
+			for i in 3:
+				await get_tree().process_frame
+			var visible: Rect2 = get_viewport().get_visible_rect()
+			print("LAYOUT window=", get_window().size, " ui=", ui_size, " canvas=", visible.size, " fit=", lab.lab_ui_root.scale.x)
+			var panels: Dictionary = {"spawner": lab.spawner_panel, "stats": lab.stats_readout, "log": lab.combat_log, "top bar": lab.spawner_panel.get_parent().get_child(0)}
+			for name in panels:
+				var panel: Control = panels[name]
+				var rect: Rect2 = _lab_rect(panel)
+				expect("%dx%d ui %.1f: the %s panel is inside the visible area (%s in %s)" % [size.x, size.y, ui_size, name, rect, visible], visible.grow(0.5).encloses(rect) and rect.size.x > 100.0)
+			var top_bar: Rect2 = _lab_rect(lab.spawner_panel.get_parent().get_child(0) as Control)
+			expect("%dx%d ui %.1f: the top bar does not overlap the docks" % [size.x, size.y, ui_size], top_bar.end.y <= _lab_rect(lab.spawner_panel).position.y + 0.5
+				and top_bar.end.y <= _lab_rect(lab.stats_readout).position.y + 0.5)
+			var right: Rect2 = _lab_rect(lab.stats_readout)
+			var left: Rect2 = _lab_rect(lab.spawner_panel)
+			expect("%dx%d ui %.1f: the left and right docks leave a central play area (%.0f wide)" % [size.x, size.y, ui_size, right.position.x - left.end.x], right.position.x - left.end.x >= 300.0)
+			expect("%dx%d ui %.1f: the right dock is flush to the right edge" % [size.x, size.y, ui_size], absf(visible.end.x - right.end.x - ItemTestLab.LAB_MARGIN * lab.lab_ui_root.scale.x) < 1.5)
+			expect("%dx%d ui %.1f: the right dock stays clear of the hotbar and minimap" % [size.x, size.y, ui_size], _lab_rect(lab.combat_log).end.y <= visible.end.y - ItemTestLab.LAB_BOTTOM_CLEARANCE * lab.lab_ui_root.scale.y + 1.0)
+	get_window().content_scale_factor = 1.0
+	get_window().size = window_was
+	lab.queue_free()
+	await get_tree().process_frame
+	Sfx.enabled = sfx_was_enabled
+	TownState.reset()
+
+## Choosing from the Lab's real dropdowns never moves the hero; the next real ground click does.
+func _test_item_lab_dropdowns() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var sfx_was_enabled: bool = Sfx.enabled
+	Sfx.enabled = false
+	var lab: ItemTestLab = (load("res://game/dev/item_lab/item_test_lab.tscn") as PackedScene).instantiate() as ItemTestLab
+	game.add_child(lab)
+	var window_was: Vector2i = get_window().size
+	get_window().size = Vector2i(1920, 1080)
+	Gamepad.active = false
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	var hero: Player = lab.player
+	hero.cursor_override = hero.global_position + Vector3(3.0, 0.0, 3.0)
+	var panel: LabSpawnerPanel = lab.spawner_panel
+	var dropdowns: Array[OptionButton] = [panel._filter_option, panel._item_def_option, panel._level_option, panel._rarity_option, panel._affix_prefix_option]
+	for dropdown in dropdowns:
+		hero.movement.has_goal = false
+		var center: Vector2 = dropdown.get_global_rect().get_center()
+		_lab_pointer(center)
+		await get_tree().process_frame
+		var before: int = dropdown.selected
+		_lab_button(center, true)
+		await get_tree().physics_frame
+		_lab_button(center, false)
+		await get_tree().physics_frame
+		var popup: PopupMenu = dropdown.get_popup()
+		expect("%s: the dropdown opens without moving the hero" % dropdown.name, popup.visible and not hero.movement.has_goal)
+		var entry: int = 1 if popup.item_count > 1 else 0
+		var pick: Vector2 = Vector2(popup.position) + Vector2(popup.size.x * 0.5, 8.0 + (popup.size.y - 16.0) * (float(entry) + 0.5) / maxf(float(popup.item_count), 1.0))
+		_lab_pointer(pick)
+		await get_tree().process_frame
+		_lab_button(pick, true)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_lab_button(pick, false)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		expect("%s: choosing an entry (%d -> %d) closes it and does not move the hero" % [dropdown.name, before, dropdown.selected], not popup.visible and not hero.movement.has_goal)
+		# Reopen and dismiss over open terrain: not a move order either.
+		_lab_pointer(center)
+		await get_tree().process_frame
+		_lab_button(center, true)
+		await get_tree().physics_frame
+		_lab_button(center, false)
+		await get_tree().physics_frame
+		var view: Vector2 = get_viewport().get_visible_rect().size
+		var terrain := Vector2(view.x * 0.62, view.y * 0.45)   # open ground between the docks, above the HUD bars
+		_lab_pointer(terrain)
+		await get_tree().process_frame
+		_lab_button(terrain, true)
+		await get_tree().physics_frame
+		_lab_button(terrain, false)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		expect("%s: dismissing it over terrain does not move the hero" % dropdown.name, not popup.visible and not hero.movement.has_goal)
+		# The very next ground click moves at once.
+		_lab_button(terrain, true)
+		await get_tree().physics_frame
+		_lab_button(terrain, false)
+		await get_tree().physics_frame
+		expect("%s: the next genuine ground click moves the hero at once" % dropdown.name, hero.movement.has_goal and hero.click_mode == 0)
+	# A genuine ground click still cancels an attack in progress.
+	hero.movement.has_goal = false
+	hero.attack_target = lab.dummy
+	hero.skills.start_skill("basic", lab.dummy)
+	var terrain_point := Vector2(get_viewport().get_visible_rect().size.x * 0.62, get_viewport().get_visible_rect().size.y * 0.45)
+	_lab_pointer(terrain_point)
+	await get_tree().process_frame
+	_lab_button(terrain_point, true)
+	await get_tree().physics_frame
+	_lab_button(terrain_point, false)
+	await get_tree().physics_frame
+	expect("a ground click after the dropdowns still cancels the attack and moves", not hero.skills.busy and hero.movement.has_goal)
+	hero.cursor_override = Vector3.INF
+	get_window().size = window_was
+	lab.queue_free()
+	await get_tree().process_frame
+	Sfx.enabled = sfx_was_enabled
+	TownState.reset()
+
+## Canvas coordinates (what Control rects use) to window pixels (what the operating system's events carry), through the content scale.
+## A control's rectangle in canvas units, including the Lab overlay's own fit-to-canvas scale.
+func _lab_rect(control: Control) -> Rect2:
+	return control.get_global_transform() * Rect2(Vector2.ZERO, control.size)
+
+func _lab_pixels(point: Vector2) -> Vector2:
+	return get_window().get_final_transform() * point
+
+func _lab_button(canvas_point: Vector2, pressed: bool) -> void:
+	var point := _lab_pixels(canvas_point)
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.position = point
+	event.global_position = point
+	event.pressed = pressed
+	event.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+func _lab_pointer(canvas_point: Vector2) -> void:
+	var point := _lab_pixels(canvas_point)
+	var event := InputEventMouseMotion.new()
+	event.position = point
+	event.global_position = point
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()

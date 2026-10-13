@@ -6,6 +6,19 @@ extends Node3D
 
 const SAVE_NAMESPACE := "user://dev_item_lab/"
 
+## Layout, in canvas units (the project stretches a 1280 x 720 canvas, so these hold at every resolution). The boss bar and the party frame
+## occupy the top edge, the hotbar the bottom edge and the minimap the bottom-right corner.
+const LAB_MARGIN := 16.0
+const LAB_TOP_BAR_Y := 64.0
+const LAB_DOCK_Y := 168.0
+const LAB_RIGHT_DOCK_WIDTH := 360.0
+const LAB_BOTTOM_CLEARANCE := 190.0
+## The smallest canvas the panels fit in unscaled (top bar width, dock heights plus the HUD bars). A smaller one (a large interface scale on a
+## small window) scales the Lab overlay down just enough, never up.
+const LAB_DESIGN_SIZE := Vector2(1080.0, 730.0)
+
+var _fitted_canvas := Vector2.ZERO
+
 var player: Player
 var dummy: TrainingDummy
 var rig: CameraRig
@@ -56,6 +69,9 @@ func _ready() -> void:
 		args = OS.get_cmdline_args()
 	if args.has("--labshot"):
 		call_deferred("_run_lab_shots", args)
+	for arg in args:
+		if arg.begins_with("--labsizes="):   # e.g. --labsizes=1920x1080,3440x1440 --labdir=C:/shots
+			call_deferred("_run_layout_shots", arg.substr(11), _arg_value(args, "--labdir="))
 
 func _setup_test_player_state() -> void:
 	# Start with level 10 so tester can test various item tiers immediately,
@@ -170,14 +186,14 @@ func _build_lab_ui() -> void:
 
 	lab_ui_root = Control.new()
 	lab_ui_root.name = "LabUIRoot"
-	lab_ui_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lab_ui_root.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)   # sized by _fit_lab_ui to the visible canvas
 	lab_ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	canvas.add_child(lab_ui_root)
 
 	# Top Control Bar: Lab title, dummy configuration, and reset options
 	var top_bar := PanelContainer.new()
 	top_bar.add_theme_stylebox_override("panel", UiTheme.panel_box())
-	top_bar.position = Vector2(16, 16)
+	top_bar.position = Vector2(LAB_MARGIN, LAB_TOP_BAR_Y)
 	top_bar.custom_minimum_size = Vector2(800, 48)
 	lab_ui_root.add_child(top_bar)
 
@@ -241,34 +257,48 @@ func _build_lab_ui() -> void:
 	# Left Dock: Spawner Panel
 	spawner_panel = LabSpawnerPanel.new()
 	spawner_panel.player = player
-	spawner_panel.position = Vector2(16, 76)
+	spawner_panel.position = Vector2(LAB_MARGIN, LAB_DOCK_Y)
 	spawner_panel.stats_refresh_requested.connect(_refresh_all_stats)
 	lab_ui_root.add_child(spawner_panel)
 
 	# Right Dock: Stats Readout & Combat Log
+	# Anchored to the right edge of the scaled canvas (lab_ui_root fills it), so it follows any resolution or aspect ratio, ultrawide included.
+	# It stops above the HUD's bottom bar and minimap and shares the height between its two panels.
 	var right_dock := VBoxContainer.new()
-	right_dock.position = Vector2(get_viewport().size.x - 380, 76)
+	right_dock.anchor_left = 1.0
+	right_dock.anchor_right = 1.0
+	right_dock.anchor_top = 0.0
+	right_dock.anchor_bottom = 1.0
+	right_dock.offset_left = -(LAB_RIGHT_DOCK_WIDTH + LAB_MARGIN)
+	right_dock.offset_right = -LAB_MARGIN
+	right_dock.offset_top = LAB_DOCK_Y
+	right_dock.offset_bottom = -LAB_BOTTOM_CLEARANCE
+	right_dock.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	right_dock.add_theme_constant_override("separation", 10)
 	lab_ui_root.add_child(right_dock)
 
 	stats_readout = LabStatsReadout.new()
 	stats_readout.player = player
+	stats_readout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stats_readout.size_flags_stretch_ratio = 3.0
 	right_dock.add_child(stats_readout)
 
 	combat_log = LabCombatLog.new()
+	combat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	combat_log.size_flags_stretch_ratio = 2.0
 	right_dock.add_child(combat_log)
 
-	# Keep UI responsive to screen resizing
-	get_tree().root.size_changed.connect(_on_viewport_resized)
-	_on_viewport_resized()
+func _process(_delta: float) -> void:
+	if is_instance_valid(lab_ui_root) and get_viewport().get_visible_rect().size != _fitted_canvas:
+		_fit_lab_ui()
 
-func _on_viewport_resized() -> void:
-	if not is_instance_valid(lab_ui_root) or stats_readout == null:
-		return
-	var vp_size: Vector2i = get_viewport().size
-	var right_parent: Control = stats_readout.get_parent() as Control
-	if right_parent != null:
-		right_parent.position = Vector2(maxf(float(vp_size.x) - 380.0, 400.0), 76.0)
+## Sizes the overlay to the visible canvas (it changes with the window and the interface scale) and shrinks it when the canvas is too small.
+func _fit_lab_ui() -> void:
+	_fitted_canvas = get_viewport().get_visible_rect().size
+	var fit: float = minf(1.0, minf(_fitted_canvas.x / LAB_DESIGN_SIZE.x, _fitted_canvas.y / LAB_DESIGN_SIZE.y))
+	lab_ui_root.scale = Vector2(fit, fit)
+	lab_ui_root.position = Vector2.ZERO
+	lab_ui_root.size = _fitted_canvas / fit
 
 func _on_hero_level_changed(val: float) -> void:
 	var lvl := int(val)
@@ -315,7 +345,6 @@ func _run_lab_shots(_args: PackedStringArray) -> void:
 
 	DisplayServer.window_set_size(Vector2i(1920, 1080))
 	get_viewport().size = Vector2i(1920, 1080)
-	_on_viewport_resized()
 	await get_tree().create_timer(0.6).timeout
 
 	# Select Weapons filter in spawner panel to showcase the weapon selector
@@ -354,12 +383,85 @@ func _run_lab_shots(_args: PackedStringArray) -> void:
 		hud.close_character()
 	DisplayServer.window_set_size(Vector2i(1280, 720))
 	get_viewport().size = Vector2i(1280, 720)
-	_on_viewport_resized()
 	await get_tree().create_timer(0.5).timeout
 	_capture_to_file("res://docs/screenshots/item_lab_720p.png")
 
 	print("[item_lab] All screenshots captured successfully!")
 	get_tree().quit()
+
+static func _arg_value(args: PackedStringArray, prefix: String) -> String:
+	for arg in args:
+		if arg.begins_with(prefix):
+			return arg.substr(prefix.length())
+	return ""
+
+## Developer tool: captures the Item Lab at each `WxH`, once plain and once with a dropdown open, into `dir` (absolute path).
+func _run_layout_shots(sizes: String, dir: String) -> void:
+	await get_tree().create_timer(1.0).timeout
+	for entry in sizes.split(","):
+		var parts := entry.split("x")
+		if parts.size() != 2:
+			continue
+		var size := Vector2i(int(parts[0]), int(parts[1]))
+		var window := get_window()
+		window.mode = Window.MODE_WINDOWED
+		window.borderless = true
+		window.size = size
+		window.position = DisplayServer.screen_get_position(window.current_screen)
+		await get_tree().create_timer(0.8).timeout
+		if spawner_panel != null:
+			spawner_panel._item_def_option.get_popup().hide()
+		_save_png(dir.path_join("lab_%dx%d.png" % [size.x, size.y]))
+		if spawner_panel != null:
+			spawner_panel._item_def_option.show_popup()
+			await get_tree().create_timer(0.4).timeout
+			_save_png(dir.path_join("lab_%dx%d_dropdown.png" % [size.x, size.y]))
+			spawner_panel._item_def_option.get_popup().hide()
+		print("[item_lab_layout] ", size, " window=", window.size, " canvas=", lab_ui_root.size)
+		if spawner_panel != null:
+			await _layout_dropdown_probe(spawner_panel._rarity_option, dir.path_join("lab_%dx%d_selected.png" % [size.x, size.y]))
+	get_tree().quit()
+
+## Developer tool: opens `dropdown` and picks an entry with injected pointer events, then clicks open ground, and reports whether the hero moved.
+func _layout_dropdown_probe(dropdown: OptionButton, shot_path: String) -> void:
+	player.movement.has_goal = false
+	var to_pixels: Transform2D = get_window().get_final_transform()
+	var center: Vector2 = to_pixels * (dropdown.get_global_transform() * (dropdown.size * 0.5))
+	await _probe_click(center)
+	var popup: PopupMenu = dropdown.get_popup()
+	var opened: bool = popup.visible
+	var moved_on_open: bool = player.movement.has_goal
+	var entry := Vector2(popup.position) + Vector2(popup.size.x * 0.5, popup.size.y * 0.6)
+	await _probe_click(to_pixels * entry)
+	_save_png(shot_path)
+	var moved_on_select: bool = player.movement.has_goal
+	var canvas: Vector2 = get_viewport().get_visible_rect().size
+	player.cursor_override = player.global_position + Vector3(2.0, 0.0, 2.0)
+	await _probe_click(to_pixels * Vector2(canvas.x * 0.62, canvas.y * 0.45))
+	print("[item_lab_probe] popup opened=", opened, " moved on open=", moved_on_open, " popup closed after select=", not popup.visible, " selected=", dropdown.get_item_text(dropdown.selected),
+		" moved on select=", moved_on_select, " next ground click moves=", player.movement.has_goal)
+	player.cursor_override = Vector3.INF
+	player.movement.has_goal = false
+
+func _probe_click(pixel: Vector2) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = pixel
+	motion.global_position = pixel
+	Input.parse_input_event(motion)
+	await get_tree().create_timer(0.15).timeout
+	for pressed in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.position = pixel
+		click.global_position = pixel
+		click.pressed = pressed
+		click.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		Input.parse_input_event(click)
+		await get_tree().create_timer(0.12).timeout
+
+func _save_png(abs_path: String) -> void:
+	var img: Image = get_viewport().get_texture().get_image()
+	print("[item_lab_layout] saved ", abs_path, " ", img.get_size(), " err=", img.save_png(abs_path))
 
 func _capture_to_file(res_path: String) -> void:
 	var abs_path := ProjectSettings.globalize_path(res_path)

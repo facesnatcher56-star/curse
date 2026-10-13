@@ -7,7 +7,7 @@ var player: Player
 var _content_label: Label
 
 func _init() -> void:
-	custom_minimum_size = Vector2(360, 320)
+	custom_minimum_size = Vector2(360, 160)
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UiTheme.panel_box())
