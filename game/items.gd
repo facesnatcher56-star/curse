@@ -173,9 +173,7 @@ static func mods_of(item: Dictionary) -> Dictionary:
 ## Which class skill an armour class's pieces ask for (DS2's `equip_requirements`).
 const ARMOR_CLASS_SKILL := {"fighter": "melee", "ranger": "ranged", "mage": "combat"}
 
-## What wearing `item` needs: {class, level}, DS2's `equip_requirements` (item level - 2): a weapon Melee (the hero's blades), an armour
-## piece its own class's skill (fighter Melee, ranger Ranged, mage Combat Magic), jewellery the character level ("uber"). The stance
-## passives DS2 also asks for (Barricade for a shield, Overbear for a two-handed weapon) come with the passive trees.
+## Legacy compatibility summary for the current small live item set. Full decisions use requirement_expression/evaluate_requirement below.
 static func requirement(item: Dictionary) -> Dictionary:
 	var def: ItemDef = ItemDb.get_def(String(item["def"]))
 	var skill: String = "melee"
@@ -192,30 +190,76 @@ static func requirement(item: Dictionary) -> Dictionary:
 		stance = "overbear"
 	return {"class": skill, "level": maxi(int(item["level"]) - 2, 0), "passive": stance}
 
-## Whether `levels` meet the requirement: class skill levels (HeroAttributes.levels_from_xp) and "uber", the character level; `ranks`
-## the passive ranks (a shield needs Barricade, a two-handed weapon Overbear).
-static func meets_requirement(item: Dictionary, levels: Dictionary, ranks: Dictionary = {}) -> bool:
-	var need: Dictionary = requirement(item)
-	return int(levels.get(need["class"], 0)) >= int(need["level"]) and (String(need["passive"]) == "" or int(ranks.get(need["passive"], 0)) >= 1)
+## Exact DS2 source text is used when present. Legacy live bases use the already documented class/item-level mapping,
+## expressed through the same parser and with their DS2 stance passive requirement.
+static func requirement_expression(item: Dictionary) -> String:
+	if not item.has("def") or ItemDb.get_def(String(item.get("def", ""))) == null:
+		return "unknown_item_definition:0"
+	if item.has("requirements"):
+		return String(item["requirements"])
+	var def: ItemDef = ItemDb.get_def(String(item["def"]))
+	if def.requirements_from_source:
+		return def.requirements
+	var legacy: Dictionary = requirement(item)
+	var source := "%s:#item_level - 2.0" % String(legacy["class"])
+	if String(legacy["passive"]) == "barricade":
+		source += ",aegis:1"
+	elif String(legacy["passive"]) != "":
+		source += ",%s:1" % String(legacy["passive"])
+	return source
+
+## `context` contains class levels, effective STR/DEX/INT and actual learned passive ranks.
+static func evaluate_requirement(source: String, item_level: float, context: Dictionary) -> Dictionary:
+	return EquipmentRequirement.evaluate(source, item_level, context)
+
+## Whether `levels` and acquired `ranks` satisfy the source-backed or legacy requirement.
+static func meets_requirement(item: Dictionary, levels: Dictionary, ranks: Dictionary = {}, attributes: Dictionary = {}) -> bool:
+	var context := {"levels": levels, "passive_ranks": ranks, "attributes": attributes}
+	return bool(evaluate_requirement(requirement_expression(item), float(item.get("level", 0)), context).get("satisfied", false))
 
 ## Whether the hero (TownState's level, class XP and passives) may wear `item`.
 static func hero_can_wear(item: Dictionary, member_id: String = "hero") -> bool:
 	var member := PartyManager.current().member(member_id)
+	return bool(evaluate_requirement(requirement_expression(item), float(item.get("level", 0)), _member_requirement_context(member)).get("satisfied", false))
+
+static func requirement_text(item: Dictionary, member_id: String = "hero") -> String:
+	return EquipmentRequirement.describe(requirement_expression(item), float(item.get("level", 0)), _member_requirement_context(PartyManager.current().member(member_id)))
+
+static func _member_requirement_context(member: CharacterState) -> Dictionary:
 	var levels: Dictionary = HeroAttributes.levels_from_xp(member.class_xp)
 	levels["uber"] = member.level
-	return meets_requirement(item, levels, member.passive_ranks)
+	var attributes: Dictionary = _member_effective_attributes(member)
+	return {"levels": levels, "attributes": attributes, "passive_ranks": member.passive_ranks}
 
-static func requirement_text(item: Dictionary) -> String:
-	var need: Dictionary = requirement(item)
-	var parts: PackedStringArray = []
-	if int(need["level"]) > 0:
-		if String(need["class"]) == "uber":
-			parts.append("level %d" % int(need["level"]))
-		else:
-			parts.append("%s %d" % [String(HeroAttributes.CLASS_NAMES.get(need["class"], need["class"])), int(need["level"])])
-	if String(need["passive"]) != "":
-		parts.append(PassiveDb.get_def(String(need["passive"])).display_name)
-	return ("Requires " + " and ".join(parts)) if not parts.is_empty() else ""
+static func _member_effective_attributes(member: CharacterState) -> Dictionary:
+	var body: Variant = PartyManager.current().bodies.get(member.id)
+	var attr: Vector3
+	if body is Player and is_instance_valid(body) and body.stats != null:
+		attr = body.stats.attributes
+	else:
+		attr = HeroAttributes.attributes(HeroAttributes.levels_from_xp(member.class_xp))
+		var gear := _equipment_attribute_totals(member.equipment)
+		attr += Vector3(float(gear.get("str", 0.0)), float(gear.get("dex", 0.0)), float(gear.get("int", 0.0)))
+	return {"strength": attr.x, "dexterity": attr.y, "intelligence": attr.z}
+
+static func _equipment_attribute_totals(equipment: Dictionary) -> Dictionary:
+	var totals: Dictionary = {}
+	var set_pieces: Dictionary = {}
+	for place in equipment:
+		var item: Dictionary = equipment[place]
+		var item_mods: Dictionary = mods_of(item)
+		for stat in item_mods:
+			totals[stat] = float(totals.get(stat, 0.0)) + float(item_mods[stat])
+		var unique: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
+		if unique != null and unique.set_id != "":
+			set_pieces[unique.set_id] = int(set_pieces.get(unique.set_id, 0)) + 1
+	for set_id in set_pieces:
+		var set_def: SetDef = UniqueDb.get_set(String(set_id))
+		if set_def != null:
+			var bonus: Dictionary = set_def.bonus_for(int(set_pieces[set_id]))
+			for stat in bonus:
+				totals[stat] = float(totals.get(stat, 0.0)) + float(bonus[stat])
+	return totals
 
 # --- Saving ---------------------------------------------------------------------------------------------------------------------------
 
@@ -388,10 +432,10 @@ static func roll_choices(level: int, rare_chance: float = 0.15) -> Array[Diction
 
 ## How `item` compares with what is worn in its place: lines of {text, sign} (sign +1 better, -1 worse, 0 neutral) for the tooltip. An
 ## unmet requirement comes first, as a worse line.
-static func compare(item: Dictionary, current: Variant) -> Array[Dictionary]:
+static func compare(item: Dictionary, current: Variant, member_id: String = "hero") -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	if not hero_can_wear(item):
-		out.append({"text": "%s (you cannot wear it yet)" % requirement_text(item), "sign": -1})
+	if not hero_can_wear(item, member_id):
+		out.append({"text": "%s (you cannot wear it yet)" % requirement_text(item, member_id), "sign": -1})
 	if current == null:
 		out.append({"text": "Nothing worn in this slot", "sign": 1})
 		return out
@@ -429,7 +473,7 @@ static func model_path(item: Dictionary) -> String:
 	return ItemDb.get_def(String(item["def"])).model_path
 
 ## Text lines for a tooltip/card: its numbers, its modifiers, its set, its level and what it needs.
-static func lines(item: Dictionary) -> Array[String]:
+static func lines(item: Dictionary, member_id: String = "hero") -> Array[String]:
 	var out: Array[String] = []
 	var stats: Dictionary = item["stats"]
 	var def: ItemDef = ItemDb.get_def(String(item["def"]))
@@ -459,6 +503,6 @@ static func lines(item: Dictionary) -> Array[String]:
 				for stat in set_def.bonuses[count]:
 					parts.append(AffixDb.describe_stat(String(stat), float(set_def.bonuses[count][stat])))
 				out.append("  %s worn: %s" % [count, ", ".join(parts)])
-	var need: String = requirement_text(item)
+	var need: String = requirement_text(item, member_id)
 	out.append("Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""])
 	return out

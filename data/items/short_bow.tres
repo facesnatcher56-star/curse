@@ -14,3 +14,5 @@ item_type = "bow"
 levels = Array[int]([2, 17, 38, 60, 84])
 stats = {"damage": 1.0, "speed": 1.0}
 profile = {"style": "Bow", "ranged": true, "two_handed": true}
+requirements = ""
+requirements_from_source = true

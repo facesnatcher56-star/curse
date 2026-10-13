@@ -39,10 +39,10 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 	var width: float = 340.0
 	var pad: float = 14.0
 	var inner: float = width - pad * 2.0
-	var lines: Array[String] = Items.lines(item)
+	var lines: Array[String] = Items.lines(item, PartyManager.current().active_id)
 	var compare: Array[Dictionary] = []
 	if with_compare:
-		compare = Items.compare(item, worn)
+		compare = Items.compare(item, worn, PartyManager.current().active_id)
 	var height: float = pad * 2.0 + 54.0
 	for line in lines:
 		height += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 4.0

@@ -43,7 +43,7 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 	var rarity: int = int(it["rarity"])
 	box.add_child(_label(String(it["name"]), 20, Items.RARITY_COLORS[rarity]))
 	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 13, Color(1, 1, 1, 0.55)))
-	for line in Items.lines(it):
+	for line in Items.lines(it, PartyManager.current().active_id):
 		var l := _label(line, 14, stat_line_color(it, line))
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(300, 0)
@@ -51,7 +51,7 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 	if with_compare:
 		box.add_child(HSeparator.new())
 		box.add_child(_label("Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13, Color(0.7, 0.68, 0.62)))
-		for entry in Items.compare(it, worn):
+		for entry in Items.compare(it, worn, PartyManager.current().active_id):
 			var sign_value: int = int(entry["sign"])
 			var color: Color = Color(0.5, 0.85, 0.5) if sign_value > 0 else (Color(0.9, 0.45, 0.4) if sign_value < 0 else Color(0.75, 0.75, 0.75))
 			box.add_child(_label(("+ " if sign_value > 0 else ("- " if sign_value < 0 else "= ")) + String(entry["text"]), 14, color))

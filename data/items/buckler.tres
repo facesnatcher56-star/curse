@@ -14,3 +14,5 @@ item_type = "shield"
 armor_class = "fighter"
 levels = Array[int]([6, 11, 17, 28, 39])
 stats = {}
+requirements = "melee:#item_level-2.0,aegis:1"
+requirements_from_source = true

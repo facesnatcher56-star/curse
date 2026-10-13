@@ -324,7 +324,7 @@ func skill_speed(id: String) -> float:
 func equip(item: Dictionary, announce: bool = true, target_place: int = -1) -> Variant:
 	if not Items.hero_can_wear(item, p.member_id):
 		if announce:
-			p._say(Items.requirement_text(item))
+			p._say(Items.requirement_text(item, p.member_id))
 		return null
 	var off: Array[Dictionary] = []
 	var place: int = target_place if target_place in Items.places(int(item["slot"])) else place_for(item)

@@ -20,3 +20,5 @@ stats = {
 profile = {
 "style": "Crushing mace"
 }
+requirements = "melee:#item_level - 2.0"
+requirements_from_source = true

@@ -21,3 +21,5 @@ inventory_size = Vector2i(1, 2)
 profile = {
 "style": "Quick piercing blade"
 }
+requirements = ""
+requirements_from_source = true
