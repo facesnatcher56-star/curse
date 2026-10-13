@@ -28,7 +28,8 @@ func tick(delta: float) -> void:
 	var formation := Nav.snap(p, leader.global_position + Vector3(2.4, 0, 3.8).rotated(Vector3.UP, leader.visual.rotation.y))
 	if not Nav.clearance(p, formation, formation): formation = leader.global_position
 	if try_rescue(leader): return
-	var target := p.attack_target as Enemy
+	# Cast only a live target: an enemy freed at the end of the last frame is still held by attack_target.
+	var target: Enemy = (p.attack_target as Enemy) if is_instance_valid(p.attack_target) else null
 	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > 16.0:
 		target = null
 		for node in p.get_tree().get_nodes_in_group("enemies"):
@@ -37,27 +38,20 @@ func tick(delta: float) -> void:
 				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
 	p.attack_target = target
 	if gap > 16.0: target = null
-	if target != null:
+	# A prop (a nest) is attacked only when the player ordered it (the companion-attack hotkey). AI companions never choose a prop
+	# themselves, and melee companions keep to enemies.
+	var prop: Destructible = null
+	if target == null and p.stats.is_ranged() and p.bow != null:
+		var ordered: Destructible = p.attack_prop
+		if is_instance_valid(ordered) and ordered.is_hero_target() and p.flat_distance_to(ordered) <= 16.0:
+			prop = ordered
+	if target != null or prop != null:
 		leash_active = false
-		if p.stats.is_ranged():
-			var distance := p.flat_distance_to(target)
-			if not Nav.line_clear(p, target.global_position):
-				_travel(target.global_position, delta)
-				return
-			if distance < 7.0:
-				var away := (p.global_position - target.global_position).normalized()
-				for angle in [0.0, 0.6, -0.6, 1.2, -1.2]:
-					var retreat := Nav.snap(p, p.global_position + away.rotated(Vector3.UP, angle) * 3.0)
-					if retreat.distance_to(target.global_position) > distance and Nav.clearance(p, p.global_position, retreat):
-						_travel(retreat, delta)
-						return
-				p.move_with(Vector3.ZERO)
-				return
-			if distance <= 17.0 and Nav.line_clear(p, target.global_position):
-				p.skills.start_skill("basic", target)
-				p.move_with(Vector3.ZERO)
-				return
-		elif p.flat_distance_to(target) - target.body_radius <= 1.8 and Nav.line_clear(p, target.global_position):
+		if p.stats.is_ranged() and p.bow != null:
+			# The shared bow decides fire, step-back and firing position, with sight checked against the world geometry.
+			p.bow.engage(target, prop, delta)
+			return
+		if p.flat_distance_to(target) - target.body_radius <= 1.8 and Nav.line_clear(p, target.global_position):
 			p.skills.start_skill("basic", target)
 			p.move_with(Vector3.ZERO)
 			return

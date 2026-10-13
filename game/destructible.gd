@@ -97,6 +97,10 @@ static func near(tree: SceneTree, point: Vector3, margin: float, only_kind: Stri
 			best = prop
 	return best
 
+## Whether the hero's own attacks (swings, click orders, bow shots) are meant to break it: the `HERO` classification, for one prop.
+func is_hero_target() -> bool:
+	return not broken and bool(STATS[prop_name].get("hero", false))
+
 ## Damage it. Returns true if that broke it.
 func hit(damage: float, dir: Vector3, force: float = 1.0) -> bool:
 	if broken:

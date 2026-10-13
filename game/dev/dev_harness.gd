@@ -42,6 +42,8 @@ const SUITES := [
 	preload("res://game/dev/suites/item_lab_tests.gd"),
 	preload("res://game/dev/suites/equipment_integration_tests.gd"),
 	preload("res://game/dev/suites/run_reward_tests.gd"),
+	preload("res://game/dev/suites/archer_target_tests.gd"),
+	preload("res://game/dev/suites/archer_hold_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -162,6 +164,10 @@ const ONLY_TESTS := {
 "fetchtargets": "_test_fetch_targets",
 "ledgerbrute": "_test_ledger_brute",
 "ledgerplain": "_test_plain_brute_only",
+"archertargets": "_test_archer_targets",
+"archerpositioning": "_test_archer_positioning",
+"archerhold": "_test_archer_hold",
+"archermoving": "_test_archer_moving",
 }
 
 var _failures: PackedStringArray = []
@@ -249,6 +255,15 @@ func _run_selftest() -> void:
 	await _run("_test_town_state")
 	await _run("_test_run_modifiers")
 	await _run("_test_town_scene")
+	var party_before := _party_snapshot()
+	await _run("_test_archer_targets")
+	_party_restore(party_before)
+	await _run("_test_archer_positioning")
+	_party_restore(party_before)
+	await _run("_test_archer_hold")
+	_party_restore(party_before)
+	await _run("_test_archer_moving")
+	_party_restore(party_before)
 
 	var zombies: Array[Enemy] = []
 	for i in 3:
