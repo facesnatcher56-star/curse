@@ -8,6 +8,7 @@ static var _budget_tick: int = -1
 static var _budget_used: int = 0
 static var _pending: Array[Dictionary] = []
 static var queries_peak: int = 0
+static var requests_total: int = 0   # every path query served, monotonic (per-agent state is cleared on rebake; this is not)
 static var longest_wait_ticks: int = 0
 static var _ready_iterations: Dictionary = {}
 
@@ -90,6 +91,7 @@ static func _service() -> void:
 		var state: Dictionary = entry.state
 		if not ready(node): continue
 		_budget_used += 1
+		requests_total += 1
 		queries_peak = maxi(queries_peak, _budget_used)
 		longest_wait_ticks = maxi(longest_wait_ticks, tick - int(entry.tick))
 		var map := map_of(node)

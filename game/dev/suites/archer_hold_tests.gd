@@ -51,7 +51,7 @@ func _test_archer_hold() -> void:
 	var holds0: int = bow.holds
 	var shots0: int = bow.shots
 	var retries0: int = bow.retry_attempts
-	var queries0: int = int(archer.movement._nav_state.get("queries", 0))
+	var queries0: int = Nav.requests_total
 	var held_frames: int = 0
 	for i in HOLD_FRAMES:
 		bow.engage(enemy, null, DELTA)
@@ -61,7 +61,7 @@ func _test_archer_hold() -> void:
 	var holds_entered: int = bow.holds - holds0
 	var shots_in_hold: int = bow.shots - shots0
 	var retries: int = bow.retry_attempts - retries0
-	var path_requests: int = int(archer.movement._nav_state.get("queries", 0)) - queries0
+	var path_requests: int = Nav.requests_total - queries0
 	print("HOLD counters: holds_entered=", holds_entered, " held_frames=", held_frames, " shots_in_hold=", shots_in_hold,
 		" retry_attempts=", retries, " path_requests=", path_requests, " frames=", HOLD_FRAMES)
 	expect("hold: the hold branch was entered (counter > 0)", holds_entered > 0)

@@ -133,3 +133,20 @@ func _throw_dummy(pos: Vector3, variant: String = "zombie") -> Enemy:
 	e.health = 4000.0
 	e.block_chance = 0.0
 	return e
+
+## The party's position and archer switches before a check that moves them, so the next check starts from what it had.
+func _party_snapshot() -> Dictionary:
+	return {"hero": player.global_position, "archer": game.companion.global_position, "archer_testing": game.companion.testing_disabled}
+
+func _party_restore(saved: Dictionary) -> void:
+	player.global_position = saved["hero"]
+	player.reset_physics_interpolation()
+	player.movement.has_goal = false
+	player.attack_target = null
+	player.attack_prop = null
+	game.companion.global_position = saved["archer"]
+	game.companion.reset_physics_interpolation()
+	game.companion.testing_disabled = bool(saved["archer_testing"])
+	game.companion.bow.cancel()
+	game.companion.attack_target = null
+	game.companion.attack_prop = null

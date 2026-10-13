@@ -174,14 +174,14 @@ func _test_archer_positioning() -> void:
 	var changes: int = 0
 	var last: Vector3 = Vector3.INF
 	var delta: float = get_physics_process_delta_time()
-	var queries0: int = int(archer.movement._nav_state.get("queries", 0))
+	var queries0: int = Nav.requests_total
 	for i in 120:
 		archer.bow.engage(enemy, null, delta)
 		if archer.bow._has_spot and last.distance_to(archer.bow._spot) > 0.5:
 			changes += 1
 			last = archer.bow._spot
 		await get_tree().physics_frame
-	var requests: int = int(archer.movement._nav_state.get("queries", 0)) - queries0
+	var requests: int = Nav.requests_total - queries0
 	print("OSCILLATION: spot_changes=", changes, " nav_path_requests=", requests, " spot_reach=", snappedf(reach, 0.01))
 	expect("oscillation: the firing position changes at most twice in two seconds", changes <= 2)
 	expect("navigation: the walk to the firing position makes path requests (bounded, non-zero)", requests >= 1 and requests <= 20)

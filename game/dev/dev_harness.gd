@@ -249,10 +249,15 @@ func _run_selftest() -> void:
 	await _run("_test_town_state")
 	await _run("_test_run_modifiers")
 	await _run("_test_town_scene")
+	var party_before := _party_snapshot()
 	await _run("_test_archer_targets")
+	_party_restore(party_before)
 	await _run("_test_archer_positioning")
+	_party_restore(party_before)
 	await _run("_test_archer_hold")
+	_party_restore(party_before)
 	await _run("_test_archer_moving")
+	_party_restore(party_before)
 
 	var zombies: Array[Enemy] = []
 	for i in 3:
