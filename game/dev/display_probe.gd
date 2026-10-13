@@ -20,4 +20,10 @@ func _init() -> void:
 			" window_mode=", DisplayServer.window_get_mode())
 	for method in ["screen_get_name", "screen_get_orientation", "get_display_safe_area", "window_set_current_screen"]:
 		print("PROBE has_method ", method, "=", DisplayServer.has_method(method))
+	# Which screen-change events the engine exposes (decides how a disconnect can be noticed without polling).
+	for cls in ["DisplayServer", "Window"]:
+		for info in ClassDB.class_get_signal_list(cls, true):
+			var sig: String = str(info["name"])
+			if sig.contains("screen") or sig.contains("display") or sig.contains("focus"):
+				print("PROBE signal ", cls, ".", sig)
 	quit()
