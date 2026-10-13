@@ -66,11 +66,10 @@ func record_hit(result: Dictionary, attacker: Actor, defender: Actor) -> void:
 			color = Color(0.9, 0.9, 0.9)
 
 	var type_str := "Physical"
-	match dmg_type:
-		Combat.DamageType.FIRE:
-			type_str = "Fire"
-		Combat.DamageType.RANGED:
-			type_str = "Ranged"
+	if dmg_type == Combat.DamageType.RANGED:
+		type_str = "Ranged"
+	elif Combat.ELEMENT_OF_TYPE.has(dmg_type):
+		type_str = String(Combat.ELEMENT_OF_TYPE[dmg_type]).capitalize()
 
 	var attacker_name := attacker.display_name if is_instance_valid(attacker) else "Attacker"
 	var weapon_name := "Unarmed"
@@ -82,6 +81,14 @@ func record_hit(result: Dictionary, attacker: Actor, defender: Actor) -> void:
 	var text := "[%s] %s with %s -> %.1f %s (%s)" % [
 		outcome_str, attacker_name, weapon_name, dmg, type_str, skill_id
 	]
+	# Added elemental damage rides inside the total (after resistance, before crit and armour): name each part once.
+	var added: Dictionary = result.get("added_elements", {})
+	if not added.is_empty():
+		var parts: PackedStringArray = []
+		for element in Combat.ELEMENTS:
+			if added.has(element):
+				parts.append("%.1f %s" % [float(added[element]), String(element).capitalize()])
+		text += " [incl. added %s]" % ", ".join(parts)
 
 	# Check for leech or restored values
 	if attacker is Player and outcome >= Combat.Outcome.HIT:

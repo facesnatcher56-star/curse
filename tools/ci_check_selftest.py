@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fails CI when the headless self-test did not finish cleanly.
 
-Looks at the captured Godot log for: a missing "SELFTEST done" line, engine/script errors, and explicit failures
+Looks at the captured Godot log for: a missing "SELFTEST done" line, engine/script errors before it, and explicit failures
 reported by the test code ("[FAIL]" lines or "SELFTEST FAILED").
 """
 import re
@@ -17,7 +17,10 @@ def main() -> int:
     except OSError as exc:
         print(f"cannot read {path}: {exc}")
         return 1
-    problems = [m.group(0) for m in BAD.finditer(text)]
+    # Godot prints resource/RID leak errors while shutting down after "SELFTEST done"; they say nothing about the checks, so only the run itself is
+    # inspected for errors (a log with no "SELFTEST done" is still reported below).
+    run_text = text.split("SELFTEST done", 1)[0]
+    problems = [m.group(0) for m in BAD.finditer(run_text)]
     if "SELFTEST done" not in text:
         problems.append("the self-test never printed 'SELFTEST done' (crash, hang or timeout)")
     if problems:

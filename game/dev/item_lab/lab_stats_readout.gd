@@ -76,15 +76,19 @@ func refresh() -> void:
 	lines.append("Ranged Range: %d - %d" % [int(ranged_range.x), int(ranged_range.y)])
 	lines.append("Crit Chance: %.1f%%  (Mult: %.1fx)" % [player.crit_chance * 100.0, player.crit_mult])
 	lines.append("Attack Speed: %.2f" % [s.attack_speed()])
-	if player.added_fire > 0.0 or player.added_fire_max > 0.0:
-		lines.append("Added Fire: %d - %d" % [int(player.added_fire), int(player.added_fire_max)])
+	for element in Combat.ELEMENTS:
+		var low: float = Combat.added_damage(player, element)
+		var high: float = Combat.added_damage_max(player, element)
+		if low > 0.0 or high > 0.0:
+			lines.append("Added %s: %d - %d" % [element.capitalize(), int(low), int(high)])
 
 	# Defense
 	lines.append("\n--- Defenses ---")
 	lines.append("Armor: %.1f  (gear +%d, +%d%%)" % [player.armor, int(s.gear_stat("armor")), int(s.gear_stat("armor_pct"))])
 	lines.append("Block: %.1f%%  (Ranged Block: %.1f%%)" % [player.block_chance * 100.0, player.ranged_block_chance * 100.0])
 	lines.append("Dodge: %.1f%%  Toughness: %.1f%%" % [player.dodge_chance * 100.0, player.toughness * 100.0])
-	lines.append("Fire Resistance: %.1f%%" % [player.fire_resist * 100.0])
+	for element in Combat.ELEMENTS:
+		lines.append("%s Resistance: %.1f%%" % [element.capitalize(), Combat.resistance_of(player, element) * 100.0])
 
 	# Utility & Effects
 	lines.append("\n--- Recovery & Modifiers ---")

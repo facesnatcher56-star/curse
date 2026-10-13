@@ -47,9 +47,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 | Status | Count | Percentage |
 | :--- | :--- | :--- |
-| **Supported** | **28** | 48.3% |
+| **Supported** | **34** | 58.6% |
 | **Untested** | **0** | 0.0% |
-| **Unsupported** | **29** | 50.0% |
+| **Unsupported** | **23** | 39.7% |
 | **Unresolved** | **1** | 1.7% |
 | **Cosmetic Only** | **0** | 0.0% |
 | **Excluded** | **0** | 0.0% |
@@ -59,9 +59,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 ## 4. Detailed Alteration Mapping
 
-### 4.1 Supported Alterations (28)
+### 4.1 Supported Alterations (34)
 
-All 28 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
+All 34 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
 
 | Alteration Identifier | Category | Runtime Key | Runtime Consumer | Verified Test Suite & Function | Test Suite Verification Evidence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -93,6 +93,12 @@ All 28 supported alterations have verified runtime consumers and verified test s
 | `alter_power_reload` | Utility | `recharge` | `game/player/player_stats.gd:power_recharge_damage()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 390–415: Equips recharge rings; verifies reduced damage threshold required to recharge power (division by 1.07 and 1.12), stacking, unequip revert, and card line '+7% Power recharge'. |
 | `alter_magic_find_chance` | Utility | `magic_find` | `game/party_manager.gd:loot_bonuses()` | `game/dev/suites/find_tests.gd:_test_find()` | Lines 72–73, 80–99: Tests `hero.stats.gear` MF and party averaging across members. |
 | `alter_gold_dropped` | Utility | `gold_find` | `game/party_manager.gd:loot_bonuses()` | `game/dev/suites/find_tests.gd:_test_find()` | Lines 70, 80–99: Tests `MonsterLoot.gold_amount()` scaling and party gold find averaging. |
+| `alter_custom_damage_ice` | Elemental Damage | `ice_added, ice_added_max` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: tier values, aggregation, once-per-hit resolution, matching-resistance mitigation, requirement-gated equip, Item Test Lab dummy and combat log. |
+| `alter_custom_damage_lightning` | Elemental Damage | `lightning_added, lightning_added_max` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: tier values, aggregation, once-per-hit resolution, matching-resistance mitigation, requirement-gated equip, Item Test Lab dummy and combat log. |
+| `alter_custom_damage_death` | Elemental Damage | `death_added, death_added_max` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: tier values, aggregation, once-per-hit resolution, matching-resistance mitigation, requirement-gated equip, Item Test Lab dummy and combat log. |
+| `alter_ice_resistance` | Resistance | `ice_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
+| `alter_lightning_resistance` | Resistance | `lightning_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
+| `alter_death_resistance` | Resistance | `death_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
 
 ---
 
@@ -102,18 +108,12 @@ All 11 alterations originally marked `untested` in the initial audit now have de
 
 ---
 
-### 4.3 Unsupported Alterations (29)
+### 4.3 Unsupported Alterations (23)
 
-These 29 source alterations currently have no runtime consumer pipeline in Curse:
+These 23 source alterations currently have no runtime consumer pipeline in Curse:
 
 | Alteration Identifier | Category | Target Pipeline | Required Runtime Implementation |
 | :--- | :--- | :--- | :--- |
-| `alter_custom_damage_ice` | Elemental Damage | Combat damage | Add ice damage calculation & cold status effect. |
-| `alter_custom_damage_lightning` | Elemental Damage | Combat damage | Add lightning damage calculation to Combat pipeline. |
-| `alter_custom_damage_death` | Elemental Damage | Combat damage | Add death/curse damage calculation to Combat pipeline. |
-| `alter_ice_resistance` | Resistance | PlayerStats / Combat | Add independent ice resistance and damage mitigation. |
-| `alter_lightning_resistance` | Resistance | PlayerStats / Combat | Add independent lightning resistance and mitigation. |
-| `alter_death_resistance` | Resistance | PlayerStats / Combat | Add independent death resistance and mitigation. |
 | `alter_magical_resistance` | Resistance | PlayerStats / Combat | General spell mitigation pipeline. |
 | `alter_physical_resistance` | Resistance | PlayerStats / Combat | Flat percentage physical mitigation separate from armor formula. |
 | `alter_melee_resistance` | Resistance | PlayerStats / Combat | Attack-type melee physical mitigation. |
@@ -189,11 +189,11 @@ Analysis of the 60 distinct raw requirement strings across the 768 items reveals
 | :--- | :--- | :--- | :--- | :--- |
 | `discipline_offset` | `supported` | 346 | `melee:#item_level - 2.0` | Evaluated in `game/items.gd:meets_requirement()`. |
 | `discipline_fixed` | `supported` | 2 | `melee:0` | Evaluated in `game/items.gd:meets_requirement()`. |
-| `alternative_or` | `unsupported` | 79 | `combat magic:#item_level-8.0\|nature magic:#item_level-8.0` | Requires parsing `\|` delimiter; passes if player satisfies either condition. Currently fails validation. |
-| `conjunction_and` | `unsupported` | 117 | `melee:#item_level - 2.0,overbear:1` | Requires parsing `,` delimiter; passes only if player satisfies all conditions. |
-| `passive_rank` | `unsupported` | 115 | `overbear:1`, `aegis:8`, `biting_arrow:1` | Requires equipment evaluator to query allocated ranks in passive skill tree. |
-| `character_level_uber` | `unsupported` | 109 | `uber:#item_level - 8.0` | Total character level requirement (Curse tracks discipline levels, not unified uber level). |
-| `attribute_threshold` | `unsupported` | 1 | `intelligence:99` | Stat threshold requirement on `quest_staff_a1_tower`. |
+| `alternative_or` | `supported` | 79 | `combat magic:#item_level-8.0\|nature magic:#item_level-8.0` | Evaluated by `EquipmentRequirement.evaluate()` via the real equip path. Mixed comma and pipe stays unsupported (fails closed). |
+| `conjunction_and` | `supported` | 117 | `melee:#item_level - 2.0,overbear:1` | Evaluated by `EquipmentRequirement.evaluate()` via the real equip path. Mixed comma and pipe stays unsupported (fails closed). |
+| `passive_rank` | `supported` | 115 | `overbear:1`, `aegis:8`, `biting_arrow:1` | Checks learned passive rank; source passives Curse lacks fail closed. |
+| `character_level_uber` | `supported` | 109 | `uber:#item_level - 8.0` | Checks the member character level. |
+| `attribute_threshold` | `supported` | 1 | `intelligence:99` | Checks effective STR/DEX/INT. |
 
 ---
 
@@ -228,6 +228,8 @@ Two automated tools and a dedicated unit test suite enforce manifest integrity:
 3. **`tools/test_ds2_effect_coverage.py`**:
    - 12 automated unit tests verifying catalog counts, deterministic generation, strict classification, and deliberate failure detection when nonexistent files, symbols, or untested claims are introduced.
    - Run results: `Ran 12 tests in 0.295s - OK`.
+
+> **Integration note:** counts above reflect the combined `integration/ds2-equipment-complete` build (elemental mechanics from `agents/claude-ds2-elements` and requirement enforcement from `codex/ds2-equipment-requirements`). On `main` alone the figures were 28 supported / 29 unsupported.
 
 ---
 

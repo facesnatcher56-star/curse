@@ -84,9 +84,9 @@ class TestDS2EffectCoverage(unittest.TestCase):
                 self.assertIsNone(data.get("runtime_consumer"))
                 self.assertIsNone(data.get("test_path"))
 
-        self.assertEqual(status_counts["supported"], 28)
+        self.assertEqual(status_counts["supported"], 34)
         self.assertEqual(status_counts["untested"], 0)
-        self.assertEqual(status_counts["unsupported"], 29)
+        self.assertEqual(status_counts["unsupported"], 23)
         self.assertEqual(status_counts["unresolved"], 1)
         self.assertEqual(status_counts["cosmetic_only"], 0)
         self.assertEqual(status_counts["excluded"], 0)
@@ -115,11 +115,11 @@ class TestDS2EffectCoverage(unittest.TestCase):
         self.assertEqual(len(patterns), 7)
         self.assertEqual(patterns["discipline_offset"]["status"], "supported")
         self.assertEqual(patterns["discipline_fixed"]["status"], "supported")
-        self.assertEqual(patterns["alternative_or"]["status"], "unsupported")
-        self.assertEqual(patterns["conjunction_and"]["status"], "unsupported")
-        self.assertEqual(patterns["passive_rank"]["status"], "unsupported")
-        self.assertEqual(patterns["character_level_uber"]["status"], "unsupported")
-        self.assertEqual(patterns["attribute_threshold"]["status"], "unsupported")
+        self.assertEqual(patterns["alternative_or"]["status"], "supported")
+        self.assertEqual(patterns["conjunction_and"]["status"], "supported")
+        self.assertEqual(patterns["passive_rank"]["status"], "supported")
+        self.assertEqual(patterns["character_level_uber"]["status"], "supported")
+        self.assertEqual(patterns["attribute_threshold"]["status"], "supported")
 
     def test_validation_fails_on_missing_property(self):
         """Test that validator catches and flags omitted alterations."""

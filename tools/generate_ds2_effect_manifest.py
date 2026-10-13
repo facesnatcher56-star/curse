@@ -425,85 +425,91 @@ def build_manifest_data(catalog):
             "notes": "Reduces damage required to recharge activated powers. Verified in equipment_effect_tests.gd lines 390-415 (equip, power recharge damage reduction, stacking, unequip, displayed card lines)."
         },
 
-        # --- UNSUPPORTED ALTERATIONS (29) ---
         "alter_custom_damage_ice": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "elemental_damage",
-            "runtime_key": None,
+            "runtime_key": "ice_added, ice_added_max",
             "units": "damage_range",
-            "target": "combat_damage",
+            "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_custom_damage_ice in items, affixes, sets (e.g. Adds <value> to <max_value> Ice Damage).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires adding ice damage calculation and cold status pipeline to Combat."
-        },
-        "alter_custom_damage_lightning": {
-            "status": "unsupported",
-            "category": "elemental_damage",
-            "runtime_key": None,
-            "units": "damage_range",
-            "target": "combat_damage",
-            "stacking": "additive",
-            "applicable_families": ["weapon", "ring", "amulet"],
-            "source_evidence": "alter_custom_damage_lightning in items, affixes, sets (e.g. Adds <value> to <max_value> Lightning Damage).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires adding lightning damage calculation to Combat."
-        },
-        "alter_custom_damage_death": {
-            "status": "unsupported",
-            "category": "elemental_damage",
-            "runtime_key": None,
-            "units": "damage_range",
-            "target": "combat_damage",
-            "stacking": "additive",
-            "applicable_families": ["weapon", "ring", "amulet"],
-            "source_evidence": "alter_custom_damage_death in items, affixes, sets (e.g. Adds <value> to <max_value> Death Damage).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires adding death damage calculation to Combat."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Flat added ice damage rolled once per weapon hit and cut only by the target's ice resistance. Verified in element_tests.gd (tiers, aggregation, resolution, resistance boundaries, stacking) and equipment_integration_tests.gd (requirement gating, bag/inventory exclusion, Item Test Lab dummy, combat log, mid-swing equip)."
         },
         "alter_ice_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "ice_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_ice_resistance in items, affixes, sets (e.g. +<value>% Ice Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires independent ice resistance stat on PlayerStats and mitigation in Combat."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:element_multiplier()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Percentage reduction of incoming ice damage, held to the 80% hero cap. Verified in element_tests.gd and equipment_integration_tests.gd (ring requirement gating, equip/unequip, incoming typed damage)."
+        },
+        "alter_custom_damage_lightning": {
+            "status": "supported",
+            "category": "elemental_damage",
+            "runtime_key": "lightning_added, lightning_added_max",
+            "units": "damage_range",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["weapon", "ring", "amulet"],
+            "source_evidence": "alter_custom_damage_lightning in items, affixes, sets (e.g. Adds <value> to <max_value> Lightning Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Flat added lightning damage rolled once per weapon hit and cut only by the target's lightning resistance. Verified in element_tests.gd (tiers, aggregation, resolution, resistance boundaries, stacking) and equipment_integration_tests.gd (requirement gating, bag/inventory exclusion, Item Test Lab dummy, combat log, mid-swing equip)."
         },
         "alter_lightning_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "lightning_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_lightning_resistance in items, affixes, sets (e.g. +<value>% Lightning Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires independent lightning resistance stat on PlayerStats and mitigation in Combat."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:element_multiplier()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Percentage reduction of incoming lightning damage, held to the 80% hero cap. Verified in element_tests.gd and equipment_integration_tests.gd (ring requirement gating, equip/unequip, incoming typed damage)."
+        },
+        "alter_custom_damage_death": {
+            "status": "supported",
+            "category": "elemental_damage",
+            "runtime_key": "death_added, death_added_max",
+            "units": "damage_range",
+            "target": "player_stats",
+            "stacking": "additive",
+            "applicable_families": ["weapon", "ring", "amulet"],
+            "source_evidence": "alter_custom_damage_death in items, affixes, sets (e.g. Adds <value> to <max_value> Death Damage).",
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Flat added death damage rolled once per weapon hit and cut only by the target's death resistance. Verified in element_tests.gd (tiers, aggregation, resolution, resistance boundaries, stacking) and equipment_integration_tests.gd (requirement gating, bag/inventory exclusion, Item Test Lab dummy, combat log, mid-swing equip)."
         },
         "alter_death_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "death_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_death_resistance in items, affixes, sets (e.g. +<value>% Death Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Requires independent death resistance stat on PlayerStats and mitigation in Combat."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:element_multiplier()",
+            "test_path": "game/dev/suites/element_tests.gd:_test_elements(), game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()",
+            "notes": "Percentage reduction of incoming death damage, held to the 80% hero cap. Verified in element_tests.gd and equipment_integration_tests.gd (ring requirement gating, equip/unequip, incoming typed damage)."
         },
+
+        # --- UNSUPPORTED ALTERATIONS (23) ---
+
+
+
+
+
         "alter_magical_resistance": {
             "status": "unsupported",
             "category": "resistance",
@@ -1012,7 +1018,7 @@ def build_manifest_data(catalog):
             "notes": "Supported for fixed discipline level requirements."
         },
         "alternative_or": {
-            "status": "unsupported",
+            "status": "supported",
             "syntax": "<clause>|<clause>",
             "occurrences": 79,
             "examples": [
@@ -1021,11 +1027,11 @@ def build_manifest_data(catalog):
                 "melee:#item_level-8.0|ranged:#item_level-8.0",
                 "combat magic:7.0|nature magic:7.0"
             ],
-            "runtime_consumer": None,
-            "notes": "Disjunctive requirement where player needs either condition A OR condition B. Currently fails equip check."
+            "runtime_consumer": "game/equipment_requirement.gd:evaluate(), game/items.gd:hero_can_wear()",
+            "notes": "Pipe-only OR: satisfied when any clause is met. Enforced by the real equip path. Mixed comma and pipe expressions stay explicitly unsupported (fail closed) because DS2 precedence is unverified."
         },
         "conjunction_and": {
-            "status": "unsupported",
+            "status": "supported",
             "syntax": "<clause>,<clause>[,<clause>]",
             "occurrences": 117,
             "examples": [
@@ -1034,11 +1040,11 @@ def build_manifest_data(catalog):
                 "combat magic:#item_level-16.0, melee:25",
                 "wpn_a1_elt_crafted_1: melee:#item_level - 12.0, nature magic:25, aegis:8"
             ],
-            "runtime_consumer": None,
-            "notes": "Conjunctive requirement where player must satisfy all conditions simultaneously."
+            "runtime_consumer": "game/equipment_requirement.gd:evaluate(), game/items.gd:hero_can_wear()",
+            "notes": "Comma-only AND: every clause must be met. Enforced by the real equip path. Mixed comma and pipe expressions stay explicitly unsupported (fail closed) because DS2 precedence is unverified."
         },
         "passive_rank": {
-            "status": "unsupported",
+            "status": "supported",
             "syntax": "<passive_name>:<rank>",
             "occurrences": 115,
             "examples": [
@@ -1046,26 +1052,26 @@ def build_manifest_data(catalog):
                 "quick_draw:1", "amplified_lightning:8", "grim_necromancy:8",
                 "searing_flames:8", "summon_might:6", "dual_wield:4"
             ],
-            "runtime_consumer": None,
-            "notes": "Requires specific allocated rank in passive skill tree. Curse currently lacks player passive skill tree state query on equipment."
+            "runtime_consumer": "game/equipment_requirement.gd:evaluate(), game/items.gd:hero_can_wear()",
+            "notes": "Checks the member's learned passive rank. Source passives Curse does not implement (for example dual_wield) fail closed."
         },
         "character_level_uber": {
-            "status": "unsupported",
+            "status": "supported",
             "syntax": "uber:#item_level[-<offset>]",
             "occurrences": 109,
             "examples": [
                 "uber:#item_level", "uber:#item_level - 2.0", "uber:#item_level - 8.0", "uber:#item_level-8"
             ],
-            "runtime_consumer": None,
-            "notes": "Total hero character level (uber level) requirement. Curse uses discipline skills rather than unified uber character level."
+            "runtime_consumer": "game/equipment_requirement.gd:evaluate(), game/items.gd:hero_can_wear()",
+            "notes": "Checks the member's character level (uber), including #item_level offsets."
         },
         "attribute_threshold": {
-            "status": "unsupported",
+            "status": "supported",
             "syntax": "<attribute>:<threshold>",
             "occurrences": 1,
             "examples": ["intelligence:99"],
-            "runtime_consumer": None,
-            "notes": "Raw attribute requirement on quest_staff_a1_tower ('intelligence:99')."
+            "runtime_consumer": "game/equipment_requirement.gd:evaluate(), game/items.gd:hero_can_wear()",
+            "notes": "Checks effective STR/DEX/INT including worn attribute bonuses."
         }
     }
 
