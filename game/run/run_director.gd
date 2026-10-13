@@ -374,7 +374,7 @@ func _report_to_quests(actor: Actor, bonuses: Dictionary = {}) -> int:
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return 0
-	var result: Dictionary = Quests.report_kill(enemy.variant)
+	var result: Dictionary = Quests.report_kill(enemy.variant, _last_of_kind(enemy))
 	for inst in result["drops"]:
 		quest_item_dropped.emit(inst, enemy.global_position)
 	for line in Quests.pop_news():
@@ -400,6 +400,14 @@ func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 		var total := int(round(float(kill + bounty_xp) * gap))
 		var share := HeroProgression.party_share(total, recipients.size())
 		TownState.add_member_xp(member_id, share, bounty_xp > 0, enemy.member_damage.get(member_id, {}))
+
+## True when no other living monster of this kind is on the road (the road only refills when a quest is handed in).
+func _last_of_kind(enemy: Enemy) -> bool:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var other := node as Enemy
+		if other != null and other != enemy and not other.dead and other.variant == enemy.variant:
+			return false
+	return true
 
 func _living_cutter() -> ArcherCompanion:
 	for node in get_tree().get_nodes_in_group("companions"):
@@ -484,7 +492,9 @@ func settle_ground_rewards(died: bool) -> String:
 		if not died:
 			TownState.stash_item(drop.item)
 		drop.queue_free()
-	for node in get_tree().get_nodes_in_group("orbs"):
+	# Out of the tree (a town being torn down) there is no group to search: its orbs are not counted then (an edge the real quit path avoids).
+	var orbs: Array = get_tree().get_nodes_in_group("orbs") if is_inside_tree() else []
+	for node in orbs:
 		var orb := node as HealthOrb
 		if orb == null or orb.is_queued_for_deletion():
 			continue

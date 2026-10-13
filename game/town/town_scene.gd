@@ -63,6 +63,8 @@ func _notification(what: int) -> void:
 func _commit_road_inventory() -> void:
 	if not outside or player == null or not is_instance_valid(player) or player.stats == null:
 		return
+	if is_instance_valid(director):   # leaving the world is not a death: what lies on the road is recovered (owner policy)
+		director.settle_ground_rewards(false)
 	PartyManager.current().to_dict() # Snapshot each member; selected equipment is never Hero's global equipment.
 	TownState.stash_carried(player.stats.bag)
 	player.stats.bag.clear()
@@ -573,9 +575,13 @@ func _on_quest_news(line: String) -> void:
 ## A quest item dropped from a monster: it lies where it fell until the hero walks over it.
 func _on_quest_item(inst: Dictionary, at: Vector3) -> void:
 	var def: QuestDef = Quests.def_of(inst)
-	var pickup: QuestPickup = QuestPickup.spawn(self, at, int(inst["uid"]), def.item_name)
-	pickup.found.connect(_on_quest_item_found)
+	Quests.set_drop_spot(inst, at)
+	_spawn_quest_pickup(int(inst["uid"]), def.item_name, at)
 	hud.show_banner("It dropped: the %s" % def.item_name, 3.0)
+
+func _spawn_quest_pickup(uid: int, item_name: String, at: Vector3) -> void:
+	var pickup: QuestPickup = QuestPickup.spawn(self, at, uid, item_name)
+	pickup.found.connect(_on_quest_item_found)
 
 func _on_quest_item_found(uid: int) -> void:
 	if Quests.report_fetch_found(uid):
@@ -597,12 +603,11 @@ func populate_quests() -> void:
 			_toughen_living(def.world_mod)
 		if def.kind == "slay_unique" and not bool(inst["data"].get("spawned", false)):
 			crypt.spawn_unique(inst)
-		elif def.kind == "fetch" and bool(inst["data"].get("dropped", false)):
-			var lying: bool = false
-			for node in get_tree().get_nodes_in_group("quest_pickups"):
-				lying = lying or (node as QuestPickup).uid == int(inst["uid"])
-			if not lying:
-				Quests.report_fetch_lost(int(inst["uid"]))
+	var lying: Array = []
+	for node in get_tree().get_nodes_in_group("quest_pickups"):
+		lying.append((node as QuestPickup).uid)
+	for spot in Quests.fetch_to_respawn(lying):   # a dropped item that is not on the road goes back to its stored spot
+		_spawn_quest_pickup(int(spot["uid"]), String(spot["name"]), spot["at"])
 	populate_monsters()
 
 ## What the monsters are doing is put on the road: each named monster has its body (strength by level, name, marks), the plot it is
@@ -827,6 +832,9 @@ func _quest_line() -> String:
 
 ## Back inside the walls: what the hero carries is recorded (gear worn, potions held) and the bag goes to the stash.
 func _arrive_in_town() -> void:
+	var kept: String = director.settle_ground_rewards(false) if director != null else ""   # a return: what lies on the road is recovered
+	if kept != "":
+		hud.show_banner(kept, 3.0)
 	TownState.end_expedition()
 	populate_quests()
 	_flush_quest_news()
@@ -865,7 +873,8 @@ func _killer_takes_credit() -> String:
 ## The hero fell out on the road: after a moment he is dragged back to the plaza, whole, with the monsters where they were.
 func _hero_fell() -> void:
 	var taunt: String = _killer_takes_credit()
-	hud.show_banner("You were dragged back" + ("\n" + taunt if taunt != "" else ""), 4.0)
+	var lost: String = director.settle_ground_rewards(true)   # a death: what still lies on the road is lost (owner policy)
+	hud.show_banner("You were dragged back" + ("\n" + lost if lost != "" else "") + ("\n" + taunt if taunt != "" else ""), 4.0)
 	await get_tree().create_timer(3.2).timeout
 	for body in PartyManager.current().bodies.values():
 		if is_instance_valid(body): body.revive_at(Vector3(0 if body.member_id == "hero" else 2.4, 0, 10.0))
