@@ -260,6 +260,9 @@ func _test_zoom() -> void:
 func _test_settings() -> void:
 	var ok: bool = true
 	var backup: Dictionary = GameSettings.custom_bindings.duplicate()
+	# Isolated: this test saves and loads settings, so it must never touch the owner's real settings file.
+	var real_settings_path: String = GameSettings.settings_path
+	GameSettings.settings_path = "user://camera_input_check_settings.cfg"
 	var q := InputEventKey.new()
 	q.physical_keycode = KEY_Q
 	GameSettings.rebind("dodge", q)
@@ -306,6 +309,8 @@ func _test_settings() -> void:
 	GameSettings.custom_bindings = backup
 	expect("settings rebind/swap/save/load/reset", ok)
 	print("  settings: rebind/swap/save/load/reset ok=", ok, "  pause menu node=", pause_menu != null)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameSettings.settings_path))
+	GameSettings.settings_path = real_settings_path
 
 ## The mouse over the minimap, hotbar or bars must not pick (or walk to) an enemy standing in the world behind them.
 func _test_ui_block() -> void:

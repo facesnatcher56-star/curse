@@ -7,6 +7,8 @@ func _init() -> void:
 
 func _run() -> void:
 	print("[DS2_VALIDATE] Booting GameSettings...")
+	# Isolated: this validator assigns hotbar slots, which saves; it must not write the owner's real settings file.
+	GameSettings.settings_path = "user://validate_ds2_ui_hud_settings.cfg"
 	GameSettings.boot()
 	
 	print("[DS2_VALIDATE] Hotbar slots: ", GameSettings.hotbar_slots)
