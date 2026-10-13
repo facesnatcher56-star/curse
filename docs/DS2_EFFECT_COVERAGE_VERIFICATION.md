@@ -47,9 +47,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 | Status | Count | Percentage |
 | :--- | :--- | :--- |
-| **Supported** | **37** | 63.8% |
+| **Supported** | **41** | 70.7% |
 | **Untested** | **0** | 0.0% |
-| **Unsupported** | **20** | 34.5% |
+| **Unsupported** | **16** | 27.6% |
 | **Unresolved** | **0** | 0.0% |
 | **Cosmetic Only** | **1** | 1.7% |
 | **Excluded** | **0** | 0.0% |
@@ -59,9 +59,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 ## 4. Detailed Alteration Mapping
 
-### 4.1 Supported Alterations (37)
+### 4.1 Supported Alterations (41)
 
-All 37 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
+All 41 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
 
 | Alteration Identifier | Category | Runtime Key | Runtime Consumer | Verified Test Suite & Function | Test Suite Verification Evidence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -99,6 +99,10 @@ All 37 supported alterations have verified runtime consumers and verified test s
 | `alter_ice_resistance` | Resistance | `ice_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
 | `alter_lightning_resistance` | Resistance | `lightning_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
 | `alter_death_resistance` | Resistance | `death_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
+| `alter_physical_resistance` | Resistance | `physical_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:physical_attack_resistance()` | `game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()` | Catalog samples, additive physical+attack-type mitigation, 80% cap, replacement, save/load, and resolve/receive integration. |
+| `alter_melee_resistance` | Resistance | `melee_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:physical_attack_resistance()` | `game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()` | Affects melee physical attacks only; additive with physical resistance and capped once. |
+| `alter_ranged_resistance` | Resistance | `ranged_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:physical_attack_resistance()` | `game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()` | Affects ranged physical attacks only; additive with physical resistance and capped once. |
+| `alter_magical_resistance` | Resistance | `magical_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:effective_resistance()` | `game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()` | Adds to the matching elemental resistance for typed magic before the shared 80% cap; tested through spell resolution and receipt. |
 | `alter_chance_to_dodge_hit` | Defense | `dodge` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
 | `alter_chance_to_dodge_hit_melee` | Defense | `dodge_melee` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
 | `alter_chance_to_dodge_hit_ranged` | Defense | `dodge_ranged` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
@@ -111,16 +115,12 @@ All 11 alterations originally marked `untested` in the initial audit now have de
 
 ---
 
-### 4.3 Unsupported Alterations (20)
+### 4.3 Unsupported Alterations (16)
 
-These 20 source alterations currently have no runtime consumer pipeline in Curse:
+These 16 source alterations currently have no runtime consumer pipeline in Curse:
 
 | Alteration Identifier | Category | Target Pipeline | Required Runtime Implementation |
 | :--- | :--- | :--- | :--- |
-| `alter_magical_resistance` | Resistance | PlayerStats / Combat | General spell mitigation pipeline. |
-| `alter_physical_resistance` | Resistance | PlayerStats / Combat | Flat percentage physical mitigation separate from armor formula. |
-| `alter_melee_resistance` | Resistance | PlayerStats / Combat | Attack-type melee physical mitigation. |
-| `alter_ranged_resistance` | Resistance | PlayerStats / Combat | Attack-type ranged physical mitigation. |
 | `alter_block_combat_magic_damage` | Defense | Combat | Spell damage reduction / block on staves and shields. |
 | `ALTER_CHANCE_TO_DODGE_HIT_RANGED` | Defense | Combat | Uppercase variant of ranged dodge. |
 | `alter_nmagic_damage_percent` | Multiplier | PlayerStats | Nature magic spell damage scaling (Curse only has Combat Magic). |
@@ -245,6 +245,6 @@ Two automated tools and a dedicated unit test suite enforce manifest integrity:
 
 Compound requirement checks are implemented for comma-only AND expressions, pipe-only OR expressions, and passive ranks. Mixed expressions containing both operators remain unsupported and fail closed because the source precedence is unresolved. Requirements that depend on passive skills absent from Curse also fail closed.
 
-The manifest classifies **37 alterations as supported, 20 as unsupported, one (`alter_generic`) as cosmetic-only and none as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
+The manifest classifies **41 alterations as supported, 16 as unsupported, one (`alter_generic`) as cosmetic-only and none as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
 
 Other gaps remain as listed in the manifest, including unsupported equipment effects and template properties. Do not infer full item import or behavior coverage from catalog parsing, requirement evaluation, or the supported-alteration count.

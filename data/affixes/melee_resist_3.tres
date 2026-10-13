@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "melee_resist_3"
+family = "melee_resist"
+tier = 3
+stat = "melee_resist"
+title = "Daunting"
+position = "prefix"
+level = 33
+value = 9.0
+max_value = 9.0
+value_ceiling = 9.0
+percent = true
+slots = Array[String](["body", "boots", "gloves", "helm", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

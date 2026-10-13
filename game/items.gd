@@ -87,7 +87,10 @@ static func build(def: ItemDef, level: int, rarity: int, mods: Array = [], uniqu
 
 ## A hand-authored item (a unique or a set piece).
 static func unique(u: UniqueDef) -> Dictionary:
-	return build(ItemDb.get_def(u.base), u.level, Rarity.SET if u.set_id != "" else Rarity.UNIQUE, [], u.id)
+	var item := build(ItemDb.get_def(u.base), u.level, Rarity.SET if u.set_id != "" else Rarity.UNIQUE, [], u.id)
+	if u.requirements != "":
+		item["requirements"] = u.requirements
+	return item
 
 ## "Cruel Longsword of the Wolf": a magic or rare item takes its first prefix and suffix; a unique has its own name.
 static func _name(def: ItemDef, item: Dictionary) -> String:

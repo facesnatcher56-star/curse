@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "woven_hood"
+display_name = "Woven Hood"
+slot = 4
+order = 27
+model_path = "res://assets/models/items/leather_cap/model.glb"
+icon_path = "res://assets/icons/items/leather_cap.png"
+item_type = "helm"
+armor_class = "mage"
+levels = Array[int]([13])
+stats = {}
+requirements = "nature magic:#item_level-2.0"
+requirements_from_source = true

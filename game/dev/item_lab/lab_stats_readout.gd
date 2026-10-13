@@ -88,8 +88,16 @@ func refresh() -> void:
 	lines.append("Block: %.1f%%  (Ranged Block: %.1f%%)" % [player.block_chance * 100.0, player.ranged_block_chance * 100.0])
 	lines.append("Dodge: %.1f%% melee / %.1f%% ranged   Toughness: %.1f%%" % [Combat.dodge_chance_against(player, Combat.DamageType.PHYSICAL) * 100.0,
 		Combat.dodge_chance_against(player, Combat.DamageType.RANGED) * 100.0, player.toughness * 100.0])
+	lines.append("Physical component: %.1f%%" % [player.physical_resist * 100.0])
+	lines.append("Effective physical — Melee: %.1f%% | Ranged: %.1f%%" % [
+		Combat.effective_resistance(player, Combat.DamageType.PHYSICAL) * 100.0,
+		Combat.effective_resistance(player, Combat.DamageType.RANGED) * 100.0])
+	lines.append("Magic component: %.1f%%" % [player.magical_resist * 100.0])
 	for element in Combat.ELEMENTS:
-		lines.append("%s Resistance: %.1f%%" % [element.capitalize(), Combat.resistance_of(player, element) * 100.0])
+		var kind: int = {"fire": Combat.DamageType.FIRE, "ice": Combat.DamageType.ICE,
+			"lightning": Combat.DamageType.LIGHTNING, "death": Combat.DamageType.DEATH}[element]
+		lines.append("%s Resistance: %.1f%% (%.1f%% vs magic)" % [element.capitalize(),
+			Combat.resistance_of(player, element) * 100.0, Combat.effective_resistance(player, kind) * 100.0])
 
 	# Utility & Effects
 	lines.append("\n--- Recovery & Modifiers ---")

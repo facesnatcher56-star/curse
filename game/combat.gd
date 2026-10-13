@@ -95,7 +95,11 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 	dmg *= level_gap_factor(attacker.level, defender.level)
 	dmg = maxf(dmg, 1.0) * damage_multiplier   # DS2 multiplies the complete resolved blow, including custom damage.
 	if ELEMENT_OF_TYPE.has(damage_type):
-		dmg *= element_multiplier(defender, ELEMENT_OF_TYPE[damage_type])
+		# Magical resistance and its matching elemental resistance share one capped effective pool.
+		dmg *= resistance_multiplier(defender, magical_resistance_of(defender, ELEMENT_OF_TYPE[damage_type]))
+	elif physical:
+		# Added weapon elements were cut by element resistance before armor; this final attack-type pool cuts the combined blow once.
+		dmg *= resistance_multiplier(defender, physical_attack_resistance(defender, damage_type))
 	result["damage"] = dmg
 	return _done(result, outcome)
 
@@ -111,8 +115,29 @@ static func fire_multiplier(defender: Actor) -> float:
 ## The share of an element's damage that gets through `defender`: `1 - resistance`, resistance held to [-100%, 80%] for heroes and
 ## companions, [-100%, 200%] for monsters. Zero resistance is x1.0, -30% is x1.3.
 static func element_multiplier(defender: Actor, element: String) -> float:
-	var cap: float = RESIST_CAP if defender.is_in_group("player") or defender.is_in_group("companions") else MONSTER_RESIST_CAP
-	return 1.0 - clampf(resistance_of(defender, element), RESIST_FLOOR, cap)
+	return resistance_multiplier(defender, resistance_of(defender, element))
+
+## Effective weapon resistance: physical plus the matching attack-type resistance. Additive overlap is a Curse-specific design choice,
+## not verified original DS2 engine behavior. Enemy resistance cap remains Curse's existing 200% element cap pending source-specific data.
+static func physical_attack_resistance(actor: Actor, damage_type: int) -> float:
+	return actor.physical_resist + (actor.ranged_resist if damage_type == DamageType.RANGED else actor.melee_resist)
+
+static func magical_resistance_of(actor: Actor, element: String) -> float:
+	return actor.magical_resist + resistance_of(actor, element)
+
+static func effective_resistance(actor: Actor, damage_type: int) -> float:
+	if damage_type in [DamageType.PHYSICAL, DamageType.RANGED]:
+		return clamp_resistance(actor, physical_attack_resistance(actor, damage_type))
+	if ELEMENT_OF_TYPE.has(damage_type):
+		return clamp_resistance(actor, magical_resistance_of(actor, ELEMENT_OF_TYPE[damage_type]))
+	return clamp_resistance(actor, actor.magical_resist)
+
+static func clamp_resistance(actor: Actor, resistance: float) -> float:
+	var cap: float = RESIST_CAP if actor.is_in_group("player") or actor.is_in_group("companions") else MONSTER_RESIST_CAP
+	return clampf(resistance, RESIST_FLOOR, cap)
+
+static func resistance_multiplier(defender: Actor, resistance: float) -> float:
+	return 1.0 - clamp_resistance(defender, resistance)
 
 static func resistance_of(actor: Actor, element: String) -> float:
 	match element:

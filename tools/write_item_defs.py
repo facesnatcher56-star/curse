@@ -42,6 +42,11 @@ ITEMS = [
     ("axe_2h", "Battle Axe", 0, "2h", "", [9, 22, 42, 64, 88], {"damage": 1.0, "speed": 0.82}),
     ("hammer_2h", "Warhammer", 0, "2h", "", [6, 24, 44, 66, 90], {"damage": 1.0, "speed": 0.82}),
     ("short_bow", "Short Bow", 0, "bow", "", [2, 17, 38, 60, 84], {"damage": 1.0, "speed": 1.0}),
+    # Source-backed bases used by the representative catalog resistance uniques below.
+    # Appended to preserve the established order values of existing item definitions.
+    ("apprentice_robe", "Apprentice Robe", 1, "body", "mage", [16], {}),
+    ("carved_tunic", "Carved Tunic", 1, "body", "ranger", [26], {}),
+    ("woven_hood", "Woven Hood", 4, "helm", "mage", [13], {}),
 ]
 
 TWO_HAND_CLIPS = {
@@ -84,10 +89,32 @@ INVENTORY_SIZES = {
 # Explicit model and icon path overrides. If omitted, default res://assets/... paths are used.
 CUSTOM_PATHS = {
     "short_bow": ("res://assets/models/archer/bow/model.glb", "res://assets/icons/take_aim.png"),
+    "apprentice_robe": ("res://assets/models/items/leather_jerkin/model.glb", "res://assets/icons/items/leather_jerkin.png"),
+    "carved_tunic": ("res://assets/models/items/leather_jerkin/model.glb", "res://assets/icons/items/leather_jerkin.png"),
+    "woven_hood": ("res://assets/models/items/leather_cap/model.glb", "res://assets/icons/items/leather_cap.png"),
 }
 
 CUSTOM_ORDERS = {
     "short_bow": 20,
+}
+
+# Exact equipment requirements from the DS2 catalog. Keep these source expressions in the
+# writer so regenerating base definitions does not silently fall back to Curse's legacy
+# armor-class rule (which differs for several catalog items, including Leather Jerkin).
+SOURCE_REQUIREMENTS = {
+    "buckler": "melee:#item_level-2.0,aegis:1",
+    "club": "melee:#item_level - 2.0",
+    "dagger": "",
+    "kite_shield": "melee:#item_level-2.0,aegis:1",
+    "leather_boots": "melee:#item_level-2.0",
+    "leather_gloves": "melee:#item_level-2.0",
+    "leather_jerkin": "melee:#item_level-2.0",
+    "longsword": "melee:#item_level - 2.0",
+    "mace": "melee:#item_level - 2.0",
+    "talisman": "uber:#item_level",
+    "apprentice_robe": "combat magic:#item_level-2.0",
+    "carved_tunic": "ranged:#item_level-2.0",
+    "woven_hood": "nature magic:#item_level-2.0",
 }
 
 
@@ -128,6 +155,11 @@ def main() -> None:
             lines.append("inventory_size = Vector2i(%d, %d)" % (w, h))
         if ident in PROFILES:
             lines.append("profile = %s" % fmt(PROFILES[ident]))
+        if ident in SOURCE_REQUIREMENTS:
+            lines.extend([
+                'requirements = "%s"' % SOURCE_REQUIREMENTS[ident].replace('"', '\\"'),
+                "requirements_from_source = true",
+            ])
         if ident == "short_bow" and (OUT / "short_bow.tres").exists():
             continue
         (OUT / (ident + ".tres")).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

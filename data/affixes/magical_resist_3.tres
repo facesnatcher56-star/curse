@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "magical_resist_3"
+family = "magical_resist"
+tier = 3
+stat = "magical_resist"
+title = "Midnight"
+position = "prefix"
+level = 33
+value = 12.0
+max_value = 12.0
+value_ceiling = 12.0
+percent = true
+slots = Array[String](["amulet"])
+classes = Array[String]([])

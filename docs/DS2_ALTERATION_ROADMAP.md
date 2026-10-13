@@ -10,9 +10,9 @@ Following the mechanical resolution of `alter_generic` across all 92 catalog occ
 
 | Status | Count | Percentage | Definition & Scope |
 | :--- | :--- | :--- | :--- |
-| **`supported`** | **34** | 58.6% | Verified runtime consumers and active passing automated test suites on disk. |
+| **`supported`** | **41** | 70.7% | Verified runtime consumers and active passing automated test suites on disk. |
 | **`untested`** | **0** | 0.0% | 0 remaining. All previously untested implementations have verified automated tests. |
-| **`unsupported`** | **23** | 39.7% | Identified source mechanics currently lacking runtime consumer pipelines in Curse. |
+| **`unsupported`** | **16** | 27.6% | Identified source mechanics currently lacking runtime consumer pipelines in Curse. |
 | **`unresolved`** | **0** | 0.0% | 0 remaining. `alter_generic` was the single unresolved alteration, now resolved. |
 | **`cosmetic_only`** | **1** | 1.7% | `alter_generic` (88 weapon VFX hooks, 1 UI range tooltip dummy, 3 quest cipher clues). |
 | **`excluded`** | **0** | 0.0% | No alterations are excluded (explicit exclusions apply only to game systems like durability). |
@@ -43,39 +43,32 @@ All 34 supported alterations are fully integrated across both loot generation an
    - **Base Weapon Damage (6):** `melee_min`, `melee_max`, `melee_pct`, `ranged_min`, `ranged_max`, `ranged_pct` — evaluated in `weapon_base_range()`, `weapon_range()`, and `ranged_range()`.
    - **Elemental Damage (4):** `fire_added`, `ice_added`, `lightning_added`, `death_added` (with floor/ceiling spans) — resolved in `Combat.resolve()` with element typing.
    - **Defenses & Block (4):** `armor`, `armor_pct`, `block` (melee), `block_ranged` — resolved in `total_armor()`, `Combat.resolve()`, and actor block rolls.
-   - **Resistances (4):** `fire_resist`, `ice_resist`, `lightning_resist`, `death_resist` — proportional mitigation in `Combat.resolve()`, capped at 80% (`Combat.RESIST_CAP`).
+   - **Resistances (8):** elemental (`fire_resist`, `ice_resist`, `lightning_resist`, `death_resist`) and broad (`physical_resist`, `melee_resist`, `ranged_resist`, `magical_resist`) — proportional mitigation in `Combat.resolve()`, capped at 80% for heroes (`Combat.RESIST_CAP`).
    - **On-Hit Sustain (4):** `life_steal`, `mana_steal`, `life_per_hit`, `mana_per_hit` — executed in `Player._steal_resources()`.
    - **Passive Regeneration (2):** `life_regen`, `mana_regen` — passive recovery acceleration in `PlayerStats.regen()`.
    - **Retaliation (1):** `reflect` — attacker damage reflection in `Player._on_received_hit()`.
    - **Magic Damage & Powers (2):** `spell_pct`, `recharge` — Combat Magic spell scaling in `spell_range()` and power threshold reduction in `power_recharge_damage()`.
    - **Utility & Drops (2):** `magic_find`, `gold_find` — party-averaged loot drop multipliers in `MonsterLoot` and `PartyManager.loot_bonuses()`.
 
-### 2.2 The 23 Unsupported Alterations
+### 2.2 The 16 Unsupported Alterations
 
-None of the 23 unsupported alterations are currently wired into procedural loot tables, `AffixDb.STAT_NAMES`, or `PlayerStats.gear`. When parsed from the source catalog, their effects are ignored by the runtime engine.
+The remaining 16 unsupported alterations are not wired into gameplay. The four broad defensive resistance alterations are now connected to procedural affixes, equipment aggregation, combat, and Item Lab; see [defensive resistance verification](DEFENSIVE_RESISTANCE_VERIFICATION.md).
 
 ---
 
-## 3. Comprehensive Audit of the 23 Unsupported Alterations
+## 3. Comprehensive Audit of the 16 Remaining Unsupported Alterations
 
-Across the canonical DS2 catalog (`data/reference/ds2_equipment_catalog.json`), the 23 unsupported alterations account for **723 total occurrences** across items, affixes, and set bonuses:
+Across the canonical DS2 catalog (`data/reference/ds2_equipment_catalog.json`), the 16 remaining unsupported alterations account for **485 total occurrences** across items, affixes, and set bonuses:
 
 | Alteration Identifier | Category | Items | Affixes | Sets | Total | Values Span | Primary Target Pipeline |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
 | `alter_skill_suite` | Suite Bonus | 160 | 36 | 73 | **269** | +1 .. +4 ranks | `CharacterState.passive_ranks` / Tree |
-| `alter_magical_resistance` | Resistance | 57 | 4 | 30 | **91** | +5% .. +25% | `Combat.resolve()` (All Spell Damage) |
 | `alter_nmagic_damage_percent` | Multiplier | 33 | 8 | 7 | **48** | +4% .. +40% | `PlayerStats` (Nature Magic Damage) |
-| `alter_physical_resistance` | Resistance | 35 | 4 | 5 | **44** | +3% .. +15% | `Combat.resolve()` (All Physical Damage) |
 | `ALTER_MELEE_PASSIVE_SKILLS` | Passive Bonus | 14 | 2 | 26 | **42** | +1 .. +4 ranks | `CharacterState.passive_ranks` (Melee) |
 | `ALTER_RANGED_PASSIVE_SKILLS` | Passive Bonus | 16 | 2 | 23 | **41** | +1 .. +4 ranks | `CharacterState.passive_ranks` (Ranged) |
-| `alter_melee_resistance` | Resistance | 22 | 5 | 11 | **38** | +3% .. +15% | `Combat.resolve()` (Melee Attacks) |
 | `ALTER_COMBAT_MAGIC_PASSIVE_SKILLS` | Passive Bonus | 14 | 2 | 12 | **28** | +1 .. +3 ranks | `CharacterState.passive_ranks` (Combat) |
-| `alter_ranged_resistance` | Resistance | 15 | 5 | 7 | **27** | +4% .. +28% | `Combat.resolve()` (Ranged Attacks) |
 | `ALTER_NATURE_MAGIC_PASSIVE_SKILLS` | Passive Bonus | 14 | 2 | 9 | **25** | +1 .. +3 ranks | `CharacterState.passive_ranks` (Nature) |
-| `alter_chance_to_dodge_hit_melee` | Evasion | 15 | 0 | 5 | **20** | +3% .. +12% | `Combat.resolve()` / `Actor.dodge_chance` |
 | `ALTER_POWER_DAMAGE_PERCENT` | Multiplier | 16 | 0 | 0 | **16** | +2% .. +50% | `powers.gd` / Power Damage Multiplier |
-| `alter_chance_to_dodge_hit_ranged` | Evasion | 11 | 0 | 0 | **11** | +8% .. +25% | `Combat.resolve()` / Ranged Evasion |
-| `alter_chance_to_dodge_hit` | Evasion | 2 | 0 | 5 | **7** | +3% .. +16% | `Combat.resolve()` / Universal Evasion |
 | `ALTER_FREEZE_CHANCE` | On-Hit Status | 4 | 0 | 0 | **4** | +1% .. +3% | `Combat.resolve()` / On-Hit Status Proc |
 | `ALTER_DEBUFF_RESISTANCE` | Resistance | 3 | 0 | 0 | **3** | +5% | `Actor` / Debuff Duration Reduction |
 | `ALTER_CHANCE_TO_DODGE_HIT_RANGED` | Evasion | 2 | 0 | 0 | **2** | +12% .. +25% | Alias for `alter_chance_to_dodge_hit_ranged` |
@@ -150,18 +143,12 @@ flowchart TD
 
 ---
 
-### Priority 1: Physical, Melee, Ranged, and Magical Resistances
+### Priority 1: Physical, Melee, Ranged, and Magical Resistances — Implemented
 - **Alterations:** `alter_physical_resistance`, `alter_melee_resistance`, `alter_ranged_resistance`, `alter_magical_resistance`
 - **Scope & Frequency:** **200 occurrences** (129 items, 18 affixes, 53 set tiers).
 - **Player-Facing Impact:** High. Shields, heavy plate, and defensive jewelry prominently feature physical and melee mitigation. Gives melee tanks survivability against swarm damage.
 - **Complexity:** **Low**.
-- **Implementation Strategy:**
-  - Add runtime keys: `phys_resist`, `melee_resist`, `ranged_resist`, `magic_resist` to `PlayerStats.gear`.
-  - In `Combat.resolve()`:
-    - Apply `phys_resist` to all `DamageType.PHYSICAL` damage.
-    - If attacker is melee, add `melee_resist`. If ranged, add `ranged_resist`.
-    - Apply `magic_resist` across all non-physical damage types (`FIRE`, `ICE`, `LIGHTNING`, `DEATH`).
-    - Enforce existing `Combat.RESIST_CAP` (0.80).
+- **Implemented model:** approved additive overlap: physical + melee for melee hits; physical + ranged for ranged hits; magical + matching elemental resistance for typed magic. Each effective sum is capped once at the hero cap. Added weapon elements are reduced by their element resistance before the combined hit is reduced by melee/ranged resistance. Exact order and Curse-specific choices are recorded in [defensive resistance verification](DEFENSIVE_RESISTANCE_VERIFICATION.md).
 - **Dependencies:** None. Self-contained in `PlayerStats` and `Combat`.
 
 ---
