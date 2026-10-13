@@ -49,7 +49,9 @@ static var custom_pad_bindings: Dictionary = {}
 static var master_volume: float = 0.8
 static var sfx_enabled: bool = true
 static var window_mode: int = 0
-static var resolution_index: int = 0
+static var resolution_index: int = 0   # index into RESOLUTIONS: the player's choice; the offered list depends on the monitor (see effective_resolution_index)
+static var monitor_index: int = -1     # -1 = never chosen, so the primary monitor is used
+static var monitor_rect: Rect2i = Rect2i()   # the chosen monitor's position and size: a reordered or unplugged monitor is not mistaken for another
 static var vsync: bool = true
 static var render_scale_index: int = 1   # 85% by default: the Steam Deck cannot hold 60 at full resolution in a crowded fight
 static var msaa_index: int = 0   # off by default: MSAA cost a couple of ms a frame on the Steam Deck
@@ -122,16 +124,16 @@ static func apply_video() -> void:
 	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 0.999 else Viewport.SCALING_3D_MODE_BILINEAR
 	root.scaling_3d_scale = scale
 	root.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][msaa_index]
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" or monitor_rects().is_empty():
 		return
-	var screen: int = DisplayServer.window_get_current_screen()
+	var screen: int = apply_monitor()
 	var screen_size: Vector2i = DisplayServer.screen_get_size(screen)
 	var screen_pos: Vector2i = DisplayServer.screen_get_position(screen)
 	match window_mode:
 		0:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-			var size: Vector2i = RESOLUTIONS[clampi(resolution_index, 0, RESOLUTIONS.size() - 1)]
+			var size: Vector2i = RESOLUTIONS[effective_resolution_index(screen_size)]
 			size = Vector2i(mini(size.x, screen_size.x), mini(size.y, screen_size.y))
 			DisplayServer.window_set_size(size)
 			DisplayServer.window_set_position(screen_pos + (screen_size - size) / 2)
@@ -143,6 +145,107 @@ static func apply_video() -> void:
 		2:
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+
+# --- monitors ------------------------------------------------------------------------
+# Godot 4 does not list a monitor's display modes (only its size, position and usable area), so the resolution choices are the fixed
+# RESOLUTIONS presets that fit on the chosen monitor. Monitors are re-read whenever they are needed, not watched for changes.
+
+## Position and size of every monitor the OS reports, in desktop coordinates. Empty without a real display (headless).
+static func monitor_rects() -> Array[Rect2i]:
+	var out: Array[Rect2i] = []
+	if DisplayServer.get_name() == "headless":
+		return out
+	for i in DisplayServer.get_screen_count():
+		out.append(Rect2i(DisplayServer.screen_get_position(i), DisplayServer.screen_get_size(i)))
+	return out
+
+static func primary_monitor() -> int:
+	if DisplayServer.get_name() == "headless":
+		return 0
+	return DisplayServer.get_primary_screen()
+
+## Which monitor to use. A saved rectangle must still match one of the monitors, otherwise the primary one is used (the saved index may now
+## point at a different screen). With nothing saved, the index is used if it is valid, else the primary monitor.
+static func resolve_monitor(saved_index: int, saved_rect: Rect2i, rects: Array[Rect2i], primary: int) -> int:
+	if rects.is_empty():
+		return 0
+	var fallback: int = clampi(primary, 0, rects.size() - 1)
+	if saved_rect.size != Vector2i.ZERO:
+		var found: int = rects.find(saved_rect)
+		return found if found >= 0 else fallback
+	if saved_index >= 0 and saved_index < rects.size():
+		return saved_index
+	return fallback
+
+## "Monitor 1: 3440 x 1440 (primary)"; numbers follow the order the OS reports the screens in.
+static func monitor_names(rects: Array[Rect2i], primary: int) -> Array[String]:
+	var out: Array[String] = []
+	for i in rects.size():
+		var label: String = "Monitor %d: %d x %d" % [i + 1, rects[i].size.x, rects[i].size.y]
+		if i == primary:
+			label += " (primary)"
+		out.append(label)
+	return out
+
+## Indices into RESOLUTIONS that fit a monitor of this size. Never empty: when even the smallest preset does not fit, it is offered and
+## the window is clamped to the monitor when it is opened.
+static func fitting_resolution_indices(monitor_size: Vector2i) -> Array[int]:
+	var out: Array[int] = []
+	for i in RESOLUTIONS.size():
+		if RESOLUTIONS[i].x <= monitor_size.x and RESOLUTIONS[i].y <= monitor_size.y:
+			out.append(i)
+	if out.is_empty():
+		out.append(0)
+	return out
+
+## The player's saved choice when it fits this monitor; otherwise the largest preset that does (so a bigger monitor gets the choice back).
+static func effective_resolution_index(monitor_size: Vector2i) -> int:
+	var allowed: Array[int] = fitting_resolution_indices(monitor_size)
+	if allowed.has(resolution_index):
+		return resolution_index
+	return allowed[allowed.size() - 1]
+
+## The monitor in use right now, resolved from the saved choice (no change is made to the window).
+static func current_monitor_index() -> int:
+	return resolve_monitor(monitor_index, monitor_rect, monitor_rects(), primary_monitor())
+
+static func current_monitor_size() -> Vector2i:
+	var rects: Array[Rect2i] = monitor_rects()
+	if rects.is_empty():
+		return Vector2i.ZERO
+	return rects[current_monitor_index()].size
+
+## Monitor names for the settings menu; a single placeholder without a display.
+static func monitor_names_now() -> Array[String]:
+	var rects: Array[Rect2i] = monitor_rects()
+	if rects.is_empty():
+		return ["Current display"]
+	return monitor_names(rects, primary_monitor())
+
+## True when the chosen monitor is no longer connected, so the window was moved to a fallback monitor.
+static func monitor_missing() -> bool:
+	var rects: Array[Rect2i] = monitor_rects()
+	return not rects.is_empty() and monitor_rect.size != Vector2i.ZERO and not rects.has(monitor_rect)
+
+## The player picked a monitor in the settings menu. The change is applied (and saved on close) through apply_video.
+static func select_monitor(index: int) -> void:
+	var rects: Array[Rect2i] = monitor_rects()
+	if index < 0 or index >= rects.size():
+		return
+	monitor_index = index
+	monitor_rect = rects[index]
+	apply_video()
+
+## Resolves the monitor, records it as the chosen one and moves the window onto it (leaving exclusive fullscreen first, if needed).
+static func apply_monitor() -> int:
+	var rects: Array[Rect2i] = monitor_rects()
+	var screen: int = resolve_monitor(monitor_index, monitor_rect, rects, primary_monitor())
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_current_screen(screen)
+	monitor_index = screen
+	monitor_rect = rects[screen]
+	return screen
 
 # --- key bindings ---------------------------------------------------------------
 
@@ -339,12 +442,15 @@ static func reset_bindings() -> void:
 
 # --- persistence -------------------------------------------------------------------
 
-static func save_to_disk() -> void:
+## `path` is only passed by the display check (an isolated file); the game always uses PATH.
+static func save_to_disk(path: String = PATH) -> void:
 	var config := ConfigFile.new()
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("audio", "sfx_enabled", sfx_enabled)
 	config.set_value("video", "window_mode", window_mode)
 	config.set_value("video", "resolution_index", resolution_index)
+	config.set_value("video", "monitor_index", monitor_index)
+	config.set_value("video", "monitor_rect", monitor_rect)
 	config.set_value("video", "vsync", vsync)
 	config.set_value("video", "msaa_index", msaa_index)
 	config.set_value("video", "render_scale_index", render_scale_index)
@@ -363,16 +469,19 @@ static func save_to_disk() -> void:
 		config.set_value("input", action, custom_bindings[action])
 	for action in custom_pad_bindings:
 		config.set_value("input_pad", action, custom_pad_bindings[action])
-	config.save(PATH)
+	config.save(path)
 
-static func load_from_disk() -> void:
+static func load_from_disk(path: String = PATH) -> void:
 	var config := ConfigFile.new()
-	if config.load(PATH) != OK:
+	if config.load(path) != OK:
 		return
 	master_volume = float(config.get_value("audio", "master_volume", master_volume))
 	sfx_enabled = bool(config.get_value("audio", "sfx_enabled", sfx_enabled))
-	window_mode = int(config.get_value("video", "window_mode", window_mode))
-	resolution_index = int(config.get_value("video", "resolution_index", resolution_index))
+	window_mode = clampi(int(config.get_value("video", "window_mode", window_mode)), 0, WINDOW_MODES.size() - 1)
+	resolution_index = clampi(int(config.get_value("video", "resolution_index", resolution_index)), 0, RESOLUTIONS.size() - 1)
+	monitor_index = int(config.get_value("video", "monitor_index", monitor_index))
+	var saved_rect: Variant = config.get_value("video", "monitor_rect", Rect2i())
+	monitor_rect = saved_rect if saved_rect is Rect2i else Rect2i()
 	vsync = bool(config.get_value("video", "vsync", vsync))
 	msaa_index = int(config.get_value("video", "msaa_index", msaa_index))
 	render_scale_index = clampi(int(config.get_value("video", "render_scale_index", render_scale_index)), 0, RENDER_SCALES.size() - 1)
