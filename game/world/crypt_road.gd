@@ -460,6 +460,16 @@ func spawn_unique(inst: Dictionary) -> Enemy:
 	inst["data"]["spawned"] = true
 	return e
 
+## A plain monster of a fetch quest's target, put back on the road when none is alive (see QuestDef.respawn_target). It is an ordinary
+## monster of its kind: no quest mark, so its death is reported as any other kill (and drops the item when it is the last one).
+func respawn_fetch_target(inst: Dictionary) -> Enemy:
+	var def: QuestDef = Quests.def_of(inst)
+	if director == null or def == null:
+		return null
+	var z: float = clampf(EXIT_Z - randf_range(def.zone.x, def.zone.y), -140.0, 130.0)
+	var spot: Vector3 = Nav.snap(self, at(road_centre_x(z) + randf_range(-4.0, 4.0), z))
+	return director.spawn_enemy(spot, def.target, WorldThreat.for_distance(EXIT_Z - z))
+
 ## The threat of ordinary monsters where a point on the road is (see WorldThreat): the stretch's own, whatever the hero has become.
 func threat_at(point: Vector3) -> float:
 	return WorldThreat.for_distance(distance_of(point))

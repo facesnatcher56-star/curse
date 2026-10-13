@@ -41,6 +41,7 @@ const SUITES := [
 	preload("res://game/dev/suites/ds2_tests.gd"),
 	preload("res://game/dev/suites/item_lab_tests.gd"),
 	preload("res://game/dev/suites/equipment_integration_tests.gd"),
+	preload("res://game/dev/suites/run_reward_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -156,6 +157,11 @@ const ONLY_TESTS := {
 	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "popupclick": "_test_popup_click_through", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys", "itemlab": "_test_item_lab", "itemlablayout": "_test_item_lab_layout", "itemlabdropdowns": "_test_item_lab_dropdowns", "equipmentintegration": "_test_equipment_integration",
 "lootappraisal": "_test_loot_appraisal",
 "lootrewards": "_test_loot_rewards",
+"runrewards": "_test_run_rewards",
+"questrewards": "_test_quest_and_world_rewards",
+"fetchtargets": "_test_fetch_targets",
+"ledgerbrute": "_test_ledger_brute",
+"ledgerplain": "_test_plain_brute_only",
 }
 
 var _failures: PackedStringArray = []
