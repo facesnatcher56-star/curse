@@ -47,8 +47,8 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 | Status | Count | Percentage |
 | :--- | :--- | :--- |
-| **Supported** | **17** | 29.3% |
-| **Untested** | **11** | 19.0% |
+| **Supported** | **28** | 48.3% |
+| **Untested** | **0** | 0.0% |
 | **Unsupported** | **29** | 50.0% |
 | **Unresolved** | **1** | 1.7% |
 | **Cosmetic Only** | **0** | 0.0% |
@@ -59,49 +59,46 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 ## 4. Detailed Alteration Mapping
 
-### 4.1 Supported Alterations (17)
+### 4.1 Supported Alterations (28)
 
-All 17 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
+All 28 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
 
 | Alteration Identifier | Category | Runtime Key | Runtime Consumer | Verified Test Suite & Function | Test Suite Verification Evidence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `alter_strength` | Attribute | `str` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 322–325: Equips Signet ring with `strength_9` (+72 STR) and verifies attribute increase. |
 | `alter_dexterity` | Attribute | `dex` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 326–328: Equips Band ring with `dexterity_1` and verifies dual ring slot allocation. |
+| `alter_intelligence` | Attribute | `int` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 60–89: Equips INT rings; verifies INT stat, max mana pool expansion, Fireball spell damage/cost scaling, dual ring additive stacking, and unequip revert. |
 | `alter_max_life` | Vital | `life` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 322–325: Equips Signet ring with `life_12` (+237 life) and verifies health increase. |
+| `alter_max_mana` | Vital | `mana` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 93–115: Equips mana rings; verifies exact maximum mana increase (+13/+17), additive stacking across rings, current mana clamping boundary on unequip, and '+13 Mana' card line. |
+| `alter_melee_damage_min` | Weapon Damage | `melee_min` | `game/player/player_stats.gd:weapon_base_range()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 119–147: Equips weapon with min damage affix; verifies raised minimum roll while preserving maximum ceiling, boundary isolation against bow ranged attacks, jewelry stacking, and card line '+3 Minimum melee damage'. |
+| `alter_melee_damage_max` | Weapon Damage | `melee_max` | `game/player/player_stats.gd:weapon_base_range()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 151–172: Equips weapon with max damage affix; verifies elevated ceiling while preserving minimum floor, jewelry stacking, unequip revert, and card line '+1 Maximum melee damage'. |
+| `alter_melee_damage_source_percent` | Multiplier | `melee_pct` | `game/player/player_stats.gd:weapon_range()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 176–202: Equips melee_pct sword; verifies +10% window scaling, additive stacking to +25% with ring, bow boundary isolation, and card line '+10% Melee damage'. |
 | `alter_ranged_damage_min` | Weapon Damage | `ranged_min` | `game/player/player_stats.gd:ranged_range()` | `game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()` | Lines 72, 79: Equips Short Bow with `ranged_min_1` (+3 min) and verifies DS2 damage calculation. |
 | `alter_ranged_damage_max` | Weapon Damage | `ranged_max` | `game/player/player_stats.gd:ranged_range()` | `game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()` | Lines 73, 79: Equips Short Bow with `ranged_max_1` (+1 max) and verifies damage calculation. |
 | `alter_ranged_damage_source_percent` | Multiplier | `ranged_pct` | `game/player/player_stats.gd:ranged_range()` | `game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()` | Lines 74, 79: Equips Short Bow with `ranged_pct_1` (+10%) and verifies damage scaling. |
+| `alter_custom_damage_fire` | Elemental Damage | `fire_added, fire_added_max` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 206–242: Equips fire weapon/ring; verifies actor added_fire floor and ceiling, combat damage resolution vs baseline, target fire resistance mitigation, stacking, unequip, and card line '+2–4 Fire damage'. |
+| `alter_cmagic_damage_percent` | Multiplier | `spell_pct` | `game/player/player_stats.gd:spell_range()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 246–270: Equips spell_pct ring; verifies Fireball spell damage scaling (+8%), additive stacking (+12%), unequip revert, and card line '+8% Combat magic damage'. |
 | `alter_armor` | Defense | `armor` | `game/player/player_stats.gd:total_armor()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 339–341: Equips Roadwarden set pieces and verifies +30 armor set bonus. |
 | `alter_armor_source_percent` | Defense | `armor_pct` | `game/player/player_stats.gd:total_armor()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 335–337: Equips Mail Hauberk with `armor_pct_8` and verifies armor scaling. |
 | `alter_chance_to_block_melee_damage` | Shield Block | `block` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/ds2_tests.gd:_test_ds2_items()` | Lines 329–331: Equips Buckler with `block_4` and verifies `player.block_chance`. |
 | `alter_chance_to_block_ranged_damage` | Shield Block | `block_ranged` | `game/player/player_stats.gd:refresh()` | `game/dev/suites/ranged_modifier_tests.gd:_test_ranged_modifiers()` | Lines 187–192: Verifies `ranged_block_chance` resolution in combat resolution. |
+| `alter_fire_resistance` | Resistance | `fire_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 274–306: Equips fire resistance rings; verifies actor fire_resist, proportional incoming fire mitigation, stacking (+24%), DS2 80% maximum resistance cap enforcement, and card line '+14% Fire resistance'. |
 | `alter_life_steal` | Sustain (Hit) | `life_steal` | `game/player.gd:_steal_resources()` | `game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()` | Lines 44–48, 140–141: Equips Gravecutter (+5% steal) and tests resource stealing. |
 | `alter_mana_steal` | Sustain (Hit) | `mana_steal` | `game/player.gd:_steal_resources()` | `game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()` | Lines 44–48: Tests mana steal percent on melee blows, clamped to maximum mana. |
 | `alter_life_bonus` | Sustain (Flat) | `life_per_hit` | `game/player.gd:_steal_resources()` | `game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()` | Lines 44–48, 151–153: Equips `life_per_hit_1` rings and verifies flat healing on hit. |
 | `alter_mana_bonus` | Sustain (Flat) | `mana_per_hit` | `game/player.gd:_steal_resources()` | `game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()` | Lines 44–48, 151–153: Equips `mana_per_hit_1` rings and verifies flat mana on hit. |
+| `alter_life_recovery_unit` | Sustain (Regen) | `life_regen` | `game/player/player_stats.gd:regen()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 310–346: Equips life recovery rings; verifies accelerated passive regen (+6%), additive stacking (+10%), max_health boundary clamping, unequip revert, and card line '+6% Life recovery'. |
+| `alter_mana_recovery_unit` | Sustain (Regen) | `mana_regen` | `game/player/player_stats.gd:regen()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 350–386: Equips mana recovery rings; verifies accelerated passive mana regen (+6%), additive stacking (+10%), max_mana boundary clamping, unequip revert, and card line '+6% Mana recovery'. |
 | `alter_reflect_damage` | Retaliation | `reflect` | `game/player.gd:_on_received_hit()` | `game/dev/suites/equipment_hit_tests.gd:_test_equipment_hits()` | Lines 95–124, 142–146: Equips Warden's Oath shield (+20% reflect) and verifies damage return. |
+| `alter_power_reload` | Utility | `recharge` | `game/player/player_stats.gd:power_recharge_damage()` | `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()` | Lines 390–415: Equips recharge rings; verifies reduced damage threshold required to recharge power (division by 1.07 and 1.12), stacking, unequip revert, and card line '+7% Power recharge'. |
 | `alter_magic_find_chance` | Utility | `magic_find` | `game/party_manager.gd:loot_bonuses()` | `game/dev/suites/find_tests.gd:_test_find()` | Lines 72–73, 80–99: Tests `hero.stats.gear` MF and party averaging across members. |
 | `alter_gold_dropped` | Utility | `gold_find` | `game/party_manager.gd:loot_bonuses()` | `game/dev/suites/find_tests.gd:_test_find()` | Lines 70, 80–99: Tests `MonsterLoot.gold_amount()` scaling and party gold find averaging. |
 
 ---
 
-### 4.2 Implemented but Untested Alterations (11)
+### 4.2 Previously Untested Alterations (0 Remaining)
 
-These 11 alterations are implemented in engine consumers, but lack active automated test suite coverage exercising them as equipment modifiers. They are classified as `untested` to maintain strict verification integrity:
-
-| Alteration Identifier | Category | Runtime Key | Runtime Consumer | Reason Classified as Untested |
-| :--- | :--- | :--- | :--- | :--- |
-| `alter_intelligence` | Attribute | `int` | `game/player/player_stats.gd:refresh()` | Implemented in `PlayerStats.refresh()`, but `ds2_tests.gd` only tests Fireball baseline INT scaling, not equipping an INT gear affix. |
-| `alter_max_mana` | Vital | `mana` | `game/player/player_stats.gd:refresh()` | Implemented in `PlayerStats.refresh()`, but no dev suite test equips a flat mana item. |
-| `alter_melee_damage_min` | Weapon Damage | `melee_min` | `game/player/player_stats.gd:weapon_base_range()` | Implemented in `PlayerStats.weapon_base_range()`, but dev suites only test ranged modifiers or base weapon curves. |
-| `alter_melee_damage_max` | Weapon Damage | `melee_max` | `game/player/player_stats.gd:weapon_base_range()` | Implemented in `PlayerStats.weapon_base_range()`, but dev suites only test ranged modifiers or base weapon curves. |
-| `alter_melee_damage_source_percent` | Multiplier | `melee_pct` | `game/player/player_stats.gd:weapon_range()` | Implemented in `PlayerStats.weapon_range()`, but no dev suite test equips a `melee_pct` item. |
-| `alter_custom_damage_fire` | Elemental Damage | `fire_added, fire_added_max` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | Implemented in `refresh()` and `Combat.resolve()`, but `ds2_tests.gd` tests via manual `player.added_fire` property override rather than equipping an affix. |
-| `alter_cmagic_damage_percent` | Multiplier | `spell_pct` | `game/player/player_stats.gd:spell_range()` | Implemented in `PlayerStats.spell_range()`, but dev suite tests only test Devastation passive skill rank scaling. |
-| `alter_fire_resistance` | Resistance | `fire_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:resolve()` | Implemented in `refresh()` and `Combat.resolve()`, but tests only verify manual `player.fire_resist` override and Survival passive rank 20. |
-| `alter_life_recovery_unit` | Sustain (Regen) | `life_regen` | `game/player/player_stats.gd:regen()` | Implemented in `PlayerStats.regen()`, but no dev suite test exercises `gear_stat('life_regen')`. |
-| `alter_mana_recovery_unit` | Sustain (Regen) | `mana_regen` | `game/player/player_stats.gd:regen()` | Implemented in `PlayerStats.regen()`, but no dev suite test exercises `gear_stat('mana_regen')`. |
-| `alter_power_reload` | Utility | `recharge` | `game/player/player_stats.gd:power_recharge_damage()` | Implemented in `PlayerStats.power_recharge_damage()`, but dev suite tests only verify Renewal passive ranks. |
+All 11 alterations originally marked `untested` in the initial audit now have dedicated automated gameplay test coverage in `game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()`, verifying equip, unequip, stacking, boundary conditions, and displayed card lines. There are currently **0** untested alterations remaining in the manifest.
 
 ---
 

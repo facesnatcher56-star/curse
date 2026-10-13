@@ -280,9 +280,9 @@ def build_manifest_data(catalog):
             "notes": "Additive bonus to dropped gold quantity. Verified in find_tests.gd lines 70, 80-99."
         },
 
-        # --- IMPLEMENTED BUT UNTESTED ALTERATIONS (11) ---
+        # --- VERIFIED SUPPORTED ALTERATIONS (PREVIOUSLY UNTESTED, NOW TESTED) (11) ---
         "alter_intelligence": {
-            "status": "untested",
+            "status": "supported",
             "category": "attribute",
             "runtime_key": "int",
             "units": "flat_integer",
@@ -291,11 +291,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["amulet", "ring", "armor", "weapon"],
             "source_evidence": "alter_intelligence in items, affixes (e.g. +<value> Intelligence).",
             "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": None,
-            "notes": "Direct additive bonus to base Intelligence attribute. Runtime consumer exists in PlayerStats.refresh(), but existing dev suite tests only verify Fireball base scaling with character INT rather than equipping an intelligence gear affix."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Direct additive bonus to base Intelligence attribute. Verified in equipment_effect_tests.gd lines 60-89 (equip, INT stat, mana pool expansion, Fireball scaling, stacking, unequip, displayed card lines)."
         },
         "alter_max_mana": {
-            "status": "untested",
+            "status": "supported",
             "category": "vital",
             "runtime_key": "mana",
             "units": "flat_integer",
@@ -304,11 +304,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet", "spellbook"],
             "source_evidence": "alter_max_mana in items, affixes, sets (e.g. +<value> Mana).",
             "runtime_consumer": "game/player/player_stats.gd:refresh()",
-            "test_path": None,
-            "notes": "Increases maximum player mana. Runtime consumer exists in PlayerStats.refresh(), but no dev suite test equips a flat mana item."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Increases maximum player mana pool. Verified in equipment_effect_tests.gd lines 93-115 (equip, max_mana increase, ring stacking, current mana clamping boundary, unequip, displayed card lines)."
         },
         "alter_melee_damage_min": {
-            "status": "untested",
+            "status": "supported",
             "category": "weapon_damage",
             "runtime_key": "melee_min",
             "units": "flat_integer",
@@ -317,11 +317,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["melee", "ring", "amulet"],
             "source_evidence": "alter_melee_damage_min in items, affixes, sets.",
             "runtime_consumer": "game/player/player_stats.gd:weapon_base_range()",
-            "test_path": None,
-            "notes": "Adds flat minimum melee damage. Runtime consumer exists in PlayerStats.weapon_base_range(), but dev suites only test ranged modifiers or base weapon curves."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Adds flat minimum melee damage. Verified in equipment_effect_tests.gd lines 119-147 (equip, min melee damage elevation, max ceiling preservation, bow ranged boundary isolation, ring stacking, unequip, displayed card lines)."
         },
         "alter_melee_damage_max": {
-            "status": "untested",
+            "status": "supported",
             "category": "weapon_damage",
             "runtime_key": "melee_max",
             "units": "flat_integer",
@@ -330,11 +330,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["melee", "ring", "amulet"],
             "source_evidence": "alter_melee_damage_max in items, affixes, sets (e.g. +<value> Melee Damage).",
             "runtime_consumer": "game/player/player_stats.gd:weapon_base_range()",
-            "test_path": None,
-            "notes": "Adds flat maximum melee damage. Runtime consumer exists in PlayerStats.weapon_base_range(), but dev suites only test ranged modifiers or base weapon curves."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Adds flat maximum melee damage. Verified in equipment_effect_tests.gd lines 151-172 (equip, max melee damage elevation, min floor preservation, ring stacking, unequip, displayed card lines)."
         },
         "alter_melee_damage_source_percent": {
-            "status": "untested",
+            "status": "supported",
             "category": "damage_multiplier",
             "runtime_key": "melee_pct",
             "units": "fractional_percent",
@@ -343,11 +343,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_melee_damage_source_percent in items, affixes, sets (e.g. +10% Melee Damage).",
             "runtime_consumer": "game/player/player_stats.gd:weapon_range()",
-            "test_path": None,
-            "notes": "Percentage scalar on total melee damage. Runtime consumer exists in PlayerStats.weapon_range(), but no dev suite test equips a melee_pct affix."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Percentage scalar on total melee damage. Verified in equipment_effect_tests.gd lines 176-202 (equip, percentage window scaling, gear stacking, bow ranged boundary isolation, unequip, displayed card lines)."
         },
         "alter_custom_damage_fire": {
-            "status": "untested",
+            "status": "supported",
             "category": "elemental_damage",
             "runtime_key": "fire_added, fire_added_max",
             "units": "damage_range",
@@ -356,11 +356,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_custom_damage_fire in items, affixes, sets (e.g. Adds <value> to <max_value> Fire Damage).",
             "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": None,
-            "notes": "Flat added fire damage evaluated in combat resolution. Runtime consumer exists in PlayerStats.refresh() and Combat.resolve(), but ds2_tests.gd tests via manual player.added_fire override rather than equipping a fire damage item."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Flat added fire damage evaluated in combat resolution. Verified in equipment_effect_tests.gd lines 206-242 (equip, added_fire floor/ceiling, physical hit resolution bonus, fire resistance mitigation cap, stacking, unequip, displayed card lines)."
         },
         "alter_cmagic_damage_percent": {
-            "status": "untested",
+            "status": "supported",
             "category": "spell_multiplier",
             "runtime_key": "spell_pct",
             "units": "fractional_percent",
@@ -369,11 +369,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["spellbook", "ring", "amulet", "armor"],
             "source_evidence": "alter_cmagic_damage_percent in items, affixes, sets (e.g. +<value>% Combat Magic Damage).",
             "runtime_consumer": "game/player/player_stats.gd:spell_range()",
-            "test_path": None,
-            "notes": "Maps to spell_pct which scales Combat Magic spells like Fireball. Runtime consumer exists in PlayerStats.spell_range(), but dev suite tests only exercise the Devastation passive skill."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Scales Combat Magic spell damage. Verified in equipment_effect_tests.gd lines 246-270 (equip, Fireball spell window scaling, jewelry stacking, unequip, displayed card lines)."
         },
         "alter_fire_resistance": {
-            "status": "untested",
+            "status": "supported",
             "category": "resistance",
             "runtime_key": "fire_resist",
             "units": "fractional_percent",
@@ -382,11 +382,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_fire_resistance in items, affixes, sets (e.g. +<value>% Fire Resistance).",
             "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:resolve()",
-            "test_path": None,
-            "notes": "Percentage reduction of incoming fire damage. Runtime consumer exists in PlayerStats.refresh() and Combat.resolve(), but tests only verify manual player.fire_resist override and Survival passive rank 20."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Percentage reduction of incoming fire damage. Verified in equipment_effect_tests.gd lines 274-306 (equip, actor fire_resist, incoming fire mitigation, jewelry stacking, 80% maximum resistance cap boundary, unequip, displayed card lines)."
         },
         "alter_life_recovery_unit": {
-            "status": "untested",
+            "status": "supported",
             "category": "regen",
             "runtime_key": "life_regen",
             "units": "fractional_percent",
@@ -395,11 +395,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet"],
             "source_evidence": "alter_life_recovery_unit in items, affixes, sets (e.g. +<value>% Health Regeneration).",
             "runtime_consumer": "game/player/player_stats.gd:regen()",
-            "test_path": None,
-            "notes": "Passive health regeneration rate multiplier. Runtime consumer exists in PlayerStats.regen(), but no dev suite test exercises gear_stat('life_regen')."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Passive health regeneration rate multiplier. Verified in equipment_effect_tests.gd lines 310-346 (equip, passive regen acceleration, stacking, max_health clamping boundary, unequip, displayed card lines)."
         },
         "alter_mana_recovery_unit": {
-            "status": "untested",
+            "status": "supported",
             "category": "regen",
             "runtime_key": "mana_regen",
             "units": "fractional_percent",
@@ -408,11 +408,11 @@ def build_manifest_data(catalog):
             "applicable_families": ["armor", "ring", "amulet", "spellbook"],
             "source_evidence": "alter_mana_recovery_unit in items, affixes, sets (e.g. +<value>% Mana Regeneration).",
             "runtime_consumer": "game/player/player_stats.gd:regen()",
-            "test_path": None,
-            "notes": "Passive mana regeneration rate multiplier. Runtime consumer exists in PlayerStats.regen(), but no dev suite test exercises gear_stat('mana_regen')."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Passive mana regeneration rate multiplier. Verified in equipment_effect_tests.gd lines 350-386 (equip, passive regen acceleration, stacking, max_mana clamping boundary, unequip, displayed card lines)."
         },
         "alter_power_reload": {
-            "status": "untested",
+            "status": "supported",
             "category": "utility",
             "runtime_key": "recharge",
             "units": "fractional_percent",
@@ -421,8 +421,8 @@ def build_manifest_data(catalog):
             "applicable_families": ["weapon", "ring", "amulet"],
             "source_evidence": "alter_power_reload in items, affixes, sets (e.g. +<value>% Power Recharge Rate).",
             "runtime_consumer": "game/player/player_stats.gd:power_recharge_damage()",
-            "test_path": None,
-            "notes": "Reduces power cooldowns and recharge timers. Runtime consumer exists in PlayerStats.power_recharge_damage(), but test suites only exercise Renewal passive ranks."
+            "test_path": "game/dev/suites/equipment_effect_tests.gd:_test_equipment_effects()",
+            "notes": "Reduces damage required to recharge activated powers. Verified in equipment_effect_tests.gd lines 390-415 (equip, power recharge damage reduction, stacking, unequip, displayed card lines)."
         },
 
         # --- UNSUPPORTED ALTERATIONS (29) ---

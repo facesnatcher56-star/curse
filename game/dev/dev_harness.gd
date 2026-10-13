@@ -10,6 +10,7 @@ extends DevSuite
 ## Every file a check or tool may live in; a check or tool name is unique across them.
 const SUITES := [
 	preload("res://game/dev/suites/find_tests.gd"),
+	preload("res://game/dev/suites/equipment_effect_tests.gd"),
 	preload("res://game/dev/suites/equipment_hit_tests.gd"),
 	preload("res://game/dev/suites/ranged_modifier_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
@@ -126,6 +127,7 @@ func _clip_arg() -> String:
 const ONLY_TESTS := {
 "rollshove": "_test_roll_shove",
 "find": "_test_find",
+"equipmenteffects": "_test_equipment_effects",
 "equipmenthits": "_test_equipment_hits",
 "rangedmods": "_test_ranged_modifiers",
 "navigation": "_test_navigation",
@@ -182,6 +184,7 @@ func _run_selftest() -> void:
 	await _run("_test_equipment_hits")
 	await _run("_test_ranged_modifiers")
 	await _run("_test_find")
+	await _run("_test_equipment_effects")
 	await _run("_test_ui_block")
 	await _run("_test_hover_behind_camera")
 	await _run("_test_camera_rotation")

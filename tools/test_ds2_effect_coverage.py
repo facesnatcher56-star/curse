@@ -84,8 +84,8 @@ class TestDS2EffectCoverage(unittest.TestCase):
                 self.assertIsNone(data.get("runtime_consumer"))
                 self.assertIsNone(data.get("test_path"))
 
-        self.assertEqual(status_counts["supported"], 17)
-        self.assertEqual(status_counts["untested"], 11)
+        self.assertEqual(status_counts["supported"], 28)
+        self.assertEqual(status_counts["untested"], 0)
         self.assertEqual(status_counts["unsupported"], 29)
         self.assertEqual(status_counts["unresolved"], 1)
         self.assertEqual(status_counts["cosmetic_only"], 0)
@@ -173,6 +173,7 @@ class TestDS2EffectCoverage(unittest.TestCase):
         """Test that validator rejects untested status if a test path is claimed."""
         with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
             manifest = json.load(f)
+        manifest["alterations"]["alter_intelligence"]["status"] = "untested"
         manifest["alterations"]["alter_intelligence"]["test_path"] = "game/dev/suites/ds2_tests.gd:_test_ds2_items()"
         temp_manifest_path = os.path.join(BASE_DIR, "data", "reference", "_temp_test_untested_claim.json")
         try:
