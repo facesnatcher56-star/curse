@@ -582,6 +582,8 @@ static func _passive_bonus_from_effect(effect: Dictionary, passive_id: String) -
 	var alteration := String(effect.get("alteration", "")).strip_edges().to_lower()
 	var value: Variant = effect.get("value", 0)
 	var amount: int = int(String(value).to_float()) if value is String else int(value)
+	if alteration == "alter_passive_rank":
+		return amount if String(effect.get("passive", "")).strip_edges().to_lower() == passive_id else 0
 	if alteration == "alter_skill_suite":
 		var suite := String(effect.get("suite", "")).strip_edges().to_lower()
 		return amount if passive_id in GEAR_SUITE_PASSIVES.get(suite, []) else 0

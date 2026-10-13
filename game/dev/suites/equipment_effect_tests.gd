@@ -453,6 +453,65 @@ func _test_equipment_effects() -> void:
 	hero.character.equipment.clear()
 	expect("passive ranks disappear immediately when unequipped",
 		TownState.effective_passive_rank("barricade") == 2 and TownState.effective_passive_rank("critical_shot") == 0)
+	var smite_affix: AffixDef = AffixDb.get_def("smite_rank_1")
+	var ignite_affix: AffixDef = AffixDb.get_def("ignite_rank_1")
+	expect("live passive rank affixes are discoverable with narrow class and slot eligibility",
+		smite_affix != null and smite_affix.level == 24 and smite_affix.stat == "" and smite_affix.slots == ["weapon"]
+		and smite_affix.classes == ["fighter"] and ignite_affix != null and ignite_affix.level == 24
+		and ignite_affix.stat == "" and ignite_affix.classes == ["mage"]
+		and ignite_affix.slots == ["body", "helm", "gloves", "boots"])
+	var direct_passive_weapon := Items.build(ItemDb.get_def("greatsword"), 30, Items.Rarity.MAGIC, ["smite_rank_1"])
+	hero.character.passive_ranks = {"smite": 1}
+	hero.character.equipment = {Items.Slot.WEAPON: direct_passive_weapon}
+	hero.stats.refresh()
+	expect("direct affix ranks are effective without replacing invested ranks or purchase requirements",
+		TownState.passive_rank("smite") == 1 and TownState.effective_passive_rank("smite") == 2
+		and TownState.passive_blocker("smite") == "Needs Melee 24")
+	expect("passive-only affix rank is visible on the item card",
+		Items.lines(direct_passive_weapon).has("+1 to Smite") and Items.mods_of(direct_passive_weapon).is_empty())
+	var passive_target := _spawn_enemy(Vector3(20, 0, 20))
+	var smite_seed := -1
+	for candidate in 1024:
+		seed(candidate)
+		if randf() < PassiveDb.get_def("smite").value(2) / 100.0:
+			smite_seed = candidate
+			break
+	seed(smite_seed)
+	hero._passive_on_hit(passive_target, {"skill_id": "basic", "damage": 1.0, "type": Combat.DamageType.PHYSICAL})
+	expect("the equipment-granted Smite rank reaches the real two-handed hit consumer", passive_target.stun_time == 1.0)
+	passive_target.queue_free()
+	hero.character.equipment.clear()
+	hero.stats.refresh()
+	expect("direct affix rank disappears on unequip while the invested rank remains",
+		TownState.effective_passive_rank("smite") == 1 and TownState.passive_rank("smite") == 1)
+	hero.character.passive_ranks.clear()
+	var naturally_rolled_passive: Dictionary = {}
+	seed(424242)
+	for i in 4096:
+		var loot_item := Items.roll_drop(35, "miniboss")
+		for mod_id in loot_item.get("mods", []):
+			if String(mod_id) in ["smite_rank_1", "ignite_rank_1"]:
+				naturally_rolled_passive = loot_item
+				break
+		if not naturally_rolled_passive.is_empty():
+			break
+	expect("the real miniboss loot pipeline naturally rolls a passive rank affix",
+		not naturally_rolled_passive.is_empty())
+	if not naturally_rolled_passive.is_empty():
+		var rolled_affix_id := "smite_rank_1" if "smite_rank_1" in naturally_rolled_passive.mods else "ignite_rank_1"
+		var rolled_effect: Dictionary = AffixDb.get_def(rolled_affix_id).passive_effects[0]
+		var rolled_passive_id := String(rolled_effect.passive)
+		hero.character.equipment = {int(naturally_rolled_passive.slot): naturally_rolled_passive}
+		expect("naturally generated affix produces effective gameplay rank and tooltip evidence",
+			TownState.effective_passive_rank(rolled_passive_id) == 1
+			and Items.lines(naturally_rolled_passive).has("+1 to %s" % PassiveDb.get_def(rolled_passive_id).display_name))
+		var loaded_natural := Items.from_save(Items.to_save(naturally_rolled_passive))
+		hero.character.equipment = {int(loaded_natural.slot): loaded_natural}
+		expect("naturally generated passive rank rebuilds from saved affix identifiers",
+			TownState.effective_passive_rank(rolled_passive_id) == 1)
+	hero.character.equipment.clear()
+	expect("saved passive affix effect is removed on unequip", TownState.effective_passive_rank("smite") == 0
+		and TownState.effective_passive_rank("ignite") == 0)
 	var affix_id := "fixture_passive_rank"
 	var unique_id := "fixture_passive_unique"
 	var affix_def := AffixDef.new()

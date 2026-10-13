@@ -162,6 +162,8 @@ static func mods_of(item: Dictionary) -> Dictionary:
 	for id in item.get("mods", []):
 		var a: AffixDef = AffixDb.get_def(String(id))
 		if a != null:
+			if a.stat == "":
+				continue
 			out[a.stat] = float(out.get(a.stat, 0.0)) + float((item.get("mod_values", {}) as Dictionary).get(id, a.value))
 			if a.stat.ends_with("_added"):   # an element's damage range: the maximum travels as "<stat>_max"
 				out[a.stat + "_max"] = float(out.get(a.stat + "_max", 0.0)) + maxf(a.max_value, a.value)
@@ -545,6 +547,9 @@ static func passive_effect_line(effect: Dictionary) -> String:
 	if description != "":
 		return description.replace("<value>", str(amount))
 	var alteration := String(effect.get("alteration", "")).strip_edges().to_lower()
+	if alteration == "alter_passive_rank":
+		var passive_def: PassiveDef = PassiveDb.get_def(String(effect.get("passive", "")).strip_edges().to_lower())
+		return "+%d to %s" % [amount, passive_def.display_name] if passive_def != null else ""
 	if alteration == "alter_skill_suite":
 		var suite := String(effect.get("suite", "")).strip_edges().to_lower()
 		return "+%d to %s" % [amount, _supported_passive_names(TownState.GEAR_SUITE_PASSIVES.get(suite, []))] \

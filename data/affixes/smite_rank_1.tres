@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "smite_rank_1"
+family = "smite_rank"
+title = "of Smite"
+position = "suffix"
+tier = 1
+level = 24
+classes = Array[String](["fighter"])
+slots = Array[String](["weapon"])
+passive_effects = Array[Dictionary]([{"alteration": "alter_passive_rank", "passive": "smite", "value": 1}])

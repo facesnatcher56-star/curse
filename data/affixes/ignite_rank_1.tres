@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ignite_rank_1"
+family = "ignite_rank"
+title = "of Ignition"
+position = "suffix"
+tier = 1
+level = 24
+classes = Array[String](["mage"])
+slots = Array[String](["body", "helm", "gloves", "boots"])
+passive_effects = Array[Dictionary]([{"alteration": "alter_passive_rank", "passive": "ignite", "value": 1}])
