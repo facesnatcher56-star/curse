@@ -138,6 +138,66 @@ func _test_quest_and_world_rewards() -> void:
 	TownState.reset()
 	await get_tree().process_frame
 
+## A fetch target gone from the road (killed before the quest was posted, absent, an accepted quest whose road was cleared, or a regrow):
+## the quest that allows it (lost_satchel, QuestDef.respawn_target) gets one plain target back when the road loads, once. The other fetch
+## quest (stolen_ledger) is not allowed it: that choice is open for the owner. Uses the real town and road.
+func _test_fetch_targets() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.road_conditions_in_tests = false
+	Quests.news.clear()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	# Pre-killed: every zombie is dead before the quest is posted.
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var satchel: Dictionary = Quests.post("lost_satchel")
+	town.populate_quests()
+	expect("a pre-killed target comes back when the quest is posted and the road loads (%d alive)" % _living("zombie"), _living("zombie") >= 1)
+	var alive_once: int = _living("zombie")
+	expect("it is not put back twice while one is alive", not Quests.wants_target_respawn(satchel, alive_once))
+	# Accepted, then the road is cleared (absent target): the next load puts one back.
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	town.populate_quests()
+	expect("an accepted quest whose target is absent gets one back", _living("zombie") >= 1)
+	# A regrow (the road is repopulated after a hand-in) repopulates the target and never duplicates it.
+	await town._repopulate_after_regrow()
+	var after_regrow: int = _living("zombie")
+	town.populate_quests()
+	expect("after a regrow the target is there, and a second load adds none of the quest's own (%d)" % after_regrow,
+		after_regrow >= 1 and not Quests.wants_target_respawn(satchel, _living("zombie")))
+	# The item is still the quest's: nothing was completed or granted by putting the target back.
+	expect("the quest is still active and unpaid", satchel["state"] == "active" and not bool(satchel["data"].get("dropped", false)))
+	# The other fetch quest keeps its own rules: no respawn for stolen_ledger.
+	var ledger: Dictionary = Quests.post("stolen_ledger")
+	expect("stolen_ledger is not allowed a respawned target (open owner decision)", not Quests.wants_target_respawn(ledger, 0))
+	town.queue_free()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("quest_pickups"):
+		node.queue_free()
+	await get_tree().process_frame
+	TownState.reset()
+	Quests.news.clear()
+
+func _living(variant: String) -> int:
+	var count: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and e.variant == variant:
+			count += 1
+	return count
+
 ## A reward orb far from the hero: gold (or a potion, or mana when neither is set), added to the suite so it is in the orbs group.
 func _orb_far_away(gold: int, potion: bool, mana: bool) -> HealthOrb:
 	var orb := HealthOrb.new()

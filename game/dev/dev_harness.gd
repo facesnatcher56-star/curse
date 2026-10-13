@@ -159,6 +159,7 @@ const ONLY_TESTS := {
 "lootrewards": "_test_loot_rewards",
 "runrewards": "_test_run_rewards",
 "questrewards": "_test_quest_and_world_rewards",
+"fetchtargets": "_test_fetch_targets",
 }
 
 var _failures: PackedStringArray = []
