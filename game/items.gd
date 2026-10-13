@@ -160,8 +160,8 @@ static func mods_of(item: Dictionary) -> Dictionary:
 		var a: AffixDef = AffixDb.get_def(String(id))
 		if a != null:
 			out[a.stat] = float(out.get(a.stat, 0.0)) + float((item.get("mod_values", {}) as Dictionary).get(id, a.value))
-			if a.stat == "fire_added":
-				out["fire_added_max"] = float(out.get("fire_added_max", 0.0)) + maxf(a.max_value, a.value)
+			if a.stat.ends_with("_added"):   # an element's damage range: the maximum travels as "<stat>_max"
+				out[a.stat + "_max"] = float(out.get(a.stat + "_max", 0.0)) + maxf(a.max_value, a.value)
 	var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
 	if u != null:
 		for stat in u.mods:
@@ -487,10 +487,10 @@ static func lines(item: Dictionary, member_id: String = "hero") -> Array[String]
 		out.append("Armor %d" % int(stats["armor"]))
 	var mods: Dictionary = mods_of(item)
 	for stat in mods:
-		if stat == "fire_added_max":
+		if String(stat).ends_with("_added_max"):
 			continue
-		if stat == "fire_added" and float(mods.get("fire_added_max", 0.0)) > float(mods[stat]):
-			out.append("+%d–%d Fire damage" % [int(mods[stat]), int(mods["fire_added_max"])])
+		if String(stat).ends_with("_added") and float(mods.get(stat + "_max", 0.0)) > float(mods[stat]):
+			out.append("+%d–%d %s" % [int(mods[stat]), int(mods[stat + "_max"]), String(AffixDb.STAT_NAMES.get(stat, stat))])
 			continue
 		out.append(AffixDb.describe_stat(String(stat), float(mods[stat])))
 	var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))

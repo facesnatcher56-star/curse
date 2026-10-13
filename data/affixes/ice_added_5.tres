@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ice_added_5"
+family = "ice_added"
+tier = 5
+stat = "ice_added"
+title = "Glacial"
+position = "prefix"
+level = 61
+value = 19.0
+max_value = 32.0
+value_ceiling = 19.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["fighter"])

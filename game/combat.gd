@@ -1,11 +1,21 @@
 class_name Combat
 extends RefCounted
 ## Combat rules: Dungeon Siege II's (docs/ds2-combat-and-loot.md section 2). There is no accuracy roll: a blow lands unless it is
-## dodged (the defender's dodge chance) or blocked (a shield's chance). Then a critical (a second hit on top), added fire, armour as a ratio against
-## the attacker's level, resistance for fire, the level-gap penalty, and a floor of 1.
+## dodged (the defender's dodge chance) or blocked (a shield's chance). Then a critical (a second hit on top), added elemental damage (fire, ice,
+## lightning, death), armour as a ratio against the attacker's level, resistance for a directly typed element, the level-gap penalty, and a floor of 1.
 
 enum Outcome { MISS, BLOCK, HIT, CRITICAL }
-enum DamageType { PHYSICAL, FIRE, RANGED }
+enum DamageType { PHYSICAL, FIRE, RANGED, ICE, LIGHTNING, DEATH }
+
+## The DS2 elements. Each has independent added damage (`added_<e>`, `added_<e>_max`) and resistance (`<e>_resist`) on an Actor; a resistance
+## only ever meets damage of its own element.
+const ELEMENTS: Array[String] = ["fire", "ice", "lightning", "death"]
+const ELEMENT_OF_TYPE := {DamageType.FIRE: "fire", DamageType.ICE: "ice", DamageType.LIGHTNING: "lightning", DamageType.DEATH: "death"}
+
+## The negative bound of a resistance (a vulnerability): DS2 equipment has death resistance down to -30%, so it must not clamp at 0.
+const RESIST_FLOOR := -1.0
+## Monsters, unlike heroes, may exceed 100% (the hit then heals them; DS2 section 5 step 5). Curse bounds them at 200%.
+const MONSTER_RESIST_CAP := 2.0
 
 ## The most a hero's resistance can be (DS2 caps it at 80%).
 const RESIST_CAP := 0.8
@@ -60,8 +70,17 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 	var dmg: float = base_damage
 	if physical:
 		dmg *= 1.0 - clampf(defender.toughness, 0.0, 0.9)
-	if physical and attacker.added_fire > 0.0:
-		dmg += maxf(randf_range(attacker.added_fire, maxf(attacker.added_fire, attacker.added_fire_max)) * fire_multiplier(defender), 0.0)
+	if physical:
+		# One independent roll per element, each against its own resistance only, added before crit and armour (DS2 step 4).
+		var added: Dictionary = {}
+		for element in ELEMENTS:
+			var low: float = added_damage(attacker, element)
+			if low > 0.0:
+				var rolled: float = maxf(randf_range(low, maxf(low, added_damage_max(attacker, element))) * element_multiplier(defender, element), 0.0)
+				added[element] = rolled
+				dmg += rolled
+		if not added.is_empty():
+			result["added_elements"] = added   # per-element amounts, after resistance, before crit/armour/level gap
 	var outcome: int = Outcome.HIT
 	var forced: bool = allow_crit and attacker.forced_crits > 0
 	if forced:
@@ -75,13 +94,43 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 	dmg *= armor_factor(attacker.level, defender.armor * (1.0 - defender.armor_shred))
 	dmg *= level_gap_factor(attacker.level, defender.level)
 	dmg = maxf(dmg, 1.0) * damage_multiplier   # DS2 multiplies the complete resolved blow, including custom damage.
-	if damage_type == DamageType.FIRE:
-		dmg *= fire_multiplier(defender)
+	if ELEMENT_OF_TYPE.has(damage_type):
+		dmg *= element_multiplier(defender, ELEMENT_OF_TYPE[damage_type])
 	result["damage"] = dmg
 	return _done(result, outcome)
 
 static func fire_multiplier(defender: Actor) -> float:
-	return 1.0 - clampf(defender.fire_resist, -1.0, RESIST_CAP if defender.is_in_group("player") or defender.is_in_group("companions") else 2.0)
+	return element_multiplier(defender, "fire")
+
+## The share of an element's damage that gets through `defender`: `1 - resistance`, resistance held to [-100%, 80%] for heroes and
+## companions, [-100%, 200%] for monsters. Zero resistance is x1.0, -30% is x1.3.
+static func element_multiplier(defender: Actor, element: String) -> float:
+	var cap: float = RESIST_CAP if defender.is_in_group("player") or defender.is_in_group("companions") else MONSTER_RESIST_CAP
+	return 1.0 - clampf(resistance_of(defender, element), RESIST_FLOOR, cap)
+
+static func resistance_of(actor: Actor, element: String) -> float:
+	match element:
+		"fire": return actor.fire_resist
+		"ice": return actor.ice_resist
+		"lightning": return actor.lightning_resist
+		"death": return actor.death_resist
+	return 0.0
+
+static func added_damage(actor: Actor, element: String) -> float:
+	match element:
+		"fire": return actor.added_fire
+		"ice": return actor.added_ice
+		"lightning": return actor.added_lightning
+		"death": return actor.added_death
+	return 0.0
+
+static func added_damage_max(actor: Actor, element: String) -> float:
+	match element:
+		"fire": return actor.added_fire_max
+		"ice": return actor.added_ice_max
+		"lightning": return actor.added_lightning_max
+		"death": return actor.added_death_max
+	return 0.0
 
 static func _done(result: Dictionary, outcome: int) -> Dictionary:
 	result["outcome"] = outcome

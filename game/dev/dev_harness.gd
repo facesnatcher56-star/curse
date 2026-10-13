@@ -12,6 +12,7 @@ const SUITES := [
 	preload("res://game/dev/suites/find_tests.gd"),
 	preload("res://game/dev/suites/equipment_hit_tests.gd"),
 	preload("res://game/dev/suites/ranged_modifier_tests.gd"),
+	preload("res://game/dev/suites/element_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
 	preload("res://game/dev/suites/inventory_tests.gd"),
@@ -129,6 +130,7 @@ const ONLY_TESTS := {
 "find": "_test_find",
 "equipmenthits": "_test_equipment_hits",
 "rangedmods": "_test_ranged_modifiers",
+"elements": "_test_elements",
 "navigation": "_test_navigation",
 "theme": "_test_ornate_theme",
 "uiaudit": "_test_ui_audit",
@@ -183,6 +185,7 @@ func _run_selftest() -> void:
 	await _run("_test_items")
 	await _run("_test_equipment_hits")
 	await _run("_test_ranged_modifiers")
+	await _run("_test_elements")
 	await _run("_test_find")
 	await _run("_test_ui_block")
 	await _run("_test_hover_behind_camera")

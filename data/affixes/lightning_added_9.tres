@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "lightning_added_9"
+family = "lightning_added"
+tier = 9
+stat = "lightning_added"
+title = "Radiating"
+position = "prefix"
+level = 37
+value = 6.0
+max_value = 20.0
+value_ceiling = 6.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

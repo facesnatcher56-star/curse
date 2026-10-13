@@ -58,6 +58,15 @@ func refresh() -> void:
 	p.block_chance = (gear_stat("block") + passive("barricade")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.added_fire = gear_stat("fire_added")
 	p.added_fire_max = gear_stat("fire_added_max")
+	p.ice_resist = gear_stat("ice_resist") / 100.0   # equipment only: DS2's Survival also raises ice and lightning, but is not wired for them yet
+	p.lightning_resist = gear_stat("lightning_resist") / 100.0
+	p.death_resist = gear_stat("death_resist") / 100.0
+	p.added_ice = gear_stat("ice_added")
+	p.added_ice_max = gear_stat("ice_added_max")
+	p.added_lightning = gear_stat("lightning_added")
+	p.added_lightning_max = gear_stat("lightning_added_max")
+	p.added_death = gear_stat("death_added")
+	p.added_death_max = gear_stat("death_added_max")
 	p.ranged_block_chance = (passive("barricade") + gear_stat("block_ranged")) / 100.0 if equipment.has(Items.Slot.SHIELD) else 0.0
 	p.crit_chance = passive("critical_shot" if is_ranged() else "critical_strike") / 100.0
 	var critical_damage := "mortal_wound" if is_ranged() else "deadly_strike"
