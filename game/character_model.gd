@@ -19,6 +19,7 @@ var _neck_bone: int = -1
 var _head_bone: int = -1
 var _thighs: Array[int] = []     # left, right
 var _react_skeleton: Skeleton3D
+var _reaction_owner: Node        # Actor that owns this model, for ragdoll/death cleanup
 
 static func build(folder: String, clips: Array[String]) -> CharacterModel:
 	var model := CharacterModel.new()
@@ -192,6 +193,11 @@ func clear_weapon() -> void:
 
 ## Combined bounds of all meshes under `node`, in the node's own space (nested transforms included).
 func _process(delta: float) -> void:
+	if reaction.active():
+		if is_instance_valid(_reaction_owner) and (bool(_reaction_owner.get("dead")) or bool(_reaction_owner.call("is_ragdolled"))):
+			reaction.clear()
+		else:
+			reaction.step(delta)
 	if weapon == null:
 		return
 	if weapon_aim != null:
@@ -269,6 +275,11 @@ func _rotate_bone_about_x(bone_name: String, angle: float) -> void:
 
 ## A blow lands: `away` is the horizontal world direction it pushes the body, `peak` how far (rad) the chest should tip (BodyRecoil.peak_for).
 func react(away: Vector3, peak: float) -> void:
+	if _reaction_owner == null:
+		var visual_parent: Node = get_parent()
+		var actor_candidate: Node = visual_parent.get_parent() if visual_parent != null else null
+		if actor_candidate != null and actor_candidate.has_method("is_ragdolled"):
+			_reaction_owner = actor_candidate
 	var facing: Vector3 = global_transform.basis.z   # models face +Z (Actor.face)
 	reaction.hit(away, facing, peak)
 
@@ -311,7 +322,6 @@ func _apply_hit_reaction() -> void:
 	if _react_skeleton == null or _spine.is_empty():
 		reaction.step(10.0)   # no usable skeleton: let it finish at once
 		return
-	reaction.step(get_process_delta_time())
 	var inverse: Basis = _react_skeleton.global_transform.basis.orthonormalized().inverse()
 	var count: int = _spine.size()
 	for i in count:
@@ -319,7 +329,8 @@ func _apply_hit_reaction() -> void:
 		_turn_bone(_spine[i], reaction.lean * share, reaction.twist * share, inverse)
 	if reaction.step_t > 0.0 and _thighs.size() == 2 and _thighs[0] > 0 and _thighs[1] > 0:
 		# the recovery step: the thigh swings the foot out the way the body is being pushed, then plants it
-		_turn_bone(_thighs[reaction.step_leg], -reaction.step_dir * (0.85 * reaction.step_swing()), 0.0, inverse)
+		var recovery_reach: float = lerpf(0.75, 1.1, clampf((reaction.step_peak - BodyRecoil.STEP_PEAK) / (BodyRecoil.MAX_LEAN - BodyRecoil.STEP_PEAK), 0.0, 1.0))
+		_turn_bone(_thighs[reaction.step_leg], -reaction.step_dir * (recovery_reach * reaction.step_swing()), 0.0, inverse)
 	if _neck_bone >= 0:
 		_turn_bone(_neck_bone, reaction.head * 0.25, 0.0, inverse)
 	if _head_bone >= 0:

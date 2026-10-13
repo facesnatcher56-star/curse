@@ -867,11 +867,19 @@ func _test_weapon_styles() -> void:
 func _test_body_recoil() -> void:
 	await get_tree().process_frame
 	# The spring on its own: heavier blows lean further, big monsters lean less, it overshoots once, and comes to rest.
-	var light: float = BodyRecoil.peak_for(0.7, 1.0, 0.0)
-	var crushing: float = BodyRecoil.peak_for(1.5, 2.2, 0.0)
-	var heavy_big: float = BodyRecoil.peak_for(1.5, 2.2, 0.8)
-	expect("a crushing blow tips the body further than a light one", crushing > light * 3.0 and crushing <= BodyRecoil.MAX_LEAN)
-	expect("a monster that resists knock-back leans less", heavy_big < crushing * 0.7)
+	var light: float = BodyRecoil.peak_for(0.4, 1.0, 0.0)
+	var heavy: float = BodyRecoil.peak_for(1.5, 1.0, 0.0)
+	var crushing: float = BodyRecoil.peak_for(2.2, 1.5, 0.0)
+	var heavy_big: float = BodyRecoil.peak_for(1.5, 1.0, 0.8)
+	expect("light, heavy and crushing hits have distinct body-recoil peaks", light < heavy and heavy < crushing and crushing <= BodyRecoil.MAX_LEAN)
+	expect("a monster that resists knock-back leans less", heavy_big < heavy * 0.7)
+	var front := BodyRecoil.new()
+	front.hit(Vector3(0, 0, 1), Vector3(0, 0, 1), heavy, 0.0)
+	front.step(1.0 / 60.0)
+	var rear := BodyRecoil.new()
+	rear.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), heavy, 0.0)
+	rear.step(1.0 / 60.0)
+	expect("front and rear blows move the torso in opposite directions", front.lean.y > 0.0 and rear.lean.y < 0.0)
 	var spring := BodyRecoil.new()
 	spring.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.3, 0.0)
 	var peak: float = 0.0
@@ -892,6 +900,9 @@ func _test_body_recoil() -> void:
 	var mild := BodyRecoil.new()
 	mild.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.1, 0.0)
 	expect("a heavy blow costs a recovery step, a light one does not", stepper.step_t > 0.0 and mild.step_t <= 0.0 and stepper.step_swing() >= 0.0)
+	var crusher := BodyRecoil.new()
+	crusher.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), crushing, 0.0)
+	expect("crushing hits request a deeper directional recovery than heavy hits", crusher.step_peak > stepper.step_peak and crusher.step_t > stepper.step_t)
 	for i in 90:
 		stepper.step(1.0 / 60.0)
 	stepper.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.32, 0.0)
@@ -901,6 +912,19 @@ func _test_body_recoil() -> void:
 	var straight := BodyRecoil.new()
 	straight.hit(Vector3(0, 0, -1), Vector3(0, 0, 1), 0.3, 0.0)
 	expect("a blow from the side turns the shoulders, one from the front does not", absf(sideways.twist_vel) > 0.5 and absf(straight.twist_vel) < 0.01)
+	var rapid := BodyRecoil.new()
+	var controlled: bool = true
+	for i in 80:
+		var impact_dir: Vector3 = Vector3(1, 0, 0) if i % 4 == 0 else Vector3(0, 0, -1)
+		rapid.hit(impact_dir, Vector3(0, 0, 1), crushing, 0.0)
+		rapid.step(1.0 / 60.0)
+		controlled = controlled and rapid.lean.length() <= BodyRecoil.MAX_LEAN + 0.001 \
+			and absf(rapid.twist) <= BodyRecoil.MAX_TWIST + 0.001 \
+			and rapid.lean_vel.length() <= BodyRecoil.MAX_LEAN_SPEED + 0.001 \
+			and absf(rapid.twist_vel) <= BodyRecoil.MAX_TWIST_SPEED + 0.001
+	for i in 240:
+		rapid.step(1.0 / 60.0)
+	expect("rapid crushing impacts stay bounded and the body settles afterward", controlled and not rapid.active())
 	# On real monsters: every body has a spine to bend, and a landed blow moves it and then settles.
 	for variant in ["zombie", "ghoul", "spitter", "bloater", "brute", "priest"]:
 		var body: Enemy = _spawn_enemy(Vector3(-30, 0, -30), variant)
@@ -940,4 +964,11 @@ func _test_body_recoil() -> void:
 	var serial: int = target.flinch_serial
 	target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
 	expect("each blow counts, so the hit pose can restart", target.flinch_serial == serial + 1)
+	target.health = 1.0
+	var lethal_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 1.0, "source": player,
+		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
+	target.receive(lethal_blow, target.global_position + Vector3(0, 0, 3.0))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("death and ragdoll handoff clear the standing-body reaction", target.dead and target.is_ragdolled() and not target.model.reaction.active())
 	target.queue_free()
