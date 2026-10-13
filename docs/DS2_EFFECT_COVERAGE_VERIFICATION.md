@@ -47,9 +47,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 | Status | Count | Percentage |
 | :--- | :--- | :--- |
-| **Supported** | **37** | 63.8% |
+| **Supported** | **38** | 65.5% |
 | **Untested** | **0** | 0.0% |
-| **Unsupported** | **20** | 34.5% |
+| **Unsupported** | **19** | 32.8% |
 | **Unresolved** | **0** | 0.0% |
 | **Cosmetic Only** | **1** | 1.7% |
 | **Excluded** | **0** | 0.0% |
@@ -59,9 +59,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 ## 4. Detailed Alteration Mapping
 
-### 4.1 Supported Alterations (37)
+### 4.1 Supported Alterations (38)
 
-All 37 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
+All 38 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
 
 | Alteration Identifier | Category | Runtime Key | Runtime Consumer | Verified Test Suite & Function | Test Suite Verification Evidence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -102,6 +102,7 @@ All 37 supported alterations have verified runtime consumers and verified test s
 | `alter_chance_to_dodge_hit` | Defense | `dodge` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
 | `alter_chance_to_dodge_hit_melee` | Defense | `dodge_melee` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
 | `alter_chance_to_dodge_hit_ranged` | Defense | `dodge_ranged` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
+| `ALTER_POWER_DAMAGE_PERCENT` | Power multiplier | `power_damage` | `game/player/player_stats.gd:power_damage_mult()` and the power damage sites | `game/dev/suites/power_damage_tests.gd:_test_power_damage()` | Seeded runtime ratios for Whirling Strike, Flame Nexus, Brutal Attack and Take Aim; stacking, replace, unequip, saves, ordinary swing unchanged. |
 
 ---
 
@@ -111,9 +112,9 @@ All 11 alterations originally marked `untested` in the initial audit now have de
 
 ---
 
-### 4.3 Unsupported Alterations (20)
+### 4.3 Unsupported Alterations (19)
 
-These 20 source alterations currently have no runtime consumer pipeline in Curse:
+These 19 source alterations currently have no runtime consumer pipeline in Curse:
 
 | Alteration Identifier | Category | Target Pipeline | Required Runtime Implementation |
 | :--- | :--- | :--- | :--- |
@@ -124,7 +125,6 @@ These 20 source alterations currently have no runtime consumer pipeline in Curse
 | `alter_block_combat_magic_damage` | Defense | Combat | Spell damage reduction / block on staves and shields. |
 | `ALTER_CHANCE_TO_DODGE_HIT_RANGED` | Defense | Combat | Uppercase variant of ranged dodge. |
 | `alter_nmagic_damage_percent` | Multiplier | PlayerStats | Nature magic spell damage scaling (Curse only has Combat Magic). |
-| `ALTER_POWER_DAMAGE_PERCENT` | Multiplier | Powers | Equipment bonus scaling activated powers. |
 | `alter_combat_magic` | Skill Bonus | PlayerStats | Direct Combat Magic discipline level bonus. |
 | `alter_nature_magic` | Skill Bonus | PlayerStats | Direct Nature Magic discipline level bonus. |
 | `alter_melee_passive_skills` | Passive Bonus | Skill Tree | Bonus to all melee passive skill ranks. |
@@ -245,6 +245,6 @@ Two automated tools and a dedicated unit test suite enforce manifest integrity:
 
 Compound requirement checks are implemented for comma-only AND expressions, pipe-only OR expressions, and passive ranks. Mixed expressions containing both operators remain unsupported and fail closed because the source precedence is unresolved. Requirements that depend on passive skills absent from Curse also fail closed.
 
-The manifest classifies **37 alterations as supported, 20 as unsupported, one (`alter_generic`) as cosmetic-only and none as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
+The manifest classifies **38 alterations as supported, 19 as unsupported, one (`alter_generic`) as cosmetic-only and none as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
 
 Other gaps remain as listed in the manifest, including unsupported equipment effects and template properties. Do not infer full item import or behavior coverage from catalog parsing, requirement evaluation, or the supported-alteration count.

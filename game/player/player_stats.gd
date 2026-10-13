@@ -21,10 +21,10 @@ func skill_damage_text(id: String) -> String:
 			return PowerDb.get_def(id).summary if PowerDb.get_def(id) != null else ""
 		"buff":
 			if id == "brutal_attack":
-				var brutal: Vector2 = weapon_range(brutal_mult())
+				var brutal: Vector2 = weapon_range(brutal_mult() * power_damage_mult())
 				return "Empowered hit %d-%d" % [int(brutal.x), int(brutal.y)]
 			elif id == "take_aim":
-				var damage := ranged_range() * PowerDb.hero_value(id, "damage_pct", p.member_id) / 100.0
+				var damage := ranged_range() * PowerDb.hero_value(id, "damage_pct", p.member_id) / 100.0 * power_damage_mult()
 				return "Empowered arrow %d-%d" % [int(damage.x), int(damage.y)]
 		"potion":
 			return "Heals 60"
@@ -188,6 +188,11 @@ func brutal_recharge_damage() -> float:
 	return power_recharge_damage(BRUTAL_COMBAT_SECONDS, "melee")
 
 ## Brutal Attack's weapon-damage multiplier at the hero's rank (DS2: 1500 + 25 x Melee % at rank 1, to 2000 + 60 x Melee % at rank 3).
+## DS2 `ALTER_POWER_DAMAGE_PERCENT` (rules.skrit `DamageGoPower$`: every power's damage is multiplied by `1 + Attack.GetPowerDamageBonusPercent()`).
+## Equipment sources add; the result multiplies an activated power's own damage once, and nothing else.
+func power_damage_mult() -> float:
+	return maxf(1.0 + gear_stat("power_damage") / 100.0, 0.0)
+
 func brutal_mult() -> float:
 	return maxf(PowerDb.hero_value("brutal_attack", "damage_pct", p.member_id), 1500.0) / 100.0
 

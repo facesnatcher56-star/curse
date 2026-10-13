@@ -654,7 +654,7 @@ func _apply_skill(skill: Dictionary) -> void:
 					and Nav.line_clear(p, busy_target.global_position):
 				var brutal: bool = busy_skill == "basic" and brutal_armed
 				var damage: float = p.stats.weapon_damage(mult)
-				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight, false, not brutal, p.stats.brutal_mult() if brutal else 1.0)
+				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight, false, not brutal, p.stats.brutal_mult() * p.stats.power_damage_mult() if brutal else 1.0)
 				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:

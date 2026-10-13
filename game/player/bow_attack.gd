@@ -93,7 +93,7 @@ func loose() -> void:
 	var aim := target.global_position + Vector3(0, target.body_height * 0.62, 0)
 	aim += target.velocity * clampf(from.distance_to(aim) / (CompanionArrow.SPEED * (2.0 if armed else 1.0)), 0, 0.45)
 	var damage := p.stats.ranged_range()
-	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 if armed else 1.0
+	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 * p.stats.power_damage_mult() if armed else 1.0
 	CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
 	if armed:
 		Sfx.power(p, "take_aim_fire")

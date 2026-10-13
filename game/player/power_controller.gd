@@ -218,7 +218,7 @@ func _silence(point: Vector3) -> void:
 ## Flame Nexus (around the hero) and Detonation (at the target): DS2 fire powers, their damage grown by Searing Flames, cannot be dodged,
 ## and set what they hit alight (DS2: fire powers always ignite).
 func _fire_blast(centre: Vector3, radius: float, id: String, knock: bool) -> void:
-	var damage: float = value(id, "damage") * (1.0 + p.stats.passive("searing_flames") / 100.0) * (1.0 + p.stats.passive("arcane_fury") / 100.0)
+	var damage: float = value(id, "damage") * (1.0 + p.stats.passive("searing_flames") / 100.0) * (1.0 + p.stats.passive("arcane_fury") / 100.0) * p.stats.power_damage_mult()
 	for e in enemies_within(centre, radius):
 		var result: Dictionary = Combat.resolve(p, e, damage * randf_range(0.75, 1.25), Combat.DamageType.FIRE, false, 2.0, false, false)
 		result["skill_id"] = id
@@ -280,6 +280,6 @@ func _target_point(cursor: Vector3) -> Vector3:
 
 ## A physical power blow: it can be dodged and blocked, never crits (DS2: powers never crit).
 func _strike(e: Enemy, damage: float, id: String, weight: float, from: Vector3, mult: float = 1.0) -> void:
-	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, true, weight, false, false, mult)
+	var result: Dictionary = Combat.resolve(p, e, damage, Combat.DamageType.PHYSICAL, true, weight, false, false, mult * p.stats.power_damage_mult())
 	result["skill_id"] = id
 	e.receive(result, from)

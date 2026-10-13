@@ -76,6 +76,7 @@ func refresh() -> void:
 	lines.append("Ranged Range: %d - %d" % [int(ranged_range.x), int(ranged_range.y)])
 	lines.append("Crit Chance: %.1f%%  (Mult: %.1fx)" % [player.crit_chance * 100.0, player.crit_mult])
 	lines.append("Attack Speed: %.2f" % [s.attack_speed()])
+	lines.append("Power damage: %+d%%" % int(round((s.power_damage_mult() - 1.0) * 100.0)))
 	for element in Combat.ELEMENTS:
 		var low: float = Combat.added_damage(player, element)
 		var high: float = Combat.added_damage_max(player, element)
