@@ -42,6 +42,7 @@ const SUITES := [
 	preload("res://game/dev/suites/item_lab_tests.gd"),
 	preload("res://game/dev/suites/equipment_integration_tests.gd"),
 	preload("res://game/dev/suites/archer_target_tests.gd"),
+	preload("res://game/dev/suites/archer_hold_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -159,6 +160,7 @@ const ONLY_TESTS := {
 "lootrewards": "_test_loot_rewards",
 "archertargets": "_test_archer_targets",
 "archerpositioning": "_test_archer_positioning",
+"archerhold": "_test_archer_hold",
 }
 
 var _failures: PackedStringArray = []

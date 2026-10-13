@@ -42,6 +42,11 @@ var _spot_point: Vector3
 var _spot_age: float = 0.0
 var _replan_wait: float = 0.0
 var _rejected: Array[Vector3] = []
+## Counters the selftest reads: entries into hold, failed looks for a firing position, and shots begun.
+var holds: int = 0
+var retry_attempts: int = 0
+var shots: int = 0
+var _holding: bool = false
 
 func _init(character: Player) -> void:
 	p = character
@@ -90,6 +95,8 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	_target = target
 	_prop = prop
 	p.skills.busy = true
+	shots += 1
+	_holding = false
 	p.skills.busy_skill = "basic"
 	p.skills.busy_target = target
 	p.skills.busy_def = {"kind": "ranged", "charged": false}
@@ -209,7 +216,15 @@ func _take_position(point: Vector3, prop: Destructible, delta: float) -> void:
 	if _has_spot and not _spot_good(_spot, point, prop):
 		_reject_spot()
 	if not _has_spot and _replan_wait <= 0.0:
-		_replan_wait = REPLAN_COOLDOWN if _pick_spot(point, prop) else RETRY_COOLDOWN
+		var found := _pick_spot(point, prop)
+		_replan_wait = REPLAN_COOLDOWN if found else RETRY_COOLDOWN
+		if not found:
+			retry_attempts += 1   # counted for the selftest: a failed look for a firing position
+	if _has_spot:
+		_holding = false
+	elif not _holding:
+		holds += 1   # counted for the selftest: this entry into hold
+		_holding = true
 	if not _has_spot:
 		# No viable firing position. An AI archer holds and retries after the cooldown; a directly controlled one keeps moving freely.
 		if p.is_controlled():
