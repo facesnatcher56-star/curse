@@ -84,8 +84,10 @@ jobs:
       - name: Python catalog and coverage validation
         run: |
           python3 tools/check_ds2_effect_coverage.py
+          python3 tools/check_ds2_skill_suites.py
           python3 -m unittest discover -s tools -p "test_ds2_effect_coverage.py"
           python3 -m unittest discover -s tools -p "test_ds2_catalog.py"
+          python3 -m unittest discover -s tools -p "test_ds2_skill_suites.py"
           python3 -m unittest discover -s tools -p "test_ci_check_selftest.py"
 
       - name: Check results

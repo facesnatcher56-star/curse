@@ -1,0 +1,660 @@
+{
+  "schema": 1,
+  "title": "Dungeon Siege II Passive Skill Suites and Discipline Alterations Reference",
+  "description": "Source-accurate mappings of all 14 DS2 skill suites and 5 discipline-wide passive alterations to Curse passive definitions and gameplay runtime status.",
+  "summary": {
+    "total_suites": 14,
+    "total_catalog_occurrences": 407,
+    "alter_skill_suite_occurrences": 269,
+    "discipline_passive_alteration_occurrences": 138,
+    "fully_defined_in_curse_count": 6,
+    "partially_defined_in_curse_count": 4,
+    "unimplemented_in_curse_count": 4,
+    "fully_active_gameplay_count": 5
+  },
+  "discipline_alterations": {
+    "ALTER_MELEE_PASSIVE_SKILLS": {
+      "alteration": "ALTER_MELEE_PASSIVE_SKILLS",
+      "normalized_identifier": "alter_melee_passive_skills",
+      "discipline": "melee",
+      "occurrences": {
+        "items": 14,
+        "affixes": 2,
+        "sets": 26,
+        "total": 42
+      }
+    },
+    "alter_melee_passive_skills": {
+      "alteration": "alter_melee_passive_skills",
+      "normalized_identifier": "alter_melee_passive_skills",
+      "discipline": "melee",
+      "occurrences": {
+        "items": 2,
+        "affixes": 0,
+        "sets": 0,
+        "total": 2
+      }
+    },
+    "ALTER_RANGED_PASSIVE_SKILLS": {
+      "alteration": "ALTER_RANGED_PASSIVE_SKILLS",
+      "normalized_identifier": "alter_ranged_passive_skills",
+      "discipline": "ranged",
+      "occurrences": {
+        "items": 16,
+        "affixes": 2,
+        "sets": 23,
+        "total": 41
+      }
+    },
+    "ALTER_COMBAT_MAGIC_PASSIVE_SKILLS": {
+      "alteration": "ALTER_COMBAT_MAGIC_PASSIVE_SKILLS",
+      "normalized_identifier": "alter_combat_magic_passive_skills",
+      "discipline": "combat_magic",
+      "occurrences": {
+        "items": 14,
+        "affixes": 2,
+        "sets": 12,
+        "total": 28
+      }
+    },
+    "ALTER_NATURE_MAGIC_PASSIVE_SKILLS": {
+      "alteration": "ALTER_NATURE_MAGIC_PASSIVE_SKILLS",
+      "normalized_identifier": "alter_nature_magic_passive_skills",
+      "discipline": "nature_magic",
+      "occurrences": {
+        "items": 14,
+        "affixes": 2,
+        "sets": 9,
+        "total": 25
+      }
+    }
+  },
+  "suites": {
+    "melee_suite_1": {
+      "suite_id": "melee_suite_1",
+      "discipline": "melee",
+      "description_template": "+<value> to Barricade, Toughness, and Reinforced Armor",
+      "skills": [
+        "Barricade",
+        "Toughness",
+        "Reinforced Armor"
+      ],
+      "curse_passive_ids": [
+        "barricade",
+        "toughness",
+        "reinforced_armor"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "fully_active",
+      "constituent_details": [
+        {
+          "source_name": "Barricade",
+          "curse_id": "barricade",
+          "curse_display_name": "Barricade",
+          "status": "active"
+        },
+        {
+          "source_name": "Toughness",
+          "curse_id": "toughness",
+          "curse_display_name": "Toughness",
+          "status": "active"
+        },
+        {
+          "source_name": "Reinforced Armor",
+          "curse_id": "reinforced_armor",
+          "curse_display_name": "Reinforced Armor",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 24,
+        "affixes": 3,
+        "sets": 12,
+        "total": 39
+      }
+    },
+    "melee_suite_2": {
+      "suite_id": "melee_suite_2",
+      "discipline": "melee",
+      "description_template": "+<value> to Fortitude, Overbear, and Smite",
+      "skills": [
+        "Fortitude",
+        "Overbear",
+        "Smite"
+      ],
+      "curse_passive_ids": [
+        "fortitude",
+        "overbear",
+        "smite"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "fully_active",
+      "constituent_details": [
+        {
+          "source_name": "Fortitude",
+          "curse_id": "fortitude",
+          "curse_display_name": "Fortitude",
+          "status": "active"
+        },
+        {
+          "source_name": "Overbear",
+          "curse_id": "overbear",
+          "curse_display_name": "Overbear",
+          "status": "active"
+        },
+        {
+          "source_name": "Smite",
+          "curse_id": "smite",
+          "curse_display_name": "Smite",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 12,
+        "affixes": 3,
+        "sets": 4,
+        "total": 19
+      }
+    },
+    "melee_suite_3": {
+      "suite_id": "melee_suite_3",
+      "discipline": "melee",
+      "description_template": "+<value> to Critical Strike, Dual Wield, and Alacrity",
+      "skills": [
+        "Critical Strike",
+        "Dual Wield",
+        "Alacrity"
+      ],
+      "curse_passive_ids": [
+        "critical_strike",
+        null,
+        "alacrity"
+      ],
+      "definition_status": "partially_defined",
+      "gameplay_status": "partially_active",
+      "constituent_details": [
+        {
+          "source_name": "Critical Strike",
+          "curse_id": "critical_strike",
+          "curse_display_name": "Critical Strike",
+          "status": "active"
+        },
+        {
+          "source_name": "Dual Wield",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Alacrity",
+          "curse_id": "alacrity",
+          "curse_display_name": "Alacrity",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 14,
+        "affixes": 3,
+        "sets": 7,
+        "total": 24
+      }
+    },
+    "ranged_suite_1": {
+      "suite_id": "ranged_suite_1",
+      "discipline": "ranged",
+      "description_template": "+<value> to Critical Shot, Dodge, and Survival",
+      "skills": [
+        "Critical Shot",
+        "Dodge",
+        "Survival"
+      ],
+      "curse_passive_ids": [
+        "critical_shot",
+        "dodge",
+        "survival"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "fully_active",
+      "constituent_details": [
+        {
+          "source_name": "Critical Shot",
+          "curse_id": "critical_shot",
+          "curse_display_name": "Critical Shot",
+          "status": "active"
+        },
+        {
+          "source_name": "Dodge",
+          "curse_id": "dodge",
+          "curse_display_name": "Dodge",
+          "status": "active"
+        },
+        {
+          "source_name": "Survival",
+          "curse_id": "survival",
+          "curse_display_name": "Survival",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 16,
+        "affixes": 3,
+        "sets": 7,
+        "total": 26
+      }
+    },
+    "ranged_suite_2": {
+      "suite_id": "ranged_suite_2",
+      "discipline": "ranged",
+      "description_template": "+<value> to Biting Arrow, Far Shot, and Shockwave",
+      "skills": [
+        "Biting Arrow",
+        "Far Shot",
+        "Shockwave"
+      ],
+      "curse_passive_ids": [
+        "biting_arrow",
+        "far_shot",
+        null
+      ],
+      "definition_status": "partially_defined",
+      "gameplay_status": "partially_active",
+      "constituent_details": [
+        {
+          "source_name": "Biting Arrow",
+          "curse_id": "biting_arrow",
+          "curse_display_name": "Biting Arrow",
+          "status": "active"
+        },
+        {
+          "source_name": "Far Shot",
+          "curse_id": "far_shot",
+          "curse_display_name": "Far Shot",
+          "status": "dormant"
+        },
+        {
+          "source_name": "Shockwave",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 13,
+        "affixes": 3,
+        "sets": 8,
+        "total": 24
+      }
+    },
+    "ranged_suite_3": {
+      "suite_id": "ranged_suite_3",
+      "discipline": "ranged",
+      "description_template": "+<value> to Quick Draw, Bleed, and Penetrate",
+      "skills": [
+        "Quick Draw",
+        "Bleed",
+        "Penetrate"
+      ],
+      "curse_passive_ids": [
+        "quick_draw",
+        "bleed",
+        "penetrate"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "inactive",
+      "constituent_details": [
+        {
+          "source_name": "Quick Draw",
+          "curse_id": "quick_draw",
+          "curse_display_name": "Quick Draw",
+          "status": "dormant"
+        },
+        {
+          "source_name": "Bleed",
+          "curse_id": "bleed",
+          "curse_display_name": "Bleed",
+          "status": "dormant"
+        },
+        {
+          "source_name": "Penetrate",
+          "curse_id": "penetrate",
+          "curse_display_name": "Penetrate",
+          "status": "dormant"
+        }
+      ],
+      "occurrences": {
+        "items": 10,
+        "affixes": 3,
+        "sets": 5,
+        "total": 18
+      }
+    },
+    "cmagic_suite_1": {
+      "suite_id": "cmagic_suite_1",
+      "discipline": "combat_magic",
+      "description_template": "+<value> to Debilitation, Grim Necromancy, and Vampirism",
+      "skills": [
+        "Debilitation",
+        "Grim Necromancy",
+        "Vampirism"
+      ],
+      "curse_passive_ids": [
+        null,
+        null,
+        null
+      ],
+      "definition_status": "unimplemented",
+      "gameplay_status": "inactive",
+      "constituent_details": [
+        {
+          "source_name": "Debilitation",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Grim Necromancy",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Vampirism",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 11,
+        "affixes": 3,
+        "sets": 4,
+        "total": 18
+      }
+    },
+    "cmagic_suite_2": {
+      "suite_id": "cmagic_suite_2",
+      "discipline": "combat_magic",
+      "description_template": "+<value> to Brilliance, Amplified Lightning, and Arcing",
+      "skills": [
+        "Brilliance",
+        "Amplified Lightning",
+        "Arcing"
+      ],
+      "curse_passive_ids": [
+        "brilliance",
+        null,
+        null
+      ],
+      "definition_status": "partially_defined",
+      "gameplay_status": "partially_active",
+      "constituent_details": [
+        {
+          "source_name": "Brilliance",
+          "curse_id": "brilliance",
+          "curse_display_name": "Brilliance",
+          "status": "active"
+        },
+        {
+          "source_name": "Amplified Lightning",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Arcing",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 11,
+        "affixes": 3,
+        "sets": 4,
+        "total": 18
+      }
+    },
+    "cmagic_suite_3": {
+      "suite_id": "cmagic_suite_3",
+      "discipline": "combat_magic",
+      "description_template": "+<value> to Devastation, Searing Flames, and Ignite",
+      "skills": [
+        "Devastation",
+        "Searing Flames",
+        "Ignite"
+      ],
+      "curse_passive_ids": [
+        "devastation",
+        "searing_flames",
+        "ignite"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "fully_active",
+      "constituent_details": [
+        {
+          "source_name": "Devastation",
+          "curse_id": "devastation",
+          "curse_display_name": "Devastation",
+          "status": "active"
+        },
+        {
+          "source_name": "Searing Flames",
+          "curse_id": "searing_flames",
+          "curse_display_name": "Searing Flames",
+          "status": "active"
+        },
+        {
+          "source_name": "Ignite",
+          "curse_id": "ignite",
+          "curse_display_name": "Ignite",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 17,
+        "affixes": 3,
+        "sets": 4,
+        "total": 24
+      }
+    },
+    "nmagic_suite_1": {
+      "suite_id": "nmagic_suite_1",
+      "discipline": "nature_magic",
+      "description_template": "+<value> to Summon Fortitude, Summon Might, and Summon Bond",
+      "skills": [
+        "Summon Fortitude",
+        "Summon Might",
+        "Summon Bond"
+      ],
+      "curse_passive_ids": [
+        null,
+        null,
+        null
+      ],
+      "definition_status": "unimplemented",
+      "gameplay_status": "inactive",
+      "constituent_details": [
+        {
+          "source_name": "Summon Fortitude",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Summon Might",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Summon Bond",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 9,
+        "affixes": 3,
+        "sets": 8,
+        "total": 20
+      }
+    },
+    "nmagic_suite_2": {
+      "suite_id": "nmagic_suite_2",
+      "discipline": "nature_magic",
+      "description_template": "+<value> to Aquatic Affinity, Arctic Mastery, and Freezing",
+      "skills": [
+        "Aquatic Affinity",
+        "Arctic Mastery",
+        "Freezing"
+      ],
+      "curse_passive_ids": [
+        null,
+        null,
+        null
+      ],
+      "definition_status": "unimplemented",
+      "gameplay_status": "inactive",
+      "constituent_details": [
+        {
+          "source_name": "Aquatic Affinity",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Arctic Mastery",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Freezing",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 12,
+        "affixes": 3,
+        "sets": 3,
+        "total": 18
+      }
+    },
+    "nmagic_suite_3": {
+      "suite_id": "nmagic_suite_3",
+      "discipline": "nature_magic",
+      "description_template": "+<value> to Nurturing Gift, Enveloping Embrace, and Feral Wrath",
+      "skills": [
+        "Nurturing Gift",
+        "Enveloping Embrace",
+        "Feral Wrath"
+      ],
+      "curse_passive_ids": [
+        null,
+        null,
+        null
+      ],
+      "definition_status": "unimplemented",
+      "gameplay_status": "inactive",
+      "constituent_details": [
+        {
+          "source_name": "Nurturing Gift",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Enveloping Embrace",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Feral Wrath",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        }
+      ],
+      "occurrences": {
+        "items": 8,
+        "affixes": 3,
+        "sets": 7,
+        "total": 18
+      }
+    },
+    "special_suite_1": {
+      "suite_id": "special_suite_1",
+      "discipline": "hybrid",
+      "description_template": "+<value> to Summon Alacrity and Quickened Casting",
+      "skills": [
+        "Summon Alacrity",
+        "Quickened Casting"
+      ],
+      "curse_passive_ids": [
+        null,
+        "quickened_casting"
+      ],
+      "definition_status": "partially_defined",
+      "gameplay_status": "partially_active",
+      "constituent_details": [
+        {
+          "source_name": "Summon Alacrity",
+          "curse_id": null,
+          "curse_display_name": null,
+          "status": "unimplemented"
+        },
+        {
+          "source_name": "Quickened Casting",
+          "curse_id": "quickened_casting",
+          "curse_display_name": "Quickened Casting",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 2,
+        "affixes": 0,
+        "sets": 0,
+        "total": 2
+      }
+    },
+    "special_suite_2": {
+      "suite_id": "special_suite_2",
+      "discipline": "hybrid",
+      "description_template": "+<value> to Fortitude and Toughness",
+      "skills": [
+        "Fortitude",
+        "Toughness"
+      ],
+      "curse_passive_ids": [
+        "fortitude",
+        "toughness"
+      ],
+      "definition_status": "fully_defined",
+      "gameplay_status": "fully_active",
+      "constituent_details": [
+        {
+          "source_name": "Fortitude",
+          "curse_id": "fortitude",
+          "curse_display_name": "Fortitude",
+          "status": "active"
+        },
+        {
+          "source_name": "Toughness",
+          "curse_id": "toughness",
+          "curse_display_name": "Toughness",
+          "status": "active"
+        }
+      ],
+      "occurrences": {
+        "items": 1,
+        "affixes": 0,
+        "sets": 0,
+        "total": 1
+      }
+    }
+  }
+}
