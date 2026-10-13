@@ -135,7 +135,7 @@ func _add_paper_doll(parent: Control) -> void:
 		if worn != null:
 			var item_tile := ItemTile.create(worn, null, 48)
 			item_tile.show_compare = false
-			item_tile.tooltip_text = "%s (R-click to take off)" % Items.SLOT_NAMES[place]
+			item_tile.action_hint = "(R-click to take off)"
 			item_tile.gui_input.connect(_worn_input.bind(place, item_tile))
 			tile = item_tile
 		else:

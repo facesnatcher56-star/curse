@@ -7,6 +7,7 @@ var item: Dictionary = {}
 var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
 var equip_hint: bool = false      # a bag item: its card ends with how to equip it ("(R-click to equip)")
+var action_hint: String = ""      # optional action shown inside the item's details card
 var tile_size: float = 52.0
 var hovered: bool = false
 
@@ -25,14 +26,14 @@ func _ready() -> void:
 	mouse_exited.connect(func() -> void: hovered = false; queue_redraw())
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
-	focus_card(self, item, compare_to, show_compare, true, equip_hint)
+	focus_card(self, item, compare_to, show_compare, true, equip_hint, action_hint)
 
 func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
 	if hovered or has_focus(): UiTheme.draw_hover(self, Rect2(Vector2.ZERO, size), has_focus())
 
 ## The details card for an item: name in its rarity colour, kind, stats and effect, then the comparison.
-static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false) -> Control:
+static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "") -> Control:
 	var panel := PanelContainer.new()
 	panel.theme = UiTheme.get_theme() # Native tooltip windows do not always inherit the opener's theme.
 	panel.add_theme_stylebox_override("panel", UiTheme.tooltip_box())
@@ -57,6 +58,8 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 			box.add_child(_label(("+ " if sign_value > 0 else ("- " if sign_value < 0 else "= ")) + String(entry["text"]), 14, color))
 	if with_equip_hint:
 		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 13, Color(0.7, 0.68, 0.62)))
+	if not with_action_hint.is_empty():
+		box.add_child(_label(with_action_hint, 13, Color(0.7, 0.68, 0.62)))
 	for child in box.get_children():
 		if child is Label:
 			child.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -91,7 +94,7 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true, with
 
 ## The details card shown beside `control`: with a controller while it has focus, and with `on_hover` the moment the mouse is over it (an
 ## item's picture shows its card at once, like the item on the ground does; its buttons do not).
-static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false) -> void:
+static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false, with_action_hint: String = "") -> void:
 	var holder := Control.new()
 	holder.name = "ItemDetails"
 	holder.top_level = true
@@ -99,21 +102,45 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 	holder.z_index = 100
 	holder.visible = false
 	control.add_child(holder)
+	var reposition: Callable = func() -> void:
+		if not is_instance_valid(holder) or not holder.visible or holder.get_child_count() == 0:
+			return
+		var detail := holder.get_child(0) as Control
+		var screen: Vector2 = control.get_viewport_rect().size
+		var safe_rect := Rect2(Vector2(8, 8), Vector2(maxf(1, screen.x - 16), maxf(1, screen.y - 118)))
+		detail.scale = Vector2.ONE
+		var extent: Vector2 = detail.get_combined_minimum_size()
+		detail.size = extent
+		var fit_scale: float = minf(1.0, minf(safe_rect.size.x / maxf(1, extent.x), safe_rect.size.y / maxf(1, extent.y)))
+		detail.scale = Vector2.ONE * fit_scale
+		var shown_extent := extent * fit_scale
+		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)
+		if anchor.x + shown_extent.x > safe_rect.end.x:
+			anchor.x = control.global_position.x - shown_extent.x - 12
+		var position := Vector2(anchor.x, anchor.y)
+		position.x = clampf(position.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown_extent.x))
+		position.y = clampf(position.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown_extent.y))
+		holder.global_position = position
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
-		var detail := card(it, worn, compare, with_equip_hint)
+		var detail := card(it, worn, compare, with_equip_hint, with_action_hint)
 		holder.add_child(detail)
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in detail.find_children("*", "Control", true, false):
 			child.mouse_filter = Control.MOUSE_FILTER_IGNORE # tooltip contents must not intercept a drag destination
 		holder.visible = true
-		var screen: Vector2 = control.get_viewport_rect().size
-		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)
-		var extent: Vector2 = detail.get_combined_minimum_size()
-		if anchor.x + extent.x > screen.x - 8:
-			anchor.x = control.global_position.x - extent.x - 12
-		holder.global_position = Vector2(maxf(8, anchor.x), clampf(anchor.y, 8, maxf(8, screen.y - extent.y - 8)))
+		reposition.call()
+	holder.tree_entered.connect(func() -> void:
+		var viewport: Viewport = control.get_viewport()
+		if viewport != null and not viewport.size_changed.is_connected(reposition):
+			viewport.size_changed.connect(reposition))
+	control.tree_exiting.connect(func() -> void:
+		var viewport: Viewport = control.get_viewport()
+		if viewport != null and viewport.size_changed.is_connected(reposition):
+			viewport.size_changed.disconnect(reposition))
+	control.resized.connect(reposition)
+	control.item_rect_changed.connect(reposition)
 	control.focus_entered.connect(func() -> void:
 		if Gamepad.active:
 			open.call())
