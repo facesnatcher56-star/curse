@@ -169,11 +169,21 @@ func _finish() -> void:
 
 func _run_selftest() -> void:
 	print("SELFTEST start")
+	var only_name := ""
 	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--only=") and ONLY_TESTS.has(arg.substr(7)):
-			await _run(ONLY_TESTS[arg.substr(7)])
+		if arg.begins_with("--only="):
+			only_name = arg.substr(7)
+			break
+	if only_name != "":
+		if not ONLY_TESTS.has(only_name):
+			push_error("Unknown self-test suite: " + only_name)
 			_finish()
 			return
+		print("SELFTEST suite start: ", only_name)
+		await _run(ONLY_TESTS[only_name])
+		print("SELFTEST suite done: ", only_name)
+		_finish()
+		return
 	for action in ["click", "alt_skill", "stand_still", "restart", "skill_1", "skill_4"]:
 		expect("input action %s exists" % action, InputMap.has_action(action))
 	print("  camera current: ", rig.camera.current, "  pitch: ", rig.camera.rotation_degrees.x, "  fov: ", rig.camera.fov)

@@ -420,6 +420,9 @@ func _integration_combat() -> void:
 	await get_tree().physics_frame
 	var frozen := Items.build(ItemDb.get_def("longsword"), 40, Items.Rarity.MAGIC, ["ice_added_5"])
 	var ice5 := AffixDb.get_def("ice_added_5")
+	# Pin the weapon's physical range so the live hit-frame result is deterministic.
+	frozen["stats"]["min"] = 20.0
+	frozen["stats"]["max"] = 20.0
 	hero.attack_target = target
 	hero.click_mode = 1
 	hero.skills.start_skill("basic", target)
@@ -441,8 +444,8 @@ func _integration_combat() -> void:
 	hero.reset_physics_interpolation()
 	hero.movement.has_goal = false
 	stats.equip(frozen, false)
-	hero.level = 1
-	hero.added_ice_max = hero.added_ice
+	_plain(hero)
+	target.last_result = {}
 	target.global_position = start + Vector3(1.5, 0.0, 0.0)
 	hero.attack_target = target
 	hero.skills.start_skill("basic", target)
@@ -451,7 +454,13 @@ func _integration_combat() -> void:
 	hero.skills.tick_busy(hit_at + 0.01)
 	expect("the swing's hit frame damages the target", target.health < health_one)
 	var dealt := health_one - target.health
-	expect("and that blow includes the pinned ice amount at least once but not twice", dealt >= ice5.value - 0.001 and dealt < 2.0 * ice5.value + hero.stats.weapon_range(1.0).y * 4.0)
+	var live_result: Dictionary = target.last_result
+	var basic_mult: float = float(hero.skills.busy_def.get("mult", 1.0))
+	var expected_physical: float = hero.stats.weapon_range(basic_mult).x
+	var live_elements: Dictionary = live_result.get("added_elements", {})
+	expect("the live swing resolves the controlled physical hit plus exactly one ice roll",
+		is_equal_approx(dealt, expected_physical + ice5.value) and is_equal_approx(float(live_result.get("damage", -1.0)), expected_physical + ice5.value)
+		and live_elements.size() == 1 and is_equal_approx(float(live_elements.get("ice", -1.0)), ice5.value))
 	hero.set_physics_process(true)
 	hero.cursor_override = start + Vector3(0.0, 0.0, -2.2)
 	await _integration_click(hero.cursor_override)

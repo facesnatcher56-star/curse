@@ -233,13 +233,10 @@ Two automated tools and a dedicated unit test suite enforce manifest integrity:
 
 ---
 
-## 9. Next Highest-Priority Implementation Gap
+## 9. Remaining Implementation Gaps
 
-Based on this coverage analysis, the next highest-priority implementation gap is:
+Compound requirement checks are implemented for comma-only AND expressions, pipe-only OR expressions, and passive ranks. Mixed expressions containing both operators remain unsupported and fail closed because the source precedence is unresolved. Requirements that depend on passive skills absent from Curse also fail closed.
 
-> **Compound Requirement Parsing (`|` and `,`) and Passive Skill Tree Equip Checks**
+The manifest still classifies **34 alterations as supported, 23 as unsupported, and one (`alter_generic`) as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
 
-### Justification:
-- **Scope Impact:** Affects **196 items** (79 with OR alternatives, 117 with AND conjunctions, 115 requiring passive skill ranks).
-- Currently, attempting to import or equip these items fails equip validation or bypasses checks entirely.
-- Implementing an evaluator supporting `|`, `,`, and passive rank queries will instantly unlock equip compatibility for over 25% of the original DS2 catalog without risking gameplay regressions.
+Other gaps remain as listed in the manifest, including unsupported equipment effects and template properties. Do not infer full item import or behavior coverage from catalog parsing, requirement evaluation, or the supported-alteration count.
