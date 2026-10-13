@@ -161,6 +161,7 @@ const ONLY_TESTS := {
 "archertargets": "_test_archer_targets",
 "archerpositioning": "_test_archer_positioning",
 "archerhold": "_test_archer_hold",
+"archermoving": "_test_archer_moving",
 }
 
 var _failures: PackedStringArray = []
@@ -248,6 +249,10 @@ func _run_selftest() -> void:
 	await _run("_test_town_state")
 	await _run("_test_run_modifiers")
 	await _run("_test_town_scene")
+	await _run("_test_archer_targets")
+	await _run("_test_archer_positioning")
+	await _run("_test_archer_hold")
+	await _run("_test_archer_moving")
 
 	var zombies: Array[Enemy] = []
 	for i in 3:

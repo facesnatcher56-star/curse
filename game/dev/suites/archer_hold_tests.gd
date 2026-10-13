@@ -28,10 +28,9 @@ func _test_archer_hold() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var archer: ArcherCompanion = game.companion
-	archer.testing_disabled = false
-	archer.skills.busy = false
-	archer.attack_target = null
-	var lane: Vector3 = _clear_lane(24.0, 10.0)
+	archer.testing_disabled = true   # the party AI stays off: these checks drive the archer's own decision directly
+	_prepare_archer(archer)
+	var lane: Vector3 = await _own_lane(24.0, 10.0)
 	archer.global_position = lane
 	archer.reset_physics_interpolation()
 	var enemy: Enemy = _spawn_enemy(lane + Vector3(14.0, 0.0, 0.0))
@@ -70,7 +69,7 @@ func _test_archer_hold() -> void:
 	expect("hold: zero shots fired into the walls during the hold", shots_in_hold == 0)
 	expect("hold: it retried after the cooldown (at least one retry)", retries >= 1)
 	expect("hold: it does not retry every frame (bounded by the cooldown)", retries <= HOLD_FRAMES / 60 + 2)
-	expect("hold: path requests stay bounded over the run (no repeated requests)", path_requests <= 8)
+	expect("hold: the held archer makes no navigation requests at all (it does not route while holding)", path_requests == 0)
 
 	# Phase 2: the walls come down. The archer leaves hold and fires once it has sight of the target.
 	walls.queue_free()
@@ -90,5 +89,52 @@ func _test_archer_hold() -> void:
 
 	bow.cancel()
 	archer.skills.busy = false
+	enemy.queue_free()
+	await get_tree().physics_frame
+
+## A target that keeps moving, with a barrel between it and the archer: the firing position must not flip back and forth. The
+## barrel is fixed, so a shot is only taken from a position that sees around it; the count of new positions is bounded.
+func _test_archer_moving() -> void:
+	TownState.persist = false
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var archer: ArcherCompanion = game.companion
+	archer.testing_disabled = true
+	_prepare_archer(archer)
+	var lane: Vector3 = await _own_lane(24.0, 10.0)
+	archer.global_position = lane
+	archer.reset_physics_interpolation()
+	var enemy: Enemy = _spawn_enemy(lane + Vector3(14.0, 0.0, -2.0))
+	enemy.set_physics_process(false)
+	enemy.aggro_range = 0.0
+	enemy.max_health = 500.0
+	enemy.health = enemy.max_health
+	var barrel: Destructible = arena.place_prop("barrel", lane + Vector3(7.0, 0.0, 0.0), 0.0, 1.0) as Destructible
+	for i in 3:
+		await get_tree().physics_frame
+	var bow: BowAttack = archer.bow
+	bow.cancel()
+	bow._has_spot = false
+	bow._replan_wait = 0.0
+	bow._rejected.clear()
+	var changes := 0
+	var last := Vector3.INF
+	var shots0: int = bow.shots
+	var frames := 0
+	for i in 300:
+		# The target walks 3.2 m along z over five seconds (a steady 0.64 m/s), so no position is picked for a point it has left behind.
+		enemy.global_position = lane + Vector3(14.0, 0.0, -2.0 + 3.2 * float(i) / 300.0)
+		bow.engage(enemy, null, DELTA)
+		if bow._has_spot and last.distance_to(bow._spot) > 0.5:
+			changes += 1
+			last = bow._spot
+		frames += 1
+		await get_tree().physics_frame
+	print("MOVING TARGET: frames=", frames, " spot_changes=", changes, " shots=", bow.shots - shots0, " holds=", bow.holds)
+	expect("moving target: the firing position changes at most six times over five seconds (no oscillation)", changes <= 6)
+	expect("moving target: the archer holds a position or has fired by the end", bow._has_spot or bow.shots > shots0)
+	bow.cancel()
+	barrel.queue_free()
 	enemy.queue_free()
 	await get_tree().physics_frame

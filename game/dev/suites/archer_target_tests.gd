@@ -10,10 +10,10 @@ func _test_archer_targets() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var archer: ArcherCompanion = game.companion
-	archer.testing_disabled = false
+	archer.testing_disabled = true
+	_prepare_archer(archer)
 	archer.take_aim_armed = false
-	archer.skills.busy = false
-	var lane: Vector3 = _clear_lane(20.0, 8.0)
+	var lane: Vector3 = await _own_lane(20.0, 8.0)
 	archer.global_position = lane
 	player.global_position = lane + Vector3(0.0, 0.0, -6.0)
 	player.reset_physics_interpolation()
@@ -86,16 +86,23 @@ func _test_archer_targets() -> void:
 	await get_tree().physics_frame
 	archer.global_position = lane
 	archer.reset_physics_interpolation()
-	var order_before: float = order_nest.hp
-	archer.bow.engage(null, order_nest, 1.0 / 60.0)
-	expect("ordered: the archer starts shooting a nest it has clear sight of", archer.skills.busy)
-	var hit_nest := false
-	for i in 300:
+	# The player's order goes through the hotkey's own code (Player.order_companions_to_prop); the archer's AI then shoots the nest
+	# on its own, through the same engagement as any ordered target, until the destructible breaks.
+	archer.testing_disabled = false   # this one is the party AI's own shot: it must run
+	var broke: Array[Destructible] = []
+	order_nest.destroyed.connect(func(prop: Destructible) -> void: broke.append(prop))
+	var ordered: Destructible = player.order_companions_to_prop(order_nest.global_position)
+	expect("ordered: the hotkey's prop order marks the nest for the archer", ordered == order_nest and archer.attack_prop == order_nest)
+	var order_frames := 0
+	for i in 2400:
 		await get_tree().physics_frame
-		if order_nest.hp < order_before:
-			hit_nest = true
+		order_frames += 1
+		if not broke.is_empty():
 			break
-	expect("ordered: the controlled archer damages the ordered nest", hit_nest)
+	print("NEST ORDER: destroyed_signal=", not broke.is_empty(), " frames=", order_frames, " shots=", archer.bow.shots)
+	expect("ordered: the archer's own shots break the ordered nest (destroyed signal, within 2400 frames)", not broke.is_empty() and broke[0].broken)
+	archer.attack_prop = null
+	archer.testing_disabled = true
 	archer.bow.cancel()
 	archer.skills.busy = false
 	for prop in [nest, stone, order_nest]:
@@ -112,9 +119,9 @@ func _test_archer_positioning() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var archer: ArcherCompanion = game.companion
-	archer.testing_disabled = false
-	archer.skills.busy = false
-	var lane: Vector3 = _clear_lane(24.0, 10.0)
+	archer.testing_disabled = true
+	_prepare_archer(archer)
+	var lane: Vector3 = await _own_lane(24.0, 10.0)
 	archer.global_position = lane
 	archer.reset_physics_interpolation()
 	var enemy: Enemy = _spawn_enemy(lane + Vector3(14.0, 0.0, 0.0))
@@ -135,6 +142,8 @@ func _test_archer_positioning() -> void:
 	expect("positioning: a position is found when the direct line is blocked", picked)
 	expect("positioning: LOS - the chosen position has a clear sight line to the target", picked and Nav.sight_clear(archer, spot, point, null))
 	expect("positioning: range - the chosen position is within the bow's effective range", picked and reach >= BowAttack.SPOT_MIN and reach <= BowAttack.SHOT_RANGE - 1.0)
+	print("RANGE PREFERENCE: measured_reach=", snappedf(reach, 0.01), " preferred=", BowAttack.SPOT_RANGE)
+	expect("positioning: range preference - the position is within 2 m of the preferred 12 m", picked and absf(reach - BowAttack.SPOT_RANGE) <= 2.0)
 	expect("positioning: lateral - the position is off the blocked line of advance, not a straight advance",
 		picked and to_spot.normalized().angle_to(to_archer.normalized()) > 0.2)
 
@@ -150,8 +159,10 @@ func _test_archer_positioning() -> void:
 	archer.bow._has_spot = false
 	var melee_pick: bool = archer.bow._pick_spot(point, null)
 	var melee_spot: Vector3 = archer.bow._spot
-	expect("positioning: melee separation - no firing position within melee reach of an aggro enemy",
-		not melee_pick or Vector2(melee_spot.x - melee.global_position.x, melee_spot.z - melee.global_position.z).length() >= BowAttack.MELEE_CLEAR)
+	var melee_distance: float = Vector2(melee_spot.x - melee.global_position.x, melee_spot.z - melee.global_position.z).length()
+	print("MELEE SEPARATION: picked=", melee_pick, " spot_to_melee=", snappedf(melee_distance, 0.01), " required=", BowAttack.MELEE_CLEAR)
+	expect("positioning: melee separation - a firing position is found and is at least MELEE_CLEAR from the aggro enemy",
+		melee_pick and melee_distance >= BowAttack.MELEE_CLEAR)
 	melee.queue_free()
 	archer.attack_target = null
 	await get_tree().physics_frame
@@ -163,28 +174,20 @@ func _test_archer_positioning() -> void:
 	var changes: int = 0
 	var last: Vector3 = Vector3.INF
 	var delta: float = get_physics_process_delta_time()
+	var queries0: int = int(archer.movement._nav_state.get("queries", 0))
 	for i in 120:
 		archer.bow.engage(enemy, null, delta)
 		if archer.bow._has_spot and last.distance_to(archer.bow._spot) > 0.5:
 			changes += 1
 			last = archer.bow._spot
 		await get_tree().physics_frame
+	var requests: int = int(archer.movement._nav_state.get("queries", 0)) - queries0
+	print("OSCILLATION: spot_changes=", changes, " nav_path_requests=", requests, " spot_reach=", snappedf(reach, 0.01))
 	expect("oscillation: the firing position changes at most twice in two seconds", changes <= 2)
+	expect("navigation: the walk to the firing position makes path requests (bounded, non-zero)", requests >= 1 and requests <= 20)
 
-	# Hold and retry: with no position that sees the target, the AI archer does not walk; it waits a cooldown before looking again.
+	# Hold and retry is proven unconditionally, by counter, in archer_hold_tests.gd (the walled scenario).
 	barrel.queue_free()
-	archer.bow.cancel()   # a shot taken during the walk above is over before the hold is judged
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	enemy.global_position = lane + Vector3(60.0, 0.0, 0.0)
-	await get_tree().physics_frame
-	archer.bow._rejected.clear()
-	archer.bow._has_spot = false
-	archer.bow._replan_wait = 0.0
-	var before: Vector3 = archer.global_position
-	archer.bow.engage(enemy, null, delta)
-	if not archer.bow._has_spot:
-		expect("hold: with no viable position an AI archer does not advance", archer.global_position.distance_to(before) < 0.05)
-		expect("hold: it waits a retry cooldown before looking again", archer.bow._replan_wait >= BowAttack.RETRY_COOLDOWN * 0.99)
+	archer.bow.cancel()
 	enemy.queue_free()
 	await get_tree().physics_frame

@@ -684,11 +684,16 @@ func _pursue_pickup(stand_still: bool) -> void:
 				for body in PartyManager.current().living():
 					if body != self: body.attack_target = hover_enemy
 		elif hover_enemy == null and not skills.take_aim_targeting:
-			# The same order for a breakable prop (a nest or barrel) under the cursor: the companions shoot or swing at it.
-			var hover_prop: Destructible = Destructible.near(get_tree(), cursor_world(), 0.35, Destructible.HERO)
-			if hover_prop != null:
-				for body in PartyManager.current().living():
-					if body != self: body.attack_prop = hover_prop
+			order_companions_to_prop(cursor_world())
+
+## The companion-attack order for a breakable prop (a nest or barrel) at the cursor: the other members shoot or swing at it.
+## Returns the prop ordered, or null when nothing breakable is there.
+func order_companions_to_prop(cursor: Vector3) -> Destructible:
+	var hover_prop: Destructible = Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO)
+	if hover_prop != null:
+		for body in PartyManager.current().living():
+			if body != self: body.attack_prop = hover_prop
+	return hover_prop
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:
