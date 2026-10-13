@@ -233,6 +233,36 @@ func _test_orb_hud() -> void:
 		var count: int = player.skills.hotbar.size() + 2
 		var tray_width: float = cell * count + 8 * (count - 1)
 		expect("skill tray clears both vessels at %d px" % width, (width - tray_width) * 0.5 - 24 >= Hud.orb_rect(view, false).end.x)
+	var first_target := Actor.new()
+	first_target.display_name = "Feedback Target"
+	first_target.max_health = 100.0
+	first_target.health = first_target.max_health
+	var second_target := Actor.new()
+	second_target.display_name = "Second Feedback Target"
+	second_target.max_health = 60.0
+	second_target.health = second_target.max_health
+	var target_banner := hud.ds2_target_banner as Ds2TargetBanner
+	target_banner.update_target(first_target, 0.0)
+	var full_health_width: float = target_banner._hp_fill.size.x
+	first_target.health = first_target.max_health * 0.6
+	target_banner.update_target(first_target, 0.016)
+	expect("target health falls immediately when damaged", is_equal_approx(target_banner._hp_fill.size.x, first_target.max_health * 0.6 / first_target.max_health * Ds2TargetBanner.BAR_WIDTH))
+	expect("damage leaves a short trail at the previous health", is_equal_approx(target_banner._damage_trail.size.x, full_health_width) and target_banner._trail_hold > 0.0)
+	expect("target damage gives a brief restrained hit flash", target_banner._hit_flash > 0.0 and target_banner._hit_flash <= Ds2TargetBanner.HIT_FLASH_SECONDS)
+	first_target.health = first_target.max_health * 0.8
+	target_banner.update_target(first_target, 0.016)
+	expect("health regeneration catches the trail up immediately", is_equal_approx(target_banner._damage_trail.size.x, target_banner._hp_fill.size.x) and is_zero_approx(target_banner._trail_hold))
+	target_banner.update_target(second_target, 0.0)
+	expect("target switching resets the trail and flash", is_equal_approx(target_banner._damage_trail.size.x, target_banner._hp_fill.size.x) and is_zero_approx(target_banner._hit_flash))
+	first_target.dead = true
+	target_banner.update_target(first_target, 0.0)
+	expect("target death clears the health bar and delayed trail", is_zero_approx(target_banner._hp_fill.size.x) and is_zero_approx(target_banner._damage_trail.size.x) and is_zero_approx(target_banner._hit_flash))
+	first_target.dead = false
+	target_banner.update_target(null, 0.1)
+	expect("target disappearance clears stale target text and trail", target_banner._name_label.text.is_empty() and is_zero_approx(target_banner._damage_trail.size.x))
+	expect("target banner and bar layers pass world clicks through", target_banner.mouse_filter == Control.MOUSE_FILTER_IGNORE and target_banner._damage_trail.mouse_filter == Control.MOUSE_FILTER_IGNORE and target_banner._hp_fill.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+	first_target.free()
+	second_target.free()
 
 func _test_inventory_equip() -> void:
 	TownState.persist = false

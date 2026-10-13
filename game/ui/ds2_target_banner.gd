@@ -4,15 +4,24 @@ extends Control
 ## Shows target name, enemy tier, and health bar inside an ornate metal plaque.
 
 var _banner_rect: Panel
+var _damage_trail: ColorRect
 var _hp_fill: ColorRect
 var _name_label: Label
 var _health_label: Label
 var _level_label: Label
 var _fade: float = 0.0
+var _tracked_target_id: int = 0
+var _displayed_hp_ratio: float = -1.0
+var _trail_hp_ratio: float = -1.0
+var _trail_hold: float = 0.0
+var _hit_flash: float = 0.0
 
 const WIDTH := 480.0
 const HEIGHT := 68.0
 const BAR_WIDTH := 400.0
+const TRAIL_HOLD_SECONDS := 0.32
+const TRAIL_CATCHUP_PER_SECOND := 1.8
+const HIT_FLASH_SECONDS := 0.12
 
 ## Presentation only: no HP/level threshold may turn an ordinary enemy elite.
 static func status_of(target: Actor) -> String:
@@ -57,6 +66,14 @@ func _ready() -> void:
 	_banner_rect.size = size
 	_banner_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_banner_rect)
+
+	# Delayed damage trail sits behind the immediate health fill.
+	_damage_trail = ColorRect.new()
+	_damage_trail.color = Color(1.0, 0.42, 0.24, 0.82)
+	_damage_trail.position = Vector2(40, 36)
+	_damage_trail.size = Vector2(BAR_WIDTH, 24)
+	_damage_trail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_damage_trail)
 
 	# Health fill bar inside plaque
 	_hp_fill = ColorRect.new()
@@ -115,8 +132,17 @@ func update_target(target: Actor, delta: float) -> void:
 	scale = Vector2.ONE * minf(readable_scale, available_scale)
 	position.x = (screen.x - WIDTH * scale.x) * 0.5
 	position.y = 4.0 if position.x >= 250.0 else 202.0
-	if target != null and not target.dead:
+	var has_target := is_instance_valid(target) and not target.is_queued_for_deletion() and not target.dead
+	if has_target:
 		_fade = minf(_fade + delta * 6.0, 1.0)
+		var target_id := target.get_instance_id()
+		var target_changed := target_id != _tracked_target_id
+		if target_changed:
+			_tracked_target_id = target_id
+			_displayed_hp_ratio = -1.0
+			_trail_hp_ratio = -1.0
+			_trail_hold = 0.0
+			_hit_flash = 0.0
 		var status := status_of(target)
 		_name_label.text = target.display_name.to_upper() + ("  ·  " + status if not status.is_empty() else "")
 		var name_font := _name_label.get_theme_font("font")
@@ -127,13 +153,50 @@ func update_target(target: Actor, delta: float) -> void:
 		var cur_hp: float = maxf(target.health, 0.0)
 		var max_hp: float = maxf(target.max_health, 1.0)
 		var pct: float = clampf(cur_hp / max_hp, 0.0, 1.0)
+		if _displayed_hp_ratio < 0.0:
+			_displayed_hp_ratio = pct
+			_trail_hp_ratio = pct
+		elif pct < _displayed_hp_ratio - 0.0001:
+			# Damage snaps the real bar down and holds the previous value briefly.
+			_trail_hp_ratio = maxf(_trail_hp_ratio, _displayed_hp_ratio)
+			_trail_hold = TRAIL_HOLD_SECONDS
+			_hit_flash = HIT_FLASH_SECONDS
+		elif pct > _displayed_hp_ratio + 0.0001:
+			# Healing/regeneration is immediate and never leaves a misleading damage trail.
+			_trail_hp_ratio = pct
+			_trail_hold = 0.0
+		_displayed_hp_ratio = pct
+		if _trail_hold > 0.0:
+			_trail_hold = maxf(_trail_hold - delta, 0.0)
+		elif _trail_hp_ratio > pct:
+			_trail_hp_ratio = maxf(pct, _trail_hp_ratio - TRAIL_CATCHUP_PER_SECOND * delta)
+		_hit_flash = maxf(_hit_flash - delta, 0.0)
+		_damage_trail.size.x = _trail_hp_ratio * BAR_WIDTH
 		_hp_fill.size.x = pct * BAR_WIDTH
 		_health_label.text = health_text(cur_hp, max_hp)
 		_level_label.text = "LV %d" % target.level
 		
 		_name_label.add_theme_color_override("font_color", status_color(target))
-		_hp_fill.color = Color(0.65, 0.12, 0.1, 0.95) if status.is_empty() else Color(status_color(target).darkened(0.55), 0.95)
+		var base_fill := Color(0.65, 0.12, 0.1, 0.95) if status.is_empty() else Color(status_color(target).darkened(0.55), 0.95)
+		_hp_fill.color = base_fill.lerp(Color(1.0, 0.9, 0.72, 1.0), _hit_flash / HIT_FLASH_SECONDS)
+		_damage_trail.color = Color(0.95, 0.43, 0.26, 0.82) if status.is_empty() else Color(status_color(target).lightened(0.12), 0.8)
+		# Both decorative layers ignore mouse input, so world clicks pass through the banner.
 	else:
+		if target != null and is_instance_valid(target) and target.dead:
+			_hp_fill.size.x = 0.0
+			_damage_trail.size.x = 0.0
+			_health_label.text = health_text(0.0, maxf(target.max_health, 1.0))
+		else:
+			_hp_fill.size.x = 0.0
+			_damage_trail.size.x = 0.0
+			_name_label.text = ""
+			_health_label.text = ""
+			_level_label.text = ""
+		_tracked_target_id = 0
+		_displayed_hp_ratio = -1.0
+		_trail_hp_ratio = -1.0
+		_trail_hold = 0.0
+		_hit_flash = 0.0
 		_fade = maxf(_fade - delta * 4.0, 0.0)
 
 	modulate = Color(1, 1, 1, _fade)

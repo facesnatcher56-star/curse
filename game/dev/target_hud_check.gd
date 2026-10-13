@@ -45,6 +45,53 @@ func run() -> void:
 	town.companion.global_position = town.player.global_position + Vector3(2, 0, 1)
 	town.player.hover_target = target
 	var banner: Ds2TargetBanner = town.combat_hud.ds2_target_banner
+	if DisplayServer.get_name() != "headless":
+		root.mode = Window.MODE_WINDOWED
+		root.borderless = true
+		root.current_screen = mini(1, DisplayServer.get_screen_count() - 1)
+		root.size = Vector2i(1280, 720)
+		root.position = DisplayServer.screen_get_position(root.current_screen)
+		GameSettings.ui_size = 1.5
+		GameSettings.apply_ui_scale()
+		for frame in 2: await process_frame
+	target.health = target.max_health * 0.5
+	banner.update_target(target, 0.016)
+	await process_frame
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		var damage_capture := OS.get_environment("TEMP").path_join("curse_target_damage_trail.png")
+		root.get_texture().get_image().save_png(damage_capture)
+		print("CAPTURE ", damage_capture)
+	target.health = target.max_health
+	banner.update_target(target, 0.016)
+	town.player.attack_target = target
+	var ground_drop := LootDrop.create(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
+	town.add_child(ground_drop)
+	ground_drop.toss_from(target.global_position + Vector3(1.5, 0.0, 1.5))
+	var level_toast: ProgressionHud = town.combat_hud.progression_hud
+	level_toast.toast_text = "LEVEL 2"
+	level_toast.toast_time = ProgressionHud.TOAST_SECONDS
+	level_toast.toast_levels = 1
+	for frame in 45: await process_frame
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+	var target_rect := banner.get_global_rect()
+	var toast_rect := level_toast.toast_rect(banner.get_viewport_rect().size)
+	check("level-up toast clears the target banner", not toast_rect.intersects(target_rect))
+	var party_rect := town.combat_hud.ds2_party_frame.get_global_rect()
+	var loot_plates_clear := true
+	for entry in town.combat_hud.loot_cards.names:
+		var plate: Rect2 = entry["rect"]
+		if plate.grow(6.0).intersects(target_rect) or plate.grow(6.0).intersects(party_rect) or plate.intersects(toast_rect):
+			loot_plates_clear = false
+	check("loot name plates clear target, party frames, and level-up toast", not town.combat_hud.loot_cards.names.is_empty() and loot_plates_clear)
+	if DisplayServer.get_name() != "headless":
+		var overlay_capture := OS.get_environment("TEMP").path_join("curse_target_hud_overlays.png")
+		root.get_texture().get_image().save_png(overlay_capture)
+		print("CAPTURE ", overlay_capture)
+	ground_drop.queue_free()
+	town.player.attack_target = null
+	level_toast.toast_time = 0.0
 	for dimensions in GameSettings.RESOLUTIONS:
 		if DisplayServer.get_name() != "headless":
 			root.mode = Window.MODE_WINDOWED
