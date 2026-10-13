@@ -255,6 +255,51 @@ func _plain(variant: String) -> int:
 			count += 1
 	return count
 
+## stolen_ledger's brute respawn counts plain brutes only: a named (monster_uid) or bounty (quest_uid) brute alive does not stop a plain one
+## being put back, and a plain one alive stops a second. Named and bounty brutes are placed on the road by hand here, not killed.
+func _test_plain_brute_only() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.road_conditions_in_tests = false
+	Quests.news.clear()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	_clear_road()
+	await get_tree().process_frame
+	var ledger: Dictionary = Quests.post("stolen_ledger")
+	var named: Enemy = town.director.spawn_enemy(town.crypt.at(0, 120), "brute", 1.0)
+	named.set_meta("monster_uid", 987654)
+	town.populate_quests()
+	expect("a named brute alive and no plain one: a plain brute is added once (plain %d)" % _plain("brute"), _plain("brute") == 1)
+	town.populate_quests()
+	expect("the plain brute is not doubled while it lives", _plain("brute") == 1)
+	_clear_road()
+	var bounty: Enemy = town.director.spawn_enemy(town.crypt.at(0, 120), "brute", 1.0)
+	bounty.set_meta("quest_uid", int(ledger["uid"]))
+	town.populate_quests()
+	expect("a bounty brute alive and no plain one: a plain brute is added once (plain %d)" % _plain("brute"), _plain("brute") == 1)
+	_clear_road()
+	town.populate_quests()
+	var plain_now: int = _plain("brute")
+	var named_again: Enemy = town.director.spawn_enemy(town.crypt.at(0, 120), "brute", 1.0)
+	named_again.set_meta("monster_uid", 987655)
+	town.populate_quests()
+	expect("a plain brute and a named brute alive: no second plain brute (plain %d)" % _plain("brute"), plain_now == 1 and _plain("brute") == 1)
+	expect("the stolen_ledger item is still not granted by the reintroduction", not bool(ledger["data"].get("dropped", false))
+		and String(ledger["state"]) == "active")
+	town.queue_free()
+	_clear_road()
+	await get_tree().process_frame
+	TownState.reset()
+	Quests.news.clear()
+
 ## A reward orb far from the hero: gold (or a potion, or mana when neither is set), added to the suite so it is in the orbs group.
 func _orb_far_away(gold: int, potion: bool, mana: bool) -> HealthOrb:
 	var orb := HealthOrb.new()
