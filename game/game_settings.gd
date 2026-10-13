@@ -52,6 +52,8 @@ static var window_mode: int = 0
 static var resolution_index: int = 0   # index into RESOLUTIONS: the player's choice; the offered list depends on the monitor (see effective_resolution_index)
 static var monitor_index: int = -1     # -1 = never chosen, so the primary monitor is used
 static var monitor_rect: Rect2i = Rect2i()   # the chosen monitor's position and size: a reordered or unplugged monitor is not mistaken for another
+## Where settings are read and written. Only tests change this (to an isolated file); the game always uses PATH.
+static var settings_path: String = PATH
 static var vsync: bool = true
 static var render_scale_index: int = 1   # 85% by default: the Steam Deck cannot hold 60 at full resolution in a crowded fight
 static var msaa_index: int = 0   # off by default: MSAA cost a couple of ms a frame on the Steam Deck
@@ -116,7 +118,9 @@ static func apply_ui_scale() -> void:
 static func apply_video() -> void:
 	if not _watching_size:
 		_watching_size = true
-		((Engine.get_main_loop() as SceneTree).root as Window).size_changed.connect(apply_ui_scale)
+		var main_window: Window = (Engine.get_main_loop() as SceneTree).root
+		main_window.size_changed.connect(apply_ui_scale)
+		main_window.focus_entered.connect(recover_monitor)   # event-driven, not polled: see recover_monitor
 	apply_ui_scale()
 	var root: Window = (Engine.get_main_loop() as SceneTree).root
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
@@ -127,28 +131,33 @@ static func apply_video() -> void:
 	if DisplayServer.get_name() == "headless" or monitor_rects().is_empty():
 		return
 	var screen: int = apply_monitor()
-	var screen_size: Vector2i = DisplayServer.screen_get_size(screen)
-	var screen_pos: Vector2i = DisplayServer.screen_get_position(screen)
+	var full: Rect2i = Rect2i(DisplayServer.screen_get_position(screen), DisplayServer.screen_get_size(screen))
+	var usable: Rect2i = DisplayServer.screen_get_usable_rect(screen)
 	match window_mode:
 		0:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-			var size: Vector2i = RESOLUTIONS[effective_resolution_index(screen_size)]
-			size = Vector2i(mini(size.x, screen_size.x), mini(size.y, screen_size.y))
+			# A window fits the usable area (the display minus the taskbar), so it never sits under the taskbar.
+			var area: Rect2i = area_for_mode(true, full, usable)
+			var size: Vector2i = RESOLUTIONS[effective_resolution_index(area.size)]
+			size = Vector2i(mini(size.x, area.size.x), mini(size.y, area.size.y))
 			DisplayServer.window_set_size(size)
-			DisplayServer.window_set_position(screen_pos + (screen_size - size) / 2)
+			DisplayServer.window_set_position(area.position + (area.size - size) / 2)
 		1:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
-			DisplayServer.window_set_size(screen_size)
-			DisplayServer.window_set_position(screen_pos)
+			# Borderless covers the whole display, so it uses the full size (not the usable area).
+			DisplayServer.window_set_size(full.size)
+			DisplayServer.window_set_position(full.position)
 		2:
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 # --- monitors ------------------------------------------------------------------------
-# Godot 4 does not list a monitor's display modes (only its size, position and usable area), so the resolution choices are the fixed
-# RESOLUTIONS presets that fit on the chosen monitor. Monitors are re-read whenever they are needed, not watched for changes.
+# IMPORTANT: resolution choices are a FILTERED LIST OF FIXED PRESETS (RESOLUTIONS) that fit the chosen monitor. They are not the monitor's
+# hardware mode list: Godot 4 does not report one, so a monitor's supported modes cannot be shown. Windowed presets must fit the monitor's
+# usable area (excluding the taskbar); fullscreen and borderless use the full display size.
+# Monitors are read when needed (startup, menu open, window focus) and are not watched for changes.
 
 ## Position and size of every monitor the OS reports, in desktop coordinates. Empty without a real display (headless).
 static func monitor_rects() -> Array[Rect2i]:
@@ -177,11 +186,12 @@ static func resolve_monitor(saved_index: int, saved_rect: Rect2i, rects: Array[R
 		return saved_index
 	return fallback
 
-## "Monitor 1: 3440 x 1440 (primary)"; numbers follow the order the OS reports the screens in.
+## "Display 0: 3440 x 1440 (primary)". The number is Godot's screen index (the order DisplayServer reports). Godot gives no reliable mapping
+## to Windows display numbers or monitor model names, so neither is shown.
 static func monitor_names(rects: Array[Rect2i], primary: int) -> Array[String]:
 	var out: Array[String] = []
 	for i in rects.size():
-		var label: String = "Monitor %d: %d x %d" % [i + 1, rects[i].size.x, rects[i].size.y]
+		var label: String = "Display %d: %d x %d" % [i, rects[i].size.x, rects[i].size.y]
 		if i == primary:
 			label += " (primary)"
 		out.append(label)
@@ -209,11 +219,35 @@ static func effective_resolution_index(monitor_size: Vector2i) -> int:
 static func current_monitor_index() -> int:
 	return resolve_monitor(monitor_index, monitor_rect, monitor_rects(), primary_monitor())
 
-static func current_monitor_size() -> Vector2i:
-	var rects: Array[Rect2i] = monitor_rects()
+## The area resolution presets must fit: the usable area for windowed, the full display otherwise.
+static func area_for_mode(windowed: bool, full: Rect2i, usable: Rect2i) -> Rect2i:
+	return usable if windowed else full
+
+## Full and usable rectangles of one screen (Rect2i() when there is no such screen).
+static func monitor_area(index: int, windowed: bool) -> Rect2i:
+	if DisplayServer.get_name() == "headless" or index < 0 or index >= DisplayServer.get_screen_count():
+		return Rect2i()
+	var full: Rect2i = Rect2i(DisplayServer.screen_get_position(index), DisplayServer.screen_get_size(index))
+	return area_for_mode(windowed, full, DisplayServer.screen_get_usable_rect(index))
+
+static func current_monitor_size(windowed: bool) -> Vector2i:
+	return monitor_area(current_monitor_index(), windowed).size
+
+## True when the window must be moved: the chosen monitor is gone, or the window is on no valid screen. Pure, so it can be tested.
+static func needs_recovery(chosen: Rect2i, rects: Array[Rect2i], current_screen: int) -> bool:
 	if rects.is_empty():
-		return Vector2i.ZERO
-	return rects[current_monitor_index()].size
+		return false
+	if current_screen < 0 or current_screen >= rects.size():
+		return true
+	return chosen.size != Vector2i.ZERO and not rects.has(chosen)
+
+## Runs when the game window gains focus (an event, not a timer), and can be called after a display change. If the chosen monitor was
+## disconnected, apply_video moves the window to the primary monitor (see resolve_monitor). Nothing is changed when all is well.
+static func recover_monitor() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if needs_recovery(monitor_rect, monitor_rects(), DisplayServer.window_get_current_screen()):
+		apply_video()
 
 ## Monitor names for the settings menu; a single placeholder without a display.
 static func monitor_names_now() -> Array[String]:
@@ -442,8 +476,9 @@ static func reset_bindings() -> void:
 
 # --- persistence -------------------------------------------------------------------
 
-## `path` is only passed by the display check (an isolated file); the game always uses PATH.
-static func save_to_disk(path: String = PATH) -> void:
+## `path` (or settings_path when empty) is the file written. Tests set settings_path or pass a path; the game uses PATH.
+static func save_to_disk(path: String = "") -> void:
+	var target: String = path if path != "" else settings_path
 	var config := ConfigFile.new()
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("audio", "sfx_enabled", sfx_enabled)
@@ -469,11 +504,11 @@ static func save_to_disk(path: String = PATH) -> void:
 		config.set_value("input", action, custom_bindings[action])
 	for action in custom_pad_bindings:
 		config.set_value("input_pad", action, custom_pad_bindings[action])
-	config.save(path)
+	config.save(target)
 
-static func load_from_disk(path: String = PATH) -> void:
+static func load_from_disk(path: String = "") -> void:
 	var config := ConfigFile.new()
-	if config.load(path) != OK:
+	if config.load(path if path != "" else settings_path) != OK:
 		return
 	master_volume = float(config.get_value("audio", "master_volume", master_volume))
 	sfx_enabled = bool(config.get_value("audio", "sfx_enabled", sfx_enabled))
