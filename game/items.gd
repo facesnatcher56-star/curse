@@ -551,12 +551,8 @@ static func passive_effect_line(effect: Dictionary) -> String:
 			if not TownState.GEAR_SUITE_PASSIVES.get(suite, []).is_empty() else ""
 	var discipline := String(TownState.GEAR_DISCIPLINE_ALTERATIONS.get(alteration, ""))
 	if discipline == "": return ""
-	var ids: Array[String] = []
-	for id in TownState.GEAR_SUPPORTED_PASSIVES:
-		var def: PassiveDef = PassiveDb.get_def(String(id))
-		if def != null and def.tree == discipline:
-			ids.append(String(id))
-	return "+%d to %s Skills" % [amount, _supported_passive_names(ids)] if not ids.is_empty() else ""
+	var discipline_name := String(HeroAttributes.CLASS_NAMES.get(discipline, ""))
+	return "+%d to %s Skills" % [amount, discipline_name] if discipline_name != "" else ""
 
 static func _supported_passive_names(ids: Array) -> String:
 	var names: Array[String] = []
@@ -564,4 +560,9 @@ static func _supported_passive_names(ids: Array) -> String:
 		var def: PassiveDef = PassiveDb.get_def(String(id))
 		if def != null:
 			names.append(def.display_name)
-	return ", ".join(names)
+	if names.size() < 2:
+		return ", ".join(names)
+	var final_name: String = names.pop_back()
+	if names.size() == 1:
+		return "%s and %s" % [names[0], final_name]
+	return "%s, and %s" % [", ".join(names), final_name]

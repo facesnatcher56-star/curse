@@ -441,14 +441,15 @@ func _test_equipment_effects() -> void:
 	hero.character.equipment = {Items.Slot.RING: passive_ring}
 	expect("suite and discipline payloads grant only verified passive ranks",
 		TownState.gear_passive_bonus("barricade") == 3 and TownState.gear_passive_bonus("toughness") == 4
-		and TownState.gear_passive_bonus("critical_shot") == 2 and TownState.gear_passive_bonus("survival") == 1
+		and TownState.gear_passive_bonus("critical_shot") == 1 and TownState.gear_passive_bonus("survival") == 1
 		and TownState.gear_passive_bonus("searing_flames") == 1 and TownState.gear_passive_bonus("fortitude") == 2
 		and TownState.gear_passive_bonus("quick_draw") == 0)
 	expect("equipment ranks change effective rank without changing invested ranks",
 		TownState.passive_rank("barricade") == 2 and TownState.effective_passive_rank("barricade") == 5
 		and TownState.passive_rank("toughness") == 19 and TownState.effective_passive_rank("toughness") == PassiveDef.MAX_RANK)
-	expect("gear ranks do not satisfy purchase prerequisites", TownState.passive_blocker("overbear") == "Needs Critical Strike")
+	expect("gear ranks do not satisfy purchase prerequisites", TownState.passive_blocker("overbear") == "Needs Critical Strike 1")
 	expect("equipment passive payload is visible on item card", Items.lines(passive_ring).has("+2 to Barricade, Toughness, and Reinforced Armor"))
+	expect("discipline passive payload is named correctly on item card", Items.lines(passive_ring).has("+1 to Melee Skills"))
 	hero.character.equipment.clear()
 	expect("passive ranks disappear immediately when unequipped",
 		TownState.effective_passive_rank("barricade") == 2 and TownState.effective_passive_rank("critical_shot") == 0)
@@ -492,7 +493,7 @@ func _test_equipment_effects() -> void:
 	hero.character.equipment = {Items.Slot.RING: set_ring_a, Items.Slot.RING2: set_ring_b}
 	expect("set passive tiers activate at their worn-piece threshold", TownState.gear_passive_bonus("fortitude") == 1
 		and TownState.gear_passive_bonus("toughness") == 1)
-	expect("set passive tier is described on its item card", Items.lines(set_ring_a).has("  2 worn: +1 to Fortitude, Toughness"))
+	expect("set passive tier is described on its item card", Items.lines(set_ring_a).has("  2 worn: +1 to Fortitude and Toughness"))
 	hero.character.equipment.erase(Items.Slot.RING2)
 	expect("set passive tiers deactivate as soon as a piece is removed", TownState.gear_passive_bonus("fortitude") == 0)
 	AffixDb.all().erase(affix_id)
