@@ -53,9 +53,16 @@ static func clearance(node: Node3D, from: Vector3, to: Vector3, include_actors: 
 	var fractions := space.cast_motion(query)
 	return fractions.size() == 2 and fractions[0] >= 0.999
 
-static func line_clear(node: Node3D, to: Vector3) -> bool:
-	var query := PhysicsRayQueryParameters3D.create(node.global_position + Vector3.UP * 0.8, Vector3(to.x, 0.8, to.z), Actor.LAYER_WORLD)
-	return node.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+static func line_clear(node: Node3D, to: Vector3, ignore: Object = null) -> bool:
+	return sight_clear(node, node.global_position, to, ignore)
+
+## Waist-high sight line over the world geometry from `from` to `to`. When `ignore` is a prop being shot at, its own collider as the
+## first thing hit is allowed (the sight line ends at its centre); anything else in the way blocks.
+static func sight_clear(node: Node3D, from: Vector3, to: Vector3, ignore: Object = null) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(from + Vector3.UP * 0.8, Vector3(to.x, 0.8, to.z), Actor.LAYER_WORLD)
+	var hit: Dictionary = node.get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty(): return true
+	return ignore != null and hit.collider is Node and (hit.collider as Node).get_parent() == ignore
 
 static func reset(node: Node3D, state: Dictionary) -> void:
 	for i in range(_pending.size() - 1, -1, -1):
