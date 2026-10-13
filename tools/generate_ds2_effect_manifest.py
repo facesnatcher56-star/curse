@@ -641,17 +641,17 @@ def build_manifest_data(catalog):
             "notes": "Nature magic spell damage multiplier missing (Curse currently only has combat magic Fireball)."
         },
         "ALTER_POWER_DAMAGE_PERCENT": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "power_multiplier",
-            "runtime_key": None,
+            "runtime_key": "power_damage",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
-            "applicable_families": ["armor", "ring", "amulet"],
+            "applicable_families": ["armor", "ring", "amulet", "set"],
             "source_evidence": "ALTER_POWER_DAMAGE_PERCENT in items, affixes, sets (e.g. +<value>% Power Damage).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Equipment-driven damage bonus for activated powers missing from power pipelines."
+            "runtime_consumer": "game/player/player_stats.gd:power_damage_mult(), game/player/power_controller.gd:_strike(), game/player/power_controller.gd:_fire_blast(), game/player/skill_controller.gd:_apply_skill(), game/player/bow_attack.gd:loose()",
+            "test_path": "game/dev/suites/power_damage_tests.gd:_test_power_damage()",
+            "notes": "rules.skrit DamageGoPower$ multiplies every activated power's damage by 1 + the attacker's power damage bonus; sources add. Applied once in Brutal Attack, Whirling Strike, Staggering Blow, Flame Nexus, Detonation and the hero's Take Aim arrow; never to ordinary attacks or spells. Verified in power_damage_tests.gd with seeded runtime ratios (single, stacked, replaced, removed, saved). The one live item is the Assailing Talisman; the Cutter companion's Take Aim and powers Curse has not built are not scaled."
         },
         "alter_combat_magic": {
             "status": "unsupported",

@@ -14,6 +14,8 @@ UNIQUES = [
     # Two DS2 catalogue items (data/reference/ds2_equipment_catalog.json) whose bases and every alteration Curse already has: DS2 values, exact.
     ("dusk", "Dusk", "leather_jerkin", 16, {"armor": 8, "lightning_resist": 13, "death_resist": 13, "dodge_melee": 6, "magic_find": 18}, ""),
     ("grace_of_night", "Grace of Night", "leather_boots", 8, {"life": 12, "armor": 4, "ice_resist": 12, "dodge_ranged": 8}, ""),
+    # DS2 crafted item `mgc_a3_vet_crafted_4`: every alteration is implemented; its source requirement is melee or ranged item level - 8.
+    ("assailing_talisman", "Assailing Talisman", "talisman", 75, {"melee_max": 18, "ranged_max": 18, "recharge": 7, "power_damage": 3, "reflect": 30}, ""),
     ("gravecutter", "Gravecutter", "falchion", 12, {"melee_min": 7, "melee_pct": 20, "life_steal": 5, "magic_find": 10}, ""),
     ("wardens_oath", "The Warden's Oath", "kite_shield", 44, {"armor_pct": 60, "block": 12, "life": 120, "reflect": 20}, ""),
     ("emberheart", "Emberheart", "talisman", 30, {"int": 25, "spell_pct": 25, "fire_resist": 20, "mana": 120}, ""),
@@ -41,6 +43,10 @@ SETS = [
 ]
 
 
+# Source requirement expressions that differ from the base item's.
+REQUIREMENTS = {"assailing_talisman": "melee:#item_level-8|ranged:#item_level-8"}
+
+
 def mods(d) -> str:
     if not d:
         return "{}"
@@ -61,13 +67,14 @@ def main() -> None:
     uniques = {}
     for row in UNIQUES:
         ident, name, base, level, m, set_id = row[:6]
-        requirements = row[6] if len(row) > 6 else ""
-        uniques[ident + ".tres"] = "\n".join([
+        requirements = row[6] if len(row) > 6 else REQUIREMENTS.get(ident, "")
+        lines = [
             '[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]', "",
             '[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]', "", "[resource]",
             'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name.replace('"', '\\"'), 'base = "%s"' % base,
             "level = %d" % level, "mods = %s" % mods(m), 'set_id = "%s"' % set_id,
-            'requirements = "%s"' % requirements.replace('"', '\\"')]) + "\n"
+            'requirements = "%s"' % requirements.replace('"', '\\"')]
+        uniques[ident + ".tres"] = "\n".join(lines) + "\n"
     sets = {}
     for ident, name, bonuses in SETS:
         body = "{\n%s\n}" % ",\n".join('"%d": %s' % (count, mods(b)) for count, b in bonuses.items())

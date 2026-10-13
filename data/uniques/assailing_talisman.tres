@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "assailing_talisman"
+display_name = "Assailing Talisman"
+base = "talisman"
+level = 75
+mods = {
+"melee_max": 18.0,
+"ranged_max": 18.0,
+"recharge": 7.0,
+"power_damage": 3.0,
+"reflect": 30.0
+}
+set_id = ""
+requirements = "melee:#item_level-8|ranged:#item_level-8"

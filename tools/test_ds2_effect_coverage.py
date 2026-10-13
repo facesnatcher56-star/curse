@@ -84,9 +84,9 @@ class TestDS2EffectCoverage(unittest.TestCase):
                 self.assertIsNone(data.get("runtime_consumer"))
                 self.assertIsNone(data.get("test_path"))
 
-        self.assertEqual(status_counts["supported"], 41)
+        self.assertEqual(status_counts["supported"], 42)
         self.assertEqual(status_counts["untested"], 0)
-        self.assertEqual(status_counts["unsupported"], 16)
+        self.assertEqual(status_counts["unsupported"], 15)
         self.assertEqual(status_counts["unresolved"], 0)
         self.assertEqual(status_counts["cosmetic_only"], 1)
         self.assertEqual(status_counts["excluded"], 0)

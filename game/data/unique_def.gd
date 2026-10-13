@@ -10,7 +10,7 @@ extends Resource
 @export var level: int = 1
 ## Its fixed modifiers: stat (AffixDb.STAT_NAMES) -> value.
 @export var mods: Dictionary = {}
+## The source requirement expression (EquipmentRequirement syntax), when the item's DS2 requirement differs from its base's ("" keeps the base's).
+@export var requirements: String = ""
 ## The SetDef it belongs to ("" for a unique).
 @export var set_id: String = ""
-## Optional exact DS2 equipment requirement expression from the source catalog.
-@export var requirements: String = ""
