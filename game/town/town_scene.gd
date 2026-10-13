@@ -608,7 +608,7 @@ func populate_quests() -> void:
 		var alive: int = 0
 		for node in get_tree().get_nodes_in_group("enemies"):
 			var e := node as Enemy
-			if e != null and not e.dead and e.variant == target:
+			if e != null and not e.dead and not e.is_queued_for_deletion() and e.variant == target:
 				alive += 1
 		if Quests.wants_target_respawn(inst, alive):
 			crypt.respawn_fetch_target(inst)
