@@ -40,23 +40,31 @@ func _test_character_ui() -> void:
 	view_hud._input(toggle)
 	await get_tree().create_timer(0.3).timeout
 	expect("opening the character view pauses gameplay", get_tree().paused)
-	expect("character view blocks world clicks", view_hud.covers(Vector2(100, 100)))
 	expect("character portrait is a separate viewport", view_hud.character_panel.find_children("*", "SubViewport", true, false).size() == 1)
 	var sheet: Control = view_hud.character_panel
+	var character_rect: Rect2 = sheet.get_global_rect()
+	expect("character view blocks clicks inside its panel, not outside it",
+		view_hud.covers(character_rect.get_center()) and not view_hud.covers(Vector2(100, 100)))
 	expect("character sheet shows the DS2 human starting attributes, life and mana",
 		sheet.attributes_label.text.contains("STR 12  DEX 11  INT 11") and sheet.attributes_label.text.contains("Life 64  Mana 55"))
 	expect("character sheet exposes all four class levels, defences and nine equipment slots",
 		sheet.classes_label.text.contains("Melee 0") and sheet.classes_label.text.contains("Ranged 0")
 		and sheet.classes_label.text.contains("Combat Magic 0") and sheet.classes_label.text.contains("Nature Magic 0")
 		and sheet.gear_text().contains("Armor") and sheet.gear_text().contains("Magic find 10%") and sheet._doll_tiles.size() == 9)
-	var labels: Array[Node] = view_hud.character_panel.find_children("*", "Label", true, false)
-	var name_hover: bool = false
-	for label in labels:
-		if label.get_script() == preload("res://game/item_name.gd"):
-			var card: Control = label._make_custom_tooltip("")
-			name_hover = card.get_child_count() > 0
-			card.free()
-	expect("item names provide full stats cards", name_hover)
+	var falchion_item: Dictionary = town.player.stats.bag.filter(func(it: Dictionary) -> bool: return String(it["name"]).contains("Falchion"))[0]
+	var falchion_tile: ItemTile = _inventory_item_control(view_hud, falchion_item, false) as ItemTile
+	var card_visible: bool = false
+	if falchion_tile != null:
+		var details: Control = falchion_tile.get_node_or_null("ItemDetails") as Control
+		var motion := InputEventMouseMotion.new()
+		motion.position = falchion_tile.get_global_rect().get_center()
+		get_viewport().push_input(motion, true)
+		await get_tree().process_frame
+		if details != null and details.visible and details.get_child_count() > 0:
+			var card: Control = details.get_child(0) as Control
+			var card_labels: Array[Node] = card.find_children("*", "Label", true, false)
+			card_visible = card_labels.size() > 3 and card_labels.any(func(label: Label) -> bool: return label.text == String(falchion_item["name"]))
+	expect("backpack item tiles show the full stats card on hover", card_visible)
 	var previous_pad: bool = Gamepad.active
 	Gamepad.active = true
 	var tiles: Array[Node] = view_hud.character_panel.find_children("*", "Control", true, false).filter(func(node: Node) -> bool: return node is ItemTile)
@@ -67,20 +75,18 @@ func _test_character_ui() -> void:
 		expect("controller focus shows the item stats card", tile.get_child(0).visible)
 	Gamepad.active = previous_pad
 	var old: Dictionary = town.player.stats.equipment[Items.Slot.WEAPON]
+	var old_saved: Dictionary = Items.to_save(old)
 	var has_equip_button: bool = false
 	for button in view_hud.character_panel.find_children("*", "Button", true, false):
 		if button.text == "Equip":
 			has_equip_button = true
 	expect("bag items carry no Equip button (the card says how: R-click)", not has_equip_button)
-	var falchion_tile: Control = null
-	for bag_item in town.player.stats.bag:
-		if String(bag_item["name"]).contains("Falchion"):
-			falchion_tile = _inventory_item_control(view_hud, bag_item, false)
 	expect("the bag item's tile exists", falchion_tile != null)
 	if falchion_tile != null:
 		await _inventory_mouse_click(falchion_tile, MOUSE_BUTTON_RIGHT)
 	await get_tree().process_frame
-	expect("equipping from bag swaps old gear into bag", town.player.stats.equipment[Items.Slot.WEAPON]["name"].contains("Falchion") and town.player.stats.bag.has(old))
+	var old_is_in_bag: bool = town.player.stats.bag.any(func(it: Dictionary) -> bool: return Items.to_save(it) == old_saved)
+	expect("equipping from bag swaps old gear into bag", town.player.stats.equipment[Items.Slot.WEAPON]["name"].contains("Falchion") and old_is_in_bag)
 	view_hud._input(toggle)
 	expect("Tab toggles closed and resumes gameplay", not view_hud.show_gear and not get_tree().paused)
 	town.queue_free()

@@ -118,34 +118,36 @@ func _test_death_ragdoll() -> void:
 ## The hero's knockdown: a heavy blow (the old heavy-stagger trigger) puts him down -> downed -> getting up -> control; nothing works
 ## while he is down; death cancels the fall and revival leaves him standing and free.
 func _test_hero_knockdown() -> void:
+	# Keep this reference stable: dying the selected hero cycles game.player to Cutter.
+	var hero: Player = player
 	TownState.persist = false
 	TownState.reset()
 	TownState.dev_set_hero_level(10)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame
-	var kd: Knockdown = player.knockdown
+	var kd: Knockdown = hero.knockdown
 	var hit_hero: Callable = func(damage: float, weight: float) -> void:
-		var attacker: Enemy = _throw_dummy(player.global_position + Vector3(2.5, 0, 0))
-		var result: Dictionary = Combat.resolve(attacker, player, damage, Combat.DamageType.PHYSICAL, false, weight)
+		var attacker: Enemy = _throw_dummy(hero.global_position + Vector3(2.5, 0, 0))
+		var result: Dictionary = Combat.resolve(attacker, hero, damage, Combat.DamageType.PHYSICAL, false, weight)
 		result["outcome"] = Combat.Outcome.HIT
 		result["damage"] = damage
 		result["weight"] = weight
-		player.invulnerable_time = 0.0
-		player.receive(result, attacker.global_position)
-		player.knock = Vector3.ZERO
+		hero.invulnerable_time = 0.0
+		hero.receive(result, attacker.global_position)
+		hero.knock = Vector3.ZERO
 		attacker.queue_free()
 	var calm: Callable = func() -> void:
 		kd.reset()
-		player.stun_time = 0.0
-		player.invulnerable_time = 0.0
-		player.health = player.max_health
-		player.attack_target = null
-		player.movement.has_goal = false
-		player.skills.busy = false
-		player.skills.aiming_id = ""
-		player.global_position = Vector3.ZERO
-		player.reset_physics_interpolation()
+		hero.stun_time = 0.0
+		hero.invulnerable_time = 0.0
+		hero.health = hero.max_health
+		hero.attack_target = null
+		hero.movement.has_goal = false
+		hero.skills.busy = false
+		hero.skills.aiming_id = ""
+		hero.global_position = Vector3.ZERO
+		hero.reset_physics_interpolation()
 	await calm.call()
 	var ring: Array[Enemy] = []
 	for angle in [0.0, 2.1, 4.2]:
@@ -218,14 +220,14 @@ func _test_hero_knockdown() -> void:
 	await calm.call()
 	hit_hero.call(20.0, 2.7)
 	expect("a fresh knockdown", kd.active())
-	player.health = 1.0
-	player._apply_damage(500.0)
-	expect("dying cancels the knockdown outright", player.dead and not kd.active() and absf(player.visual.rotation.x) < 0.01)
+	hero.health = 1.0
+	hero._apply_damage(500.0)
+	expect("dying cancels the knockdown outright", hero.dead and not kd.active() and absf(hero.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(1.6).timeout
 	expect("a dead hero never gets up", kd.get_ups == 0 and not kd.active())
 	# Revive.
-	player.revive_at(Vector3.ZERO)
-	expect("revive leaves him alive, standing and unlocked", not player.dead and not kd.active() and player.stun_time == 0.0 and player.health > 0.0 and absf(player.visual.rotation.x) < 0.01)
+	hero.revive_at(Vector3.ZERO)
+	expect("revive leaves him alive, standing and unlocked", not hero.dead and not kd.active() and hero.stun_time == 0.0 and hero.health > 0.0 and absf(hero.visual.rotation.x) < 0.01)
 	await get_tree().create_timer(0.3).timeout
 	hit_hero.call(20.0, 2.7)
 	expect("a revived hero can be knocked down again", kd.active() and kd.knockdowns == 2)
@@ -234,7 +236,7 @@ func _test_hero_knockdown() -> void:
 	for e in ring:
 		e.queue_free()
 	foe.queue_free()
-	player.stats.cooldowns.clear()
+	hero.stats.cooldowns.clear()
 
 ## Physics stays cosmetic: walls and other bodies add no damage/stun. A direct
 ## hit on a ranged monster backing away still has its explicit snare reaction.
