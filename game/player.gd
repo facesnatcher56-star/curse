@@ -683,6 +683,12 @@ func _pursue_pickup(stand_still: bool) -> void:
 			else:
 				for body in PartyManager.current().living():
 					if body != self: body.attack_target = hover_enemy
+		elif hover_enemy == null and not skills.take_aim_targeting:
+			# The same order for a breakable prop (a nest or barrel) under the cursor: the companions shoot or swing at it.
+			var hover_prop: Destructible = Destructible.near(get_tree(), cursor_world(), 0.35, Destructible.HERO)
+			if hover_prop != null:
+				for body in PartyManager.current().living():
+					if body != self: body.attack_prop = hover_prop
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:
@@ -822,6 +828,10 @@ func _act(delta: float, cursor: Vector3) -> void:
 		if not is_instance_valid(attack_prop) or attack_prop.broken:
 			attack_prop = null
 		elif attack_target == null and skills.queued_skill == "":
+			if stats.is_ranged() and bow != null:
+				# An archer shoots the prop from a firing position, rather than walking up to it to swing.
+				bow.engage(null, attack_prop, delta, ctrl)
+				return
 			var offset: Vector3 = attack_prop.global_position - global_position
 			offset.y = 0.0
 			if offset.length() - attack_prop.radius <= 1.6:
@@ -847,6 +857,10 @@ func _act(delta: float, cursor: Vector3) -> void:
 		skills.clear_queue()
 		attack_target = null
 
+	# An archer's manual attack on an enemy takes the same firing-position decision as the companion's (sight, range, separation).
+	if skill_id == "basic" and target != null and stats.is_ranged() and bow != null:
+		bow.engage(target, null, delta, ctrl)
+		return
 	if skill_id != "" and target != null:
 		var skill: Dictionary = SkillDb.all()[skill_id]
 		var dist: float = flat_distance_to(target) - target.body_radius
