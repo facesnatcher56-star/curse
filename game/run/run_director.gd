@@ -503,6 +503,9 @@ func settle_ground_rewards(died: bool) -> String:
 				TownState.potions += 1
 				potions += 1
 			else:
+				# TEMPORARY LEGACY LIMITATION, not a finished no-loss fix: the pack holds at most MAX_POTIONS and the stash holds only
+				# gear, so a potion over the maximum is announced as left behind and its orb is freed with the scene. Owner decision
+				# pending (the rechargeable health flask is a separate assignment). Do not treat this path as complete.
 				potions_over += 1
 		else:
 			continue   # a healing orb is not a reward: it is only the old immediate heal, and it expires on its own
