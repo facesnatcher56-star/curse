@@ -608,7 +608,10 @@ func populate_quests() -> void:
 		var alive: int = 0
 		for node in get_tree().get_nodes_in_group("enemies"):
 			var e := node as Enemy
-			if e != null and not e.dead and not e.is_queued_for_deletion() and e.variant == target:
+			# Only plain monsters count: a named one (monster_uid) or a quest's own (quest_uid) never supplies the quest's item (its death is
+			# not reported as a kill), so a plain one is put back even while one of those lives.
+			if e != null and not e.dead and not e.is_queued_for_deletion() and e.variant == target \
+					and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
 				alive += 1
 		if Quests.wants_target_respawn(inst, alive):
 			crypt.respawn_fetch_target(inst)
