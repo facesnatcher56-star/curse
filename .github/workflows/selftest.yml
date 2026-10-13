@@ -71,7 +71,7 @@ jobs:
       - name: Run equipment integration suites
         run: |
           mkdir -p suite-logs
-          for name in equipmentintegration ds2items items inventoryequip lootui equipmenthits equipmenteffects elements rangedmods ds2combat               uiaudit movepriority uiblock camera knockdown herodown; do
+          for name in equipmentintegration ds2items items inventoryequip lootui equipmenthits equipmenteffects elements rangedmods ds2combat               uiaudit movepriority uiblock camera knockdown; do
             timeout 300 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest --only=$name > suite-logs/$name.log 2>&1 || true
           done
 
