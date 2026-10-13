@@ -113,6 +113,19 @@ func _draw() -> void:
 		_draw_strip(size_px, font)
 	_draw_toast(size_px, font)
 
+## The level-up plate bounds in viewport coordinates, shared with other HUD elements that must avoid it.
+func toast_rect(size_px: Vector2) -> Rect2:
+	if toast_time <= 0.0:
+		return Rect2()
+	var age: float = TOAST_SECONDS - toast_time
+	var slide: float = (1.0 - clampf(age / TOAST_IN, 0.0, 1.0)) * -12.0
+	var lines: int = 1 if toast_levels > 1 else 0
+	var width: float = 240.0
+	var target_bottom := 80.0
+	if _hud.use_ds2_ui and is_instance_valid(_hud.ds2_target_banner) and _hud.ds2_target_banner.visible:
+		target_bottom = _hud.ds2_target_banner.get_global_rect().end.y + 12.0
+	return Rect2(Vector2((size_px.x - width) * 0.5, target_bottom + slide), Vector2(width, 54.0 + 22.0 * lines))
+
 func _draw_strip(size_px: Vector2, font: Font) -> void:
 	var rect: Rect2 = strip_rect(size_px)
 	var maxed: bool = HeroProgression.is_max_level(TownState.hero_xp)
@@ -141,13 +154,8 @@ func _draw_toast(size_px: Vector2, font: Font) -> void:
 		return
 	var age: float = TOAST_SECONDS - toast_time
 	var fade: float = clampf(minf(age / TOAST_IN, toast_time / TOAST_OUT), 0.0, 1.0)
-	var slide: float = (1.0 - clampf(age / TOAST_IN, 0.0, 1.0)) * -12.0
 	var lines: int = 1 if toast_levels > 1 else 0
-	var width: float = 240.0
-	var target_bottom := 80.0
-	if _hud.use_ds2_ui and is_instance_valid(_hud.ds2_target_banner) and _hud.ds2_target_banner.visible:
-		target_bottom = _hud.ds2_target_banner.get_global_rect().end.y + 12.0
-	var plate := Rect2(Vector2((size_px.x - width) * 0.5, target_bottom + slide), Vector2(width, 54.0 + 22.0 * lines))
+	var plate: Rect2 = toast_rect(size_px)
 	UiTheme.draw_panel(self, plate, 0.9 * fade, false)
 	var spread: float = clampf(age / 0.35, 0.0, 1.0)   # the ember line draws out from the middle
 	var line_w: float = (plate.size.x - 48.0) * spread

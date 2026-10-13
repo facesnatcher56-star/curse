@@ -312,25 +312,37 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 		entries.append({"drop": drop, "anchor": anchor, "width": width, "verdict": verdict})
 	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["anchor"].y > b["anchor"].y)
 	var placed: Array[Rect2] = []
+	var toast_rect: Rect2 = hud.progression_hud.toast_rect(hud.get_viewport_rect().size) if hud.progression_hud != null else Rect2()
 	for entry in entries:
 		var anchor: Vector2 = entry["anchor"]
 		var rect := Rect2(anchor.x - float(entry["width"]) * 0.5, anchor.y - NAME_HEIGHT - 10.0, float(entry["width"]), NAME_HEIGHT)
-		var guard: int = 0
-		while guard < 60:
-			var clash: bool = false
-			for other in placed:
-				if rect.grow(2.0).intersects(other):
-					clash = true
-					rect.position.y = other.position.y - NAME_HEIGHT - 3.0   # lifted just above the plate it landed on
-					break
-			if not clash:
-				break
-			guard += 1
-		if hud.covers(rect.get_center()) or hud.covers(rect.position) or hud.covers(rect.end):
+		var original_y: float = rect.position.y
+		var found: bool = false
+		for step in 65:
+			var distance: float = float((step + 1) / 2) * 12.0
+			var offset: float = 0.0 if step == 0 else distance * (1.0 if step % 2 == 1 else -1.0)
+			rect.position.y = clampf(original_y + offset, 2.0, hud.get_viewport_rect().size.y - NAME_HEIGHT - 2.0)
+			if _plate_blocked(rect, toast_rect, placed):
+				continue
+			found = true
+			break
+		if not found:
 			continue   # it would sit under the hotbar, the minimap or an open panel: left out, not drawn over them
 		placed.append(rect)
 		out.append({"drop": entry["drop"], "rect": rect, "anchor": anchor, "verdict": entry["verdict"]})
 	return out
+
+func _plate_blocked(rect: Rect2, toast_rect: Rect2, placed: Array[Rect2]) -> bool:
+	if toast_rect.size != Vector2.ZERO and rect.grow(2.0).intersects(toast_rect):
+		return true
+	if hud.use_ds2_ui and is_instance_valid(hud.ds2_party_frame) and hud.ds2_party_frame.visible and rect.grow(6.0).intersects(hud.ds2_party_frame.get_global_rect()):
+		return true
+	if hud.use_ds2_ui and is_instance_valid(hud.ds2_target_banner) and hud.ds2_target_banner.visible and rect.grow(6.0).intersects(hud.ds2_target_banner.get_global_rect()):
+		return true
+	for other in placed:
+		if rect.grow(2.0).intersects(other):
+			return true
+	return hud.covers(rect.position) or hud.covers(Vector2(rect.end.x, rect.position.y)) or hud.covers(Vector2(rect.position.x, rect.end.y)) or hud.covers(rect.end) or hud.covers(rect.get_center())
 
 func _draw_loot_names(font: Font) -> void:
 	var mouse: Vector2 = hud.get_viewport().get_mouse_position() if hud.mouse_override.x < 0.0 else hud.mouse_override
@@ -340,8 +352,19 @@ func _draw_loot_names(font: Font) -> void:
 		var anchor: Vector2 = entry["anchor"]
 		var colour: Color = Items.RARITY_COLORS[int(drop.item["rarity"])]
 		var focus: bool = LootDrop.focused == drop or rect.has_point(mouse)
+		var line_start: Vector2 = Vector2.ZERO
+		var draw_connector: bool = false
 		if rect.end.y < anchor.y - 12.0:   # lifted off its item: a line shows whose name it is
-			hud.draw_line(Vector2(rect.get_center().x, rect.end.y), anchor, Color(colour.r, colour.g, colour.b, 0.55), 1.0)
+			line_start = Vector2(rect.get_center().x, rect.end.y)
+			draw_connector = true
+		elif rect.position.y > anchor.y + 12.0:   # moved below its item to clear the toast or a HUD panel
+			line_start = Vector2(rect.get_center().x, rect.position.y)
+			draw_connector = true
+		if draw_connector:
+			var line_bounds := Rect2(line_start, Vector2(0.001, 0.001)).expand(anchor)
+			var toast_rect: Rect2 = hud.progression_hud.toast_rect(hud.get_viewport_rect().size) if hud.progression_hud != null else Rect2()
+			if toast_rect.size == Vector2.ZERO or not line_bounds.intersects(toast_rect):
+				hud.draw_line(line_start, anchor, Color(colour.r, colour.g, colour.b, 0.55), 1.0)
 		hud.draw_rect(rect, Color(0.03, 0.03, 0.04, 0.82 if focus else 0.62))
 		hud.draw_rect(rect, Color(colour.r, colour.g, colour.b, 0.95 if focus else 0.45), false, 1.5 if focus else 1.0)
 		var verdict: int = int(entry["verdict"])

@@ -107,6 +107,15 @@ func _test_loot_appraisal() -> void:
 		for j in range(i + 1, rects.size()):
 			clashes += 1 if (rects[i] as Rect2).intersects(rects[j]) else 0
 	expect("marked plates do not overlap each other", clashes == 0)
+	var toast_rect: Rect2 = hud.progression_hud.toast_rect(hud.get_viewport_rect().size)
+	var toast_clashes: int = 0
+	for rect_value in rects:
+		toast_clashes += 1 if (rect_value as Rect2).grow(2.0).intersects(toast_rect) else 0
+	expect("loot name plates stay clear of the visible level-up toast", toast_clashes == 0)
+	var hud_clashes: int = 0
+	for rect_value in rects:
+		hud_clashes += 1 if hud.loot_cards._plate_blocked(rect_value, Rect2(), []) else 0
+	expect("loot name plates stay clear of the party frames and other HUD controls", hud_clashes == 0)
 
 	# --- The pickup path: upgrade, locked, full bag, no double pickup -------------------------------------------------------------------------
 	d_up.pick_up(player)
