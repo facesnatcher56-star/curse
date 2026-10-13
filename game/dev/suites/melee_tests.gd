@@ -126,6 +126,224 @@ func _test_auto_attack() -> void:
 	dummy.queue_free()
 	await get_tree().process_frame
 
+## A plain ground click abandons an unlanded swing or its recovery and starts locomotion immediately.
+func _test_move_priority() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var was_pad: bool = Gamepad.active
+	var start: Vector3 = _free_lane_start(14.0, 6.0)
+	player.global_position = start
+	player.reset_physics_interpolation()
+	player.hitpause = 0.0
+	player.stun_time = 0.0
+	player.movement.has_goal = false
+	Gamepad.active = true   # deterministic cursor_override targeting in the headless self-test
+	var destination: Vector3 = start + Vector3(0.0, 0.0, 2.2)
+	player.cursor_override = destination
+	var target: Enemy = _spawn_enemy(start + Vector3(4.5, 0.0, 0.0))
+	target.aggro_range = 0.0
+	target.max_health = 5000.0
+	target.health = target.max_health
+	target.dodge_chance = 0.0
+	target.block_chance = 0.0
+	await get_tree().physics_frame
+	# Before the melee hit frame: the click clears engagement and all swing state.
+	player.attack_target = target
+	player.click_mode = 1
+	player.skills.start_skill("basic", target)
+	var health_before: float = target.health
+	await _click_ground(destination)
+	var before_hit_cancelled: bool = not player.skills.busy and player.skills.busy_skill == "" \
+		and player.skills.busy_def.is_empty() and player.skills.busy_target == null and not player.skills.busy_hit_done \
+		and is_zero_approx(player.skills.busy_t) and not player._attack_engaged and player.attack_target == null \
+		and player.skills.queued_skill == "" and player.skills.queued_target == null
+	expect("ground click cancels a melee wind-up before damage and clears the old target/queue", before_hit_cancelled and target.health == health_before)
+	expect("ground click transitions directly into movement animation", ["walk", "run"].has(player.model.current)
+		and player.velocity.length() > 0.5 and player.movement.has_goal)
+	expect("cancelled melee trail and pose locks are cleared", not player._trail.active and is_zero_approx(player.visual.rotation.x))
+	for i in 8:
+		await get_tree().physics_frame
+	expect("cancelled auto-attack does not reacquire the previous target", player.attack_target == null and not player._attack_engaged
+		and not player.skills.busy)
+
+	# A legitimately applied hit survives cancellation during the visible recovery window.
+	player.set_physics_process(false)
+	player.global_position = start
+	player.reset_physics_interpolation()
+	player.movement.has_goal = false
+	target.global_position = start + Vector3(1.5, 0.0, 0.0)
+	player.attack_target = target
+	player.skills.start_skill("basic", target)
+	var hit_at: float = player.skills.busy_time * SkillController.hit_fraction(player.skills.busy_def)
+	player.skills.tick_busy(hit_at + 0.01)
+	var health_after_hit: float = target.health
+	player.hitpause = 0.0
+	player.set_physics_process(true)
+	player.cursor_override = start + Vector3(0.0, 0.0, -2.2)
+	await _click_ground(player.cursor_override)
+	expect("movement cancels attack recovery without undoing damage already dealt", health_after_hit < health_before
+		and target.health == health_after_hit and not player.skills.busy and ["walk", "run"].has(player.model.current))
+	expect("recovery cancellation clears every action lock before locomotion", player.skills.busy_skill == "" and player.skills.busy_def.is_empty()
+		and player.skills.busy_target == null and not player.skills.busy_hit_done and not player._trail.active)
+
+	# Repeated ordinary movement clicks replace the current destination.
+	var second_destination: Vector3 = start + Vector3(0.0, 0.0, -3.0)
+	player.cursor_override = second_destination
+	await _click_ground(second_destination)
+	expect("repeated movement clicks update the navigation destination", player.movement.has_goal
+		and player.movement.goal.distance_to(Nav.snap(player, second_destination)) < 0.05)
+
+	# Stun and knockdown retain the order but keep the body physically locked until they end.
+	player.movement.has_goal = false
+	player.knock = Vector3.ZERO
+	player.stun_time = 0.35
+	player.attack_target = target
+	var stun_position: Vector3 = player.global_position
+	await _click_ground(destination)
+	expect("movement click during stun clears combat and records its destination without moving", not player.skills.busy
+		and player.attack_target == null and player.movement.has_goal and player.global_position.distance_to(stun_position) < 0.01)
+	player.stun_time = 0.0
+	await get_tree().physics_frame
+	expect("the stored movement order starts as soon as stun clears", ["walk", "run"].has(player.model.current)
+		and player.velocity.length() > 0.5)
+	player.movement.has_goal = false
+	player.knockdown.begin()
+	player.attack_target = target
+	player.knock = Vector3.ZERO
+	var down_position: Vector3 = player.global_position
+	await _click_ground(second_destination)
+	expect("movement click during knockdown records an order without breaking the fall", player.knockdown.active()
+		and player.attack_target == null and player.movement.has_goal and player.global_position.distance_to(down_position) < 0.01)
+	player.knockdown.cancel()
+	player.movement.has_goal = false
+
+	# The explicit exceptions remain in force while controls are locked, rolling, or held in stand-still mode.
+	player.attack_target = target
+	player.skills.start_skill("basic", target)
+	player.input_locked = true
+	await _click_ground(destination)
+	expect("control-switch input lock does not consume or cancel the attack", player.skills.busy and player.attack_target == target
+		and not player.movement.has_goal)
+	player.input_locked = false
+	player.skills.cancel_action()
+	player.attack_target = target
+	player.skills.start_skill("basic", target)
+	player.stats.cooldowns["dodge"] = 0.0
+	player.stats.stamina = player.stats.max_stamina
+	player.movement.try_roll(destination)
+	player.cursor_override = destination
+	await _click_ground(destination)
+	expect("movement clicks do not take over a dodge roll", player.movement.rolling and not player.skills.busy
+		and not player.movement.has_goal)
+	player.movement.rolling = false
+	player.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
+	player.attack_target = target
+	player.skills.start_skill("basic", target)
+	Input.action_press("stand_still")
+	await _click_ground(destination)
+	Input.action_release("stand_still")
+	expect("Ctrl plus ground click preserves the current attack", player.skills.busy and player.attack_target == target
+		and not player.movement.has_goal)
+	player.skills.cancel_action()
+	player.attack_target = null
+
+	# A charged spell is canceled before release, while a spell already thrown remains scene-owned.
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["fireball"] = 0.0
+	var aim: Vector3 = start + Vector3(0.0, 0.0, -14.0)
+	var projectile_count: int = _scene_projectiles().size()
+	player.skills.start_skill("fireball", null, aim)
+	await _click_ground(destination)
+	expect("movement cancels an unreleased Fireball and refunds its charge", not player.skills.busy
+		and is_equal_approx(player.stats.mana, player.stats.max_mana) and float(player.stats.cooldowns.get("fireball", 0.0)) == 0.0
+		and _scene_projectiles().size() == projectile_count)
+	player.movement.has_goal = false
+	player.stats.mana = player.stats.max_mana
+	player.stats.cooldowns["fireball"] = 0.0
+	player.set_physics_process(false)
+	player.skills.start_skill("fireball", null, aim)
+	for i in 120:
+		if player.skills.busy_hit_done:
+			break
+		player.skills.tick_busy(1.0 / 60.0)
+	var released_fireball: Projectile
+	for node in _scene_projectiles():
+		if node is Projectile:
+			released_fireball = node as Projectile
+	player.set_physics_process(true)
+	await _click_ground(second_destination)
+	expect("movement cancels Fireball recovery but the released projectile continues", released_fireball != null
+		and is_instance_valid(released_fireball) and not player.skills.busy)
+	if is_instance_valid(released_fireball):
+		released_fireball.queue_free()
+
+	# The bow follows the same release boundary: no arrow before release, launched arrows persist.
+	player.set_physics_process(false)
+	player.global_position = start
+	player.reset_physics_interpolation()
+	var worn_weapon: Dictionary = player.stats.equipment[Items.Slot.WEAPON].duplicate(true)
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow"), false)
+	var bow_target: Enemy = _spawn_enemy(start + Vector3(0.0, 0.0, -8.0))
+	bow_target.aggro_range = 0.0
+	bow_target.max_health = 5000.0
+	bow_target.health = bow_target.max_health
+	await get_tree().physics_frame
+	var arrow_count: int = _scene_projectiles().filter(func(node: Node) -> bool: return node is CompanionArrow).size()
+	player.skills.start_skill("basic", bow_target)
+	player.set_physics_process(true)
+	await _click_ground(destination)
+	expect("movement cancels an unreleased bow draw without launching an arrow", player.bow != null and not player.skills.busy
+		and _scene_projectiles().filter(func(node: Node) -> bool: return node is CompanionArrow).size() == arrow_count)
+	player.set_physics_process(false)
+	player.global_position = start
+	player.reset_physics_interpolation()
+	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow"), false)
+	player.skills.start_skill("basic", bow_target)
+	for i in 120:
+		if player.skills.busy_hit_done:
+			break
+		player.skills.tick_busy(1.0 / 60.0)
+	var released_arrow: CompanionArrow
+	for node in _scene_projectiles():
+		if node is CompanionArrow:
+			released_arrow = node as CompanionArrow
+	player.set_physics_process(true)
+	await _click_ground(second_destination)
+	expect("movement cancels bow recovery but the released arrow remains in flight", released_arrow != null
+		and is_instance_valid(released_arrow) and not player.skills.busy)
+	if is_instance_valid(released_arrow):
+		released_arrow.queue_free()
+	player.set_physics_process(false)
+	player.stats.wear(Items.Slot.WEAPON, worn_weapon)
+	player.set_physics_process(true)
+	bow_target.queue_free()
+
+	player.skills.cancel_action()
+	player.attack_target = null
+	player.movement.has_goal = false
+	player.cursor_override = Vector3.INF
+	Gamepad.active = was_pad
+	target.queue_free()
+	await get_tree().process_frame
+
+func _click_ground(point: Vector3) -> void:
+	player.cursor_override = point
+	Input.action_press("click")
+	await get_tree().physics_frame
+	Input.action_release("click")
+	await get_tree().physics_frame
+
+func _scene_projectiles() -> Array[Node]:
+	var out: Array[Node] = []
+	var scene: Node = get_tree().current_scene
+	if scene == null:
+		return out
+	for node in scene.get_children():
+		if node is Projectile or node is CompanionArrow:
+			out.append(node)
+	return out
+
 ## Thrown bodies and wall bounces are presentation, never an extra attack.
 func _test_impact() -> void:
 	player.global_position = Vector3(-25, 0, -25)

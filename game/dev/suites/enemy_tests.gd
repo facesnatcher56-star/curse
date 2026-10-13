@@ -298,6 +298,9 @@ func _test_balance() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await get_tree().process_frame
+	# This test measures the shape of random pack placements. Keep the sampled layouts
+	# stable so earlier tests consuming the global RNG cannot make the assertion flaky.
+	seed(2026)
 	for w in [1, 4]:
 		wave = w - 1
 		_next_wave()
@@ -368,6 +371,7 @@ func _test_balance() -> void:
 	print("  after cancel: busy=", player.skills.busy)
 	target.queue_free()
 	await get_tree().process_frame
+	randomize()
 
 ## Walk/run selection follows the DS2 movement band without slow-motion running.
 func _test_enemy_run() -> void:

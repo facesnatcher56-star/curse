@@ -63,13 +63,22 @@ jobs:
           set -o pipefail
           timeout 1200 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest 2>&1 | tee selftest.log
 
+      - name: Run Item Test Lab suite
+        run: |
+          set -o pipefail
+          timeout 120 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest --only=itemlab 2>&1 | tee itemlab.log
+
       - name: Check results
         if: always()
-        run: python3 tools/ci_check_selftest.py selftest.log
+        run: |
+          python3 tools/ci_check_selftest.py selftest.log
+          python3 tools/ci_check_selftest.py itemlab.log
 
       - name: Upload log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: selftest-log
-          path: selftest.log
+          path: |
+            selftest.log
+            itemlab.log

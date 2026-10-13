@@ -226,6 +226,13 @@ func _physics_process(delta: float) -> void:
 	if _dormancy_timer <= 0.0:
 		_dormancy_timer = 0.5
 		_manage_dormancy()
+	# Busy actions, hit-pause and control locks must not swallow an explicit ground order.
+	# Consume only eligible world movement clicks here; normal enemy, loot and UI clicks
+	# continue through the existing input path.
+	var move_click: bool = false
+	if not dead and is_controlled() and not input_locked and not movement.rolling \
+			and (skills.busy or stun_time > 0.0 or knockdown.active()):
+		move_click = _read_interrupt_move_click(cursor_world())
 	if _actor_tick(delta):
 		move_with(Vector3.ZERO)
 		return
@@ -263,6 +270,13 @@ func _physics_process(delta: float) -> void:
 		if input_locked:
 			if skills.busy: skills.tick_busy(delta)
 			return
+	if move_click:
+		if stun_time > 0.0 or knockdown.active():
+			move_with(Vector3.ZERO)
+			return
+		_act(delta, cursor_world())
+		movement.update_locomotion_anim()
+		return
 	_update_pad_aim(delta)
 	var cursor: Vector3 = cursor_world()
 	hover_target = _hover_pick(cursor)
@@ -481,15 +495,33 @@ func _update_focus_glow(focus: Variant) -> void:
 	if _glowing != null:
 		_glowing.set_highlighted(true)
 
-## The mouse is over a HUD panel (minimap, hotbar, bars).
-func mouse_over_ui(at: Vector2 = Vector2(-1.0, -1.0)) -> bool:
-	if Gamepad.active:
-		return false
-	var mouse: Vector2 = get_viewport().get_mouse_position() if at.x < 0.0 else at
+## Latch UI clicks before a button can close its popup before the next physics tick.
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton) or not event.is_action("click"):
+		return
+	var click := event as InputEventMouseButton
+	if click.pressed and not click.is_echo():
+		_ui_click = _point_over_ui(click.position, true)
+	elif not click.pressed:
+		_ui_click = false
+
+func _point_over_ui(mouse: Vector2, check_hovered_control: bool = false) -> bool:
+	# Polling Input actions does not respect Control.accept_event(). The active GUI control
+	# (including popups) must keep world commands out.
+	if check_hovered_control and get_viewport().gui_get_hovered_control() != null:
+		return true
 	for node in get_tree().get_nodes_in_group("hud"):
 		if node.has_method("covers") and node.covers(mouse):
 			return true
 	return false
+
+## The mouse is over an interactive control or a custom-drawn HUD panel.
+func mouse_over_ui(at: Vector2 = Vector2(-1.0, -1.0)) -> bool:
+	if Gamepad.active:
+		return false
+	if at.x < 0.0:
+		return _point_over_ui(get_viewport().get_mouse_position(), true)
+	return _point_over_ui(at)
 
 var _ui_click: bool = false   # the current mouse press started on the interface: it does not move or attack
 
@@ -512,7 +544,7 @@ func _read_input(cursor: Vector3) -> void:
 	_pursue_pickup(ctrl)
 
 	if Input.is_action_just_pressed("click"):
-		_ui_click = mouse_over_ui()
+		_ui_click = _ui_click or mouse_over_ui()
 	if not Input.is_action_pressed("click"):
 		_ui_click = false
 	if Input.is_action_just_pressed("click") and not _ui_click:
@@ -736,6 +768,35 @@ func revive_at(pos: Vector3) -> void:
 	reset_physics_interpolation()
 	model.current = ""   # the death clip is over: the next loop() must really start the idle
 	model.loop("idle_alert")
+
+## Consume an explicit ground order while an action or movement lock would otherwise hide input.
+## UI, actors, loot, props and Ctrl clicks keep their existing semantics.
+func _read_interrupt_move_click(cursor: Vector3) -> bool:
+	if Input.is_action_just_pressed("click"):
+		_ui_click = _ui_click or mouse_over_ui()
+	elif not Input.is_action_pressed("click"):
+		_ui_click = false
+	if not Input.is_action_just_pressed("click") or _ui_click or Input.is_action_pressed("stand_still") \
+			or skills.take_aim_targeting or skills.aiming_id != "":
+		return false
+	if _hover_pick(cursor) != null:
+		return false
+	var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
+	if loot != null and not loot.is_queued_for_deletion():
+		return false
+	if Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null:
+		return false
+	click_mode = 0
+	pickup_target = null
+	attack_prop = null
+	attack_target = null
+	skills.clear_queue()
+	movement.goal = Nav.snap(self, cursor)
+	movement.has_goal = true
+	Fx.click_marker(self, cursor)
+	if skills.busy and skills.swing_cancellable_by_move():
+		skills.cancel_action()
+	return true
 
 # --- Acting ------------------------------------------------------------------
 
