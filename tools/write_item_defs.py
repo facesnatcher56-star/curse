@@ -44,9 +44,9 @@ ITEMS = [
     ("short_bow", "Short Bow", 0, "bow", "", [2, 17, 38, 60, 84], {"damage": 1.0, "speed": 1.0}),
     # Source-backed bases used by the representative catalog resistance uniques below.
     # Appended to preserve the established order values of existing item definitions.
-    ("apprentice_robe", "Apprentice Robe", 1, "body", "mage", [16], {}),
-    ("carved_tunic", "Carved Tunic", 1, "body", "ranger", [26], {}),
-    ("woven_hood", "Woven Hood", 4, "helm", "mage", [13], {}),
+    ("apprentice_robe", "Apprentice Robe", 1, "body", "mage", [3, 9, 18, 33, 45], {}),
+    ("carved_tunic", "Carved Tunic", 1, "body", "ranger", [7, 16, 28, 49, 55], {}),
+    ("woven_hood", "Woven Hood", 4, "helm", "mage", [5, 11, 20, 29, 38], {}),
 ]
 
 TWO_HAND_CLIPS = {
