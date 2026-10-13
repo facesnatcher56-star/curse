@@ -149,7 +149,11 @@ func in_reach(hero: Node3D) -> bool:
 ## The hero takes it: worn if the slot is empty, otherwise into the bag.
 func pick_up(hero: Player) -> void:
 	if is_queued_for_deletion(): return # A second member/click cannot collect a queued drop twice.
+	var worn_at_once: bool = hero.stats.takes_empty_slot(item)
+	var verdict: int = LootAppraisal.of(item, hero.stats)
 	if not hero.stats.pickup(item).is_empty():
+		if verdict == LootAppraisal.Verdict.UPGRADE and not worn_at_once:   # it is in the bag, and it is better than what is worn: say so
+			Fx.text_at(hero, hero.global_position + Vector3(0, 3.1, 0), "Upgrade in your bag", LootAppraisal.UPGRADE_COLOR, 30)
 		queue_free() # no space: leave the item on the ground, never delete carried loot
 
 func _camera_scale() -> float:

@@ -13,6 +13,10 @@ var ground_card_rect := Rect2()   # actual drawn ground card, for focused layout
 ## above it, with a thin line back to its item.
 const NAME_HEIGHT := 21.0
 const NAME_FONT := 15
+const UPGRADE_COLOR := LootAppraisal.UPGRADE_COLOR
+const LOCKED_COLOR := LootAppraisal.LOCKED_COLOR
+## Room for the upgrade arrow or the locked cross at the left end of a name plate.
+const MARK_WIDTH := 16.0
 
 ## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
 ## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
@@ -89,9 +93,20 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 			UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), mark + String(entry["text"]), 14, sign_color)
 	if for_drop:
 		y += 26.0
-		var upgrade: bool = hud.player.stats.takes_empty_slot(item)
-		UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
-			Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
+		var walk: Dictionary = _walk_over(item)
+		UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), String(walk.text), 14, walk.color)
+
+## What walking over a drop does, with the appraisal's verdict: worn at once, a better piece waiting in the bag, or not wearable yet.
+func _walk_over(item: Dictionary) -> Dictionary:
+	var stats: PlayerStats = hud.player.stats
+	if stats.takes_empty_slot(item):
+		return {"text": "Walk over it: you will wear it (empty slot)", "color": Color(0.95, 0.8, 0.5)}
+	match LootAppraisal.of(item, stats):
+		LootAppraisal.Verdict.UPGRADE:
+			return {"text": "Walk over it: it goes in the bag (better than what you wear)", "color": UPGRADE_COLOR}
+		LootAppraisal.Verdict.LOCKED:
+			return {"text": "Walk over it: it goes in the bag (you cannot wear it yet)", "color": LOCKED_COLOR}
+	return {"text": "Walk over it: it goes in the bag", "color": Color(0.7, 0.68, 0.62)}
 
 ## Restrict clearance to the active return-waystone decision; other cards retain their layout.
 func _return_prompt_rect() -> Rect2:
@@ -161,9 +176,8 @@ func _draw_return_card_body(item: Dictionary, worn: Variant, lines: Array[String
 			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
 			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
 			UiTheme.text(hud, font, Vector2(pad + 6.0 + float(i / per_col) * inner * 0.5, float(m.rows_y) + 18.0 * float(i % per_col)), mark + String(entry["text"]), 14, sign_color)
-	var upgrade: bool = hud.player.stats.takes_empty_slot(item)
-	UiTheme.text(hud, font, Vector2(pad + 6.0, m.drop_y), "Walk over it: you will wear it (empty slot)" if upgrade else "Walk over it: it goes in the bag", 14,
-		Color(0.95, 0.8, 0.5) if upgrade else Color(0.7, 0.68, 0.62))
+	var walk: Dictionary = _walk_over(item)
+	UiTheme.text(hud, font, Vector2(pad + 6.0, m.drop_y), String(walk.text), 14, walk.color)
 
 ## Find empty rectangles from actual obstacle edges, then fit the complete card into them.
 ## Prefer full-size typography, widening wrapped content before uniformly scaling it.
@@ -266,6 +280,20 @@ func drop_in_focus() -> LootDrop:
 			best = drop
 	return best
 
+## Each drop's verdict, worked out again at most every REAPPRAISE_MS (wearing something, levelling up or a new hero changes it), not every frame.
+const REAPPRAISE_MS := 400
+var _verdicts: Dictionary = {}   # LootDrop -> int
+var _appraised_at: int = -REAPPRAISE_MS
+
+func _verdict_of(drop: LootDrop) -> int:
+	var now: int = Time.get_ticks_msec()
+	if now - _appraised_at >= REAPPRAISE_MS:
+		_verdicts.clear()
+		_appraised_at = now
+	if not _verdicts.has(drop):
+		_verdicts[drop] = LootAppraisal.of(drop.item, hud.player.stats)
+	return _verdicts[drop]
+
 func _layout_loot_names(font: Font) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var camera: Camera3D = hud.get_viewport().get_camera_3d()
@@ -278,7 +306,10 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 			continue
 		var anchor: Vector2 = camera.unproject_position(drop.global_position + Vector3(0, 0.4, 0))
 		var width: float = font.get_string_size(String(drop.item["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_FONT).x + 14.0
-		entries.append({"drop": drop, "anchor": anchor, "width": width})
+		var verdict: int = _verdict_of(drop)
+		if verdict != LootAppraisal.Verdict.EVEN:
+			width += MARK_WIDTH
+		entries.append({"drop": drop, "anchor": anchor, "width": width, "verdict": verdict})
 	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["anchor"].y > b["anchor"].y)
 	var placed: Array[Rect2] = []
 	for entry in entries:
@@ -298,7 +329,7 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 		if hud.covers(rect.get_center()) or hud.covers(rect.position) or hud.covers(rect.end):
 			continue   # it would sit under the hotbar, the minimap or an open panel: left out, not drawn over them
 		placed.append(rect)
-		out.append({"drop": entry["drop"], "rect": rect, "anchor": anchor})
+		out.append({"drop": entry["drop"], "rect": rect, "anchor": anchor, "verdict": entry["verdict"]})
 	return out
 
 func _draw_loot_names(font: Font) -> void:
@@ -313,5 +344,23 @@ func _draw_loot_names(font: Font) -> void:
 			hud.draw_line(Vector2(rect.get_center().x, rect.end.y), anchor, Color(colour.r, colour.g, colour.b, 0.55), 1.0)
 		hud.draw_rect(rect, Color(0.03, 0.03, 0.04, 0.82 if focus else 0.62))
 		hud.draw_rect(rect, Color(colour.r, colour.g, colour.b, 0.95 if focus else 0.45), false, 1.5 if focus else 1.0)
-		UiTheme.text(hud, font, rect.position + Vector2(0, 15.5), String(drop.item["name"]), NAME_FONT, colour.lightened(0.2 if focus else 0.0),
-			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
+		var verdict: int = int(entry["verdict"])
+		var shift: float = 0.0
+		var text_colour: Color = colour.lightened(0.2 if focus else 0.0)
+		if verdict != LootAppraisal.Verdict.EVEN:
+			shift = MARK_WIDTH * 0.5
+			_draw_mark(Vector2(rect.position.x + 9.0, rect.position.y + NAME_HEIGHT * 0.5), verdict == LootAppraisal.Verdict.UPGRADE)
+			if verdict == LootAppraisal.Verdict.LOCKED:
+				text_colour = text_colour.darkened(0.25)
+		UiTheme.text(hud, font, rect.position + Vector2(shift, 15.5), String(drop.item["name"]), NAME_FONT, text_colour,
+			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - shift)
+
+## A green arrow up (better than what you wear, or fills an empty slot) or a red cross (cannot be worn yet), drawn as shapes so no font is needed.
+func _draw_mark(at: Vector2, upgrade: bool) -> void:
+	if upgrade:
+		for row in 10:   # a filled triangle as rows: no polygon to triangulate, which fails when the plate sits at an invalid screen position
+			var half: float = 0.5 + float(row) * 0.5
+			hud.draw_line(at + Vector2(-half, -5.0 + row), at + Vector2(half, -5.0 + row), UPGRADE_COLOR, 1.0)
+	else:
+		hud.draw_line(at + Vector2(-4, -4), at + Vector2(4, 4), LOCKED_COLOR, 2.0)
+		hud.draw_line(at + Vector2(-4, 4), at + Vector2(4, -4), LOCKED_COLOR, 2.0)
