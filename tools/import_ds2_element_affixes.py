@@ -40,7 +40,7 @@ def main():
     # preserving the established reference-catalog order across full regeneration.
     for family in ("physical_resist", "melee_resist", "ranged_resist", "magical_resist"):
         families[family] = families.pop(family)
-    path.write_text(json.dumps(families, indent=2) + "\n")
+    path.write_text(json.dumps(families, indent=2) + "\n", newline="\n")
     print("imported", {k: len(v) for k, v in families.items() if k.split("_")[0] in ELEMENTS})
 
 

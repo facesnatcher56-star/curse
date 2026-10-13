@@ -1136,7 +1136,7 @@ def main():
     manifest = build_manifest_data(catalog)
 
     os.makedirs(os.path.dirname(MANIFEST_PATH), exist_ok=True)
-    with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
+    with open(MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as f:
         json.dump(manifest, f, indent=2)
 
     print(f"Successfully generated {MANIFEST_PATH}")
