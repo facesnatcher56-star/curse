@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "gold_amulet"
+display_name = "Gold Amulet"
+slot = 7
+order = 36
+model_path = "res://assets/models/items/charm/model.glb"
+icon_path = "res://assets/icons/items/charm.png"
+item_type = "amulet"
+armor_class = ""
+levels = Array[int]([8, 13, 21, 34, 48])
+stats = {}
+requirements = "uber:#item_level"
+requirements_from_source = true

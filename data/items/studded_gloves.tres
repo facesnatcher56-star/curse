@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "studded_gloves"
+display_name = "Studded Gloves"
+slot = 5
+order = 32
+model_path = "res://assets/models/items/iron_gauntlets/model.glb"
+icon_path = "res://assets/icons/items/iron_gauntlets.png"
+item_type = "gloves"
+armor_class = "fighter"
+levels = Array[int]([5, 11, 20, 41, 50])
+stats = {}
+requirements = ""
+requirements_from_source = true

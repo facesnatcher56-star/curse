@@ -47,6 +47,17 @@ ITEMS = [
     ("apprentice_robe", "Apprentice Robe", 1, "body", "mage", [3, 9, 18, 33, 45], {}),
     ("carved_tunic", "Carved Tunic", 1, "body", "ranger", [7, 16, 28, 49, 55], {}),
     ("woven_hood", "Woven Hood", 4, "helm", "mage", [5, 11, 20, 29, 38], {}),
+    # Wave 1 midgame coverage: source levels and requirements from the canonical DS2 catalog.
+    # Models/icons intentionally alias the closest existing Curse silhouette; no DS2 art is implied.
+    ("chain_mail", "Chain Mail", 1, "body", "fighter", [15, 30, 48, 57, 63], {}),
+    ("heater_shield", "Heater Shield", 3, "shield", "fighter", [13, 21, 35, 50, 58], {}),
+    ("dragon_helm", "Dragon Helm", 4, "helm", "mage", [35, 56, 74, 83, 89], {}),
+    ("carved_cap", "Carved Cap", 4, "helm", "ranger", [8, 17, 29, 50, 56], {}),
+    ("studded_gloves", "Studded Gloves", 5, "gloves", "fighter", [5, 11, 20, 41, 50], {}),
+    ("sorcerer_boots", "Sorcerer Boots", 6, "boots", "mage", [20, 35, 56, 71, 77], {}),
+    ("gold_ring", "Gold Ring", 2, "ring", "", [8, 15, 27, 49, 54], {}),
+    ("jeweled_ring", "Jeweled Ring", 2, "ring", "", [13, 24, 40, 57, 65], {}),
+    ("gold_amulet", "Gold Amulet", 7, "amulet", "", [8, 13, 21, 34, 48], {}),
 ]
 
 TWO_HAND_CLIPS = {
@@ -92,6 +103,15 @@ CUSTOM_PATHS = {
     "apprentice_robe": ("res://assets/models/items/leather_jerkin/model.glb", "res://assets/icons/items/leather_jerkin.png"),
     "carved_tunic": ("res://assets/models/items/leather_jerkin/model.glb", "res://assets/icons/items/leather_jerkin.png"),
     "woven_hood": ("res://assets/models/items/leather_cap/model.glb", "res://assets/icons/items/leather_cap.png"),
+    "chain_mail": ("res://assets/models/items/mail_hauberk/model.glb", "res://assets/icons/items/mail_hauberk.png"),
+    "heater_shield": ("res://assets/models/items/kite_shield/model.glb", "res://assets/icons/items/kite_shield.png"),
+    "dragon_helm": ("res://assets/models/items/iron_helm/model.glb", "res://assets/icons/items/iron_helm.png"),
+    "carved_cap": ("res://assets/models/items/leather_cap/model.glb", "res://assets/icons/items/leather_cap.png"),
+    "studded_gloves": ("res://assets/models/items/iron_gauntlets/model.glb", "res://assets/icons/items/iron_gauntlets.png"),
+    "sorcerer_boots": ("res://assets/models/items/leather_boots/model.glb", "res://assets/icons/items/leather_boots.png"),
+    "gold_ring": ("res://assets/models/items/band/model.glb", "res://assets/icons/items/band.png"),
+    "jeweled_ring": ("res://assets/models/items/signet/model.glb", "res://assets/icons/items/signet.png"),
+    "gold_amulet": ("res://assets/models/items/charm/model.glb", "res://assets/icons/items/charm.png"),
 }
 
 CUSTOM_ORDERS = {
@@ -104,6 +124,8 @@ CUSTOM_ORDERS = {
 SOURCE_REQUIREMENTS = {
     "buckler": "melee:#item_level-2.0,aegis:1",
     "club": "melee:#item_level - 2.0",
+    "heater_shield": "",
+    "studded_gloves": "",
     "dagger": "",
     "kite_shield": "melee:#item_level-2.0,aegis:1",
     "leather_boots": "melee:#item_level-2.0",
@@ -115,6 +137,13 @@ SOURCE_REQUIREMENTS = {
     "apprentice_robe": "combat magic:#item_level-2.0",
     "carved_tunic": "ranged:#item_level-2.0",
     "woven_hood": "nature magic:#item_level-2.0",
+    "chain_mail": "melee:#item_level-2.0",
+    "dragon_helm": "nature magic:#item_level-2.0",
+    "carved_cap": "ranged:#item_level-2.0",
+    "sorcerer_boots": "combat magic:#item_level-2.0",
+    "gold_ring": "uber:#item_level",
+    "jeweled_ring": "uber:#item_level",
+    "gold_amulet": "uber:#item_level",
 }
 
 

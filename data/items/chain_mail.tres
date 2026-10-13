@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "chain_mail"
+display_name = "Chain Mail"
+slot = 1
+order = 28
+model_path = "res://assets/models/items/mail_hauberk/model.glb"
+icon_path = "res://assets/icons/items/mail_hauberk.png"
+item_type = "body"
+armor_class = "fighter"
+levels = Array[int]([15, 30, 48, 57, 63])
+stats = {}
+requirements = "melee:#item_level-2.0"
+requirements_from_source = true

@@ -45,7 +45,7 @@ The Item Test Lab interface is styled using the project's worn-gold ornate UI th
   - *Armor*
   - *Shields*
   - *Jewelry*
-- **Base Item Selection**: Supports all 25 registered `ItemDef` resources in the runtime catalog, notably including the newly merged melee weapon families:
+- **Base Item Selection**: Loads all 37 registered `ItemDef` resources, including the nine Wave 1 midgame bases: Chain Mail, Heater Shield, Dragon Helm, Carved Cap, Studded Gloves, Sorcerer Boots, Gold Ring, Jeweled Ring and Gold Amulet. Existing melee weapon examples include:
   - **War Axe** (`axe_1h`)
   - **Battle Axe** (`axe_2h`)
   - **Mace** (`mace`)

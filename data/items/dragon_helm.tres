@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dragon_helm"
+display_name = "Dragon Helm"
+slot = 4
+order = 30
+model_path = "res://assets/models/items/iron_helm/model.glb"
+icon_path = "res://assets/icons/items/iron_helm.png"
+item_type = "helm"
+armor_class = "mage"
+levels = Array[int]([35, 56, 74, 83, 89])
+stats = {}
+requirements = "nature magic:#item_level-2.0"
+requirements_from_source = true

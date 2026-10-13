@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "sorcerer_boots"
+display_name = "Sorcerer Boots"
+slot = 6
+order = 33
+model_path = "res://assets/models/items/leather_boots/model.glb"
+icon_path = "res://assets/icons/items/leather_boots.png"
+item_type = "boots"
+armor_class = "mage"
+levels = Array[int]([20, 35, 56, 71, 77])
+stats = {}
+requirements = "combat magic:#item_level-2.0"
+requirements_from_source = true

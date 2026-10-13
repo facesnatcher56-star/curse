@@ -143,8 +143,10 @@ Mana Steal and Mana per Hit are now supported alongside the earlier modifier fam
 
 Curse choices (labelled in code):
 
-* **Few bases**: two or three a slot with their levels spread, so a slot has a base near any level; when none fits a drop's window the nearest
-  variant drops. Ice, lightning and death damage, ranged-only and class-skill modifiers wait for those systems.
+* **Limited base pool**: Curse's original 28 live definitions left midgame windows empty for several equipment slots, so those drops fell back to
+  the nearest level. Wave 1 adds nine source-backed bases; measured before/after coverage is in [Codex 6's equipment report](CODEX6_WAVE1_EQUIPMENT.md).
+  The full DS2 base catalogue, including bases needing unsupported weapon mechanics, remains unimported. Ice, lightning and death damage,
+  ranged-only and class-skill modifiers wait for those systems.
 * **A magic item's modifier window** (DS2 leaves it to the engine) is `item level - 20 ... item level`; a rare's is DS2's `-25 ... +5`, with 3 or 4
   modifiers (DS2: engine-side).
 * **DS2's "#" item** drops plain half the time, with one modifier 30% and two 20%. Jewellery is never plain.
