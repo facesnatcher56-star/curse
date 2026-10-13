@@ -59,6 +59,8 @@ func _test_inventory_grid() -> void:
 	expect("all 65 cells can hold one-cell jewellery", all_added and stats.bag.size() == 65)
 	var before: Array = stats.bag.duplicate(true)
 	expect("full bag refuses new loot without discarding any existing item", not stats.add_to_bag(sword) and stats.bag == before)
+	# A free weapon slot equips a pickup directly; occupy it so this case actually tests full-bag rejection.
+	stats.wear(Items.Slot.WEAPON, great)
 	var drop: LootDrop = game.director.drop_item(player.global_position + Vector3(1, 0, 0), sword)
 	drop.pick_up(player)
 	expect("failed pickup leaves the drop on the ground", not drop.is_queued_for_deletion() and stats.bag == before)
