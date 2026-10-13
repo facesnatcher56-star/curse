@@ -14,3 +14,5 @@ item_type = "amulet"
 armor_class = ""
 levels = Array[int]([10, 30, 50, 72, 95])
 stats = {}
+requirements = "uber:#item_level"
+requirements_from_source = true

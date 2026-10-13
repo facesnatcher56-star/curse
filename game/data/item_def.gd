@@ -35,6 +35,10 @@ const ARMOR_SLOT := {"body": 0.5, "helm": 0.2, "shield": 0.2, "gloves": 0.15, "b
 ## Basic attacks always resolve against one engaged enemy (DS2); area damage belongs to explicit powers.
 ## "two_handed" true: it needs both hands (no shield).
 @export var profile: Dictionary = {}
+## Exact source requirement expression when this base was matched to a DS2 catalogue template.
+## Empty keeps the documented legacy-base formula in Items; it does not mean "unknown".
+@export var requirements: String = ""
+@export var requirements_from_source: bool = false
 
 func is_weapon() -> bool:
 	return WEAPON_CURVES.has(item_type)

@@ -289,6 +289,75 @@ func _test_ds2_items() -> void:
 		and not Items.meets_requirement(ranger_cap, {"melee": 40, "ranged": 17}) and not Items.meets_requirement(Items.build(ItemDb.get_def("iron_helm"), 20, 0), {"melee": 17, "ranged": 40}))
 	expect("jewellery needs the character level", Items.meets_requirement(Items.build(ItemDb.get_def("signet"), 34, 1), {"uber": 32})
 		and not Items.meets_requirement(Items.build(ItemDb.get_def("signet"), 34, 1), {"uber": 31, "melee": 60}))
+	var requirement_context := {"levels": {"melee": 10, "ranged": 8, "combat": 5, "nature": 4, "uber": 12},
+		"attributes": {"strength": 30, "dexterity": 24, "intelligence": 99}, "passive_ranks": {"barricade": 1, "overbear": 2}}
+	var and_result := Items.evaluate_requirement("melee:#item_level - 2.0,aegis:1", 12, requirement_context)
+	expect("catalog comma requirements enforce every clause and item-level boundary", and_result.valid and and_result.satisfied
+		and not Items.evaluate_requirement("melee:#item_level - 2.0,aegis:1", 13, requirement_context).satisfied)
+	var or_result := Items.evaluate_requirement("combat magic:#item_level-8.0|nature magic:#item_level-8.0", 12, requirement_context)
+	expect("catalog pipe requirements accept either class skill", or_result.valid and or_result.satisfied
+		and not Items.evaluate_requirement("combat magic:7.0|nature magic:7.0", 12, requirement_context).satisfied)
+	expect("fixed attribute and passive rank checks honor inclusive boundaries",
+		Items.evaluate_requirement("intelligence:99", 1, requirement_context).satisfied
+		and not Items.evaluate_requirement("intelligence:100", 1, requirement_context).satisfied
+		and Items.evaluate_requirement("strength:30", 1, requirement_context).satisfied
+		and Items.evaluate_requirement("dexterity:24", 1, requirement_context).satisfied
+		and Items.evaluate_requirement("overbear:2", 1, requirement_context).satisfied
+		and not Items.evaluate_requirement("overbear:3", 1, requirement_context).satisfied)
+	var mixed_result := Items.evaluate_requirement("melee:10|ranged:10,overbear:1", 20, requirement_context)
+	expect("mixed comma and pipe syntax is explicitly unsupported and fails closed", not mixed_result.valid and not mixed_result.satisfied
+		and String(mixed_result.error).contains("unresolved DS2 precedence"))
+	expect("malformed, unknown and unavailable requirements fail closed",
+		not Items.evaluate_requirement("melee:", 1, requirement_context).valid
+		and not Items.evaluate_requirement("   ", 1, requirement_context).valid
+		and not Items.evaluate_requirement("wisdom:5", 1, requirement_context).valid
+		and not Items.evaluate_requirement("dual_wield:4", 1, requirement_context).satisfied
+		and EquipmentRequirement.describe("dual_wield:4", 1, requirement_context).contains("skill unavailable"))
+	var catalog_file := FileAccess.open("res://data/reference/ds2_equipment_catalog.json", FileAccess.READ)
+	var catalog: Dictionary = JSON.parse_string(catalog_file.get_as_text())
+	var catalog_items: Array = catalog.get("items", [])
+	var catalog_valid := catalog_items.size() == 768
+	var distinct_requirements: Dictionary = {}
+	var catalog_by_id: Dictionary = {}
+	var evaluable_templates := 0
+	var unresolved_dynamic_level := 0
+	for catalog_item in catalog_items:
+		catalog_by_id[String(catalog_item.get("id", ""))] = catalog_item
+		var expression := String(catalog_item.get("requirements", ""))
+		catalog_valid = catalog_valid and bool(EquipmentRequirement.parse(expression).get("valid", false))
+		if expression != "":
+			distinct_requirements[expression] = true
+		if expression == "" or not expression.contains("#item_level") or not (catalog_item.get("variants", []) as Array).is_empty():
+			evaluable_templates += 1
+		else:
+			unresolved_dynamic_level += 1
+	expect("every source catalog template requirement parses without invented precedence (%d templates)" % catalog_items.size(), catalog_valid)
+	expect("the 60 distinct source strings are covered; %d templates have enough level metadata for evaluation and %d await an item level"
+		% [evaluable_templates, unresolved_dynamic_level], distinct_requirements.size() == 60 and evaluable_templates == 767 and unresolved_dynamic_level == 1)
+	var source_buckler: Dictionary = catalog_by_id["amr_shd_buc"]
+	var source_band: Dictionary = catalog_by_id["mgc_a1_elt_crafted_2"]
+	var source_staff: Dictionary = catalog_by_id["quest_staff_a1_tower"]
+	var buckler_level := float(source_buckler["variants"][0]["item_level"])
+	var band_level := float(source_band["variants"][0]["item_level"])
+	var catalog_buckler := Items.evaluate_requirement(String(source_buckler["requirements"]), buckler_level, requirement_context)
+	var catalog_magic_jewelry := Items.evaluate_requirement(String(source_band["requirements"]), band_level,
+		{"levels": {"combat": 72, "nature": 0}, "attributes": {}, "passive_ranks": {}})
+	var catalog_attribute := Items.evaluate_requirement(String(source_staff["requirements"]), 1, requirement_context)
+	expect("representative source Buckler, Aphotic Band and Wise Woman's Staff requirements evaluate",
+		catalog_buckler.valid and catalog_buckler.satisfied and catalog_magic_jewelry.valid and catalog_magic_jewelry.satisfied
+		and catalog_attribute.valid and catalog_attribute.satisfied)
+	expect("live bases retain source-exact requirements where a direct catalog match exists",
+		Items.requirement_expression(Items.build(ItemDb.get_def("buckler"), 6, Items.Rarity.NORMAL)) == String(source_buckler["requirements"])
+		and Items.requirement_expression(Items.build(ItemDb.get_def("talisman"), 30, Items.Rarity.NORMAL)) == "uber:#item_level")
+	var attribute_item: Dictionary = Items.build(ItemDb.get_def("signet"), 1, Items.Rarity.NORMAL)
+	attribute_item["requirements"] = "intelligence:%d" % int(floor(player.stats.intelligence))
+	var effective_attribute_pass := Items.hero_can_wear(attribute_item)
+	attribute_item["requirements"] = "intelligence:%d" % (int(floor(player.stats.intelligence)) + 1)
+	expect("actual equip path uses the member's effective intelligence for eligibility", effective_attribute_pass and not Items.hero_can_wear(attribute_item))
+	var reserve := CharacterState.new("requirement_reserve")
+	reserve.equipment[Items.Slot.RING] = Items.build(ItemDb.get_def("signet"), 1, Items.Rarity.MAGIC, ["strength_9"])
+	var reserve_attributes: Dictionary = Items._member_effective_attributes(reserve)
+	expect("reserve eligibility includes current worn attribute bonuses", is_equal_approx(float(reserve_attributes["strength"]), HeroAttributes.START.x + 72.0))
 	expect("a new hero cannot wear it: it stays off and he says why", player.stats.equip(heavy) == null and player.stats.equipment.get(Items.Slot.WEAPON) != heavy)
 	expect("and the card says so, as a worse line", Items.compare(heavy, player.stats.equipment.get(Items.Slot.WEAPON))[0]["sign"] == -1)
 	# Drops.

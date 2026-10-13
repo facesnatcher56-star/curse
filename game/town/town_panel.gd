@@ -242,7 +242,7 @@ func _wear_bought(item: Dictionary) -> String:
 	var off: Variant = town.equip_town_item(item)
 	if off == null:
 		TownState.stash_item(item)
-		return "Bought %s. You cannot wear it yet (%s): it went to the stash." % [item["name"], Items.requirement_text(item)]
+		return "Bought %s. You cannot wear it yet (%s): it went to the stash." % [item["name"], Items.requirement_text(item, town.player.member_id)]
 	for old in off:
 		TownState.stash_item(old)
 	return "Bought %s. It is yours to wear; the old piece went to the stash." % item["name"]
@@ -502,7 +502,7 @@ func _wear(index: int) -> void:
 	var item: Dictionary = TownState.stash[index]
 	var off: Variant = town.equip_town_item(item)
 	if off == null:
-		notice = "You cannot wear %s yet: %s." % [item["name"], Items.requirement_text(item)] if not Items.hero_can_wear(item, town.player.member_id) else "Recall your weapon first."
+		notice = "You cannot wear %s yet: %s." % [item["name"], Items.requirement_text(item, town.player.member_id)] if not Items.hero_can_wear(item, town.player.member_id) else "Recall your weapon first."
 		_rebuild()
 		return
 	TownState.stash.remove_at(index)
