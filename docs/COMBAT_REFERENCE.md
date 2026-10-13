@@ -139,7 +139,7 @@ Mana Steal and Mana per Hit are now supported alongside the earlier modifier fam
   the item-level windows (-6..0, -5..+1, -4..+2; rares -4..+2, uniques -40..+3, sets -50..+3), a miniboss's guaranteed piece (30 / 50 / 12 / 4 / 4),
   rewards 70 / 15 / 15, magic find `x (1 + MF/100)` on rare, unique and set.
 * **Gear on the hero**: STR/DEX/INT, life, mana, min/max melee, melee %, combat magic %, added fire / ice / lightning / death (before armour; each against its own resistance, see [elemental equipment](ELEMENTAL_EQUIPMENT_VERIFICATION.md)), life steal and life per hit,
-  armour and armour %, fire / ice / lightning / death resistance, reflect, life and mana recovery, block (with a shield), power recharge, magic find, gold found.
+  armour and armour %, physical/melee/ranged/magical plus fire / ice / lightning / death resistance, reflect, life and mana recovery, block (with a shield), power recharge, magic find, gold found. See [defensive resistance verification](DEFENSIVE_RESISTANCE_VERIFICATION.md) for the approved overlap formula, damage stages, source limits, and test evidence.
 
 Curse choices (labelled in code):
 

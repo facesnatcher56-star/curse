@@ -4848,5 +4848,385 @@
         "cmage"
       ]
     }
+  ],
+  "physical_resist": [
+    {
+      "source": "noble",
+      "title": "Noble",
+      "level": 15,
+      "value": 3.0,
+      "max_value": 3.0,
+      "value_ceiling": 3.0,
+      "stat": "physical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "regal",
+      "title": "Regal",
+      "level": 26,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "physical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "imperial",
+      "title": "Imperial",
+      "level": 37,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "physical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "sovereign",
+      "title": "Sovereign",
+      "level": 48,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "physical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "shield"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    }
+  ],
+  "melee_resist": [
+    {
+      "source": "formidable",
+      "title": "Formidable",
+      "level": 11,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "melee_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "imposing",
+      "title": "Imposing",
+      "level": 22,
+      "value": 7.0,
+      "max_value": 7.0,
+      "value_ceiling": 7.0,
+      "stat": "melee_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "daunting",
+      "title": "Daunting",
+      "level": 33,
+      "value": 9.0,
+      "max_value": 9.0,
+      "value_ceiling": 9.0,
+      "stat": "melee_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "intimidating",
+      "title": "Intimidating",
+      "level": 44,
+      "value": 11.0,
+      "max_value": 11.0,
+      "value_ceiling": 11.0,
+      "stat": "melee_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "fearsome",
+      "title": "Fearsome",
+      "level": 55,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "melee_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "ranged_resist": [
+    {
+      "source": "disorienting",
+      "title": "Disorienting",
+      "level": 11,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "ranged_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "obscuring",
+      "title": "Obscuring",
+      "level": 22,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "ranged_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "blurring",
+      "title": "Blurring",
+      "level": 33,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "ranged_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "confounding",
+      "title": "Confounding",
+      "level": 44,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "ranged_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "displacing",
+      "title": "Displacing",
+      "level": 55,
+      "value": 20.0,
+      "max_value": 20.0,
+      "value_ceiling": 20.0,
+      "stat": "ranged_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "magical_resist": [
+    {
+      "source": "twilight",
+      "title": "Twilight",
+      "level": 9,
+      "value": 5.0,
+      "max_value": 5.0,
+      "value_ceiling": 5.0,
+      "stat": "magical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet"
+      ],
+      "classes": []
+    },
+    {
+      "source": "dusk",
+      "title": "Dusk",
+      "level": 21,
+      "value": 8.0,
+      "max_value": 8.0,
+      "value_ceiling": 8.0,
+      "stat": "magical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet"
+      ],
+      "classes": []
+    },
+    {
+      "source": "midnight",
+      "title": "Midnight",
+      "level": 33,
+      "value": 12.0,
+      "max_value": 12.0,
+      "value_ceiling": 12.0,
+      "stat": "magical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet"
+      ],
+      "classes": []
+    },
+    {
+      "source": "dawn",
+      "title": "Dawn",
+      "level": 45,
+      "value": 15.0,
+      "max_value": 15.0,
+      "value_ceiling": 15.0,
+      "stat": "magical_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet"
+      ],
+      "classes": []
+    }
   ]
 }

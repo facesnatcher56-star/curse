@@ -12,3 +12,5 @@ extends Resource
 @export var mods: Dictionary = {}
 ## The SetDef it belongs to ("" for a unique).
 @export var set_id: String = ""
+## Optional exact DS2 equipment requirement expression from the source catalog.
+@export var requirements: String = ""

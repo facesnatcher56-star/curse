@@ -511,56 +511,56 @@ def build_manifest_data(catalog):
 
 
         "alter_magical_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "magical_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_magical_resistance in items, affixes, sets (e.g. +<value>% Magic Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "General magic resistance mitigation pipeline missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:effective_resistance()",
+            "test_path": "game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()",
+            "notes": "Mitigates magic damage; matching elemental resistance is added for typed elemental magic, then the effective total is capped once. Equipment values add."
         },
         "alter_physical_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "physical_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_physical_resistance in items, affixes, sets (e.g. +<value>% Physical Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Flat percentage physical mitigation separate from armor defense formula missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:physical_attack_resistance()",
+            "test_path": "game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()",
+            "notes": "Applied to melee and ranged weapon hits. Curse-specific additive overlap with matching attack-type resistance; capped with that sum once, independently of armor. Not verified original DS2 engine behavior."
         },
         "alter_melee_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "melee_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_melee_resistance in items, affixes, sets (e.g. +<value>% Melee Damage Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Attack-type specific physical mitigation missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:physical_attack_resistance()",
+            "test_path": "game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()",
+            "notes": "Added to physical resistance against melee hits only, then capped at the hero limit. Curse-specific additive overlap; not verified original DS2 engine behavior."
         },
         "alter_ranged_resistance": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "resistance",
-            "runtime_key": None,
+            "runtime_key": "ranged_resist",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "ring", "amulet", "shield"],
             "source_evidence": "alter_ranged_resistance in items, affixes, sets (e.g. +<value>% Ranged Damage Resistance).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Attack-type specific ranged physical mitigation missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:physical_attack_resistance()",
+            "test_path": "game/dev/suites/defensive_resistance_tests.gd:_test_defensive_resistances()",
+            "notes": "Added to physical resistance against ranged hits only, then capped at the hero limit. Curse-specific additive overlap; not verified original DS2 engine behavior."
         },
         "alter_block_combat_magic_damage": {
             "status": "unsupported",

@@ -12,6 +12,7 @@ const SUITES := [
 	preload("res://game/dev/suites/find_tests.gd"),
 	preload("res://game/dev/suites/equipment_effect_tests.gd"),
 	preload("res://game/dev/suites/equipment_hit_tests.gd"),
+	preload("res://game/dev/suites/defensive_resistance_tests.gd"),
 	preload("res://game/dev/suites/ranged_modifier_tests.gd"),
 	preload("res://game/dev/suites/element_tests.gd"),
 	preload("res://game/dev/suites/dodge_block_tests.gd"),
@@ -133,6 +134,7 @@ const ONLY_TESTS := {
 "find": "_test_find",
 "equipmenteffects": "_test_equipment_effects",
 "equipmenthits": "_test_equipment_hits",
+"defensiveresistances": "_test_defensive_resistances",
 "rangedmods": "_test_ranged_modifiers",
 "elements": "_test_elements",
 "dodgeblock": "_test_dodge_block",
@@ -199,6 +201,7 @@ func _run_selftest() -> void:
 	await _run("_test_fireball")
 	await _run("_test_items")
 	await _run("_test_equipment_hits")
+	await _run("_test_defensive_resistances")
 	await _run("_test_ranged_modifiers")
 	await _run("_test_elements")
 	await _run("_test_find")

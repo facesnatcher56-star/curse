@@ -22,6 +22,16 @@ UNIQUES = [
     ("roadwarden_gauntlets", "Roadwarden's Grip", "iron_gauntlets", 18, {"str": 6, "melee_max": 8}, "roadwarden"),
     ("roadwarden_greaves", "Roadwarden's March", "iron_greaves", 19, {"dex": 6, "life_regen": 6}, "roadwarden"),
     ("roadwarden_hauberk", "Roadwarden's Coat", "mail_hauberk", 14, {"life": 60, "fire_resist": 12}, "roadwarden"),
+    # Representative resistance-bearing source templates from ds2_equipment_catalog.json. Existing Curse meshes/bases are reused;
+    # the source names, levels, supported effects and exact requirements are retained for playable testing.
+    ("traveler_robe", "Traveler's Robe", "apprentice_robe", 16,
+     {"life": 25, "mana": 35, "ice_resist": 14, "physical_resist": 3}, "", "combat magic:#item_level-2.0"),
+    ("oakcase_carved_tunic", "Oakcase Carved Tunic", "carved_tunic", 26,
+     {"life": 50, "armor": 13, "death_resist": 16, "melee_resist": 6}, "", "ranged:#item_level-2.0"),
+    ("forest_shroud", "Forest Shroud", "woven_hood", 13,
+     {"int": 3, "lightning_resist": 12, "ranged_resist": 10, "dodge_ranged": 12}, "", "nature magic:#item_level - 2.0"),
+    ("heros_amulet", "Hero's Amulet", "charm", 5,
+     {"magical_resist": 4}, "", ""),
 ]
 
 SETS = [
@@ -49,12 +59,15 @@ def write(folder: str, files: dict) -> None:
 
 def main() -> None:
     uniques = {}
-    for ident, name, base, level, m, set_id in UNIQUES:
+    for row in UNIQUES:
+        ident, name, base, level, m, set_id = row[:6]
+        requirements = row[6] if len(row) > 6 else ""
         uniques[ident + ".tres"] = "\n".join([
             '[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]', "",
             '[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]', "", "[resource]",
             'script = ExtResource("1")', 'id = "%s"' % ident, 'display_name = "%s"' % name.replace('"', '\\"'), 'base = "%s"' % base,
-            "level = %d" % level, "mods = %s" % mods(m), 'set_id = "%s"' % set_id]) + "\n"
+            "level = %d" % level, "mods = %s" % mods(m), 'set_id = "%s"' % set_id,
+            'requirements = "%s"' % requirements.replace('"', '\\"')]) + "\n"
     sets = {}
     for ident, name, bonuses in SETS:
         body = "{\n%s\n}" % ",\n".join('"%d": %s' % (count, mods(b)) for count, b in bonuses.items())

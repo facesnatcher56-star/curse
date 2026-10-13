@@ -13,3 +13,4 @@ mods = {
 "fire_resist": 12.0
 }
 set_id = "roadwarden"
+requirements = ""

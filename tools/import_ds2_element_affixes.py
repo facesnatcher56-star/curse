@@ -36,6 +36,10 @@ def main():
         resist.sort(key=lambda r: r["level"])
         families[f"{element}_added"] = damage
         families[f"{element}_resist"] = resist
+    # Keep the four catalog-backed defensive families after the elemental families,
+    # preserving the established reference-catalog order across full regeneration.
+    for family in ("physical_resist", "melee_resist", "ranged_resist", "magical_resist"):
+        families[family] = families.pop(family)
     path.write_text(json.dumps(families, indent=2) + "\n")
     print("imported", {k: len(v) for k, v in families.items() if k.split("_")[0] in ELEMENTS})
 

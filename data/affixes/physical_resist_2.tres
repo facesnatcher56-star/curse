@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "physical_resist_2"
+family = "physical_resist"
+tier = 2
+stat = "physical_resist"
+title = "Regal"
+position = "prefix"
+level = 26
+value = 5.0
+max_value = 5.0
+value_ceiling = 5.0
+percent = true
+slots = Array[String](["amulet", "shield"])
+classes = Array[String](["fighter"])

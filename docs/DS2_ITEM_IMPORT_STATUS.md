@@ -65,6 +65,13 @@ the installed file is untouched. DS2 engine handling of this typo is unverified.
 - This pass adds Mana Steal and Mana per Hit with the original weapon-only tiers:
   `mana + flat bonus + percent / 100 * actual damage dealt`, clamped to maximum.
   Weapon hits qualify; spells, reflection, blocked and zero-damage hits do not.
+- `alter_physical_resistance`, `alter_melee_resistance`, `alter_ranged_resistance`,
+  and `alter_magical_resistance` now aggregate from equipped gear and set totals,
+  resolve in live combat, and appear as effective values in the Item Lab. Four
+  source catalog unique templates are available: Traveler's Robe, Oakcase Carved
+  Tunic, Forest Shroud, and Hero's Amulet. Their values, levels, and requirements
+  are catalog-backed; existing Curse meshes/icons are visual stand-ins. See
+  [defensive resistance verification](DEFENSIVE_RESISTANCE_VERIFICATION.md).
 - STR, DEX and INT already drive the hero's attributes, life/mana and damage;
   equipped attribute bonuses are included. Cutter derives attributes from his
   own Ranged experience, but does not yet have a full player-managed equipment

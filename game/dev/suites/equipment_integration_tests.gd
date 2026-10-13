@@ -152,7 +152,7 @@ func _test_equipment_integration() -> void:
 	var life_before := hero.max_health
 	var fire := Items.build(sword_def, 40, Items.Rarity.MAGIC, ["fire_added_3"])
 	var mixed := Items.build(sword_def, 60, Items.Rarity.RARE, ["fire_added_3", "ice_added_5", "lightning_added_5", "death_added_5"])
-	var plate_def := ItemDb.of_slot(Items.Slot.ARMOR)[0]
+	var plate_def := ItemDb.get_def("plate_cuirass")
 	var plate := Items.build(plate_def, 40, Items.Rarity.NORMAL)
 	var res_fire := Items.build(ring_def, 40, Items.Rarity.MAGIC, ["fire_resist_2"])
 	var res_ice := Items.build(ring_def, 40, Items.Rarity.MAGIC, ["ice_resist_2"])
@@ -363,6 +363,17 @@ func _integration_lab() -> void:
 	var readout: String = lab.stats_readout._content_label.text
 	expect("the lab stats readout lists every element's added damage", Combat.ELEMENTS.all(func(e: String) -> bool: return readout.contains("Added %s" % e.capitalize())))
 	expect("the lab stats readout lists every element's resistance", Combat.ELEMENTS.all(func(e: String) -> bool: return readout.contains("%s Resistance" % e.capitalize())))
+	expect("the lab stats readout shows effective physical, melee, ranged and magical resistances",
+		readout.contains("Physical component:") and readout.contains("Effective physical — Melee:")
+		and readout.contains("Ranged:") and readout.contains("Magic component:"))
+	expect("the lab readout includes the effective typed-magic total", Combat.ELEMENTS.all(func(e: String) -> bool:
+		return readout.contains("%s Resistance:" % e.capitalize()) and readout.contains("vs magic")))
+	var imported_amulet: Dictionary = Items.unique(UniqueDb.get_unique("heros_amulet"))
+	expect("the Item Lab can equip a source catalog resistance item", stats.equip(imported_amulet, false) != null
+		and is_equal_approx(hero.stats.gear_stat("magical_resist"), 4.0))
+	lab.stats_readout.refresh()
+	expect("the Item Lab readout shows the equipped item as effective typed magic resistance",
+		lab.stats_readout._content_label.text.contains("Fire Resistance: 0.0% (4.0% vs magic)"))
 
 	lab.queue_free()
 	await get_tree().process_frame

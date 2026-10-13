@@ -38,6 +38,12 @@ ROOTS = {
     "block_ranged": ("ofdeflection", "block_ranged"), "recharge": ("rousing", "recharge"),
     "magic_find": ("fortunate", "magic_find"), "gold_find": ("glittering", "gold_find"),
 }
+RESISTANCE_CATALOG_ALTERATIONS = {
+    "alter_physical_resistance": "physical_resist",
+    "alter_melee_resistance": "melee_resist",
+    "alter_ranged_resistance": "ranged_resist",
+    "alter_magical_resistance": "magical_resist",
+}
 FRACTIONS = {"melee_pct", "ranged_pct", "spell_pct", "armor_pct", "fire_resist", "life_regen", "mana_regen", "recharge", "gold_find"}
 PERCENT = FRACTIONS | {"life_steal", "mana_steal", "reflect", "block", "block_ranged", "magic_find"}
 
@@ -81,6 +87,25 @@ def main():
                                 position=field(base, "type"), slots=sorted(set(slots)),
                                 classes=field(base, "skill_types").split(",") if field(base, "skill_types") else []))
         output[family] = sorted(records, key=lambda r: r["level"])
+    # These four exact affix families are authored in the equipment catalog rather than
+    # pcontent's generic [modifiers] table. Keep them source-derived and reproducible.
+    catalog = json.loads((Path(__file__).resolve().parents[1] / "data/reference/ds2_equipment_catalog.json").read_text(encoding="utf-8"))
+    for alteration, stat in RESISTANCE_CATALOG_ALTERATIONS.items():
+        records = []
+        for affix in catalog.get("affixes", []):
+            effect = next((e for e in affix.get("effects", []) if e.get("alteration", "").lower() == alteration), None)
+            if effect is None:
+                continue
+            kinds = [kind.strip() for kind in affix.get("object_types", "").split(",")]
+            slots = []
+            for kind in kinds:
+                slots += ["body", "helm", "gloves", "boots", "shield"] if kind == "armor" else [kind] if kind in {"amulet", "ring", "weapon", "shield"} else []
+            value = round(float(effect["value"]) * 100.0, 6)
+            records.append(dict(source=affix["id"], title=affix.get("screen_name", affix["id"]),
+                                level=int(float(affix["level"])), value=value, max_value=value, value_ceiling=value,
+                                stat=stat, percent=True, position=affix.get("type", "prefix"), slots=sorted(set(slots)),
+                                classes=affix.get("skill_types", "").split(",") if affix.get("skill_types") else []))
+        output[stat] = sorted(records, key=lambda r: (r["level"], r["source"]))
     path = Path(__file__).resolve().parents[1] / "data/reference/ds2_affixes.json"
     path.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8", newline="\n")
     print("wrote", sum(map(len, output.values())), "source modifier tiers")

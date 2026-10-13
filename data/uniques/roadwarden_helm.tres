@@ -13,3 +13,4 @@ mods = {
 "armor": 10.0
 }
 set_id = "roadwarden"
+requirements = ""

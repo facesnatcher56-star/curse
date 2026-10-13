@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "traveler_robe"
+display_name = "Traveler's Robe"
+base = "apprentice_robe"
+level = 16
+mods = {
+"life": 25.0,
+"mana": 35.0,
+"ice_resist": 14.0,
+"physical_resist": 3.0
+}
+set_id = ""
+requirements = "combat magic:#item_level-2.0"

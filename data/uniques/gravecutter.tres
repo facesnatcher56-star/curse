@@ -15,3 +15,4 @@ mods = {
 "magic_find": 10.0
 }
 set_id = ""
+requirements = ""

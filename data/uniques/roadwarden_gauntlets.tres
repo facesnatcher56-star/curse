@@ -13,3 +13,4 @@ mods = {
 "melee_max": 8.0
 }
 set_id = "roadwarden"
+requirements = ""

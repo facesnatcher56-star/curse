@@ -19,6 +19,11 @@ var fire_resist: float = 0.0
 var ice_resist: float = 0.0
 var lightning_resist: float = 0.0
 var death_resist: float = 0.0
+## Broad DS2-style resistance stats, stored as fractions and refreshed from equipment. Curse-specific overlap is resolved in Combat.
+var physical_resist: float = 0.0
+var melee_resist: float = 0.0
+var ranged_resist: float = 0.0
+var magical_resist: float = 0.0
 var dodge_chance: float = 0.0
 var block_chance: float = 0.0
 var crit_chance: float = 0.0

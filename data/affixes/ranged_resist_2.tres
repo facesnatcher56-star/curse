@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ranged_resist_2"
+family = "ranged_resist"
+tier = 2
+stat = "ranged_resist"
+title = "Obscuring"
+position = "prefix"
+level = 22
+value = 12.0
+max_value = 12.0
+value_ceiling = 12.0
+percent = true
+slots = Array[String](["body", "boots", "gloves", "helm", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

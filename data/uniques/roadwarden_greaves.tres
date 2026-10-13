@@ -13,3 +13,4 @@ mods = {
 "life_regen": 6.0
 }
 set_id = "roadwarden"
+requirements = ""

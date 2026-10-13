@@ -61,6 +61,10 @@ func refresh() -> void:
 	p.ice_resist = gear_stat("ice_resist") / 100.0   # equipment only: DS2's Survival also raises ice and lightning, but is not wired for them yet
 	p.lightning_resist = gear_stat("lightning_resist") / 100.0
 	p.death_resist = gear_stat("death_resist") / 100.0
+	p.physical_resist = gear_stat("physical_resist") / 100.0
+	p.melee_resist = gear_stat("melee_resist") / 100.0
+	p.ranged_resist = gear_stat("ranged_resist") / 100.0
+	p.magical_resist = gear_stat("magical_resist") / 100.0
 	p.added_ice = gear_stat("ice_added")
 	p.added_ice_max = gear_stat("ice_added_max")
 	p.added_lightning = gear_stat("lightning_added")
