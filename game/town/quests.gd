@@ -257,6 +257,14 @@ static func fetch_to_respawn(lying: Array) -> Array:
 			report_fetch_lost(int(inst["uid"]))
 	return out
 
+## Whether a fetch quest needs its target put back on the road now: it is active, its item is not lying out yet, its def allows it
+## (QuestDef.respawn_target), and no living monster of its target is on the road. Other fetch quests are never touched here.
+static func wants_target_respawn(inst: Dictionary, alive_of_target: int) -> bool:
+	if String(inst["state"]) != "active":
+		return false
+	var def: QuestDef = def_of(inst)
+	return def.kind == "fetch" and def.respawn_target and not bool(inst["data"].get("dropped", false)) and alive_of_target == 0
+
 ## The item is lying on the road again (it was dropped but the hero was dragged home, or it was left behind).
 static func report_fetch_lost(uid: int) -> void:
 	var inst: Dictionary = find(uid)

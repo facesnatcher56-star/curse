@@ -27,6 +27,9 @@ extends Resource
 @export var days: int = 0
 @export var target: String = ""
 @export var count: int = 1
+## A fetch quest whose target may be gone from the road: while none is alive, one plain one is put back (see CryptRoad.respawn_fetch_target),
+## so the item stays obtainable. Off by default; only a fetch whose target the road always supplies uses it.
+@export var respawn_target: bool = false
 @export var unique_name: String = ""
 @export var unique_hp: float = 3.0
 ## The quest monster's own threat: absolute, on the same scale as `ZoneDef.base_threat` (an enemy's `level_scale`), not a multiplier of the zone's.

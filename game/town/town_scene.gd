@@ -603,6 +603,15 @@ func populate_quests() -> void:
 			_toughen_living(def.world_mod)
 		if def.kind == "slay_unique" and not bool(inst["data"].get("spawned", false)):
 			crypt.spawn_unique(inst)
+	for inst in Quests.live():   # a fetch whose target is gone from the road gets one back, if its quest allows it (QuestDef.respawn_target)
+		var target: String = Quests.def_of(inst).target
+		var alive: int = 0
+		for node in get_tree().get_nodes_in_group("enemies"):
+			var e := node as Enemy
+			if e != null and not e.dead and e.variant == target:
+				alive += 1
+		if Quests.wants_target_respawn(inst, alive):
+			crypt.respawn_fetch_target(inst)
 	var lying: Array = []
 	for node in get_tree().get_nodes_in_group("quest_pickups"):
 		lying.append((node as QuestPickup).uid)
