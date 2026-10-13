@@ -5,9 +5,10 @@ func _test_defensive_resistances() -> void:
 	TownState.persist = false
 	var hero := player
 	hero.set_physics_process(false)
-	var saved_equipment: Dictionary = hero.stats.equipment.duplicate(true)
+	var saved_character_data: Dictionary = hero.character.to_dict()
 	var saved_health: float = hero.health
 	var saved_max_health: float = hero.max_health
+	var saved_mana: float = hero.stats.mana
 	var enemy := _spawn_enemy(Vector3(28, 0, 28))
 	enemy.set_physics_process(false)
 	_plain(hero)
@@ -119,13 +120,12 @@ func _test_defensive_resistances() -> void:
 	expect("character save/load retains equipped resistance unique identity", saved_character.equipment.values().any(
 		func(entry: Dictionary) -> bool: return String(entry.get("unique", "")) == "oakcase_carved_tunic"))
 
-	hero.stats.equipment = saved_equipment
+	PartyManager.current().members[hero.member_id] = CharacterState.from_dict(hero.member_id, saved_character_data)
 	hero.stats.refresh()
-	hero.health = minf(saved_health, saved_max_health)
-	hero.max_health = saved_max_health
+	hero.health = saved_health
+	hero.stats.mana = saved_mana
 	hero.set_physics_process(true)
 	enemy.queue_free()
-	TownState.reset()
 
 func _plain(actor: Actor) -> void:
 	actor.level = 1
