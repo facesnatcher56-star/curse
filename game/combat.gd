@@ -61,7 +61,7 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 	var result: Dictionary = {"outcome": Outcome.HIT, "damage": 0.0, "weight": weight, "source": attacker, "type": damage_type}
 	result["weapon_hit"] = damage_type in [DamageType.PHYSICAL, DamageType.RANGED]
 	result["origin"] = attacker.combat_identity() if is_instance_valid(attacker) else {}
-	if can_miss and randf() < defender.dodge_chance:
+	if can_miss and randf() < dodge_chance_against(defender, damage_type):
 		return _done(result, Outcome.MISS)
 	var physical: bool = damage_type in [DamageType.PHYSICAL, DamageType.RANGED]
 	var block: float = defender.ranged_block_chance if damage_type == DamageType.RANGED else defender.block_chance
@@ -98,6 +98,12 @@ static func resolve(attacker: Actor, defender: Actor, base_damage: float,
 		dmg *= element_multiplier(defender, ELEMENT_OF_TYPE[damage_type])
 	result["damage"] = dmg
 	return _done(result, outcome)
+
+## The chance `defender` has to dodge a blow of `damage_type`: arrows meet the ranged chance, everything else the melee one (DS2: the Dodge skill and
+## `alter_chance_to_dodge_hit` gear apply to both; `_melee` and `_ranged` gear to one).
+static func dodge_chance_against(defender: Actor, damage_type: int) -> float:
+	var chance: float = defender.ranged_dodge_chance if damage_type == DamageType.RANGED and defender.ranged_dodge_chance >= 0.0 else defender.dodge_chance
+	return clampf(chance, 0.0, 1.0)
 
 static func fire_multiplier(defender: Actor) -> float:
 	return element_multiplier(defender, "fire")

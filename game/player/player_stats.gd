@@ -72,7 +72,10 @@ func refresh() -> void:
 	var critical_damage := "mortal_wound" if is_ranged() else "deadly_strike"
 	p.crit_mult = passive(critical_damage) / 100.0 if TownState.passive_rank(critical_damage, {}, p.member_id) > 0 else 2.0
 	p.toughness = passive("toughness") / 100.0
-	p.dodge_chance = passive("dodge") / 100.0
+	# DS2: the Dodge skill and general dodge gear count against melee and ranged blows alike; melee-only and ranged-only gear against their own kind.
+	var dodge_base: float = passive("dodge") + gear_stat("dodge")
+	p.dodge_chance = (dodge_base + gear_stat("dodge_melee")) / 100.0
+	p.ranged_dodge_chance = (dodge_base + gear_stat("dodge_ranged")) / 100.0
 
 ## A DS2 passive's effect at the hero's rank in it (PassiveDef.value; 0 when he has none).
 func passive(id: String) -> float:

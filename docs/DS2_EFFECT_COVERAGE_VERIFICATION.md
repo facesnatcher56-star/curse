@@ -47,9 +47,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 | Status | Count | Percentage |
 | :--- | :--- | :--- |
-| **Supported** | **34** | 58.6% |
+| **Supported** | **37** | 63.8% |
 | **Untested** | **0** | 0.0% |
-| **Unsupported** | **23** | 39.7% |
+| **Unsupported** | **20** | 34.5% |
 | **Unresolved** | **0** | 0.0% |
 | **Cosmetic Only** | **1** | 1.7% |
 | **Excluded** | **0** | 0.0% |
@@ -59,9 +59,9 @@ Every property is deterministically classified into one of six mutually exclusiv
 
 ## 4. Detailed Alteration Mapping
 
-### 4.1 Supported Alterations (34)
+### 4.1 Supported Alterations (37)
 
-All 34 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
+All 37 supported alterations have verified runtime consumers and verified test suite assertions in `game/dev/suites/*.gd`:
 
 | Alteration Identifier | Category | Runtime Key | Runtime Consumer | Verified Test Suite & Function | Test Suite Verification Evidence |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -99,6 +99,9 @@ All 34 supported alterations have verified runtime consumers and verified test s
 | `alter_ice_resistance` | Resistance | `ice_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
 | `alter_lightning_resistance` | Resistance | `lightning_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
 | `alter_death_resistance` | Resistance | `death_resist` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:element_multiplier()` | `game/dev/suites/element_tests.gd:_test_elements()`, `game/dev/suites/equipment_integration_tests.gd:_test_equipment_integration()` | Integration build: ring requirement gating, equip/unequip, typed incoming damage reduced by the matching resistance only. |
+| `alter_chance_to_dodge_hit` | Defense | `dodge` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
+| `alter_chance_to_dodge_hit_melee` | Defense | `dodge_melee` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
+| `alter_chance_to_dodge_hit_ranged` | Defense | `dodge_ranged` | `game/player/player_stats.gd:refresh()`, `game/combat.gd:dodge_chance_against()` | `game/dev/suites/dodge_block_tests.gd:_test_dodge_block()` | Equip, replace, unequip, no stacking, resolution rates, combination with the Dodge skill. |
 
 ---
 
@@ -108,9 +111,9 @@ All 11 alterations originally marked `untested` in the initial audit now have de
 
 ---
 
-### 4.3 Unsupported Alterations (23)
+### 4.3 Unsupported Alterations (20)
 
-These 23 source alterations currently have no runtime consumer pipeline in Curse:
+These 20 source alterations currently have no runtime consumer pipeline in Curse:
 
 | Alteration Identifier | Category | Target Pipeline | Required Runtime Implementation |
 | :--- | :--- | :--- | :--- |
@@ -119,9 +122,6 @@ These 23 source alterations currently have no runtime consumer pipeline in Curse
 | `alter_melee_resistance` | Resistance | PlayerStats / Combat | Attack-type melee physical mitigation. |
 | `alter_ranged_resistance` | Resistance | PlayerStats / Combat | Attack-type ranged physical mitigation. |
 | `alter_block_combat_magic_damage` | Defense | Combat | Spell damage reduction / block on staves and shields. |
-| `alter_chance_to_dodge_hit` | Defense | Combat | Gear-derived general dodge calculation. |
-| `alter_chance_to_dodge_hit_melee` | Defense | Combat | Gear-derived melee attack dodge calculation. |
-| `alter_chance_to_dodge_hit_ranged` | Defense | Combat | Gear-derived ranged attack dodge calculation. |
 | `ALTER_CHANCE_TO_DODGE_HIT_RANGED` | Defense | Combat | Uppercase variant of ranged dodge. |
 | `alter_nmagic_damage_percent` | Multiplier | PlayerStats | Nature magic spell damage scaling (Curse only has Combat Magic). |
 | `ALTER_POWER_DAMAGE_PERCENT` | Multiplier | Powers | Equipment bonus scaling activated powers. |
@@ -245,6 +245,6 @@ Two automated tools and a dedicated unit test suite enforce manifest integrity:
 
 Compound requirement checks are implemented for comma-only AND expressions, pipe-only OR expressions, and passive ranks. Mixed expressions containing both operators remain unsupported and fail closed because the source precedence is unresolved. Requirements that depend on passive skills absent from Curse also fail closed.
 
-The manifest still classifies **34 alterations as supported, 23 as unsupported, and one (`alter_generic`) as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
+The manifest classifies **37 alterations as supported, 20 as unsupported, one (`alter_generic`) as cosmetic-only and none as unresolved**. These counts describe distinct alteration families with runtime and test evidence; they do not mean the 768 catalog equipment templates have all been imported or implemented. The catalog remains reference data (`runtime_imported: false`).
 
 Other gaps remain as listed in the manifest, including unsupported equipment effects and template properties. Do not infer full item import or behavior coverage from catalog parsing, requirement evaluation, or the supported-alteration count.

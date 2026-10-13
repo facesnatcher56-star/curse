@@ -86,7 +86,8 @@ func refresh() -> void:
 	lines.append("\n--- Defenses ---")
 	lines.append("Armor: %.1f  (gear +%d, +%d%%)" % [player.armor, int(s.gear_stat("armor")), int(s.gear_stat("armor_pct"))])
 	lines.append("Block: %.1f%%  (Ranged Block: %.1f%%)" % [player.block_chance * 100.0, player.ranged_block_chance * 100.0])
-	lines.append("Dodge: %.1f%%  Toughness: %.1f%%" % [player.dodge_chance * 100.0, player.toughness * 100.0])
+	lines.append("Dodge: %.1f%% melee / %.1f%% ranged   Toughness: %.1f%%" % [Combat.dodge_chance_against(player, Combat.DamageType.PHYSICAL) * 100.0,
+		Combat.dodge_chance_against(player, Combat.DamageType.RANGED) * 100.0, player.toughness * 100.0])
 	for element in Combat.ELEMENTS:
 		lines.append("%s Resistance: %.1f%%" % [element.capitalize(), Combat.resistance_of(player, element) * 100.0])
 
