@@ -180,7 +180,7 @@ func _test_fetch_targets() -> void:
 	expect("the quest is still active and unpaid", satchel["state"] == "active" and not bool(satchel["data"].get("dropped", false)))
 	# The other fetch quest keeps its own rules: no respawn for stolen_ledger.
 	var ledger: Dictionary = Quests.post("stolen_ledger")
-	expect("stolen_ledger is not allowed a respawned target (open owner decision)", not Quests.wants_target_respawn(ledger, 0))
+	expect("stolen_ledger is allowed a respawned brute (owner decision: reintroduce while active)", Quests.wants_target_respawn(ledger, 0))
 	town.queue_free()
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
@@ -194,7 +194,64 @@ func _living(variant: String) -> int:
 	var count: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
-		if e != null and not e.dead and e.variant == variant:
+		if e != null and not e.dead and not e.is_queued_for_deletion() and e.variant == variant:
+			count += 1
+	return count
+
+## stolen_ledger's brute (QuestDef.respawn_target): one plain brute is put back on the road while the quest is active and no brute lives.
+## Never a second one while one lives; nothing when the quest is not active; a regrow and an accepted quest are not stranded.
+## Real town and road; the quest is not completed or paid by the reintroduction.
+func _test_ledger_brute() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.road_conditions_in_tests = false
+	Quests.news.clear()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	var town := TownScene.new()
+	game.add_child(town)
+	var waited: int = 0
+	while (town.director == null or get_tree().get_nodes_in_group("enemies").size() < 40) and waited < 900:
+		await get_tree().physics_frame
+		waited += 1
+	_clear_road()
+	await get_tree().process_frame
+	var ledger: Dictionary = Quests.post("stolen_ledger")
+	town.populate_quests()
+	expect("an active stolen_ledger puts one brute back on the road (%d)" % _living("brute"), _living("brute") == 1)
+	expect("the brute put back is plain: no quest or named mark", _plain("brute") == 1)
+	town.populate_quests()
+	expect("a living brute is never doubled", _living("brute") == 1)
+	_clear_road()
+	ledger["state"] = "done"
+	town.populate_quests()
+	expect("a quest that is not active puts no brute back", _living("brute") == 0)
+	ledger["state"] = "active"
+	await town._repopulate_after_regrow()
+	town.populate_quests()
+	expect("a regrow with the quest active leaves exactly one brute (%d)" % _living("brute"), _living("brute") == 1)
+	_clear_road()
+	town.populate_quests()
+	expect("an accepted quest whose brute was killed is not stranded: one is back", _living("brute") == 1
+		and String(ledger["state"]) == "active")
+	expect("the reintroduction neither completes nor pays the quest", not bool(ledger["data"].get("dropped", false))
+		and String(ledger["state"]) == "active")
+	town.queue_free()
+	_clear_road()
+	await get_tree().process_frame
+	TownState.reset()
+	Quests.news.clear()
+
+func _clear_road() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+
+func _plain(variant: String) -> int:
+	var count: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and not e.is_queued_for_deletion() and e.variant == variant and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
 			count += 1
 	return count
 

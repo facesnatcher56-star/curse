@@ -160,6 +160,7 @@ const ONLY_TESTS := {
 "runrewards": "_test_run_rewards",
 "questrewards": "_test_quest_and_world_rewards",
 "fetchtargets": "_test_fetch_targets",
+"ledgerbrute": "_test_ledger_brute",
 }
 
 var _failures: PackedStringArray = []
