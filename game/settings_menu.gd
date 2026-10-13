@@ -11,10 +11,13 @@ var _pad_buttons: Dictionary = {}      # action -> controller binding Button
 var _listening_kind: String = "kb"
 var _listening_action: String = ""
 var _resolution_option: OptionButton
+var _monitor_option: OptionButton
+var _resolution_choices: Array[int] = []   # RESOLUTIONS indices shown in _resolution_option, in the same order
 var _hotbar_options: Dictionary = {}   # slot number -> its OptionButton (see _build_hotbar_rows)
 
 func _ready() -> void:
 	add_to_group("settings_menu")
+	visibility_changed.connect(_on_visibility_changed)
 	PartyManager.current().active_member_changed.connect(_member_selected)
 	process_mode = Node.PROCESS_MODE_ALWAYS  # must work while the game is paused
 	theme = UiTheme.get_theme()
@@ -140,14 +143,17 @@ func _build_video() -> Control:
 		GameSettings.window_mode = i
 		_resolution_option.disabled = i != 0
 		GameSettings.apply_video())))
-	var names: Array[String] = []
-	for size in GameSettings.RESOLUTIONS:
-		names.append("%d x %d" % [size.x, size.y])
-	_resolution_option = _options(names, GameSettings.resolution_index, func(i: int) -> void:
-		GameSettings.resolution_index = i
+	_monitor_option = OptionButton.new()
+	_monitor_option.item_selected.connect(func(i: int) -> void:
+		GameSettings.select_monitor(i)
+		_refresh_resolution_options())
+	page.add_child(_row("Monitor", _monitor_option))
+	_resolution_option = OptionButton.new()
+	_resolution_option.item_selected.connect(func(i: int) -> void:
+		GameSettings.resolution_index = _resolution_choices[i]
 		GameSettings.apply_video())
-	_resolution_option.disabled = GameSettings.window_mode != 0
 	page.add_child(_row("Resolution (windowed)", _resolution_option))
+	_refresh_monitor_options()
 	var ui_slider := HSlider.new()
 	ui_slider.min_value = 0.5
 	ui_slider.max_value = 1.5
@@ -168,6 +174,36 @@ func _build_video() -> Control:
 		GameSettings.vsync = on
 		GameSettings.apply_video())))
 	return page
+
+## Re-reads the monitors: the list of monitors, then the resolutions that fit the one in use.
+func _refresh_monitor_options() -> void:
+	_monitor_option.clear()
+	for label in GameSettings.monitor_names_now():
+		_monitor_option.add_item(label)
+	_monitor_option.select(GameSettings.current_monitor_index())
+	_monitor_option.disabled = GameSettings.monitor_rects().size() < 2
+	_refresh_resolution_options()
+
+## The resolutions that fit the monitor in use. Changing the monitor refreshes this list; a resolution that does not fit falls back to the
+## largest one that does (the saved choice is kept for a bigger monitor).
+func _refresh_resolution_options() -> void:
+	var monitor_size: Vector2i = GameSettings.current_monitor_size()
+	_resolution_choices = GameSettings.fitting_resolution_indices(monitor_size)
+	_resolution_option.clear()
+	for index in _resolution_choices:
+		var size: Vector2i = GameSettings.RESOLUTIONS[index]
+		_resolution_option.add_item("%d x %d" % [size.x, size.y])
+	var effective: int = GameSettings.effective_resolution_index(monitor_size)
+	_resolution_option.select(maxi(_resolution_choices.find(effective), 0))
+	_resolution_option.disabled = GameSettings.window_mode != 0
+
+## Opening the menu re-reads the monitors. If the chosen monitor was unplugged, the window is moved to the fallback monitor.
+func _on_visibility_changed() -> void:
+	if not is_visible_in_tree() or _monitor_option == null:
+		return
+	if GameSettings.monitor_missing():
+		GameSettings.apply_video()
+	_refresh_monitor_options()
 
 func _build_gameplay() -> Control:
 	var page := _page()
