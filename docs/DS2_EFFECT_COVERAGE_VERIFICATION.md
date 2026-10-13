@@ -50,8 +50,8 @@ Every property is deterministically classified into one of six mutually exclusiv
 | **Supported** | **34** | 58.6% |
 | **Untested** | **0** | 0.0% |
 | **Unsupported** | **23** | 39.7% |
-| **Unresolved** | **1** | 1.7% |
-| **Cosmetic Only** | **0** | 0.0% |
+| **Unresolved** | **0** | 0.0% |
+| **Cosmetic Only** | **1** | 1.7% |
 | **Excluded** | **0** | 0.0% |
 | **Total** | **58** | **100.0%** |
 
@@ -140,11 +140,19 @@ These 23 source alterations currently have no runtime consumer pipeline in Curse
 
 ---
 
-### 4.4 Unresolved Alterations (1)
+### 4.4 Cosmetic and Descriptive Alterations (1)
 
-| Alteration Identifier | Category | Occurrences | Source Evidence & Rationale |
+All 92 occurrences of `alter_generic` across 89 item records and 3 set tiers have been mechanically resolved via extraction of original game Skrit scripts (`Logic.ds2res`):
+
+| Alteration Identifier | Category | Occurrences | Source Evidence & Verified Mechanics |
 | :--- | :--- | :--- | :--- |
-| `alter_generic` | Script Hook | 89 item records, 3 set tiers | References proprietary Dungeon Siege II Skrit scripting hooks (e.g. `ax_1h_ba_unq_01`, `ax_1h_ea_unq_01`, and `mysterious` set tier values). The actual skrit scripts, arguments, and combat logic are not present in the checked-in catalog JSON. **Marked unresolved; must not be guessed.** |
+| `alter_generic` | Cosmetic / Descriptive | 89 item records, 3 set tiers | Mechanically resolved via Skrit source extraction (see [`docs/DS2_GENERIC_SCRIPT_RESEARCH.md`](file:///c:/Users/lloyd/OneDrive/Documents/curse-gemini-roadmap/docs/DS2_GENERIC_SCRIPT_RESEARCH.md) and [`data/reference/ds2_generic_script_inventory.json`](file:///c:/Users/lloyd/OneDrive/Documents/curse-gemini-roadmap/data/reference/ds2_generic_script_inventory.json)):<br>• **88 unique/set weapons:** Hook `world\global\enchantments\weapon_enchant.skrit` (handles weapon mesh aura FlickFX, projectile trails, and on-hit particle bursts; deals **0.0 damage** and grants **0.0 stat bonuses**).<br>• **1 crafted bow (`wpn_a1_vet_crafted_9`):** Static UI tooltip dummy (`+5% Range`) with +10% range baked into weapon attack template.<br>• **3 mysterious set tiers:** Quest riddle cipher strings (`"5 2 6 4 3 9 2 8"`, etc.) for secret Quest 75 chant.<br>**Status:** `cosmetic_only`. Deals no hidden damage or spell procs. |
+
+---
+
+### 4.5 Unresolved Alterations (0)
+
+All 58 alteration identifiers across the Dungeon Siege II catalog are now fully identified, audited, and resolved into verified supported mechanics, unsupported mechanics, or cosmetic/descriptive hooks. **Zero unresolved alterations remain.**
 
 ---
 

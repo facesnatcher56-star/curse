@@ -810,19 +810,19 @@ def build_manifest_data(catalog):
             "notes": "Uppercase variant of alter_intelligence. Currently unmapped in PlayerStats."
         },
 
-        # --- UNRESOLVED ALTERATIONS (1) ---
+        # --- COSMETIC / DESCRIPTIVE ALTERATIONS (1) ---
         "alter_generic": {
-            "status": "unresolved",
-            "category": "generic_script",
+            "status": "cosmetic_only",
+            "category": "cosmetic_and_descriptive",
             "runtime_key": None,
-            "units": "arbitrary_skrit",
-            "target": "skrit_engine",
-            "stacking": "unknown",
+            "units": "none",
+            "target": "vfx_and_tooltip",
+            "stacking": "none",
             "applicable_families": ["weapon", "set"],
-            "source_evidence": "alter_generic across 89 item records and 3 mysterious set tiers with unextracted Skrit hooks (e.g. ax_1h_ba_unq_01, '5 2 6 4 3 9 2 8').",
+            "source_evidence": "alter_generic across 89 item records and 3 mysterious set tiers (see docs/DS2_GENERIC_SCRIPT_RESEARCH.md and data/reference/ds2_generic_script_inventory.json).",
             "runtime_consumer": None,
             "test_path": None,
-            "notes": "89 instances refer to proprietary DS2 Skrit script callbacks whose logic and parameters are not documented in the checked-in catalog JSON."
+            "notes": "Mechanically resolved via original Skrit source extraction: 88 unique/set weapons hook world\\global\\enchantments\\weapon_enchant.skrit (pure FlickFX weapon/projectile/hit particles, 0 combat damage/stats); 1 crafted bow (Eagle Eye) is a static UI range tooltip (+5% Range); 3 mysterious set tiers are puzzle riddle strings for Quest 75 cipher."
         }
     }
 

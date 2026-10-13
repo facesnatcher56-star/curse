@@ -145,7 +145,7 @@ def validate_coverage(catalog_path=CATALOG_PATH, manifest_path=MANIFEST_PATH, ba
             if not alt_data.get("runtime_key"):
                 errors.append(f"Untested alteration '{alt_id}' lacks required 'runtime_key'.")
 
-        elif status in ("unsupported", "unresolved"):
+        elif status in ("unsupported", "unresolved", "cosmetic_only", "excluded"):
             if alt_data.get("runtime_consumer"):
                 errors.append(f"Alteration '{alt_id}' has status '{status}' but specifies runtime_consumer '{alt_data['runtime_consumer']}'.")
             if alt_data.get("test_path"):

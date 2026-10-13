@@ -87,18 +87,19 @@ class TestDS2EffectCoverage(unittest.TestCase):
         self.assertEqual(status_counts["supported"], 34)
         self.assertEqual(status_counts["untested"], 0)
         self.assertEqual(status_counts["unsupported"], 23)
-        self.assertEqual(status_counts["unresolved"], 1)
-        self.assertEqual(status_counts["cosmetic_only"], 0)
+        self.assertEqual(status_counts["unresolved"], 0)
+        self.assertEqual(status_counts["cosmetic_only"], 1)
         self.assertEqual(status_counts["excluded"], 0)
 
-    def test_unresolved_alter_generic_not_guessed(self):
-        """Ensure alter_generic is strictly marked as unresolved."""
+    def test_alter_generic_classified_as_cosmetic_only(self):
+        """Ensure alter_generic is accurately classified as cosmetic_only without fabricated gameplay."""
         with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
             manifest = json.load(f)
         alter_generic = manifest["alterations"].get("alter_generic")
         self.assertIsNotNone(alter_generic)
-        self.assertEqual(alter_generic["status"], "unresolved")
+        self.assertEqual(alter_generic["status"], "cosmetic_only")
         self.assertIsNone(alter_generic["runtime_consumer"])
+        self.assertIsNone(alter_generic["test_path"])
 
     def test_template_properties_coverage(self):
         """Ensure all 24 template and attack properties are accounted for."""
