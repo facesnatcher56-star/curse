@@ -3,7 +3,7 @@ extends RefCounted
 ## Feedback helpers: floating text, hit-stop, camera shake.
 
 const OUTCOME_STYLE := {
-	Combat.Outcome.MISS: ["Miss", Color(0.7, 0.7, 0.7), 30],
+	Combat.Outcome.MISS: ["Dodge", Color(0.6, 0.95, 1.0), 32],   # the only way a blow misses here is a dodge (DS2 has no accuracy roll)
 	Combat.Outcome.BLOCK: ["Block", Color(0.5, 0.85, 1.0), 34],
 	Combat.Outcome.HIT: ["", Color(1, 1, 1), 36],
 	Combat.Outcome.CRITICAL: ["Critical ", Color(1.0, 0.9, 0.2), 46],

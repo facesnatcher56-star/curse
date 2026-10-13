@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UniqueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/unique_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "dusk"
+display_name = "Dusk"
+base = "leather_jerkin"
+level = 16
+mods = {
+"armor": 8.0,
+"lightning_resist": 13.0,
+"death_resist": 13.0,
+"dodge_melee": 6.0,
+"magic_find": 18.0
+}
+set_id = ""

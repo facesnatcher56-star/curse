@@ -53,7 +53,7 @@ func record_hit(result: Dictionary, attacker: Actor, defender: Actor) -> void:
 	var color := UiTheme.TEXT
 	match outcome:
 		Combat.Outcome.MISS:
-			outcome_str = "MISS"
+			outcome_str = "DODGE"
 			color = Color(0.6, 0.6, 0.6)
 		Combat.Outcome.BLOCK:
 			outcome_str = "BLOCK"

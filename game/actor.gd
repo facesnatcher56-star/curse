@@ -44,6 +44,8 @@ var added_lightning_max: float = 0.0
 var added_death: float = 0.0
 var added_death_max: float = 0.0
 var ranged_block_chance: float = 0.0
+## The chance to dodge a ranged blow when it differs from `dodge_chance` (the hero: gear can dodge only melee or only ranged). Negative: the same as `dodge_chance`.
+var ranged_dodge_chance: float = -1.0
 var body_radius: float = 0.4
 var dead: bool = false
 

@@ -576,43 +576,43 @@ def build_manifest_data(catalog):
             "notes": "Spell damage reduction / block on equipment missing."
         },
         "alter_chance_to_dodge_hit": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "defense_dodge",
-            "runtime_key": None,
+            "runtime_key": "dodge",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor"],
             "source_evidence": "alter_chance_to_dodge_hit in items (e.g. +3% Chance to Dodge Ranged and Melee Attacks).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "General gear-derived dodge bonus missing from combat resolution."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:dodge_chance_against()",
+            "test_path": "game/dev/suites/dodge_block_tests.gd:_test_dodge_block()",
+            "notes": "Additive to the Dodge skill and counted against melee and ranged blows alike. Verified in dodge_block_tests.gd (aggregation, equip, replace, unequip, no stacking, resolution rates). No live Curse base carries it yet; checked with a test unique."
         },
         "alter_chance_to_dodge_hit_melee": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "defense_dodge",
-            "runtime_key": None,
+            "runtime_key": "dodge_melee",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "set"],
             "source_evidence": "alter_chance_to_dodge_hit_melee in items, sets (e.g. +4% Chance to Dodge Melee Attacks).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Melee-specific dodge bonus missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:dodge_chance_against()",
+            "test_path": "game/dev/suites/dodge_block_tests.gd:_test_dodge_block()",
+            "notes": "Counted against melee (non-arrow) blows only. Verified in dodge_block_tests.gd with the live Dusk unique (DS2 Leather Jerkin, 6%): aggregation, requirement gating, resolution rate, unequip, saves, Item Lab readout."
         },
         "alter_chance_to_dodge_hit_ranged": {
-            "status": "unsupported",
+            "status": "supported",
             "category": "defense_dodge",
-            "runtime_key": None,
+            "runtime_key": "dodge_ranged",
             "units": "fractional_percent",
             "target": "player_stats",
             "stacking": "additive",
             "applicable_families": ["armor", "weapon"],
             "source_evidence": "alter_chance_to_dodge_hit_ranged in items (e.g. +12% Chance to Dodge Ranged Attacks).",
-            "runtime_consumer": None,
-            "test_path": None,
-            "notes": "Ranged-specific dodge bonus missing."
+            "runtime_consumer": "game/player/player_stats.gd:refresh(), game/combat.gd:dodge_chance_against()",
+            "test_path": "game/dev/suites/dodge_block_tests.gd:_test_dodge_block()",
+            "notes": "Counted against arrows only. Verified in dodge_block_tests.gd with the live Grace of Night unique (DS2 Leather Boots, 8%): aggregation, resolution rate, combination with Dusk, unequip."
         },
         "ALTER_CHANCE_TO_DODGE_HIT_RANGED": {
             "status": "unsupported",

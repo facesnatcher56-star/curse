@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parent.parent / "data"
 
 UNIQUES = [
     # id, name, base, item level, mods, set
+    # Two DS2 catalogue items (data/reference/ds2_equipment_catalog.json) whose bases and every alteration Curse already has: DS2 values, exact.
+    ("dusk", "Dusk", "leather_jerkin", 16, {"armor": 8, "lightning_resist": 13, "death_resist": 13, "dodge_melee": 6, "magic_find": 18}, ""),
+    ("grace_of_night", "Grace of Night", "leather_boots", 8, {"life": 12, "armor": 4, "ice_resist": 12, "dodge_ranged": 8}, ""),
     ("gravecutter", "Gravecutter", "falchion", 12, {"melee_min": 7, "melee_pct": 20, "life_steal": 5, "magic_find": 10}, ""),
     ("wardens_oath", "The Warden's Oath", "kite_shield", 44, {"armor_pct": 60, "block": 12, "life": 120, "reflect": 20}, ""),
     ("emberheart", "Emberheart", "talisman", 30, {"int": 25, "spell_pct": 25, "fire_resist": 20, "mana": 120}, ""),
