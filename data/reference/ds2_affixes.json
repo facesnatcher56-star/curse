@@ -3834,5 +3834,1019 @@
       ],
       "classes": []
     }
+  ],
+  "ice_added": [
+    {
+      "source": "chilling",
+      "title": "Chilling",
+      "level": 18,
+      "value": 3.0,
+      "max_value": 4.0,
+      "value_ceiling": 3.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "shivering",
+      "title": "Shivering",
+      "level": 27,
+      "value": 5.0,
+      "max_value": 8.0,
+      "value_ceiling": 5.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "frigid",
+      "title": "Frigid",
+      "level": 37,
+      "value": 8.0,
+      "max_value": 14.0,
+      "value_ceiling": 8.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "arctic",
+      "title": "Arctic",
+      "level": 49,
+      "value": 13.0,
+      "max_value": 22.0,
+      "value_ceiling": 13.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "glacial",
+      "title": "Glacial",
+      "level": 61,
+      "value": 19.0,
+      "max_value": 32.0,
+      "value_ceiling": 19.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "boreal",
+      "title": "Boreal",
+      "level": 74,
+      "value": 27.0,
+      "max_value": 45.0,
+      "value_ceiling": 27.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "frosted",
+      "title": "Frosted",
+      "level": 18,
+      "value": 3.0,
+      "max_value": 4.0,
+      "value_ceiling": 3.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "snowy",
+      "title": "Snowy",
+      "level": 27,
+      "value": 5.0,
+      "max_value": 8.0,
+      "value_ceiling": 5.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "icy",
+      "title": "Icy",
+      "level": 37,
+      "value": 8.0,
+      "max_value": 14.0,
+      "value_ceiling": 8.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "frozen",
+      "title": "Frozen",
+      "level": 49,
+      "value": 13.0,
+      "max_value": 22.0,
+      "value_ceiling": 13.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "wintery",
+      "title": "Wintery",
+      "level": 61,
+      "value": 19.0,
+      "max_value": 32.0,
+      "value_ceiling": 19.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "polar",
+      "title": "Polar",
+      "level": 74,
+      "value": 27.0,
+      "max_value": 45.0,
+      "value_ceiling": 27.0,
+      "stat": "ice_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    }
+  ],
+  "ice_resist": [
+    {
+      "source": "azure",
+      "title": "Azure",
+      "level": 6,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "ice_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "beryl",
+      "title": "Beryl",
+      "level": 17,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "ice_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "blue",
+      "title": "Blue",
+      "level": 28,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "ice_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "cerulean",
+      "title": "Cerulean",
+      "level": 39,
+      "value": 22.0,
+      "max_value": 22.0,
+      "value_ceiling": 22.0,
+      "stat": "ice_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "sapphire",
+      "title": "Sapphire",
+      "level": 50,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "ice_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "lightning_added": [
+    {
+      "source": "jolting",
+      "title": "Jolting",
+      "level": 18,
+      "value": 2.0,
+      "max_value": 5.0,
+      "value_ceiling": 2.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "electrified",
+      "title": "Electrified",
+      "level": 29,
+      "value": 4.0,
+      "max_value": 12.0,
+      "value_ceiling": 4.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "charged",
+      "title": "Charged",
+      "level": 37,
+      "value": 6.0,
+      "max_value": 20.0,
+      "value_ceiling": 6.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "shocking",
+      "title": "Shocking",
+      "level": 42,
+      "value": 12.0,
+      "max_value": 32.0,
+      "value_ceiling": 12.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "thundering",
+      "title": "Thundering",
+      "level": 70,
+      "value": 16.0,
+      "max_value": 50.0,
+      "value_ceiling": 16.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "storming",
+      "title": "Storming",
+      "level": 85,
+      "value": 24.0,
+      "max_value": 70.0,
+      "value_ceiling": 24.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "glimmering",
+      "title": "Glimmering",
+      "level": 18,
+      "value": 2.0,
+      "max_value": 5.0,
+      "value_ceiling": 2.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "glowing",
+      "title": "Glowing",
+      "level": 29,
+      "value": 4.0,
+      "max_value": 12.0,
+      "value_ceiling": 4.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "radiating",
+      "title": "Radiating",
+      "level": 37,
+      "value": 6.0,
+      "max_value": 20.0,
+      "value_ceiling": 6.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "dazzling",
+      "title": "Dazzling",
+      "level": 42,
+      "value": 12.0,
+      "max_value": 32.0,
+      "value_ceiling": 12.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "suffused",
+      "title": "Suffused",
+      "level": 70,
+      "value": 16.0,
+      "max_value": 50.0,
+      "value_ceiling": 16.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "incandescent",
+      "title": "Incandescent",
+      "level": 85,
+      "value": 24.0,
+      "max_value": 70.0,
+      "value_ceiling": 24.0,
+      "stat": "lightning_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    }
+  ],
+  "lightning_resist": [
+    {
+      "source": "pale",
+      "title": "Pale",
+      "level": 6,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "lightning_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "ivory",
+      "title": "Ivory",
+      "level": 17,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "lightning_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "white",
+      "title": "White",
+      "level": 28,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "lightning_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "crystalline",
+      "title": "Crystalline",
+      "level": 39,
+      "value": 22.0,
+      "max_value": 22.0,
+      "value_ceiling": 22.0,
+      "stat": "lightning_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "pearl",
+      "title": "Pearl",
+      "level": 50,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "lightning_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
+  ],
+  "death_added": [
+    {
+      "source": "grim",
+      "title": "Grim",
+      "level": 22,
+      "value": 4.0,
+      "max_value": 6.0,
+      "value_ceiling": 4.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "corrupt",
+      "title": "Corrupt",
+      "level": 32,
+      "value": 6.0,
+      "max_value": 12.0,
+      "value_ceiling": 6.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "vile",
+      "title": "Vile",
+      "level": 42,
+      "value": 10.0,
+      "max_value": 18.0,
+      "value_ceiling": 10.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "gruesome",
+      "title": "Gruesome",
+      "level": 55,
+      "value": 16.0,
+      "max_value": 28.0,
+      "value_ceiling": 16.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "depraved",
+      "title": "Depraved",
+      "level": 70,
+      "value": 24.0,
+      "max_value": 40.0,
+      "value_ceiling": 24.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "necromantic",
+      "title": "Necromantic",
+      "level": 85,
+      "value": 35.0,
+      "max_value": 58.0,
+      "value_ceiling": 35.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "fighter"
+      ]
+    },
+    {
+      "source": "somber",
+      "title": "Somber",
+      "level": 22,
+      "value": 4.0,
+      "max_value": 6.0,
+      "value_ceiling": 4.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "dispiriting",
+      "title": "Dispiriting",
+      "level": 32,
+      "value": 6.0,
+      "max_value": 12.0,
+      "value_ceiling": 6.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "mournful",
+      "title": "Mournful",
+      "level": 42,
+      "value": 10.0,
+      "max_value": 18.0,
+      "value_ceiling": 10.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "desolate",
+      "title": "Desolate",
+      "level": 55,
+      "value": 16.0,
+      "max_value": 28.0,
+      "value_ceiling": 16.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "caliginous",
+      "title": "Caliginous",
+      "level": 70,
+      "value": 24.0,
+      "max_value": 40.0,
+      "value_ceiling": 24.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    },
+    {
+      "source": "stygian",
+      "title": "Stygian",
+      "level": 85,
+      "value": 35.0,
+      "max_value": 58.0,
+      "value_ceiling": 35.0,
+      "stat": "death_added",
+      "percent": false,
+      "position": "prefix",
+      "slots": [
+        "weapon"
+      ],
+      "classes": [
+        "ranger"
+      ]
+    }
+  ],
+  "death_resist": [
+    {
+      "source": "indigo",
+      "title": "Indigo",
+      "level": 7,
+      "value": 10.0,
+      "max_value": 10.0,
+      "value_ceiling": 10.0,
+      "stat": "death_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "lavender",
+      "title": "Lavender",
+      "level": 19,
+      "value": 14.0,
+      "max_value": 14.0,
+      "value_ceiling": 14.0,
+      "stat": "death_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "purple",
+      "title": "Purple",
+      "level": 31,
+      "value": 18.0,
+      "max_value": 18.0,
+      "value_ceiling": 18.0,
+      "stat": "death_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "violet",
+      "title": "Violet",
+      "level": 43,
+      "value": 22.0,
+      "max_value": 22.0,
+      "value_ceiling": 22.0,
+      "stat": "death_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    },
+    {
+      "source": "amethyst",
+      "title": "Amethyst",
+      "level": 56,
+      "value": 25.0,
+      "max_value": 25.0,
+      "value_ceiling": 25.0,
+      "stat": "death_resist",
+      "percent": true,
+      "position": "prefix",
+      "slots": [
+        "amulet",
+        "body",
+        "boots",
+        "gloves",
+        "helm",
+        "ring",
+        "shield"
+      ],
+      "classes": [
+        "fighter",
+        "ranger",
+        "nmage",
+        "cmage"
+      ]
+    }
   ]
 }

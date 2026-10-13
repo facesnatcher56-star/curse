@@ -11,12 +11,15 @@ const STAT_NAMES := {
 	"melee_max": "Maximum melee damage", "melee_min": "Minimum melee damage", "melee_pct": "Melee damage",
 	"ranged_max": "Maximum ranged damage", "ranged_min": "Minimum ranged damage", "ranged_pct": "Ranged damage", "spell_pct": "Combat magic damage",
 	"fire_added": "Fire damage", "fire_added_max": "Maximum fire damage", "life_steal": "Life stolen per hit", "life_per_hit": "Life per hit", "armor": "Armor", "armor_pct": "Armor",
+	"ice_added": "Ice damage", "ice_added_max": "Maximum ice damage", "lightning_added": "Lightning damage", "lightning_added_max": "Maximum lightning damage",
+	"death_added": "Death damage", "death_added_max": "Maximum death damage",
+	"ice_resist": "Ice resistance", "lightning_resist": "Lightning resistance", "death_resist": "Death resistance",
 	"fire_resist": "Fire resistance", "reflect": "Melee damage reflected", "life_regen": "Life recovery", "mana_regen": "Mana recovery",
 	"block": "Chance to block melee", "block_ranged": "Chance to block ranged", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
 }
 
 ## The stats that are percentages.
-const PERCENT_STATS: Array[String] = ["melee_pct", "ranged_pct", "spell_pct", "life_steal", "mana_steal", "armor_pct", "fire_resist", "reflect", "life_regen", "mana_regen",
+const PERCENT_STATS: Array[String] = ["melee_pct", "ranged_pct", "spell_pct", "life_steal", "mana_steal", "armor_pct", "fire_resist", "ice_resist", "lightning_resist", "death_resist", "reflect", "life_regen", "mana_regen",
 	"block", "block_ranged", "recharge", "magic_find", "gold_find"]
 
 static func is_percent(stat: String) -> bool:

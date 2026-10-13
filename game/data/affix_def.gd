@@ -24,6 +24,6 @@ extends Resource
 
 ## "+12 Strength", "+18% Melee damage": the line on an item card.
 func describe() -> String:
-	if stat == "fire_added" and max_value > value:
-		return "+%d–%d Fire damage" % [int(value), int(max_value)]
+	if stat.ends_with("_added") and max_value > value:
+		return "+%d–%d %s" % [int(value), int(max_value), String(AffixDb.STAT_NAMES.get(stat, stat))]
 	return AffixDb.describe_stat(stat, value)

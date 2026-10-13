@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ice_added_12"
+family = "ice_added"
+tier = 12
+stat = "ice_added"
+title = "Polar"
+position = "prefix"
+level = 74
+value = 27.0
+max_value = 45.0
+value_ceiling = 27.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

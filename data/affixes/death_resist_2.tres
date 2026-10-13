@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "death_resist_2"
+family = "death_resist"
+tier = 2
+stat = "death_resist"
+title = "Lavender"
+position = "prefix"
+level = 19
+value = 14.0
+max_value = 14.0
+value_ceiling = 14.0
+percent = true
+slots = Array[String](["amulet", "body", "boots", "gloves", "helm", "ring", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "death_added_9"
+family = "death_added"
+tier = 9
+stat = "death_added"
+title = "Mournful"
+position = "prefix"
+level = 42
+value = 10.0
+max_value = 18.0
+value_ceiling = 10.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

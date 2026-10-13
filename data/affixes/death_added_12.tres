@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "death_added_12"
+family = "death_added"
+tier = 12
+stat = "death_added"
+title = "Stygian"
+position = "prefix"
+level = 85
+value = 35.0
+max_value = 58.0
+value_ceiling = 35.0
+percent = false
+slots = Array[String](["weapon"])
+classes = Array[String](["ranger"])

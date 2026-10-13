@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "death_resist_1"
+family = "death_resist"
+tier = 1
+stat = "death_resist"
+title = "Indigo"
+position = "prefix"
+level = 7
+value = 10.0
+max_value = 10.0
+value_ceiling = 10.0
+percent = true
+slots = Array[String](["amulet", "body", "boots", "gloves", "helm", "ring", "shield"])
+classes = Array[String](["fighter", "ranger", "nmage", "cmage"])

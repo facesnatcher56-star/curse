@@ -15,6 +15,10 @@ var health: float = 100.0
 var level: int = 1
 var armor: float = 0.0
 var fire_resist: float = 0.0
+## The other DS2 elements' resistances, fractions like `fire_resist`; each meets only its own element (Combat.element_multiplier).
+var ice_resist: float = 0.0
+var lightning_resist: float = 0.0
+var death_resist: float = 0.0
 var dodge_chance: float = 0.0
 var block_chance: float = 0.0
 var crit_chance: float = 0.0
@@ -32,6 +36,13 @@ func shred_armor(share: float, seconds: float) -> void:
 ## Fire added to every physical blow (DS2's added elemental damage, from gear): it meets the target's fire resistance, then armour with the rest.
 var added_fire: float = 0.0
 var added_fire_max: float = 0.0
+## Ice, lightning and death added the same way (min/max of the roll).
+var added_ice: float = 0.0
+var added_ice_max: float = 0.0
+var added_lightning: float = 0.0
+var added_lightning_max: float = 0.0
+var added_death: float = 0.0
+var added_death_max: float = 0.0
 var ranged_block_chance: float = 0.0
 var body_radius: float = 0.4
 var dead: bool = false
