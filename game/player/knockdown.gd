@@ -53,7 +53,8 @@ func begin() -> bool:
 	p.movement.rolling = false
 	p.movement.has_goal = false
 	p.attack_target = null
-	p.attack_prop = null
+	if p.is_controlled():
+		p.attack_prop = null   # a companion's standing nest order outlives the fall; it ends on completion, cancel or no firing spot
 	p.pickup_target = null
 	if _authored():
 		# Scrubbed by the fall's own clock (so a hit-pause freezes it and the phases keep their exact lengths) once the first

@@ -52,6 +52,8 @@ var blocked_time: float = 0.0
 var shots: int = 0
 var refusals: int = 0
 var _retreat_time: float = 0.0
+var _retreat_from: int = 0   # instance id of the target the backing-away allowance is being spent on
+var retreat_seconds: float = 0.0   # counted for the selftest: total time spent backing away from too-close targets
 var _holding: bool = false
 
 func _init(character: Player) -> void:
@@ -106,7 +108,6 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	p.skills.busy = true
 	shots += 1
 	blocked_time = 0.0
-	_retreat_time = 0.0
 	_holding = false
 	p.skills.busy_skill = "basic"
 	p.skills.busy_target = target
@@ -203,8 +204,14 @@ func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false)
 	var gap := p.flat_distance_to_point(point)
 	var sight := gap <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
 	# Backing away is bounded: an archer who has not opened the gap in RETREAT_LIMIT (penned in, pushed back) shoots from there.
+	# The allowance is spent once per target, not once per shot; it comes back when the gap opens or the target changes.
+	var subject: int = prop.get_instance_id() if prop != null else (target.get_instance_id() if target != null else 0)
+	if subject != _retreat_from or gap >= TOO_CLOSE:
+		_retreat_from = subject
+		_retreat_time = 0.0
 	if sight and not hold and gap < TOO_CLOSE and _retreat_time < RETREAT_LIMIT and _retreat(point, delta):
 		_retreat_time += delta
+		retreat_seconds += delta
 		return
 	if sight and p.stats.can_use("basic"):
 		if prop != null:

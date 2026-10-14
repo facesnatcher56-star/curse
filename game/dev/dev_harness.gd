@@ -296,6 +296,10 @@ func _run_selftest() -> void:
 
 	# (Death behaviour has its own check: _test_death_ragdoll.)
 
+	# Last: the nest order replaces the arena with the real Crypt Road, so nothing that needs the arena may run after it.
+	await _run("_test_archer_nest_order")
+	_party_restore(party_before)
+
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]
 	var parts: Array[String] = []
 	for key in Combat.tally.keys():
