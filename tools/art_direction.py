@@ -4,11 +4,14 @@ Every generator call (Meshy models, textures, icons, anything added later) goes 
 to a single prompt's memory.
 """
 
-STYLE = ("gritty dark fantasy, worn weathered grimy materials, scratched dented metal, stained torn cloth, "
-         "muted desaturated palette with warm ember accents, realistic hand-painted PBR, heavy and physical, "
-         "readable silhouette, low-key dramatic lighting")
+STYLE = ("gritty dark fantasy, geometric low-poly PS2-era-inspired geometry with clearly faceted forms and believable "
+         "humanoid proportions, modern lighting, soft shadows and fog, worn weathered grimy materials, scratched dented metal, "
+         "stained torn cloth, muted palette of steel, charcoal, leather, burgundy, brown, bone and moss with restrained ember "
+         "accents, heavy and physical, strong silhouette readable from an elevated camera")
 
-AVOID = "no cartoon, no cute, no chibi, no pristine, no shiny new, no glossy plastic, no neon, no rainbow colours, no pastel"
+AVOID = ("no photorealism, no extremely detailed high-poly models, no excessively realistic textures, no cube-like characters, "
+         "no cartoon or chibi proportions, no cute, no pristine, no shiny new, no shiny plastic, no glossy finish, no neon, "
+         "no rainbow colours, no pastel")
 
 
 def styled(prompt: str) -> str:
