@@ -21,14 +21,15 @@ var _thighs: Array[int] = []     # left, right
 var _react_skeleton: Skeleton3D
 var _reaction_owner: Node        # Actor that owns this model, for ragdoll/death cleanup
 
-static func build(folder: String, clips: Array[String]) -> CharacterModel:
+static func build(folder: String, clips: Array[String], fists: bool = true) -> CharacterModel:
 	var model := CharacterModel.new()
 	var rigged: Node = (load(folder + "/rigged.glb") as PackedScene).instantiate()
 	model.add_child(rigged)
 	model.anim = rigged.find_children("*", "AnimationPlayer", true, false)[0]
 	model.anim.add_animation_library("game", _library(folder, clips))
 	model.anim.mixer_applied.connect(model._after_mixer)
-	model._give_fists(folder)
+	if fists:
+		model._give_fists(folder)
 	return model
 
 ## Meshy modelled the Knight's hands flat and open, with no finger bones to close them, so a sword's grip went straight through the

@@ -143,7 +143,7 @@ var highlighted: bool = false  # lit up as a target (e.g. inside an aimed spell'
 var _flash: float = 0.0
 var _flash_mat: StandardMaterial3D
 
-func _build_model(folder: String, clips: Array[String], height: float, radius: float) -> void:
+func _build_model(folder: String, clips: Array[String], height: float, radius: float, fists: bool = true) -> void:
 	body_radius = radius
 	body_height = height
 	var shape := CollisionShape3D.new()
@@ -156,7 +156,7 @@ func _build_model(folder: String, clips: Array[String], height: float, radius: f
 
 	visual = Node3D.new()
 	add_child(visual)
-	model = CharacterModel.build(folder, clips)
+	model = CharacterModel.build(folder, clips, fists)
 	visual.add_child(model)
 
 	_flash_mat = StandardMaterial3D.new()
