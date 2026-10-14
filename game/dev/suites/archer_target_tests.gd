@@ -138,7 +138,7 @@ func _test_archer_targets() -> void:
 	var order_shots: int = archer.bow.shots - shots0
 	print("NEST ORDER: destroyed_signal=", not broke.is_empty(), " frames=", order_frames, " bound=", ORDER_FRAME_BOUND,
 		" shots=", order_shots, " arrow_hits=", arrow_hits, " damage=", archer.stats.ranged_range(), " attack_speed=", archer.stats.attack_speed())
-	expect("ordered: every arrow loosed at the nest strikes it (no misses)", arrow_hits >= order_shots - 1 and arrow_hits > 0)
+	expect("ordered: every arrow loosed at the nest strikes it (no misses)", arrow_hits == order_shots and arrow_hits > 0)
 	expect("ordered: the archer's own shots break the ordered nest (destroyed signal, within %d frames)" % ORDER_FRAME_BOUND,
 		not broke.is_empty() and broke[0].broken)
 	archer.attack_prop = null
