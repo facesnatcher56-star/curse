@@ -6,9 +6,27 @@ var leash_active: bool = false
 var _leader_id: int = 0
 var _trail: Array[Vector3] = []
 var _follow_fallback_at := Vector3(INF, 0, INF)
+## Seconds the party has been more than 16 m from an ordered nest (see tick).
+var _away_time: float = 0.0
 
 func _init(character: Player) -> void:
 	p = character
+
+## Runs every frame for an AI-driven member, busy, stunned or not: a nest order ends whatever the distance, when it is done (the nest
+## broke or is gone), and for an archer when the party has been more than 16 m from the nest for UNREACHABLE_AFTER (dropped with a
+## word, like an order with no firing spot). While the party is away the order is not carried out (tick reads _away_time).
+func track_orders(delta: float) -> void:
+	if p.attack_prop != null and (not is_instance_valid(p.attack_prop) or not p.attack_prop.is_hero_target()):
+		p.attack_prop = null
+	var party := PartyManager.current()
+	var leader := party.active_body(String(party.controller_for(p.member_id).controller_id))
+	var shooter: bool = p.stats.is_ranged() and p.bow != null
+	if not shooter or p.attack_prop == null or leader == null or leader == p or leader.flat_distance_to(p.attack_prop) <= 16.0:
+		_away_time = 0.0
+		return
+	_away_time += delta
+	if _away_time >= BowAttack.UNREACHABLE_AFTER:
+		_give_up_prop("the party left the nest behind")
 
 func tick(delta: float) -> void:
 	var party := PartyManager.current()
@@ -40,19 +58,17 @@ func tick(delta: float) -> void:
 	if gap > 16.0: target = null
 	# A prop (a nest) is attacked only when the player ordered it (the companion-attack hotkey). AI companions never choose a prop
 	# themselves, and melee companions keep to enemies. The order stays held while an enemy is the target; it is measured from the
-	# leader like an enemy is, so Cutter walks to a nest the hero is near rather than ignoring it from 17 m.
+	# leader like an enemy is, so Cutter walks to a nest the hero is near rather than ignoring it from 17 m (see track_orders).
 	var prop: Destructible = null
-	if target == null and p.stats.is_ranged() and p.bow != null:
-		var ordered: Destructible = p.attack_prop
-		if is_instance_valid(ordered) and ordered.is_hero_target() and leader.flat_distance_to(ordered) <= 16.0:
-			prop = ordered
+	if target == null and p.stats.is_ranged() and p.bow != null and p.attack_prop != null and _away_time == 0.0:
+		prop = p.attack_prop
 	if target != null or prop != null:
 		leash_active = false
 		if p.stats.is_ranged() and p.bow != null:
 			# The shared bow decides fire, step-back and firing position, with sight checked against the world geometry.
 			p.bow.engage(target, prop, delta)
 			if prop != null and p.bow.prop_unreachable():
-				_give_up_prop()
+				_give_up_prop("no firing spot on the nest")
 			return
 		if p.flat_distance_to(target) - target.body_radius <= 1.8 and Nav.line_clear(p, target.global_position):
 			p.skills.start_skill("basic", target)
@@ -77,11 +93,12 @@ func tick(delta: float) -> void:
 		p.move_with(Vector3.ZERO)
 		p.movement.update_locomotion_anim()
 
-## No firing spot on the ordered nest for too long: the order is dropped, with a word to the player (the bow counts the time).
-func _give_up_prop() -> void:
+## The ordered nest cannot be done (no firing spot for too long, or the party has gone): the order is dropped, with a word to the player.
+func _give_up_prop(reason: String) -> void:
 	p.attack_prop = null
+	_away_time = 0.0
 	p.bow.blocked_time = 0.0
-	p.say_banner("%s: no firing spot on the nest" % p.display_name)
+	p.say_banner("%s: %s" % [p.display_name, reason])
 
 func _travel(goal: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	p.movement.goal = Nav.snap(p, goal)

@@ -259,6 +259,7 @@ func _physics_process(delta: float) -> void:
 		skills.combo_step = 0
 
 	if not is_controlled():
+		ai.track_orders(delta)   # (a nest order's end is kept track of through shots, rolls and stuns)
 		if movement.rolling: movement.tick_roll(delta)
 		elif skills.busy:
 			skills.tick_busy(delta)

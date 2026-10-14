@@ -16,6 +16,15 @@ const PICK_MARGIN := 0.35   # the margin Player.order_companions_to_prop passes 
 ## The road's own camera (TownScene.rig): the one Player.cursor_world projects the mouse through while the town is up.
 var cam: Camera3D
 var lowest_archer_health: float = INF
+var _checks := 0
+var _failed := 0
+
+## Counts this suite's own checks, so it ends with one PASS/FAIL line of its own.
+func expect(label: String, condition: bool) -> void:
+	_checks += 1
+	if not condition:
+		_failed += 1
+	super.expect(label, condition)
 
 ## With --nestshots=<dir> (a windowed run), the rendered frame is saved there at the key moments, for a person to look at.
 func _shot_dir() -> String:
@@ -113,6 +122,8 @@ func _stage(hero: Player, archer: ArcherCompanion, nest: Destructible, distance:
 		await get_tree().physics_frame
 
 func _test_archer_nest_order() -> void:
+	_checks = 0
+	_failed = 0
 	TownState.persist = false
 	TownState.reset()
 	TownState.road_conditions_in_tests = false
@@ -162,11 +173,14 @@ func _test_archer_nest_order() -> void:
 	print("ORDER nest0 (unobstructed): ", result)
 	expect("unobstructed: Cutter breaks the nest (within %d frames on the nest)" % ORDER_FRAME_BOUND, result["broke"])
 	expect("unobstructed: the order is held until the nest breaks", result["unordered_frames"] == 0)
-	await _press_companion_attack(hero, nest_mid)
+	await get_tree().physics_frame
+	expect("completion: the order ends when the nest breaks (Cutter holds no prop order)", archer.attack_prop == null)
+	seen = await _press_companion_attack(hero, nest_mid)
 	for i in 120:
 		await get_tree().physics_frame
 	await _shot("4_unobstructed_broken")
-	expect("unobstructed: a broken nest is not ordered again", not is_instance_valid(archer.attack_prop) or archer.attack_prop.broken)
+	print("BROKEN press: picked=", seen["prop"], " attack_prop=", archer.attack_prop)
+	expect("unobstructed: a press on the broken nest picks no prop and gives no order", seen["prop"] == null and archer.attack_prop == null)
 
 	# Case 2: a monster stands in the second nest's target area, drawn over it. The hotkey on it orders the nest, not the monster.
 	var nest1: Destructible = crypt.nests[1]
@@ -211,8 +225,39 @@ func _test_archer_nest_order() -> void:
 	expect("overlap: Cutter breaks the second nest after the fight (within %d frames on the nest)" % ORDER_FRAME_BOUND, mid_result["broke"])
 	expect("overlap: the order is held until the nest breaks", mid_result["unordered_frames"] == 0)
 
-	# Case 3: a distant nest. The archer stands 17 m from it (beyond the 16 m engagement limit) and must walk to a firing spot.
+	# Leader away: Cutter is ordered onto the third nest, then the hero stands more than 16 m from it. The order is not carried out
+	# from there and is dropped, with a word, after UNREACHABLE_AFTER - it is never held forever.
 	var nest2: Destructible = crypt.nests[2]
+	await _stage(hero, archer, nest2, 9.0)
+	seen = await _press_companion_attack(hero, _screen_of(nest2.global_position + Vector3(0, nest2.height * 0.5, 0)))
+	expect("leader away: the order onto the third nest is taken", archer.attack_prop == nest2 and seen["prop"] == nest2)
+	var outward: Vector3 = hero.global_position - nest2.global_position
+	outward.y = 0.0
+	hero.global_position = Nav.snap(hero, nest2.global_position + outward.normalized() * 24.0)
+	hero.reset_physics_interpolation()
+	var leader_gap: float = hero.flat_distance_to(nest2)
+	expect("leader away: precondition - the hero stands more than 16 m from the nest", leader_gap > 16.0)
+	var expected_frames: int = ceili(BowAttack.UNREACHABLE_AFTER * Engine.physics_ticks_per_second)
+	var dropped_at := -1
+	var nest_shots_away := 0
+	var shots_seen: int = archer.bow.shots
+	for i in expected_frames + 30:
+		await get_tree().physics_frame
+		if archer.bow.shots != shots_seen:
+			shots_seen = archer.bow.shots
+			if archer.bow._prop == nest2:
+				nest_shots_away += 1
+		if archer.attack_prop != nest2:
+			dropped_at = i + 1
+			break
+	var dropped_told: bool = town.hud.log_lines.any(func(line: Dictionary) -> bool: return String(line["text"]).contains("left the nest behind"))
+	print("LEADER AWAY: leader_gap=", snappedf(leader_gap, 0.1), " dropped_at_frame=", dropped_at, " expected=", expected_frames,
+		" told=", dropped_told, " nest_shots_while_away=", nest_shots_away)
+	expect("leader away: the order is dropped after %d frames (+-2), not held forever" % expected_frames, absi(dropped_at - expected_frames) <= 2)
+	expect("leader away: the dropped order is told in the road's message log", dropped_told)
+	expect("leader away: Cutter begins no shot at the nest while the party is away", nest_shots_away == 0)
+
+	# Case 3: a distant nest. The archer stands 17 m from it (beyond the 16 m engagement limit) and must walk to a firing spot.
 	await _stage(hero, archer, nest2, 14.0)
 	var away: Vector3 = hero.global_position - nest2.global_position
 	away.y = 0.0
@@ -229,7 +274,10 @@ func _test_archer_nest_order() -> void:
 		snappedf(archer.global_position.distance_to(archer_start), 0.1))
 	expect("distant: Cutter walks to a firing spot and breaks the far nest (within %d frames on the nest)" % ORDER_FRAME_BOUND, far_result["broke"])
 	expect("distant: the order is held until the nest breaks", far_result["unordered_frames"] == 0)
+	await get_tree().physics_frame
+	expect("completion: the order ends when the far nest breaks", archer.attack_prop == null)
 	print("NEST ORDER SUMMARY: hero_dead=", hero.dead, " archer_dead=", archer.dead, " lowest_archer_health=", snappedf(lowest_archer_health, 0.1),
 		" of ", archer.max_health)
+	print("ARCHERNESTORDER RESULT: ", "PASS" if _failed == 0 else "FAIL", " checks=", _checks, " failed=", _failed)
 	town.queue_free()
 	await get_tree().process_frame
