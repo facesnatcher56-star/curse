@@ -445,7 +445,7 @@ func _test_item_card() -> void:
 		scroll = holder.get_child(0) as ScrollContainer
 	expect("an opened item card has a scroll area", scroll != null and holder.visible)
 	# An item in the middle of the screen gets a card beside it, not pinned to the top of the screen.
-	await _check_card_beside_item(get_viewport().get_visible_rect().size * 0.5 - Vector2(28, 28))
+	await _check_card_beside_item(Vector2.ZERO, true)
 	if scroll != null:
 		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
 		await get_tree().process_frame
@@ -453,6 +453,8 @@ func _test_item_card() -> void:
 		await get_tree().process_frame
 		expect("a tall item card overflows its scroll area so the wheel has something to move", scroll.get_v_scroll_bar().max_value > scroll.size.y)
 		expect("the scroll area takes the mouse so the wheel reaches it", scroll.mouse_filter == Control.MOUSE_FILTER_PASS)
+	# The same placement holds for the item at (120,120): beside it, top aligned, inside the safe area.
+	await _check_card_beside_item(Vector2(120, 120), false)
 	# At the left and right screen edges the clamp must keep the card overlapping its item, so there is still no gap to cross.
 	var view_size := get_viewport().get_visible_rect().size
 	for edge_x in [view_size.x - 60.0, 2.0]:
@@ -478,19 +480,22 @@ func _test_item_card() -> void:
 ## overlapping across that edge by HOVER_OVERLAP. Beside a left or right side its top is the item's top; above or below, its left is the
 ## item's left. It is never above the top of the screen, and never above its item by more than its own height. A card pinned to the top of
 ## the screen (the wrong-height bug) fails the top-alignment check for an item in the middle of the screen.
-func _check_card_beside_item(at: Vector2) -> void:
+func _check_card_beside_item(at: Vector2, centred: bool) -> void:
 	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
 	var tile := ItemTile.create(plate, null, 56.0)
 	tile.position = at
 	add_child(tile)
 	await get_tree().process_frame
+	if centred:   # the item's real size (its tile size once laid out), centred on the viewport
+		tile.position = get_viewport().get_visible_rect().size * 0.5 - tile.size * 0.5
 	tile.mouse_entered.emit()
+	await get_tree().process_frame   # two frames: the card's wrapping labels settle (layout, then their heights) before placement is read
 	await get_tree().process_frame
 	var holder := tile.get_node("ItemDetails") as Control
 	var scroll: ScrollContainer = null
 	if holder.get_child_count() > 0:
 		scroll = holder.get_child(0) as ScrollContainer
-	expect("a middle-of-screen item opens a card", scroll != null and holder.visible)
+	expect("an item opens a card", scroll != null and holder.visible)
 	if scroll != null:
 		var item := tile.get_global_rect()
 		var card := scroll.get_global_rect()
@@ -507,8 +512,12 @@ func _check_card_beside_item(at: Vector2) -> void:
 		if below or above:
 			expect("above or below its item the card's left is the item's left (card x %d, item x %d)" % [int(card.position.x), int(item.position.x)],
 				absf(card.position.x - item.position.x) <= tol)
-		expect("the card is not above the top of the screen (y %d)" % int(card.position.y), card.position.y >= 0.0)
-		expect("the card is not above its item by more than its own height", card.position.y >= item.position.y - card.size.y)
+		# The safe area the placement uses (ItemTile.focus_card): 8 px from the top and the left, 118 px kept clear at the bottom for the hotbar.
+		var view := get_viewport().get_visible_rect().size
+		var safe_top := 8.0
+		var safe_bottom := view.y - 118.0
+		expect("the card fits the safe area vertically (card y %d to %d, safe %d to %d)" % [int(card.position.y), int(card.end.y), int(safe_top), int(safe_bottom)],
+			card.position.y >= safe_top - tol and card.end.y <= safe_bottom + tol)
 	tile.queue_free()
 	await get_tree().process_frame
 
