@@ -27,6 +27,7 @@ var attack_target: Actor:
 	set(value):
 		attack_target = value
 		_attack_engaged = is_instance_valid(value)
+var chest_target: Chest   # a treasure chest the hero was sent to open (click it): walks up and opens it once in reach
 var pickup_target: LootDrop   # an item the hero was sent to take (click it, or its name): nothing is picked up by walking over it
 var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
 var hover_target: Actor  # enemy under the mouse cursor, for the health bar and highlight ring
@@ -67,6 +68,7 @@ func release_control() -> void:
 	skills.clear_queue()
 	click_mode = 0
 	pickup_target = null
+	chest_target = null
 	attack_prop = null
 	movement.has_goal = false
 	hover_target = null
@@ -584,14 +586,23 @@ func _read_input(cursor: Vector3) -> void:
 			return
 		var hover: Actor = _hover_pick(cursor)
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
+		var chest: Chest = Chest.near(get_tree(), cursor, 0.35) if loot == null else null
 		skills.clear_queue()
 		pickup_target = null
+		chest_target = null
 		if loot != null and not ctrl:   # an item, or its name, under the pointer: go and take it
 			click_mode = 4
 			pickup_target = loot
 			attack_target = null
 			attack_prop = null
 			movement.goal = Nav.snap(self, loot.global_position)
+			movement.has_goal = true
+		elif chest != null and not ctrl and hover == null:   # a closed chest under the pointer: go and open it
+			click_mode = 4
+			chest_target = chest
+			attack_target = null
+			attack_prop = null
+			movement.goal = Nav.snap(self, chest.global_position)
 			movement.has_goal = true
 		elif ctrl:
 			click_mode = 2
@@ -667,6 +678,18 @@ func _read_input(cursor: Vector3) -> void:
 func _pursue_pickup(stand_still: bool) -> void:
 	if dead:
 		return
+	if chest_target != null:
+		if not is_instance_valid(chest_target) or chest_target.opened:
+			chest_target = null
+			click_mode = 0
+		elif chest_target.in_reach(self):
+			chest_target.open()
+			chest_target = null
+			click_mode = 0
+			movement.has_goal = false
+		elif not stand_still:
+			movement.goal = Nav.snap(self, chest_target.global_position)
+			movement.has_goal = true
 	if pickup_target != null:
 		if not is_instance_valid(pickup_target):
 			pickup_target = null
@@ -691,6 +714,10 @@ func _pursue_pickup(stand_still: bool) -> void:
 					nearest = drop
 		if nearest != null:
 			nearest.pick_up(self)
+		else:   # nothing on the ground in reach: the nearest closed chest
+			var chest: Chest = Chest.near(get_tree(), global_position, Chest.REACH)
+			if chest != null and chest.in_reach(self):
+				chest.open()
 	if Input.is_action_just_pressed("companion_attack"):
 		# A nest under the cursor wins over an enemy overlapping its target area (owner decision); elsewhere enemies come first.
 		var hover_nest: Destructible = Destructible.near(get_tree(), cursor_world(), 0.35, Destructible.HERO)
@@ -843,10 +870,11 @@ func _read_interrupt_move_click(cursor: Vector3) -> bool:
 	var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
 	if loot != null and not loot.is_queued_for_deletion():
 		return false
-	if Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null:
+	if Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null or Chest.near(get_tree(), cursor, 0.35) != null:
 		return false
 	click_mode = 0
 	pickup_target = null
+	chest_target = null
 	attack_prop = null
 	attack_target = null
 	skills.clear_queue()
