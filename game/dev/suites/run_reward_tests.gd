@@ -139,8 +139,8 @@ func _test_quest_and_world_rewards() -> void:
 	await get_tree().process_frame
 
 ## A fetch target gone from the road (killed before the quest was posted, absent, an accepted quest whose road was cleared, or a regrow):
-## the quest that allows it (lost_satchel, QuestDef.respawn_target) gets one plain target back when the road loads, once. The other fetch
-## quest (stolen_ledger) is not allowed it: that choice is open for the owner. Uses the real town and road.
+## the quests that allow it (lost_satchel and stolen_ledger, QuestDef.respawn_target) get one plain target back when the road loads, once,
+## while the quest is active. Uses the real town and road.
 func _test_fetch_targets() -> void:
 	TownState.persist = false
 	TownState.reset()
@@ -178,7 +178,7 @@ func _test_fetch_targets() -> void:
 		after_regrow >= 1 and not Quests.wants_target_respawn(satchel, _living("zombie")))
 	# The item is still the quest's: nothing was completed or granted by putting the target back.
 	expect("the quest is still active and unpaid", satchel["state"] == "active" and not bool(satchel["data"].get("dropped", false)))
-	# The other fetch quest keeps its own rules: no respawn for stolen_ledger.
+	# The other fetch quest (stolen_ledger) also allows a respawn, per the owner decision to reintroduce its brute while active.
 	var ledger: Dictionary = Quests.post("stolen_ledger")
 	expect("stolen_ledger is allowed a respawned brute (owner decision: reintroduce while active)", Quests.wants_target_respawn(ledger, 0))
 	town.queue_free()
