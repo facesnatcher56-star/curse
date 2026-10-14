@@ -58,6 +58,8 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 
 ## Width of every item card (the trader, stash, inventory and hover cards). Wider than the old 300 so long descriptions wrap in fewer lines.
 const CARD_WIDTH := 460.0
+## How far a hover card's edge overlaps the item it describes (see focus_card): the pointer crosses from item to card without a gap.
+const HOVER_OVERLAP := 6.0
 ## The lines of an item card, in order, as {text, color}. Shared by every item card (hover, trader, stash, inventory and the ground). The one
 ## "cannot wear it yet" warning comes first. Each stat then carries its change beside it, coloured by that change ("Armor 8 (-1)" in red); a
 ## change to a stat the item does not have still appears, as its own line. An empty slot's note comes last.
@@ -133,6 +135,7 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true, with
 static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false, with_action_hint: String = "") -> void:
 	var holder := Control.new()
 	holder.name = "ItemDetails"
+	holder.add_user_signal("hover_resolved")   # emitted each time a hover close is decided (see _close_when_unhovered)
 	holder.top_level = true
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.z_index = 100
@@ -158,11 +161,13 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 			if other == null or other == control or holder.is_ancestor_of(other) or not other.is_visible_in_tree():
 				continue
 			blockers.append(other.get_global_rect())
+		# Each side overlaps the item's edge by HOVER_OVERLAP, so the pointer crosses straight from the item into the card: there is no gap
+		# where neither is hovered.
 		var sides: Array[Vector2] = [
-			Vector2(item_rect.end.x + 12, item_rect.position.y),
-			Vector2(item_rect.position.x - shown.x - 12, item_rect.position.y),
-			Vector2(item_rect.position.x, item_rect.end.y + 8),
-			Vector2(item_rect.position.x, item_rect.position.y - shown.y - 8),
+			Vector2(item_rect.end.x - HOVER_OVERLAP, item_rect.position.y),
+			Vector2(item_rect.position.x + HOVER_OVERLAP - shown.x, item_rect.position.y),
+			Vector2(item_rect.position.x, item_rect.end.y - HOVER_OVERLAP),
+			Vector2(item_rect.position.x, item_rect.position.y + HOVER_OVERLAP - shown.y),
 		]
 		var position := Vector2.ZERO
 		var least := INF
@@ -225,9 +230,9 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 static func _close_when_unhovered(holder: Control) -> void:
 	if not is_instance_valid(holder):
 		return
-	if bool(holder.get_meta("item_hover", false)) or bool(holder.get_meta("card_hover", false)):
-		return
-	holder.visible = false
+	if not (bool(holder.get_meta("item_hover", false)) or bool(holder.get_meta("card_hover", false))):
+		holder.visible = false
+	holder.hover_resolved.emit()   # after the decision, so a test can await the close itself rather than a frame count
 
 static func decorate_button(button: Button, it: Dictionary, worn: Variant) -> void:
 	button.set_script(preload("res://game/item_button.gd"))

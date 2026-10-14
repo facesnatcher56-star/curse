@@ -489,9 +489,7 @@ static func compare(item: Dictionary, current: Variant, member_id: String = "her
 	for stat in theirs:
 		if not stats.has(stat):
 			stats.append(stat)
-	for stat in stats:
-		if String(stat).ends_with("_added_max"):   # an element's damage maximum travels with its "_added" stat (see mods_of): no row of its own
-			continue
+	for stat in stats:   # an element's maximum ("<stat>_added_max", named in STAT_NAMES) gets its own row when it differs, even if the minimum does not
 		var fmt: String = "%d%%" if AffixDb.is_percent(String(stat)) else "%d"
 		_diff(out, mod_key(String(stat)), String(AffixDb.STAT_NAMES.get(stat, stat)), float(mine.get(stat, 0.0)), float(theirs.get(stat, 0.0)), fmt, fmt)
 	if out.is_empty():
