@@ -3,7 +3,7 @@ extends Node3D
 ## A treasure chest: click it (the hero walks up) or press the use key beside it, the lid swings open, and it gives up its loot once.
 ## Opened chests stay open and are empty. Placeholder low-poly box; the dungeon art may swap the mesh later.
 
-const REACH := 2.6   # from its middle: the box itself keeps the hero about a metre and a half out
+const REACH := 3.2   # from its middle: the baked walkable area leaves a gap round the box, so the hero stops 2.3 to 2.8 m out
 const BODY_SIZE := Vector3(1.1, 0.6, 0.7)
 const LID_TIME := 0.45
 

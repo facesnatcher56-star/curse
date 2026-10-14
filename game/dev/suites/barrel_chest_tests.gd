@@ -32,6 +32,9 @@ func _test_barrels_chests() -> void:
 	expect("a closed chest is a click target", Chest.near(get_tree(), chest.global_position + Vector3(0, 0, 0.2), 0.35) == chest)
 	player.global_position = chest.global_position + Vector3(-4, 0, 0)
 	expect("it cannot be opened from afar", not chest.in_reach(player))
+	var earlier: Dictionary = {}   # loot already on the ground (from other tests) is not the chest's
+	for node in get_tree().get_nodes_in_group("loot"):
+		earlier[node.get_instance_id()] = true
 	player.chest_target = chest
 	var seconds: float = 0.0
 	while seconds < 8.0 and not chest.opened:
@@ -39,12 +42,12 @@ func _test_barrels_chests() -> void:
 		seconds += 1.0 / 60.0
 	expect("the hero walks up and opens a chest sent for (%.1f s)" % seconds, chest.opened and player.chest_target == null)
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
-	var drops: int = get_tree().get_nodes_in_group("loot").size()
+	var drops: int = _own_loot(earlier)
 	expect("it dropped one to three items (%d)" % drops, drops >= 1 and drops <= 3)
 	expect("an opened chest is no longer a target", Chest.near(get_tree(), chest.global_position, 1.0) == null)
 	expect("opening again does nothing", not chest.open())
 	await get_tree().create_timer(0.3).timeout
-	expect("no second helping (%d)" % get_tree().get_nodes_in_group("loot").size(), get_tree().get_nodes_in_group("loot").size() == drops)
+	expect("no second helping (%d)" % _own_loot(earlier), _own_loot(earlier) == drops)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
 	chest.queue_free()
@@ -79,3 +82,11 @@ func _test_barrels_chests() -> void:
 	stone.hit(999.0, Vector3.RIGHT)
 	for node in get_tree().get_nodes_in_group("debris"):
 		node.queue_free()
+
+## The loot lying on the ground that was not there before `earlier` (instance ids).
+func _own_loot(earlier: Dictionary) -> int:
+	var count: int = 0
+	for node in get_tree().get_nodes_in_group("loot"):
+		if not earlier.has(node.get_instance_id()) and not node.is_queued_for_deletion():
+			count += 1
+	return count
