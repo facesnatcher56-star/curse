@@ -13,12 +13,15 @@ import os
 import shutil
 import sys
 
+from array import array
+
 import bmesh
 import bpy
 from mathutils import Vector
 
-LIVE_GLB = "C:/Users/lloyd/OneDrive/Documents/curse-art-b/assets/models/zombie/rigged.glb"
-LIVE_ANIMS = "C:/Users/lloyd/OneDrive/Documents/curse-art-b/assets/models/zombie/anims.res"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+LIVE_GLB = os.path.join(ROOT, "assets/models/zombie/rigged.glb")
+LIVE_ANIMS = os.path.join(ROOT, "assets/models/zombie/anims.res")
 
 # Muted palette from docs/ART_DIRECTION.md (earth, iron, bone, ash, sickly green and grey-blue flesh,
 # with at most two warm accents: rust and blood).
@@ -37,7 +40,7 @@ PALETTE = {
 
 def args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    target, out = 2500, "C:/Users/lloyd/OneDrive/Documents/curse-art-b/assets/art_staging/enemies/zombie_converted"
+    target, out = 2500, os.path.join(ROOT, "assets/art_staging/enemies/zombie_converted")
     i = 0
     while i < len(argv):
         if argv[i] == "--target":
@@ -61,11 +64,11 @@ def image_of(mat):
     return None
 
 
-def sample(image, uv):
+def sample(image, uv, pixels):
     w, h = image.size
     x = min(max(int(uv.x * w), 0), w - 1)
     y = min(max(int(uv.y * h), 0), h - 1)
-    px = image.pixels
+    px = pixels
     i = (y * w + x) * 4
     return Vector((px[i], px[i + 1], px[i + 2]))
 
@@ -98,17 +101,10 @@ def main():
     bpy.context.view_layer.objects.active = obj
     image = image_of(obj.active_material) or next((image_of(m) for m in obj.data.materials if image_of(m)), None)
     print("TEXTURE", image.name if image else None, image.size[:] if image else None)
-
-    # per-face colour sampled from the texture, before the mesh changes (UVs are needed for sampling)
-    uv_layer = obj.data.uv_layers.active
-    face_rgb = []
-    for poly in obj.data.polygons:
-        if image is None or uv_layer is None:
-            face_rgb.append(Vector((0.4, 0.4, 0.4)))
-            continue
-        uvs = [uv_layer.data[li].uv for li in poly.loop_indices]
-        centre = sum(uvs, Vector((0, 0))) / len(uvs)
-        face_rgb.append(sample(image, centre))
+    pixels = None
+    if image is not None:
+        pixels = array("f", [0.0]) * (image.size[0] * image.size[1] * 4)
+        image.pixels.foreach_get(pixels)
 
     # decimate: collapse to the target, then a planar pass to flatten near-coplanar faces
     ratio = min(1.0, float(target) / float(before))
@@ -136,7 +132,7 @@ def main():
             colours.append(Vector((0.4, 0.4, 0.4)))
             continue
         uvs = [l[uv_layer].uv for l in f.loops]
-        colours.append(sample(image, sum(uvs, Vector((0, 0))) / len(uvs)))
+        colours.append(sample(image, sum(uvs, Vector((0, 0))) / len(uvs), pixels))
     bm.free()
 
     # posterise: one material per palette entry, each face takes the nearest entry
@@ -174,7 +170,7 @@ def main():
     bpy.context.view_layer.objects.active = arm
     out_glb = os.path.join(out_dir, "rigged.glb")
     bpy.ops.export_scene.gltf(filepath=out_glb, export_format="GLB", use_selection=True, export_apply=False,
-                              export_yup=True, export_materials="EXPORT", export_animations=False,
+                              export_yup=True, export_materials="EXPORT", export_animations=True,
                               export_skins=True)
     shutil.copyfile(LIVE_ANIMS, os.path.join(out_dir, "anims.res"))
     used = {}
