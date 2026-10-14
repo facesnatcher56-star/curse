@@ -122,7 +122,11 @@ static func pickup_timing(important: bool) -> Vector2:
 
 static func pickup_text(from: Node3D, pos: Vector3, text: String, color: Color, important: bool = false, size: int = 40) -> Label3D:
 	var owner_id: int = from.get_instance_id()
-	_pickup_lines = _pickup_lines.filter(func(l: Label3D) -> bool: return is_instance_valid(l) and not l.is_queued_for_deletion())
+	var live: Array[Label3D] = []   # typed: only lines still showing are kept (freed or queued ones are dropped)
+	for line in _pickup_lines:
+		if is_instance_valid(line) and not line.is_queued_for_deletion():
+			live.append(line)
+	_pickup_lines = live
 	var top: float = pos.y
 	for line in _pickup_lines:
 		if int(line.get_meta("owner", 0)) == owner_id:
