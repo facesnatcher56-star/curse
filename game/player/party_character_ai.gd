@@ -39,17 +39,20 @@ func tick(delta: float) -> void:
 	p.attack_target = target
 	if gap > 16.0: target = null
 	# A prop (a nest) is attacked only when the player ordered it (the companion-attack hotkey). AI companions never choose a prop
-	# themselves, and melee companions keep to enemies.
+	# themselves, and melee companions keep to enemies. The order stays held while an enemy is the target; it is measured from the
+	# leader like an enemy is, so Cutter walks to a nest the hero is near rather than ignoring it from 17 m.
 	var prop: Destructible = null
 	if target == null and p.stats.is_ranged() and p.bow != null:
 		var ordered: Destructible = p.attack_prop
-		if is_instance_valid(ordered) and ordered.is_hero_target() and p.flat_distance_to(ordered) <= 16.0:
+		if is_instance_valid(ordered) and ordered.is_hero_target() and leader.flat_distance_to(ordered) <= 16.0:
 			prop = ordered
 	if target != null or prop != null:
 		leash_active = false
 		if p.stats.is_ranged() and p.bow != null:
 			# The shared bow decides fire, step-back and firing position, with sight checked against the world geometry.
 			p.bow.engage(target, prop, delta)
+			if prop != null and p.bow.prop_unreachable():
+				_give_up_prop()
 			return
 		if p.flat_distance_to(target) - target.body_radius <= 1.8 and Nav.line_clear(p, target.global_position):
 			p.skills.start_skill("basic", target)
@@ -73,6 +76,12 @@ func tick(delta: float) -> void:
 		p.movement.has_goal = false
 		p.move_with(Vector3.ZERO)
 		p.movement.update_locomotion_anim()
+
+## No firing spot on the ordered nest for too long: the order is dropped, with a word to the player (the bow counts the time).
+func _give_up_prop() -> void:
+	p.attack_prop = null
+	p.bow.blocked_time = 0.0
+	p.say_banner("%s: no firing spot on the nest" % p.display_name)
 
 func _travel(goal: Vector3, delta: float, speed_mult: float = 1.0) -> void:
 	p.movement.goal = Nav.snap(p, goal)

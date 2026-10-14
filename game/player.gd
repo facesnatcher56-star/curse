@@ -691,9 +691,22 @@ func _pursue_pickup(stand_still: bool) -> void:
 func order_companions_to_prop(cursor: Vector3) -> Destructible:
 	var hover_prop: Destructible = Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO)
 	if hover_prop != null:
+		var shooter: String = ""
 		for body in PartyManager.current().living():
-			if body != self: body.attack_prop = hover_prop
+			if body == self: continue
+			body.attack_prop = hover_prop
+			if body.bow != null and body.stats.is_ranged(): shooter = body.display_name
+		# Only an archer in the party carries a prop order out (see PartyCharacterAI), so only an archer is named.
+		if shooter != "": say_banner("%s: ordered onto the %s" % [shooter, hover_prop.prop_name.replace("_", " ")])
 	return hover_prop
+
+## A short word to the player: the town's message log while the town or road is up, else the arena HUD banner; quiet with no HUD.
+func say_banner(text: String) -> void:
+	var hud_node: Node = get_tree().get_first_node_in_group("town_hud")
+	if hud_node == null:
+		hud_node = get_tree().get_first_node_in_group("hud")
+	if hud_node != null and hud_node.has_method("show_banner"):
+		hud_node.call("show_banner", text, 2.5)
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:

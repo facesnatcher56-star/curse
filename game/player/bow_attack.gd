@@ -31,6 +31,8 @@ const SPOT_RANGE := 12.0
 const SPOT_MIN := 8.0
 const SPOT_ARRIVE := 1.0
 const SPOT_TIMEOUT := 6.0   # a position not reached in this long is given up on
+const UNREACHABLE_AFTER := 8.0   # an ordered prop with no firing spot for this long is given up (see PartyCharacterAI)
+const RETREAT_LIMIT := 1.5  # seconds of backing away from a too-close target before shooting from where he stands
 const REPLAN_COOLDOWN := 0.4
 const RETRY_COOLDOWN := 1.0 # no viable position: hold, then look again
 const MELEE_CLEAR := 4.0    # a firing position this close to an aggro melee enemy is refused
@@ -45,8 +47,11 @@ var _rejected: Array[Vector3] = []
 ## Counters the selftest reads: entries into hold, failed looks for a firing position, and shots begun.
 var holds: int = 0
 var retry_attempts: int = 0
+## Seconds an ordered prop has gone without a firing spot (reset when one is found or a shot begins).
+var blocked_time: float = 0.0
 var shots: int = 0
 var refusals: int = 0
+var _retreat_time: float = 0.0
 var _holding: bool = false
 
 func _init(character: Player) -> void:
@@ -100,6 +105,8 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	_prop = prop
 	p.skills.busy = true
 	shots += 1
+	blocked_time = 0.0
+	_retreat_time = 0.0
 	_holding = false
 	p.skills.busy_skill = "basic"
 	p.skills.busy_target = target
@@ -185,8 +192,9 @@ func cancel() -> void:
 	_set_bow_string_visible(false)
 
 ## One ranged decision for an archer, AI or controlled, against an Actor or a prop. A clear shot in reach is taken; a clear shot that is
-## too close is backed away from; without a clear shot the archer takes up a reachable firing position with sight of the target and
-## holds there. `hold` (stand still) never walks. The shot itself runs in tick(), which re-checks sight through the draw.
+## too close is backed away from, and taken from where he stands when there is no room to back away (or he holds); without a clear
+## shot the archer takes up a reachable firing position with sight of the target and holds there. `hold` (stand still) never walks.
+## The shot itself runs in tick(), which re-checks sight through the draw.
 func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false) -> void:
 	if p.skills.busy:
 		return
@@ -194,14 +202,16 @@ func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false)
 	var point := _shot_point(target, prop)
 	var gap := p.flat_distance_to_point(point)
 	var sight := gap <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
-	if sight and gap >= TOO_CLOSE and p.stats.can_use("basic"):
+	# Backing away is bounded: an archer who has not opened the gap in RETREAT_LIMIT (penned in, pushed back) shoots from there.
+	if sight and not hold and gap < TOO_CLOSE and _retreat_time < RETREAT_LIMIT and _retreat(point, delta):
+		_retreat_time += delta
+		return
+	if sight and p.stats.can_use("basic"):
 		if prop != null:
 			start_prop(prop)
 		else:
 			start(target)
 		_stop()
-		return
-	if sight and not hold and gap < TOO_CLOSE and _retreat(point, delta):
 		return
 	if hold or sight:
 		_stop()
@@ -211,6 +221,10 @@ func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false)
 func _stop() -> void:
 	p.movement.has_goal = false
 	p.move_with(Vector3.ZERO)
+
+## True when an ordered prop has had no reachable firing spot for UNREACHABLE_AFTER seconds: the order cannot be carried out.
+func prop_unreachable() -> bool:
+	return blocked_time >= UNREACHABLE_AFTER
 
 ## Keeps a position that still sees the target; otherwise picks a new one, not more often than REPLAN_COOLDOWN, and never one given up.
 func _take_position(point: Vector3, prop: Destructible, delta: float) -> void:
@@ -224,6 +238,8 @@ func _take_position(point: Vector3, prop: Destructible, delta: float) -> void:
 		_replan_wait = REPLAN_COOLDOWN if found else RETRY_COOLDOWN
 		if not found:
 			retry_attempts += 1   # counted for the selftest: a failed look for a firing position
+	if prop != null:
+		blocked_time = 0.0 if _has_spot else blocked_time + delta
 	if _has_spot:
 		_holding = false
 	elif not _holding:

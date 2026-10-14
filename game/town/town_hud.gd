@@ -38,6 +38,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	z_index = -1 # Ambient tracker/help stays behind combat tooltips and foreground controls.
+	add_to_group("town_hud")   # Player.say_banner sends party words here while the town or road is up
 
 func _process(delta: float) -> void:
 	if modal_open():
