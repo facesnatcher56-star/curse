@@ -447,6 +447,18 @@ func _test_pickup_notice() -> void:
 	expect("the rapid pickups keep their own text", first.text == "First" and second.text == "Second" and third.text == "Third")
 	var other := Fx.pickup_text(game.companion, base, "Archer", Color.WHITE)
 	expect("another hero's pickup does not stack on this one", absf(other.global_position.y - base.y) < 0.001)
-	for label in [first, second, third, other]:
+	# Lines already freed, and lines queued for deletion, must not break later pickups: the live ones still stack.
+	var stale := Fx.pickup_text(player, base, "Stale", Color.WHITE)
+	stale.queue_free()
+	await get_tree().process_frame
+	var fresh := Fx.pickup_text(player, base, "Fresh", Color.WHITE)
+	var queued := Fx.pickup_text(player, base, "Queued", Color.WHITE)
+	queued.queue_free()
+	var after := Fx.pickup_text(player, base, "After", Color.WHITE)
+	await get_tree().process_frame
+	expect("pickups after freed and queued lines still show", is_instance_valid(fresh) and is_instance_valid(after))
+	expect("a pickup after a freed line stacks above the live lines", fresh.global_position.y >= third.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("a pickup after a queued line stacks above the live lines", after.global_position.y >= fresh.global_position.y + Fx.PICKUP_STEP - 0.001)
+	for label in [first, second, third, other, fresh, after]:
 		label.queue_free()
 	await get_tree().process_frame
