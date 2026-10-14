@@ -266,7 +266,7 @@ func _build_floor() -> void:
 			while z < r.position.y + r.size.y - 0.01:
 				var cx: float = minf(x + 1.0, r.position.x + r.size.x - 1.0)
 				var cz: float = minf(z + 1.0, r.position.y + r.size.y - 1.0)
-				arena.place_prop("dungeon/floor_flag", Vector3(cx, 0.0, cz), float(_rng.randi() % 4) * PI * 0.5, 0.125, false, false)
+				arena.place_prop("dungeon/floor_flag", Vector3(cx, 0.0, cz), float(_rng.randi() % 4) * PI * 0.5, 0.153, false, false)   # the GLB is 0.153 m tall: any other height scales the tile and opens gaps
 				z += 2.0
 			x += 2.0
 
