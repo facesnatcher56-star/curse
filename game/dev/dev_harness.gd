@@ -44,6 +44,7 @@ const SUITES := [
 	preload("res://game/dev/suites/run_reward_tests.gd"),
 	preload("res://game/dev/suites/archer_target_tests.gd"),
 	preload("res://game/dev/suites/archer_hold_tests.gd"),
+	preload("res://game/dev/suites/archer_nest_order_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -168,6 +169,7 @@ const ONLY_TESTS := {
 "archerpositioning": "_test_archer_positioning",
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
+"archernestorder": "_test_archer_nest_order",
 }
 
 var _failures: PackedStringArray = []
@@ -293,6 +295,10 @@ func _run_selftest() -> void:
 		", mask restored=", player.collision_mask == (Actor.LAYER_WORLD | Actor.LAYER_ENEMY), ", rolling=", player.movement.rolling)
 
 	# (Death behaviour has its own check: _test_death_ragdoll.)
+
+	# Last: the nest order replaces the arena with the real Crypt Road, so nothing that needs the arena may run after it.
+	await _run("_test_archer_nest_order")
+	_party_restore(party_before)
 
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]
 	var parts: Array[String] = []

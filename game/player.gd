@@ -259,6 +259,7 @@ func _physics_process(delta: float) -> void:
 		skills.combo_step = 0
 
 	if not is_controlled():
+		ai.track_orders(delta)   # (a nest order's end is kept track of through shots, rolls and stuns)
 		if movement.rolling: movement.tick_roll(delta)
 		elif skills.busy:
 			skills.tick_busy(delta)
@@ -318,16 +319,19 @@ func _physics_process(delta: float) -> void:
 ## Where the hero is "pointing": the mouse position on the ground, or with a controller the right-stick aim point.
 ## The self-test points the cursor with this (there is no mouse); INF means use the real one.
 var cursor_override: Vector3 = Vector3.INF
+## The self-test's mouse: a screen point that stands in for the real mouse in cursor_world and the hover pick, so both are projected
+## through the camera exactly as a real mouse is. Negative means use the real mouse.
+var test_mouse: Vector2 = Vector2(-1.0, -1.0)
 
 func cursor_world() -> Vector3:
 	if cursor_override != Vector3.INF:
 		return cursor_override
-	if Gamepad.active:
+	if Gamepad.active and test_mouse.x < 0.0:
 		return _pad_cursor()
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return global_position
-	var mouse: Vector2 = get_viewport().get_mouse_position()
+	var mouse: Vector2 = get_viewport().get_mouse_position() if test_mouse.x < 0.0 else test_mouse
 	var from: Vector3 = camera.project_ray_origin(mouse)
 	var dir: Vector3 = camera.project_ray_normal(mouse)
 	var hit: Variant = Plane(Vector3.UP, 0.0).intersects_ray(from, dir)
@@ -406,6 +410,8 @@ func pad_facing_target() -> Actor:
 
 ## Enemy under the mouse, picked in screen space: pointing at a head or chest counts, not just the feet.
 func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0)) -> Actor:
+	if mouse_override.x < 0.0 and test_mouse.x >= 0.0:
+		mouse_override = test_mouse
 	if Gamepad.active and mouse_override.x < 0.0:
 		return enemy_near(cursor, 2.5)
 	if mouse_override.x < 0.0 and mouse_over_ui():
@@ -676,8 +682,14 @@ func _pursue_pickup(stand_still: bool) -> void:
 		if nearest != null:
 			nearest.pick_up(self)
 	if Input.is_action_just_pressed("companion_attack"):
+		# A nest under the cursor wins over an enemy overlapping its target area (owner decision); elsewhere enemies come first.
+		var hover_nest: Destructible = Destructible.near(get_tree(), cursor_world(), 0.35, Destructible.HERO)
+		if hover_nest != null and hover_nest.prop_name != "nest":
+			hover_nest = null
 		var hover_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor_world()) as Enemy)
-		if hover_enemy != null and not hover_enemy.dead:
+		if hover_nest != null and not skills.take_aim_targeting:
+			order_companions_to_prop(cursor_world())
+		elif hover_enemy != null and not hover_enemy.dead:
 			if skills.take_aim_targeting:
 				skills.confirm_take_aim(hover_enemy)
 			else:
@@ -691,9 +703,22 @@ func _pursue_pickup(stand_still: bool) -> void:
 func order_companions_to_prop(cursor: Vector3) -> Destructible:
 	var hover_prop: Destructible = Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO)
 	if hover_prop != null:
+		var shooter: String = ""
 		for body in PartyManager.current().living():
-			if body != self: body.attack_prop = hover_prop
+			if body == self: continue
+			body.attack_prop = hover_prop
+			if body.bow != null and body.stats.is_ranged(): shooter = body.display_name
+		# Only an archer in the party carries a prop order out (see PartyCharacterAI), so only an archer is named.
+		if shooter != "": say_banner("%s: ordered onto the %s" % [shooter, hover_prop.prop_name.replace("_", " ")])
 	return hover_prop
+
+## A short word to the player: the town's message log while the town or road is up, else the arena HUD banner; quiet with no HUD.
+func say_banner(text: String) -> void:
+	var hud_node: Node = get_tree().get_first_node_in_group("town_hud")
+	if hud_node == null:
+		hud_node = get_tree().get_first_node_in_group("hud")
+	if hud_node != null and hud_node.has_method("show_banner"):
+		hud_node.call("show_banner", text, 2.5)
 
 ## Monsters still asleep and far from the hero are switched off (not drawn, not run, not animated) until he comes back; see Enemy.SLEEP_RANGE.
 func _manage_dormancy() -> void:
