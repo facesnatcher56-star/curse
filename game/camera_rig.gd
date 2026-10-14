@@ -30,6 +30,8 @@ var _base_fog: float = -1.0
 var _fov_kick: float = 0.0
 var _zoom: float = 1.0
 var _zoom_target: float = 1.0
+## The most the view may zoom in. A location can lower it (the test dungeon caps it at 2.0); everything else keeps ZOOM_MAX.
+var zoom_max: float = ZOOM_MAX
 
 ## Impact response. Every hit, landing and blast reaches the camera through shake()/kick()/punch() (see Fx), so the limits live here:
 ## an impulse is short, decays fast and cannot pile up past a ceiling, however many things hit in the same moment.
@@ -74,19 +76,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		_drag_pixels += absf(motion.relative.x) + absf(motion.relative.y)
 		rotate_view(-motion.relative.x * ROTATE_PER_PIXEL)
 	if event.is_action_pressed("zoom_in"):
-		_zoom_target = clampf(_zoom_target - GameSettings.zoom_step, ZOOM_MIN, ZOOM_MAX)
+		_zoom_target = clampf(_zoom_target - GameSettings.zoom_step, ZOOM_MIN, zoom_max)
 	elif event.is_action_pressed("zoom_out"):
-		_zoom_target = clampf(_zoom_target + GameSettings.zoom_step, ZOOM_MIN, ZOOM_MAX)
+		_zoom_target = clampf(_zoom_target + GameSettings.zoom_step, ZOOM_MIN, zoom_max)
 
 ## A new run starts fully zoomed out (the widest view).
 ## Jumps to a zoom level (ZOOM_MIN..ZOOM_MAX) without easing.
 func set_zoom_now(value: float) -> void:
-	_zoom_target = clampf(value, ZOOM_MIN, ZOOM_MAX)
+	_zoom_target = clampf(value, ZOOM_MIN, zoom_max)
 	_zoom = _zoom_target
 
 func start_zoomed_out() -> void:
-	_zoom_target = ZOOM_MAX
-	_zoom = ZOOM_MAX
+	_zoom_target = zoom_max
+	_zoom = zoom_max
 
 ## Swings the camera by `radians` (eased). Positive turns the view counter-clockwise seen from above.
 func rotate_view(radians: float) -> void:
@@ -103,7 +105,7 @@ func _pad_camera(delta: float) -> void:
 	if stick.length() <= 0.0:
 		return
 	rotate_view(-stick.x * PAD_ROTATE_SPEED * delta)
-	_zoom_target = clampf(_zoom_target + stick.y * PAD_ZOOM_SPEED * delta, ZOOM_MIN, ZOOM_MAX)
+	_zoom_target = clampf(_zoom_target + stick.y * PAD_ZOOM_SPEED * delta, ZOOM_MIN, zoom_max)
 
 ## Back behind the hero (the default angle).
 func reset_view() -> void:

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://crmxjah55mpqe"
-path="res://.godot/imported/model.glb-568edd7dac6f7f1bcd8409ebfcdf497a.scn"
+uid="uid://b77cxkxbcwjhw"
+path="res://.godot/imported/model.glb-d360dad3d593da4e666eddf211816a20.scn"
 
 [deps]
 
-source_file="res://assets/models/dungeon/wall/model.glb"
-dest_files=["res://.godot/imported/model.glb-568edd7dac6f7f1bcd8409ebfcdf497a.scn"]
+source_file="res://assets/models/dungeon/wall_large_b/model.glb"
+dest_files=["res://.godot/imported/model.glb-d360dad3d593da4e666eddf211816a20.scn"]
 
 [params]
 

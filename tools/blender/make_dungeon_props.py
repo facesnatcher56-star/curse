@@ -21,6 +21,10 @@ OUT = os.path.join(ROOT, "assets", "models", "dungeon")
 PALETTE = {
     "stone_light": ((0.11, 0.107, 0.10), 0.0, 0.92),
     "stone_dark": ((0.06, 0.058, 0.056), 0.0, 0.94),
+    # Floor flags: two tones close together, so the floor reads as one calm surface rather than a checkerboard.
+    "flag_a": ((0.085, 0.082, 0.078), 0.0, 0.94),
+    "flag_b": ((0.074, 0.072, 0.068), 0.0, 0.95),
+    "dirt": ((0.05, 0.046, 0.04), 0.0, 0.97),
     "wood_weathered": ((0.30, 0.22, 0.15), 0.0, 0.95),
     "wood_dark": ((0.18, 0.13, 0.09), 0.0, 0.95),
     "iron": ((0.17, 0.17, 0.18), 0.25, 0.75),
@@ -79,7 +83,7 @@ def finish_and_export(name, build, keys, seed):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bm = bmesh.new()
     build(bm, random.Random(seed))
-    if name in ("crate", "chest", "pillar"):
+    if name in ("crate", "chest", "pillar", "floor_flag", "wall_large_a", "wall_large_b"):
         bevel_all(bm)
     bm.normal_update()
     mesh = bpy.data.meshes.new(name)
@@ -161,7 +165,50 @@ def build_torch_sconce(bm, rng):
     jitter(bm, rng, 0.005)
 
 
+def build_floor_flag(bm, rng):
+    """A 2 m floor tile of irregular flagstones: two columns, each split at its own random height into two or three slabs, so the
+    joints do not line up. The two tones sit close together, and about one tile in three carries a dirt patch."""
+    split_x = rng.uniform(0.85, 1.15)
+    for col in (0, 1):
+        x0 = -1.0 if col == 0 else split_x - 0.0
+        x1 = split_x if col == 0 else 1.0
+        y = -1.0
+        while y < 1.0 - 0.01:
+            h = min(rng.uniform(0.6, 1.2), 1.0 - y)
+            if 1.0 - (y + h) < 0.45:
+                h = 1.0 - y
+            add_box(bm, ((x0 + x1) / 2, y + h / 2, 0.06), (x1 - x0 - 0.03, h - 0.03, 0.1),
+                    rot=(0, 0, rng.uniform(-0.015, 0.015)), mat=0 if rng.random() < 0.55 else 1)
+            y += h
+    if rng.random() < 0.33:
+        add_box(bm, (rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5), 0.12), (rng.uniform(0.3, 0.6), rng.uniform(0.3, 0.6), 0.04),
+                rot=(0, 0, rng.uniform(0, 1.5)), mat=2)
+    jitter(bm, rng, 0.003)
+
+
+def build_wall_large(bm, rng, broken):
+    """A 3 m wall section of large, irregular blocks in three courses (0.62 m each, 1.9 m tall), with widths between 0.9 and
+    1.5 m. The broken variant leaves gaps in the top course."""
+    depth = 0.6
+    z = 0.0
+    for h in (0.62, 0.66, 0.62):
+        x = -1.5
+        while x < 1.5 - 0.05:
+            w = min(rng.uniform(0.9, 1.5), 1.5 - x)
+            if broken and abs(z - 1.28) < 0.01 and rng.random() < 0.35:
+                x += w
+                continue
+            add_box(bm, (x + w / 2, 0, z + h / 2), (w - 0.02, depth, h - 0.02), rot=(0, 0, rng.uniform(-0.02, 0.02)),
+                    mat=1 if rng.random() < 0.3 else 0)
+            x += w
+        z += h
+    jitter(bm, rng, 0.008)
+
+
 if __name__ == "__main__":
+    finish_and_export("floor_flag", build_floor_flag, ["flag_a", "flag_b", "dirt"], 17)
+    finish_and_export("wall_large_a", lambda bm, rng: build_wall_large(bm, rng, False), ["stone_light", "stone_dark"], 19)
+    finish_and_export("wall_large_b", lambda bm, rng: build_wall_large(bm, rng, True), ["stone_light", "stone_dark"], 23)
     finish_and_export("pillar", build_pillar, ["stone_light", "stone_dark"], 3)
     finish_and_export("crate", build_crate, ["wood_weathered", "wood_dark", "iron"], 5)
     finish_and_export("urn", build_urn, ["clay", "clay_dark"], 7)

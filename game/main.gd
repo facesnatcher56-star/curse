@@ -50,6 +50,8 @@ func _ready() -> void:
 		# Apply after both the authored Crypt Road and job modifiers, so the opt-in profile sets the final values.
 		AtmosphereProfile.apply_environment(world_environment, sun)
 		AtmosphereProfile.apply_local_lights(arena)
+		if location is TestDungeon:
+			(location as TestDungeon).tune_look(world_environment)   # the dungeon's rooms are kept brighter than the shared profile
 	_mark("world + nav bake")
 
 	player = Player.new()
@@ -115,7 +117,11 @@ func _ready() -> void:
 	add_child(dev)
 	if dev.run_from_args():
 		return
-	rig.start_zoomed_out()
+	if location is TestDungeon:   # the dungeon caps the zoom and starts closer, for its own view
+		rig.zoom_max = TestDungeon.ZOOM_MAX
+		rig.set_zoom_now(TestDungeon.ZOOM_START)
+	else:
+		rig.start_zoomed_out()
 	# The navigation map only learns about the arena a physics frame or two after it is built (and, coming from the menu,
 	# still holds the old scene's data until then); spawn the first wave once it is ready.
 	await get_tree().physics_frame
@@ -186,8 +192,6 @@ func _build_world() -> void:
 		location = TestDungeon.new()
 		add_child(location)
 		location.build(arena)
-		if OS.get_cmdline_user_args().has("--atmosphere"):
-			TestDungeon.apply_atmosphere(environment, sun)
 	elif String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
 		arena = CryptRoad.make_arena()
 		add_child(arena)

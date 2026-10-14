@@ -11,6 +11,9 @@ const TARGETS := {
 	"collapsed": Vector3(-21, 0, 2.2),
 	"corridor_b": Vector3(0, 0, -10),
 	"final": Vector3(0, 0, -30),
+	"alcove_west": Vector3(-13.5, 0, 33.5),
+	"cave": Vector3(20, 0, 33),
+	"alcove_final": Vector3(-20, 0, -28),
 }
 
 var _main: Node
