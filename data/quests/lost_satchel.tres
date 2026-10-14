@@ -16,6 +16,7 @@ min_jobs = 0
 days = 6
 target = "zombie"
 count = 10
+respawn_target = true
 unique_name = ""
 unique_hp = 3.0
 unique_level = 1.3

@@ -213,7 +213,9 @@ static func on_day() -> void:
 # --- Measuring (called as things happen on the road) -------------------------------------------------------------------------------
 
 ## A monster of this kind died (not a named one). Returns {"changed": [instances that moved], "drops": [fetch instances whose item drops now]}.
-static func report_kill(enemy_id: String) -> Dictionary:
+## `last_of_kind`: this is the last living monster of its kind on the road. Monsters only come back when a quest is handed in (the road
+## regrows), so the last one always drops a wanted item rather than leaving it unreachable.
+static func report_kill(enemy_id: String, last_of_kind: bool = false) -> Dictionary:
 	var changed: Array = []
 	var drops: Array = []
 	for inst in live():
@@ -229,11 +231,39 @@ static func report_kill(enemy_id: String) -> Dictionary:
 		elif def.kind == "fetch" and def.target == enemy_id and not bool(inst["data"]["dropped"]):
 			var data: Dictionary = inst["data"]
 			data["kills"] = int(data["kills"]) + 1
-			if int(data["kills"]) >= def.count or rng.randf() < FETCH_DROP_CHANCE:
+			if last_of_kind or int(data["kills"]) >= def.count or rng.randf() < FETCH_DROP_CHANCE:
 				data["dropped"] = true
 				drops.append(inst)
 			changed.append(inst)
 	return {"changed": changed, "drops": drops}
+
+## Where a dropped fetch item lies, kept with its quest (the pickup itself is not saved), so it can be put back after a scene reload.
+static func set_drop_spot(inst: Dictionary, at: Vector3) -> void:
+	inst["data"]["at"] = [at.x, at.z]
+
+## The dropped fetch items with no pickup on the road (`lying`: the quest uids that have one). Each comes back at its stored spot, so it stays
+## reachable after a reload. An item saved without a spot is reported lost, as before (it can drop again from its target).
+static func fetch_to_respawn(lying: Array) -> Array:
+	var out: Array = []
+	for inst in live():
+		if String(inst["state"]) != "active" or def_of(inst).kind != "fetch" or not bool(inst["data"].get("dropped", false)):
+			continue
+		if lying.has(int(inst["uid"])):
+			continue
+		var at: Array = inst["data"].get("at", [])
+		if at.size() == 2:
+			out.append({"uid": int(inst["uid"]), "name": def_of(inst).item_name, "at": Vector3(float(at[0]), 0.0, float(at[1]))})
+		else:
+			report_fetch_lost(int(inst["uid"]))
+	return out
+
+## Whether a fetch quest needs its target put back on the road now: it is active, its item is not lying out yet, its def allows it
+## (QuestDef.respawn_target), and no living monster of its target is on the road. Other fetch quests are never touched here.
+static func wants_target_respawn(inst: Dictionary, alive_of_target: int) -> bool:
+	if String(inst["state"]) != "active":
+		return false
+	var def: QuestDef = def_of(inst)
+	return def.kind == "fetch" and def.respawn_target and not bool(inst["data"].get("dropped", false)) and alive_of_target == 0
 
 ## The item is lying on the road again (it was dropped but the hero was dragged home, or it was left behind).
 static func report_fetch_lost(uid: int) -> void:

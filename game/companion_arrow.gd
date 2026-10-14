@@ -57,7 +57,7 @@ func _physics_process(delta: float) -> void:
 		if hit.collider is Enemy:
 			_hit_enemy(hit.collider as Enemy, from)
 		else:
-			_stick(null)
+			_hit_prop(hit.collider)
 		return
 	global_position = to
 	_orient()
@@ -85,6 +85,17 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 		(shooter as ArcherCompanion).last_hit_target = enemy
 	struck = enemy
 	_stick(enemy)
+
+## The collider belongs to a prop (a Destructible owns its body). A hero-breakable prop takes the arrow's damage, the same as a
+## swing would; anything else (walls, scenery) just stops the arrow.
+func _hit_prop(collider: Object) -> void:
+	var prop: Destructible = null
+	if collider is Node:
+		prop = (collider as Node).get_parent() as Destructible
+	if prop != null and prop.is_hero_target():
+		var push := Vector3(velocity.x, 0.0, velocity.z)
+		prop.hit(damage, push.normalized() if push.length() > 0.05 else Vector3.FORWARD, 1.0)
+	_stick(null)
 
 func _stick(body: Actor) -> void:
 	set_physics_process(false)

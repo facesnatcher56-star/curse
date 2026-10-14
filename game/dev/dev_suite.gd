@@ -35,6 +35,34 @@ var kills: int:
 func _spawn_enemy(pos: Vector3, variant: String = "zombie", level: float = 1.0) -> Enemy:
 	return game.director.spawn_enemy(pos, variant, level)
 
+## A clear lane for an archer check that runs after other suites. When the arena is too crowded (earlier suites leave props), the
+## breakable props and debris are removed and the lane is found again.
+func _own_lane(length: float, width: float) -> Vector3:
+	var lane := _clear_lane(length, width)
+	if lane != Vector3.ZERO:
+		return lane
+	for node in get_tree().get_nodes_in_group("destructibles"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("debris"):
+		node.queue_free()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	return _clear_lane(length, width)
+
+## A known archer state for a check that runs after other suites: no cooldown or mana spent by earlier fights, no leftover orders or
+## shot in progress. Earlier suites leave the shared basic cooldown spent, which would otherwise refuse every archer shot.
+func _prepare_archer(archer: ArcherCompanion) -> void:
+	archer.bow.cancel()
+	archer.stats.cooldowns.clear()
+	archer.stats.mana = archer.stats.max_mana
+	archer.attack_target = null
+	archer.attack_prop = null
+	archer.skills.busy = false
+	if not archer.stats.is_ranged():
+		# An earlier suite swapped the archer's weapon: restore the bow he starts with (see TownState's cutter setup).
+		archer.stats.equipment[Items.Slot.WEAPON] = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")
+		archer.stats.refresh()
+
 func _next_wave() -> void:
 	game.director.start_wave()
 
@@ -105,3 +133,20 @@ func _throw_dummy(pos: Vector3, variant: String = "zombie") -> Enemy:
 	e.health = 4000.0
 	e.block_chance = 0.0
 	return e
+
+## The party's position and archer switches before a check that moves them, so the next check starts from what it had.
+func _party_snapshot() -> Dictionary:
+	return {"hero": player.global_position, "archer": game.companion.global_position, "archer_testing": game.companion.testing_disabled}
+
+func _party_restore(saved: Dictionary) -> void:
+	player.global_position = saved["hero"]
+	player.reset_physics_interpolation()
+	player.movement.has_goal = false
+	player.attack_target = null
+	player.attack_prop = null
+	game.companion.global_position = saved["archer"]
+	game.companion.reset_physics_interpolation()
+	game.companion.testing_disabled = bool(saved["archer_testing"])
+	game.companion.bow.cancel()
+	game.companion.attack_target = null
+	game.companion.attack_prop = null

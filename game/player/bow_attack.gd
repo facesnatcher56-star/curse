@@ -21,6 +21,33 @@ var _pose_bones: Dictionary = {}
 var _bow_scale: float
 var _arrow_rest: Transform3D
 var aura: BrutalAttackFx
+## What the current shot is for: an Actor, or a breakable prop (a nest) the controlled archer was ordered to shoot.
+var _target: Actor
+var _prop: Destructible
+## Firing position for the current target: taken `SPOT_RANGE` from it, with sight over the world geometry.
+const SHOT_RANGE := 17.0    # the bow's reach, flat, centre to centre (the hero's basic ranged attack)
+const TOO_CLOSE := 7.0      # with a clear shot this near, an archer steps back before loosing
+const SPOT_RANGE := 12.0
+const SPOT_MIN := 8.0
+const SPOT_ARRIVE := 1.0
+const SPOT_TIMEOUT := 6.0   # a position not reached in this long is given up on
+const REPLAN_COOLDOWN := 0.4
+const RETRY_COOLDOWN := 1.0 # no viable position: hold, then look again
+const MELEE_CLEAR := 4.0    # a firing position this close to an aggro melee enemy is refused
+const SPOT_MOVED := 3.0     # the target has moved this far: positions are chosen again
+const SPOT_ANGLES := [0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.2, -1.2, 1.5, -1.5, 1.8, -1.8, 2.1, -2.1, 2.4, -2.4, 2.7, -2.7]
+var _spot: Vector3
+var _has_spot: bool = false
+var _spot_point: Vector3
+var _spot_age: float = 0.0
+var _replan_wait: float = 0.0
+var _rejected: Array[Vector3] = []
+## Counters the selftest reads: entries into hold, failed looks for a firing position, and shots begun.
+var holds: int = 0
+var retry_attempts: int = 0
+var shots: int = 0
+var refusals: int = 0
+var _holding: bool = false
 
 func _init(character: Player) -> void:
 	p = character
@@ -51,8 +78,29 @@ func arm() -> void:
 	aura.setup(p.model, false)
 
 func start(target: Actor) -> void:
-	if not is_instance_valid(target) or target.dead or not p.stats.is_ranged() or not Nav.line_clear(p, target.global_position): return
+	if not is_instance_valid(target) or target.dead:
+		return
+	_begin(target, null)
+
+## The controlled archer's order to break a prop (a nest) with the bow. Only hero-breakable props qualify.
+func start_prop(prop: Destructible) -> void:
+	if prop == null or not prop.is_hero_target():
+		return
+	_begin(null, prop)
+
+func _begin(target: Actor, prop: Destructible) -> void:
+	var point := _shot_point(target, prop)
+	if not p.stats.is_ranged() or p.skills.busy:
+		return
+	if not Nav.sight_clear(p, p.global_position, point, prop):
+		refusals += 1   # a shot asked for without sight is refused here, and counted for the selftest
+		return
+	p.skills.clear_queue()
+	_target = target
+	_prop = prop
 	p.skills.busy = true
+	shots += 1
+	_holding = false
 	p.skills.busy_skill = "basic"
 	p.skills.busy_target = target
 	p.skills.busy_def = {"kind": "ranged", "charged": false}
@@ -62,20 +110,36 @@ func start(target: Actor) -> void:
 	_recovery = (1.05 + randf_range(0.0, 0.22)) / p.stats.attack_speed()
 	p.movement.has_goal = false
 	p.combat_timer = 5.0
-	p.face(target.global_position)
+	p.face(point)
 	p.model.loop("idle_alert")
 	_draw = 0.0
 	if armed:
 		SkillFx.take_aim_charge(_bow_holder)
 		Sfx.power(p, "take_aim_charge")
 
+## Where a shot at an Actor (its chest) or a prop (its centre) is aimed.
+func _shot_point(target: Actor, prop: Destructible) -> Vector3:
+	if prop != null:
+		return prop.global_position + Vector3(0, prop.height * 0.5, 0)
+	return target.global_position + Vector3(0, target.body_height * 0.62, 0)
+
+func _target_valid() -> bool:
+	if _prop != null:
+		return _prop.is_hero_target()
+	return is_instance_valid(_target) and not _target.dead
+
 func tick(delta: float) -> void:
-	if not is_instance_valid(p.skills.busy_target) or p.skills.busy_target.dead:
+	if not _target_valid():
 		cancel()
 		return
 	p.skills.busy_t += delta
 	if not p.skills.busy_hit_done:
-		p.face(p.skills.busy_target.global_position, 0.28)
+		# Sight is re-checked through the whole draw: a target that stepped behind a wall or prop is not loosed at.
+		var point := _shot_point(_target, _prop)
+		if not Nav.sight_clear(p, p.global_position, point, _prop):
+			cancel()
+			return
+		p.face(point, 0.28)
 		_draw = clampf(p.skills.busy_t / p.skills.busy_time, 0.0, 1.0)
 		_draw_arrow.visible = true
 		if _draw >= 1.0: loose()
@@ -86,12 +150,16 @@ func tick(delta: float) -> void:
 
 func loose() -> void:
 	_apply_draw_pose()
-	var target := p.skills.busy_target
 	var from := p.global_position + Vector3(0, 1.45, 0)
 	var box: AABB = _draw_arrow.get_meta("mesh_bounds")
 	from = _draw_arrow.to_global(Vector3(0, box.size.y * 0.5, 0))
-	var aim := target.global_position + Vector3(0, target.body_height * 0.62, 0)
-	aim += target.velocity * clampf(from.distance_to(aim) / (CompanionArrow.SPEED * (2.0 if armed else 1.0)), 0, 0.45)
+	var still := _shot_point(_target, _prop)
+	var aim := still
+	if _target != null:
+		aim += _target.velocity * clampf(from.distance_to(aim) / (CompanionArrow.SPEED * (2.0 if armed else 1.0)), 0, 0.45)
+	# The lead of a moving target must not put the arrow into scenery: then loose at the point that was checked clear.
+	if not Nav.sight_clear(p, p.global_position, aim, _prop):
+		aim = still
 	var damage := p.stats.ranged_range()
 	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 * p.stats.power_damage_mult() if armed else 1.0
 	CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
@@ -110,9 +178,149 @@ func loose() -> void:
 func cancel() -> void:
 	_draw = 0.0
 	_release = 0.0
+	_target = null
+	_prop = null
 	p.skills.busy = false
 	if is_instance_valid(_draw_arrow): _draw_arrow.visible = false
 	_set_bow_string_visible(false)
+
+## One ranged decision for an archer, AI or controlled, against an Actor or a prop. A clear shot in reach is taken; a clear shot that is
+## too close is backed away from; without a clear shot the archer takes up a reachable firing position with sight of the target and
+## holds there. `hold` (stand still) never walks. The shot itself runs in tick(), which re-checks sight through the draw.
+func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false) -> void:
+	if p.skills.busy:
+		return
+	_replan_wait = maxf(_replan_wait - delta, 0.0)
+	var point := _shot_point(target, prop)
+	var gap := p.flat_distance_to_point(point)
+	var sight := gap <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
+	if sight and gap >= TOO_CLOSE and p.stats.can_use("basic"):
+		if prop != null:
+			start_prop(prop)
+		else:
+			start(target)
+		_stop()
+		return
+	if sight and not hold and gap < TOO_CLOSE and _retreat(point, delta):
+		return
+	if hold or sight:
+		_stop()
+		return
+	_take_position(point, prop, delta)
+
+func _stop() -> void:
+	p.movement.has_goal = false
+	p.move_with(Vector3.ZERO)
+
+## Keeps a position that still sees the target; otherwise picks a new one, not more often than REPLAN_COOLDOWN, and never one given up.
+func _take_position(point: Vector3, prop: Destructible, delta: float) -> void:
+	if _has_spot and _spot_point.distance_to(point) > SPOT_MOVED:
+		_has_spot = false
+		_rejected.clear()
+	if _has_spot and not _spot_good(_spot, point, prop):
+		_reject_spot()
+	if not _has_spot and _replan_wait <= 0.0:
+		var found := _pick_spot(point, prop)
+		_replan_wait = REPLAN_COOLDOWN if found else RETRY_COOLDOWN
+		if not found:
+			retry_attempts += 1   # counted for the selftest: a failed look for a firing position
+	if _has_spot:
+		_holding = false
+	elif not _holding:
+		holds += 1   # counted for the selftest: this entry into hold
+		_holding = true
+	if not _has_spot:
+		# No viable firing position. An AI archer holds and retries after the cooldown; a directly controlled one keeps moving freely.
+		if p.is_controlled():
+			_travel(point, delta)
+		else:
+			_stop()
+		return
+	_spot_age += delta
+	if p.flat_distance_to_point(_spot) <= SPOT_ARRIVE or _spot_age > SPOT_TIMEOUT:
+		# Arrived without sight from where the archer stands (or never got there): give this position up.
+		_reject_spot()
+		_stop()
+		return
+	_travel(_spot, delta)
+
+## A position at a shooting range of the point, with a clear sight line to it (through the target prop, if that is the target).
+func _spot_good(spot: Vector3, point: Vector3, prop: Destructible) -> bool:
+	var reach := Vector2(spot.x - point.x, spot.z - point.z).length()
+	return reach >= SPOT_MIN and reach <= SHOT_RANGE - 1.0 and Nav.sight_clear(p, spot, point, prop)
+
+## Priorities, in order: a clear line of sight (required); a shooting range near the preferred combat distance; separation from
+## melee enemies (a candidate within MELEE_CLEAR of an aggro enemy is refused); lateral positions around an obstruction over a straight
+## advance. Lower score wins. Returns false when no candidate qualifies.
+func _pick_spot(point: Vector3, prop: Destructible) -> bool:
+	var away := Vector3(p.global_position.x - point.x, 0.0, p.global_position.z - point.z)
+	away = away.normalized() if away.length() > 0.05 else Vector3.BACK
+	var best := Vector3.ZERO
+	var best_score := INF
+	for ring in [SPOT_RANGE - 2.0, SPOT_RANGE, SPOT_RANGE + 2.0]:
+		for angle: float in SPOT_ANGLES:
+			var candidate := Nav.snap(p, point + away.rotated(Vector3.UP, angle) * ring)
+			if _is_rejected(candidate) or not _spot_good(candidate, point, prop) or _melee_near(candidate):
+				continue
+			var reach := Vector2(candidate.x - point.x, candidate.z - point.z).length()
+			var score := absf(reach - SPOT_RANGE) + 0.3 * p.flat_distance_to_point(candidate)
+			if absf(angle) < 0.2:
+				score += 0.8   # straight back along the line of advance: a lateral spot is preferred
+			if score < best_score:
+				best_score = score
+				best = candidate
+	if best_score == INF:
+		return false
+	_spot = best
+	_spot_point = point
+	_has_spot = true
+	_spot_age = 0.0
+	return true
+
+## Whether an aggro enemy that fights at close range stands within MELEE_CLEAR of a spot.
+func _melee_near(spot: Vector3) -> bool:
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(node):
+			continue
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or not enemy.is_aggro():
+			continue
+		if Vector2(enemy.global_position.x - spot.x, enemy.global_position.z - spot.z).length() < MELEE_CLEAR:
+			return true
+	return false
+
+func _reject_spot() -> void:
+	if _has_spot:
+		_rejected.append(_spot)
+	_has_spot = false
+	_spot_age = 0.0
+	_replan_wait = REPLAN_COOLDOWN
+
+func _is_rejected(spot: Vector3) -> bool:
+	for rejected in _rejected:
+		if Vector2(rejected.x - spot.x, rejected.z - spot.z).length() < 1.0:
+			return true
+	return false
+
+## Steps back from a target too close for a comfortable shot. False when there is no room to.
+func _retreat(point: Vector3, delta: float) -> bool:
+	var away := Vector3(p.global_position.x - point.x, 0.0, p.global_position.z - point.z)
+	if away.length() < 0.05:
+		return false
+	away = away.normalized()
+	var distance := p.flat_distance_to_point(point)
+	for angle: float in [0.0, 0.6, -0.6, 1.2, -1.2]:
+		var retreat := Nav.snap(p, p.global_position + away.rotated(Vector3.UP, angle) * 3.0)
+		if Vector2(retreat.x - point.x, retreat.z - point.z).length() > distance and Nav.clearance(p, p.global_position, retreat):
+			_travel(retreat, delta)
+			return true
+	return false
+
+func _travel(goal: Vector3, delta: float) -> void:
+	p.movement.goal = Nav.snap(p, goal)
+	p.movement.has_goal = true
+	p.movement.move(delta)
+	p.movement.update_locomotion_anim()
 
 func _attach_gear() -> void:
 	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it

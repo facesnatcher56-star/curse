@@ -374,7 +374,7 @@ func _report_to_quests(actor: Actor, bonuses: Dictionary = {}) -> int:
 		for line in Quests.pop_news():
 			quest_news.emit(line)
 		return 0
-	var result: Dictionary = Quests.report_kill(enemy.variant)
+	var result: Dictionary = Quests.report_kill(enemy.variant, _last_of_kind(enemy))
 	for inst in result["drops"]:
 		quest_item_dropped.emit(inst, enemy.global_position)
 	for line in Quests.pop_news():
@@ -400,6 +400,14 @@ func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 		var total := int(round(float(kill + bounty_xp) * gap))
 		var share := HeroProgression.party_share(total, recipients.size())
 		TownState.add_member_xp(member_id, share, bounty_xp > 0, enemy.member_damage.get(member_id, {}))
+
+## True when no other living monster of this kind is on the road (the road only refills when a quest is handed in).
+func _last_of_kind(enemy: Enemy) -> bool:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var other := node as Enemy
+		if other != null and other != enemy and not other.dead and other.variant == enemy.variant:
+			return false
+	return true
 
 func _living_cutter() -> ArcherCompanion:
 	for node in get_tree().get_nodes_in_group("companions"):
@@ -465,12 +473,78 @@ func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	drop.toss_from(at)
 	return drop
 
+## The run's rewards still lying on the ground when it ends (owner policy). A dead hero loses them. Otherwise: gear goes to the town stash
+## (which has no size limit, so nothing is refused), gold and mana potions are credited, and health potions fill the pack up to its maximum.
+## A health potion over that maximum has nowhere to go yet: it is reported as left behind (OPEN QUESTION for the owner), not hidden.
+## Each reward is handed over exactly once: the drop or orb is freed here, and `_end_run` runs once. Returns the banner line, or "".
+func settle_ground_rewards(died: bool) -> String:
+	var gear: int = 0
+	var gold: int = 0
+	var mana: int = 0
+	var potions: int = 0
+	var potions_over: int = 0
+	var potions_lost: int = 0
+	for child in get_children():
+		var drop := child as LootDrop
+		if drop == null or drop.is_queued_for_deletion():
+			continue
+		gear += 1
+		if not died:
+			TownState.stash_item(drop.item)
+		drop.queue_free()
+	# Out of the tree (a town being torn down) there is no group to search: its orbs are not counted then (an edge the real quit path avoids).
+	var orbs: Array = get_tree().get_nodes_in_group("orbs") if is_inside_tree() else []
+	for node in orbs:
+		var orb := node as HealthOrb
+		if orb == null or orb.is_queued_for_deletion():
+			continue
+		if orb.gold_amount > 0:
+			gold += orb.gold_amount
+			if not died:
+				TownState.gold += orb.gold_amount
+		elif orb.is_mana:
+			mana += 1
+			if not died:
+				TownState.mana_potions += 1
+		elif orb.is_potion:
+			if died:
+				potions_lost += 1
+			elif TownState.potions < PlayerStats.MAX_POTIONS:
+				TownState.potions += 1
+				potions += 1
+			else:
+				# TEMPORARY LEGACY LIMITATION, not a finished no-loss fix: the pack holds at most MAX_POTIONS and the stash holds only
+				# gear, so a potion over the maximum is announced as left behind and its orb is freed with the scene. Owner decision
+				# pending (the rechargeable health flask is a separate assignment). Do not treat this path as complete.
+				potions_over += 1
+		else:
+			continue   # a healing orb is not a reward: it is only the old immediate heal, and it expires on its own
+		orb.queue_free()
+	var parts: PackedStringArray = []
+	if died:
+		var lost: int = mana + potions_lost
+		if gear + gold + lost > 0:
+			parts.append("Lost on the ground: %d item%s, %d gold, %d potion%s" % [gear, "" if gear == 1 else "s", gold, lost, "" if lost == 1 else "s"])
+		return ", ".join(parts)
+	if gear > 0:
+		parts.append("%d item%s sent to stash" % [gear, "" if gear == 1 else "s"])
+	if gold > 0:
+		parts.append("%d gold collected" % gold)
+	if potions + mana > 0:
+		parts.append("%d potion%s collected" % [potions + mana, "" if potions + mana == 1 else "s"])
+	if potions_over > 0:
+		parts.append("%d potion%s left behind (pack full)" % [potions_over, "" if potions_over == 1 else "s"])
+	return ", ".join(parts)
+
 ## Back to town: the run's gold, gear and potions are handed over and the town takes it from there.
 func _end_run(completed: bool, walked_out: bool = false) -> void:
 	if _ending:
 		return
 	_ending = true
 	var banner: String = "Job complete" if completed else ("Job abandoned" if walked_out else "You have fallen")
+	var settled: String = settle_ground_rewards(player != null and player.dead)
+	if settled != "":
+		banner += "\n" + settled
 	hud.show_banner(banner, 3.0)
 	await get_tree().create_timer(3.2).timeout
 	TownState.take_gear(player.stats.equipment)
