@@ -1,0 +1,169 @@
+{
+  "_doc": "Item def id -> worn visuals. Each part is a separate skinned GLB in model_dir (one piece per file) bound to the Meshy skeleton by game/modular_appearance.gd. hides removes base or other parts (a robe replaces the gambeson). placeholder marks an item that reuses another item's mesh until its own GLB exists. To add equipment: export one GLB (tools/art/modular_export.py) and add a row here; no code change.",
+  "model_dir": "res://assets/models/modular/",
+  "base": [
+    "body_skin",
+    "body_hair",
+    "body_beard",
+    "clt_gambeson"
+  ],
+  "items": {
+    "plate_cuirass": {
+      "slot": "armor",
+      "parts": [
+        "tor_plate",
+        "arm_plate"
+      ]
+    },
+    "mail_hauberk": {
+      "slot": "armor",
+      "parts": [
+        "tor_plate",
+        "arm_plate"
+      ],
+      "placeholder": true
+    },
+    "chain_mail": {
+      "slot": "armor",
+      "parts": [
+        "tor_plate",
+        "arm_plate"
+      ],
+      "placeholder": true
+    },
+    "leather_jerkin": {
+      "slot": "armor",
+      "parts": [
+        "tor_leather"
+      ]
+    },
+    "carved_tunic": {
+      "slot": "armor",
+      "parts": [
+        "tor_leather"
+      ],
+      "placeholder": true
+    },
+    "apprentice_robe": {
+      "slot": "armor",
+      "parts": [
+        "robe_mage",
+        "arm_mantle"
+      ],
+      "hides": [
+        "clt_gambeson"
+      ]
+    },
+    "iron_helm": {
+      "slot": "helm",
+      "parts": [
+        "hlm_great"
+      ],
+      "hides": [
+        "body_hair",
+        "body_beard"
+      ]
+    },
+    "dragon_helm": {
+      "slot": "helm",
+      "parts": [
+        "hlm_great"
+      ],
+      "hides": [
+        "body_hair",
+        "body_beard"
+      ],
+      "placeholder": true
+    },
+    "leather_cap": {
+      "slot": "helm",
+      "parts": [
+        "hlm_cap"
+      ],
+      "hides": [
+        "body_hair"
+      ]
+    },
+    "carved_cap": {
+      "slot": "helm",
+      "parts": [
+        "hlm_cap"
+      ],
+      "hides": [
+        "body_hair"
+      ],
+      "placeholder": true
+    },
+    "woven_hood": {
+      "slot": "helm",
+      "parts": [
+        "hlm_hood"
+      ],
+      "hides": [
+        "body_hair"
+      ]
+    },
+    "iron_gauntlets": {
+      "slot": "gloves",
+      "parts": [
+        "glv_plate"
+      ]
+    },
+    "studded_gloves": {
+      "slot": "gloves",
+      "parts": [
+        "glv_leather"
+      ],
+      "placeholder": true
+    },
+    "leather_gloves": {
+      "slot": "gloves",
+      "parts": [
+        "glv_leather"
+      ]
+    },
+    "iron_greaves": {
+      "slot": "boots",
+      "parts": [
+        "leg_plate",
+        "bts_plate"
+      ]
+    },
+    "leather_boots": {
+      "slot": "boots",
+      "parts": [
+        "bts_leather"
+      ]
+    },
+    "sorcerer_boots": {
+      "slot": "boots",
+      "parts": [
+        "bts_sorcerer"
+      ]
+    },
+    "kite_shield": {
+      "slot": "shield",
+      "parts": [
+        "shd_kite"
+      ]
+    },
+    "heater_shield": {
+      "slot": "shield",
+      "parts": [
+        "shd_kite"
+      ],
+      "placeholder": true
+    },
+    "buckler": {
+      "slot": "shield",
+      "parts": [
+        "shd_kite"
+      ],
+      "placeholder": true
+    },
+    "short_bow": {
+      "slot": "weapon",
+      "bow_model": "wpn_bow"
+    }
+  }
+}

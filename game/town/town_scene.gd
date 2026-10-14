@@ -41,6 +41,7 @@ var outside: bool = false                 # the hero is out beyond the town (an 
 var _world_nav: NavigationRegion3D        # one navigation mesh for the plaza and the road
 var _base_ambient: float = 0.7
 var _base_fog: float = 0.012
+var _atmosphere: bool = false             # `-- --atmosphere` (issue #21): the road takes AtmosphereProfile's light and fog
 var _announced_road: bool = false
 var _monster_clock: float = 0.0
 var _gossip_clock: float = 4.0
@@ -97,6 +98,8 @@ func _ready() -> void:
 	arena.bake_navigation()   # once, for the plaza and the road together
 	player = Player.new()
 	add_child(player)
+	if _atmosphere:
+		player.add_child(AtmosphereProfile.make_hero_torch())
 	player.position = Vector3(0, 0, 10.0)
 	player.visual.rotation.y = PI   # facing north, toward the gate
 	_apply_run_gear(player)
@@ -508,6 +511,10 @@ func _build_road() -> void:
 	crypt = CryptRoad.new()
 	add_child(crypt)
 	crypt.build(road_arena)
+	if AtmosphereProfile.enabled():   # opt-in look (issue #21); _update_world blends the road's light and fog in by depth
+		_atmosphere = true
+		AtmosphereProfile.apply_environment(world_environment, null)   # the town's moon is left as it is
+		AtmosphereProfile.apply_local_lights(road_arena)
 	crypt.nest_destroyed.connect(_on_nest_destroyed)
 	if crypt.return_waystone != null:
 		crypt.return_waystone.revealed.connect(_on_return_waystone_revealed)
@@ -809,8 +816,12 @@ func _update_world(delta: float) -> void:
 	if with_road:
 		var rule_light: float = (director.modifier_product("ambient_mult") if director != null else 1.0) * Quests.world_mult("ambient_mult")
 		var rule_fog: float = (director.modifier_product("fog_mult") if director != null else 1.0) * Quests.world_mult("fog_mult")
-		world_environment.ambient_light_energy = _base_ambient * lerpf(1.0, CryptRoad.AMBIENT_MULT * rule_light, depth)
-		world_environment.fog_density = _base_fog * lerpf(1.0, CryptRoad.FOG_MULT * rule_fog, depth)
+		if _atmosphere:   # the profile's road values, with the same job and quest modifiers on top
+			world_environment.ambient_light_energy = lerpf(_base_ambient, AtmosphereProfile.AMBIENT_TARGET * rule_light, depth)
+			world_environment.fog_density = lerpf(_base_fog, AtmosphereProfile.FOG_TARGET * rule_fog, depth)
+		else:
+			world_environment.ambient_light_energy = _base_ambient * lerpf(1.0, CryptRoad.AMBIENT_MULT * rule_light, depth)
+			world_environment.fog_density = _base_fog * lerpf(1.0, CryptRoad.FOG_MULT * rule_fog, depth)
 	if not outside and z < -HALF - 10.0:
 		outside = true
 		TownState.begin_expedition()

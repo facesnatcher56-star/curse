@@ -6,7 +6,7 @@ Usage: python tools/meshy_icons.py [name ...]     (re-running skips icons that a
 import sys
 from pathlib import Path
 
-import art_direction  # the project's art direction: every prompt goes through it (docs/ART_DIRECTION.md)
+import art_direction  # the project's art direction: 2D icon prompts go through styled_2d (docs/ART_DIRECTION.md)
 import meshy  # same folder; reuses key handling, retry-on-429 and downloads
 
 OUT = meshy.ROOT / "assets" / "icons"
@@ -47,7 +47,7 @@ def main() -> None:
         print(f"== {name}")
         task_id = meshy.request("POST", "/v1/text-to-image", {
             "ai_model": "nano-banana-2",
-            "prompt": art_direction.styled(STYLE + ICONS[name]),
+            "prompt": art_direction.styled_2d(STYLE + ICONS[name]),
             "aspect_ratio": "1:1",
             "remove_background": True,
         })["result"]

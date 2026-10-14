@@ -359,6 +359,7 @@ func equip(item: Dictionary, announce: bool = true, target_place: int = -1) -> V
 	equipment[place].erase("bag_cell")
 	equipment[place].erase("bag_rotated")
 	refresh()
+	p.refresh_appearance()
 	if place == Items.Slot.WEAPON or conflict == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
 	return off
@@ -388,6 +389,7 @@ static func _two_handed(item: Dictionary) -> bool:
 func wear(place: int, item: Dictionary) -> void:
 	equipment[place] = item
 	refresh()
+	p.refresh_appearance()
 	if place == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
 
@@ -398,6 +400,7 @@ func unequip(place: int) -> Variant:
 	var item: Dictionary = equipment[place]
 	equipment.erase(place)
 	refresh()
+	p.refresh_appearance()
 	if place == Items.Slot.WEAPON:
 		p.refresh_weapon_model()
 	return item

@@ -348,7 +348,8 @@ func _travel(goal: Vector3, delta: float) -> void:
 func _attach_gear() -> void:
 	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it
 	# another quarter-turn made Cutter carry and draw it like a staff.
-	_bow_holder = _attach_prop(BOW_MODEL, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02))
+	var bow_path: String = p.appearance.bow_model if p.appearance != null and p.appearance.bow_model != "" else BOW_MODEL   # the kit bow follows the same prop convention
+	_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02))
 	# The imported quiver is already upright along +Y. Keep it aligned with the spine and add only a slight shoulder cant.
 	var quiver_basis := Basis(Vector3.FORWARD, -0.16)
 	_quiver = _attach_prop(QUIVER_MODEL, "Spine02", 0.78, quiver_basis, Vector3(-0.14, -0.08, 0.08))

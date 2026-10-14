@@ -23,6 +23,16 @@ OUT_DIR = ROOT / "assets" / "models"
 # Heavy intermediates (unrigged model, per-clip GLBs that each embed the full mesh) stay out of the project.
 CACHE_DIR = Path.home() / ".meshy" / "cache"
 API = "https://api.meshy.ai/openapi"
+# Target triangle counts by asset category (guidelines from docs/art/PIPELINE.md, not hard limits). An asset's own
+# "polycount" in tools/assets.json overrides these; a new asset with neither fails loudly rather than guessing.
+POLYCOUNT = {
+    "enemy": 2000,        # standard enemy: 1,500 to 2,500
+    "elite": 4500,        # elite enemy or boss: 3,000 to 6,000
+    "npc": 3000,          # standard NPC: 2,000 to 4,000
+    "hero": 8000,         # equipped main character: 5,000 to 12,000
+    "prop": 500,          # small prop: hundreds
+    "environment": 3000,  # large environment piece: scale by visible size (placeholder, adjust per asset)
+}
 
 
 def api_key() -> str:
@@ -102,11 +112,11 @@ def build(name: str, spec: dict, state: dict) -> None:
     if "preview" not in entry:
         body = {
             "mode": "preview",
-            "prompt": art_direction.styled(spec["prompt"]),
+            "prompt": art_direction.styled_3d(spec["prompt"]),
             "ai_model": spec.get("ai_model", "latest"),
             "should_remesh": True,
             "topology": "triangle",
-            "target_polycount": spec.get("polycount", 15000),
+            "target_polycount": spec["polycount"] if "polycount" in spec else POLYCOUNT[spec["category"]],
             "target_formats": ["glb"],
         }
         if spec.get("pose"):
@@ -124,7 +134,7 @@ def build(name: str, spec: dict, state: dict) -> None:
             "target_formats": ["glb"],
         }
         if spec.get("texture_prompt"):
-            body["texture_prompt"] = art_direction.styled(spec["texture_prompt"])
+            body["texture_prompt"] = art_direction.styled_3d(spec["texture_prompt"])
         entry["refine"] = request("POST", "/v2/text-to-3d", body)["result"]
         save_state(state)
     refined = wait(f"/v2/text-to-3d/{entry['refine']}", "texture")

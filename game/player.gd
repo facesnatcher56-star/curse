@@ -51,6 +51,8 @@ var character: CharacterState:
 	get: return PartyManager.current().member(member_id)
 var ai: PartyCharacterAI
 var bow: BowAttack
+## Worn equipment shown as separate skinned pieces (see ModularAppearance); null on the default fused-mesh rigs.
+var appearance: ModularAppearance
 var input_locked: bool = false
 
 func is_controlled() -> bool:
@@ -119,8 +121,11 @@ func _ready() -> void:
 	var folder := CharacterPresentation.folder(member_id)
 	var clips: Array[String] = []
 	clips.assign(CLIPS if member_id == "hero" else ["idle", "calm", "walk", "run"])
-	_build_model(folder, clips, 1.8, 0.4)
+	var modular: bool = ModularAppearance.enabled_for(member_id)
+	_build_model(folder, clips, 1.8, 0.4, not modular)
 	CharacterPresentation.share_combat_clips(model)
+	if modular:
+		appearance = ModularAppearance.new(model)
 	model.loop("idle_alert")
 	if ResourceLoader.exists(SWORD_PATH):
 		for arg in OS.get_cmdline_user_args():
@@ -136,6 +141,7 @@ func _ready() -> void:
 		var kit: Array = Items.starting_gear() if member_id == "hero" else [Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")]
 		for item in kit: stats.equip(item, false)
 	stats.refresh()
+	refresh_appearance()
 	refresh_weapon_model()
 	if character.health >= 0.0: health = clampf(character.health, 0.0, max_health)
 	if character.mana >= 0.0: stats.mana = clampf(character.mana, 0.0, stats.max_mana)
@@ -156,6 +162,10 @@ func _ready() -> void:
 	powers._repulse_stun = float(saved.get("repulse_stun", 0.0))
 	character.power_state["initialized"] = true
 	if health <= 0.0: _die()
+
+func refresh_appearance() -> void:
+	if appearance != null:
+		appearance.sync(stats.equipment)
 
 ## The hero holds the model of the weapon that is equipped (the same models the weapons lie on the ground as), at a size that
 ## follows the weapon; a base with no model keeps the old sword.
