@@ -444,6 +444,13 @@ func _test_item_card() -> void:
 	if holder.get_child_count() > 0:
 		scroll = holder.get_child(0) as ScrollContainer
 	expect("an opened item card has a scroll area", scroll != null and holder.visible)
+	# The height placement uses is the card's text, not a column of single words from labels measured before they had a width.
+	if scroll != null:
+		expect("an opened item card is as tall as its text, so it is not pushed to the screen corner (%d px)" % int(scroll.size.y), scroll.size.y < 600.0)
+	# The opened card sits beside its item: its scroll area is within a few pixels of the item's global rect, not at the screen corner.
+	if scroll != null:
+		var near := scroll.get_global_rect().grow(12.0).intersects(tile.get_global_rect())
+		expect("the opened card is beside its item (scroll %s, item %s)" % [scroll.get_global_rect(), tile.get_global_rect()], near)
 	if scroll != null:
 		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
 		await get_tree().process_frame
