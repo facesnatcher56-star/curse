@@ -1,6 +1,6 @@
 # Art asset pipeline
 
-The visual rules are in [../ART_DIRECTION.md](../ART_DIRECTION.md): geometric low-poly dark fantasy. This page sets the
+The visual rules are in [../ART_DIRECTION.md](../ART_DIRECTION.md): Geometric Low-Poly Dark Fantasy. This page sets the
 practical rules for making models: export, rig, names, materials and budgets. Where the two disagree, ART_DIRECTION wins.
 
 ## Blender export (shared settings)
@@ -20,31 +20,34 @@ Blender is the source for hand-built models (`tools/blender/`). Every export use
 
 ## Humanoid skeleton standard
 
-All humanoid characters (heroes, NPCs, humanoid enemies) use **one shared armature**, `Rig_Humanoid`. Do not make a new rig per
-character. Bone names follow the Mixamo-style names the Knight rig already uses, because the Godot code finds bones by these names
-(`game/character_model.gd`).
+The reference is the Knight rig, `assets/models/knight2/rigged.glb`, read directly from its skin. It has **24 joints** and one
+armature object, `Armature`, under which `Hips` sits. There is **no `Root` bone**: `Hips` is the top bone, and the armature
+object is the root node. Every humanoid (heroes, NPCs, humanoid enemies) uses this same 24-bone set, with these names and
+parents, so animation clips and the Godot code (`game/character_model.gd`) find the same bones on every character.
 
 | Bone | Parent | Notes |
 | --- | --- | --- |
-| `Root` | none | At the feet, origin of the model. |
-| `Hips` | `Root` | Pelvis; drives the body. |
-| `Spine`, `Spine1`, `Spine2` | `Hips` | Chest is `Spine2`. |
-| `Neck`, `Head` | `Spine2` | |
-| `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` | `Spine2` | Shoulder to hand. |
-| `RightShoulder`, `RightArm`, `RightForeArm`, `RightHand` | `Spine2` | Mirror of the left side. |
-| `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase` | `Hips` | `LeftToeBase` optional. |
+| `Hips` | none (top bone) | Pelvis; drives the body. |
+| `Spine02`, `Spine01`, `Spine` | `Hips`, then the one above | Spine chain; `Spine` is the chest. |
+| `neck` | `Spine` | Lowercase, as in the Knight. |
+| `Head` | `neck` | |
+| `head_end`, `headfront` | `Head` | Helper bones present in the Knight; keep them for compatibility. Their deformation role is not verified. |
+| `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` | `Spine` | Shoulder to hand. |
+| `RightShoulder`, `RightArm`, `RightForeArm`, `RightHand` | `Spine` | Mirror of the left side. |
+| `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase` | `Hips` | Leg chain. |
 | `RightUpLeg`, `RightLeg`, `RightFoot`, `RightToeBase` | `Hips` | Mirror of the left side. |
 
+- **Rest pose: A-pose**, as the Knight's animation clips are built on it (owner direction). Do not use a T-pose rest.
 - No finger bones. Hands are a single grip shape (the Knight's hands have no finger rig, and the code relies on that).
-- Bind pose: arms straight out in a T-pose, so weapons and clothing fit before animation.
 - Weapons attach to `RightHand` (or `LeftHand` for off-hand items). Do not add extra attachment bones.
+- One shared armature per humanoid type; new characters reuse this bone set rather than a new rig.
 
 ## Naming conventions
 
 - **Files:** lowercase snake_case, prefixed by class: `char_knight_hero.glb`, `enemy_zombie_walker.glb`, `prop_barrel_wood.glb`,
   `env_house_small.glb`. Existing folders keep their `model.glb` names until they are next re-exported.
 - **Objects and meshes:** PascalCase with a role: `Body`, `Head`, `ArmorPauldronL`, `ArmorPauldronR`, `Sword`.
-- **Armatures:** `Rig_Humanoid` for characters; `Rig_<Name>` for any other rig.
+- **Armatures:** `Armature` for humanoid rigs, matching the Knight; `Rig_<Name>` for any other rig.
 - **Bones:** exactly the names in the skeleton table above.
 - **Materials:** lowercase snake_case, no prefix: `iron`, `dark_steel`, `leather_dark`, `wood`, `bone`, `moss`.
 - **Textures (only if used):** `<asset>_atlas.png`, one per asset.
@@ -61,24 +64,33 @@ character. Bone names follow the Mixamo-style names the Knight rig already uses,
 
 ## Triangle budgets
 
-These are the caps per exported asset (triangles, after triangulation). Aim below the cap; do not go over without asking.
+Counts are triangles after triangulation, for the asset as it is rendered.
 
-| Asset class | Budget | Examples |
+| Asset class | Target | Examples |
 | --- | --- | --- |
-| Character (hero) | 5,000 | The Knight, the player-controlled hero. |
-| Enemy | 2,500 | Standard zombies, ghouls, spitters. |
-| Enemy, elite or boss | 6,000 | Named monsters, bosses. |
-| NPC | 3,000 | Townsfolk, vendors, companions. |
-| Prop | 1,000 | Barrels, crates, weapons, small items. Tiny props (under 0.5 m) target 300. |
-| Environment piece | 2,000 | Building, wall section, gate, large rock or tree. |
+| Character (hero, fully equipped) | 5,000 to 12,000 | The Knight with armour, weapons and shield equipped. |
+| Enemy | 2,500 (cap) | Standard zombies, ghouls, spitters. |
+| Enemy, elite or boss | 6,000 (cap) | Named monsters, bosses. |
+| NPC | 3,000 (cap) | Townsfolk, vendors, companions. |
+| Prop | 1,000 (cap) | Barrels, crates, weapons, small items. Tiny props (under 0.5 m) target 300. |
+| Environment piece | 2,000 (cap) | Building, wall section, gate, large rock or tree. |
 
-Foliage and very small pieces should stay well under these caps. If an asset needs more than its budget, reduce the mesh first;
-ask the owner before raising a budget.
+- **Hero range.** The hero target is a range, not a hard limit, because the number of equipped pieces varies. Going above
+  12,000 needs a performance reason and owner agreement; record the reason in the asset's commit.
+- **Hidden geometry.** Do not ship geometry that is never seen. Remove interior faces that sit inside armour or clothing, and
+  hide (or remove from the export) equipment that is not worn, so the renderer does not draw it. Count only what is visible
+  in the normal equipped state.
+- Foliage and very small pieces should stay well under these caps. Reduce the mesh first when an asset is over its budget.
 
 ## Checks before an asset is accepted
 
-1. Triangle count is within its class budget.
+1. Triangle count is within its class target or cap, with hidden geometry removed.
 2. Origin at the feet (or the base for props), scale in metres, transforms applied.
-3. Skeleton (humanoids only) uses `Rig_Humanoid` with the standard bone names.
+3. Humanoids use the 24-bone skeleton table above, rest pose A-pose, under one armature.
 4. Names follow the conventions above; at most 4 materials and at most one atlas.
 5. Reads as a silhouette from the far zoom-out, and matches the look in ART_DIRECTION.md.
+
+## Open issues
+
+- The current Knight (`assets/models/knight2/rigged.glb`) is **22,845 triangles** with no equipment, which is above the hero
+  range. Reduce it, or record an agreed performance exception. Owner decision needed.

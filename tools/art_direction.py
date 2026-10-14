@@ -4,6 +4,7 @@ Every generator call (Meshy models, textures, icons, anything added later) goes 
 to a single prompt's memory.
 """
 
+# Approved direction: Geometric Low-Poly Dark Fantasy (docs/ART_DIRECTION.md).
 STYLE = ("gritty dark fantasy, geometric low-poly PS2-era-inspired geometry with clearly faceted forms and believable "
          "humanoid proportions, modern lighting, soft shadows and fog, worn weathered grimy materials, scratched dented metal, "
          "stained torn cloth, muted palette of steel, charcoal, leather, burgundy, brown, bone and moss with restrained ember "

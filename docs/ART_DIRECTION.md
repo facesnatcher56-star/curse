@@ -1,4 +1,4 @@
-# Art direction: geometric low-poly dark fantasy
+# Art direction: Geometric Low-Poly Dark Fantasy
 
 This is the visual rule for everything in Curse, whatever made it: Meshy models and animations, generated icons and images,
 hand-written shaders and particle effects, UI, and (in spirit) sound. If an asset does not fit this page, it is redone, not
@@ -13,7 +13,7 @@ The asset pipeline rules (Blender export, skeleton, naming, materials and triang
 it reads from far away. Gritty first, and versatile enough to stretch across every enemy, prop and place without drifting out
 of the same world.**
 
-## Approved direction
+## Approved direction: Geometric Low-Poly Dark Fantasy
 
 Geometric low-poly dark fantasy. Character and environment geometry takes its cue from PS2-era games, combined with modern
 lighting, materials, shadows, fog and atmospheric effects. This is not exact PS2 technical limits and not deliberately ugly
