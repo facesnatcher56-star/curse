@@ -170,6 +170,7 @@ const ONLY_TESTS := {
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
 "archernestorder": "_test_archer_nest_order",
+"roaddensity": "_test_road_density",
 }
 
 var _failures: PackedStringArray = []
