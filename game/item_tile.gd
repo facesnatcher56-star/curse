@@ -3,6 +3,8 @@ extends Control
 ## An item as a picture in a menu. Hovering it shows the item's details and, when `compare_to` is set, how it compares with the piece
 ## worn in that slot. Used by the town's trader and stash.
 
+const UNMET_COLOR := Color(0.93, 0.30, 0.24)   # the same red as an unmet requirement (see stat_line_color)
+
 var item: Dictionary = {}
 var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
@@ -39,32 +41,67 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 	panel.add_theme_stylebox_override("panel", UiTheme.tooltip_box())
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
-	box.custom_minimum_size = Vector2(300, 0)
+	box.custom_minimum_size = Vector2(CARD_WIDTH, 0)
 	panel.add_child(box)
+	var member: String = PartyManager.current().active_id
 	var rarity: int = int(it["rarity"])
 	box.add_child(_label(String(it["name"]), 20, Items.RARITY_COLORS[rarity]))
 	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 13, Color(1, 1, 1, 0.55)))
-	for line in Items.lines(it, PartyManager.current().active_id):
-		var l := _label(line, 14, stat_line_color(it, line))
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(300, 0)
-		box.add_child(l)
-	if with_compare:
-		box.add_child(HSeparator.new())
-		box.add_child(_label("Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13, Color(0.7, 0.68, 0.62)))
-		for entry in Items.compare(it, worn, PartyManager.current().active_id):
-			var sign_value: int = int(entry["sign"])
-			var color: Color = Color(0.5, 0.85, 0.5) if sign_value > 0 else (Color(0.9, 0.45, 0.4) if sign_value < 0 else Color(0.75, 0.75, 0.75))
-			box.add_child(_label(("+ " if sign_value > 0 else ("- " if sign_value < 0 else "= ")) + String(entry["text"]), 14, color))
+	var comparison: Array[Dictionary] = Items.compare(it, worn, member) if with_compare else Items.wear_warning(it, member)
+	for row in display_rows(it, comparison, member):
+		box.add_child(_wrapping_label(String(row["text"]), 14, row["color"]))
 	if with_equip_hint:
 		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 13, Color(0.7, 0.68, 0.62)))
 	if not with_action_hint.is_empty():
-		box.add_child(_label(with_action_hint, 13, Color(0.7, 0.68, 0.62)))
-	for child in box.get_children():
-		if child is Label:
-			child.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			child.custom_minimum_size.x = 300
+		box.add_child(_wrapping_label(with_action_hint, 13, Color(0.7, 0.68, 0.62)))
 	return panel
+
+## Width of every item card (the trader, stash, inventory and hover cards). Wider than the old 300 so long descriptions wrap in fewer lines.
+const CARD_WIDTH := 400.0
+## The lines of an item card, in order, as {text, color}. Shared by every item card (hover, trader, stash, inventory and the ground). The one
+## "cannot wear it yet" warning comes first. Each stat then carries its change beside it, coloured by that change ("Armor 8 (-1)" in red); a
+## change to a stat the item does not have still appears, as its own line. An empty slot's note comes last.
+static func display_rows(it: Dictionary, comparison: Array[Dictionary], member_id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var deltas: Dictionary = {}
+	for entry in comparison:
+		var key: String = String(entry["key"])
+		if key == Items.WARNING_KEY:
+			out.append({"text": String(entry["text"]), "color": UNMET_COLOR})
+		elif key != "":
+			deltas[key] = entry
+	var shown: Dictionary = {}
+	for row in Items.rows(it, member_id):
+		var key: String = String(row["key"])
+		var line: String = String(row["text"])
+		if deltas.has(key):
+			var entry: Dictionary = deltas[key]
+			shown[key] = true
+			out.append({"text": "%s %s" % [line, String(entry["delta"])], "color": _delta_color(int(entry["sign"]))})
+		else:
+			out.append({"text": line, "color": stat_line_color(it, line)})
+	for key in deltas:
+		if not shown.has(key):
+			var entry: Dictionary = deltas[key]
+			out.append({"text": String(entry["text"]), "color": _delta_color(int(entry["sign"]))})
+	for entry in comparison:
+		if String(entry["key"]) == "":
+			out.append({"text": String(entry["text"]), "color": _delta_color(int(entry["sign"]))})
+	return out
+
+## The colour of a comparison: green for a beneficial change, red for a detrimental one (the sign stays in the text), grey when neutral.
+static func _delta_color(sign_value: int) -> Color:
+	if sign_value > 0:
+		return Color(0.5, 0.85, 0.5)
+	if sign_value < 0:
+		return UNMET_COLOR
+	return Color(0.75, 0.75, 0.75)
+
+static func _wrapping_label(text: String, size: int, color: Color) -> Label:
+	var label := _label(text, size, color)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = CARD_WIDTH
+	return label
 
 ## Shared by inventory/shop cards and ground-loot cards.
 static func stat_line_color(it: Dictionary, line: String) -> Color:
@@ -105,27 +142,31 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 	var reposition: Callable = func() -> void:
 		if not is_instance_valid(holder) or not holder.visible or holder.get_child_count() == 0:
 			return
-		var detail := holder.get_child(0) as Control
+		var scroll := holder.get_child(0) as ScrollContainer
+		var detail := scroll.get_child(0) as Control
 		var screen: Vector2 = control.get_viewport_rect().size
 		var safe_rect := Rect2(Vector2(8, 8), Vector2(maxf(1, screen.x - 16), maxf(1, screen.y - 118)))
-		detail.scale = Vector2.ONE
+		# Full size always: the card grows with its text, and only a card taller than the safe area scrolls (never scaled down).
 		var extent: Vector2 = detail.get_combined_minimum_size()
-		detail.size = extent
-		var fit_scale: float = minf(1.0, minf(safe_rect.size.x / maxf(1, extent.x), safe_rect.size.y / maxf(1, extent.y)))
-		detail.scale = Vector2.ONE * fit_scale
-		var shown_extent := extent * fit_scale
+		var shown := Vector2(minf(extent.x, safe_rect.size.x), minf(extent.y, safe_rect.size.y))
+		scroll.size = shown
 		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)
-		if anchor.x + shown_extent.x > safe_rect.end.x:
-			anchor.x = control.global_position.x - shown_extent.x - 12
+		if anchor.x + shown.x > safe_rect.end.x:
+			anchor.x = control.global_position.x - shown.x - 12
 		var position := Vector2(anchor.x, anchor.y)
-		position.x = clampf(position.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown_extent.x))
-		position.y = clampf(position.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown_extent.y))
+		position.x = clampf(position.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown.x))
+		position.y = clampf(position.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown.y))
 		holder.global_position = position
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
 		var detail := card(it, worn, compare, with_equip_hint, with_action_hint)
-		holder.add_child(detail)
+		var scroll := ScrollContainer.new()   # a card taller than the screen scrolls instead of clipping or shrinking
+		scroll.name = "DetailScroll"
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE # the card can overlap a merchant button: it must never take clicks
+		scroll.add_child(detail)
+		holder.add_child(scroll)
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in detail.find_children("*", "Control", true, false):
 			child.mouse_filter = Control.MOUSE_FILTER_IGNORE # tooltip contents must not intercept a drag destination

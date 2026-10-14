@@ -363,3 +363,44 @@ func _test_loot_names() -> void:
 	expect("next to the pile the use key takes one", after_near == 10)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
+
+## Item cards (trader, stash, inventory, hover and the ground all draw ItemTile.display_rows): each stat's change sits beside the stat,
+## green when it helps and red when it hurts with the sign kept, "Compared with" is gone, and the cannot-wear warning shows exactly once.
+func _test_item_card() -> void:
+	var member: String = PartyManager.current().active_id
+	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Leather Jerkin")
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
+	var downgrade := ItemTile.display_rows(leather, Items.compare(leather, plate, member), member)
+	var armor_row: Dictionary = {}
+	for row in downgrade:
+		if String(row["text"]).begins_with("Armor ") and String(row["text"]).contains("("):
+			armor_row = row
+	expect("a worse armour shows its change beside the stat: %s" % armor_row.get("text", ""),
+		String(armor_row.get("text", "")).ends_with("(-%d)" % int(float(plate["stats"]["armor"]) - float(leather["stats"]["armor"]))))
+	expect("a detrimental change is drawn red", armor_row.has("color") and (armor_row["color"] as Color).is_equal_approx(ItemTile._delta_color(-1)))
+	var upgrade := ItemTile.display_rows(plate, Items.compare(plate, leather, member), member)
+	var better: Dictionary = {}
+	for row in upgrade:
+		if String(row["text"]).begins_with("Armor "):
+			better = row
+	expect("a better armour shows a plus beside the stat: %s" % better.get("text", ""), String(better.get("text", "")).contains("(+"))
+	expect("a beneficial change is drawn green", better.has("color") and (better["color"] as Color).is_equal_approx(ItemTile._delta_color(1)))
+	var card := ItemTile.card(plate, leather, true)
+	var card_texts: Array[String] = []
+	for label in card.find_children("*", "Label", true, false):
+		card_texts.append((label as Label).text)
+	card.free()
+	expect("no footer comparison heading remains", not card_texts.any(func(t: String) -> bool: return t.contains("Compared with")))
+	var heavy: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 60, "Plate Cuirass")
+	if not Items.hero_can_wear(heavy, member):
+		expect("an unwearable item has one warning", Items.wear_warning(heavy, member).size() == 1)
+		var heavy_card := ItemTile.card(heavy, null, true)
+		var warning_labels := 0
+		for label in heavy_card.find_children("*", "Label", true, false):
+			if (label as Label).text.contains("cannot wear"):
+				warning_labels += 1
+		heavy_card.free()
+		expect("the cannot-wear warning appears once on the card", warning_labels == 1)
+	else:
+		print("  item card: hero can wear the level-60 plate, so the warning check is skipped")
+	await get_tree().process_frame
