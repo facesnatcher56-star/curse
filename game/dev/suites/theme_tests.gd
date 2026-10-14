@@ -136,7 +136,7 @@ func _test_ornate_theme() -> void:
 					var found := false
 					for node in long_card.find_children("*", "Label", true, false):
 						var label := node as Label
-						if label.text == row and label.visible and get_viewport().get_visible_rect().encloses(label.get_global_rect()):
+						if _is_row_label(label.text, row) and label.visible and get_viewport().get_visible_rect().encloses(label.get_global_rect()):
 							found = true
 							break
 					full_rows_visible = full_rows_visible and found
@@ -162,7 +162,7 @@ func _test_ornate_theme() -> void:
 					var found := false
 					for node in focused_card.find_children("*", "Label", true, false):
 						var label := node as Label
-						if label.text == row and label.visible and get_viewport().get_visible_rect().encloses(label.get_global_rect()):
+						if _is_row_label(label.text, row) and label.visible and get_viewport().get_visible_rect().encloses(label.get_global_rect()):
 							found = true
 							break
 					focus_rows_visible = focus_rows_visible and found
@@ -191,7 +191,7 @@ func _test_ornate_theme() -> void:
 						var found := false
 						for node in equipped_card.find_children("*", "Label", true, false):
 							var label := node as Label
-							if label.text == line and label.visible and tooltip_bounds.encloses(label.get_global_rect()):
+							if _is_row_label(label.text, line) and label.visible and tooltip_bounds.encloses(label.get_global_rect()):
 								found = true
 								break
 						natural_lines_visible = natural_lines_visible and found
@@ -218,7 +218,7 @@ func _test_ornate_theme() -> void:
 						var found := false
 						for node in equipped_card.find_children("*", "Label", true, false):
 							var label := node as Label
-							if label.text == line and label.visible and tooltip_bounds.encloses(label.get_global_rect()):
+							if _is_row_label(label.text, line) and label.visible and tooltip_bounds.encloses(label.get_global_rect()):
 								found = true
 								break
 						focused_natural_lines_visible = focused_natural_lines_visible and found
@@ -320,3 +320,8 @@ func _test_ornate_theme() -> void:
 	await _settle()
 	hud.show()
 	TownState.reset()
+
+## A stat row on a card is its base text, optionally followed by the stat's change in brackets ("Armor 8 (-1)"). Every row must still be
+## found at full length; only the separately drawn change is allowed beside it.
+func _is_row_label(label_text: String, row: String) -> bool:
+	return label_text == row or label_text.begins_with(row + " (")

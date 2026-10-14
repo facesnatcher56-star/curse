@@ -208,6 +208,14 @@ func _test_item_icons() -> void:
 			card = (child as Control).get_child(0) as Control
 	expect("pointing at a tile shows a card that describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
 	tile.mouse_exited.emit()
+	# The close is a deferred call: wait for its decision, but for at most 10 frames, so a missing decision is a [FAIL], not a hang.
+	var decided: Array = [false]
+	Signal(tile.get_node("ItemDetails"), "hover_resolved").connect(func() -> void: decided[0] = true)
+	var waited := 0
+	while not decided[0] and waited < 10:
+		await get_tree().process_frame
+		waited += 1
+	expect("the close decision arrives within 10 frames", decided[0])
 	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
 	tile.queue_free()
 	# On the ground an item is the item itself with its name over it in its rarity's colour, not a picture of it.
@@ -363,3 +371,183 @@ func _test_loot_names() -> void:
 	expect("next to the pile the use key takes one", after_near == 10)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
+
+## Item cards (trader, stash, inventory, hover and the ground all draw ItemTile.display_rows): each stat's change sits beside the stat,
+## green when it helps and red when it hurts with the sign kept, "Compared with" is gone, and the cannot-wear warning shows exactly once.
+func _test_item_card() -> void:
+	var member: String = PartyManager.current().active_id
+	var leather: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Leather Jerkin")
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
+	var downgrade := ItemTile.display_rows(leather, Items.compare(leather, plate, member), member)
+	var armor_row: Dictionary = {}
+	for row in downgrade:
+		if String(row["text"]).begins_with("Armor ") and String(row["text"]).contains("("):
+			armor_row = row
+	expect("a worse armour shows its change beside the stat: %s" % armor_row.get("text", ""),
+		String(armor_row.get("text", "")).ends_with("(-%d)" % int(float(plate["stats"]["armor"]) - float(leather["stats"]["armor"]))))
+	expect("a detrimental change is drawn red", armor_row.has("color") and (armor_row["color"] as Color).is_equal_approx(ItemTile._delta_color(-1)))
+	var upgrade := ItemTile.display_rows(plate, Items.compare(plate, leather, member), member)
+	var better: Dictionary = {}
+	for row in upgrade:
+		if String(row["text"]).begins_with("Armor "):
+			better = row
+	expect("a better armour shows a plus beside the stat: %s" % better.get("text", ""), String(better.get("text", "")).contains("(+"))
+	expect("a beneficial change is drawn green", better.has("color") and (better["color"] as Color).is_equal_approx(ItemTile._delta_color(1)))
+	var card := ItemTile.card(plate, leather, true)
+	var card_texts: Array[String] = []
+	for label in card.find_children("*", "Label", true, false):
+		card_texts.append((label as Label).text)
+	card.free()
+	expect("no footer comparison heading remains", not card_texts.any(func(t: String) -> bool: return t.contains("Compared with")))
+	var heavy: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 60, "Plate Cuirass")
+	if not Items.hero_can_wear(heavy, member):
+		expect("an unwearable item has one warning", Items.wear_warning(heavy, member).size() == 1)
+		var heavy_card := ItemTile.card(heavy, null, true)
+		var warning_labels := 0
+		for label in heavy_card.find_children("*", "Label", true, false):
+			if (label as Label).text.contains("cannot wear"):
+				warning_labels += 1
+		heavy_card.free()
+		expect("the cannot-wear warning appears once on the card", warning_labels == 1)
+	else:
+		print("  item card: hero can wear the level-60 plate, so the warning check is skipped")
+	# An elemental damage item compares as one "Fire damage" row. Its "_added_max" maximum is part of that row, not a separate line.
+	var fire_sword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	fire_sword["mods"] = ["fire_added_1"]
+	var plain_sword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	var fire_compare := Items.compare(fire_sword, plain_sword, member)
+	var raw_key := fire_compare.any(func(e: Dictionary) -> bool: return String(e["text"]).contains("_max") or String(e["text"]).contains("_added"))
+	expect("an elemental item compares with no raw stat key in any row: %s" % [fire_compare], not raw_key)
+	expect("an elemental item's fire change is one row", fire_compare.any(func(e: Dictionary) -> bool: return String(e["key"]) == Items.mod_key("fire_added")))
+	# Equal minimum, different maximum: both pieces hit for 2 at the minimum, but the worn one's maximum is 6 and this one's is 4. That is a real
+	# change, shown on its own row in red, and the two are not reported as the same.
+	var lower_max: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	lower_max["mods"] = ["fire_added_1"]
+	var higher_max: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	higher_max["mods"] = ["fire_added_2"]
+	higher_max["mod_values"] = {"fire_added_2": 2.0}
+	var max_compare := Items.compare(lower_max, higher_max, member)
+	expect("equal minimum with a different maximum is not reported as the same: %s" % [max_compare],
+		not max_compare.any(func(e: Dictionary) -> bool: return String(e["text"]) == "Same as what you wear"))
+	var max_rows := max_compare.filter(func(e: Dictionary) -> bool: return String(e["text"]).begins_with("Maximum fire damage"))
+	expect("the lower maximum is its own row, named and red: %s" % [max_compare],
+		max_rows.size() == 1 and String(max_rows[0]["text"]) == "Maximum fire damage 4 (-2)" and int(max_rows[0]["sign"]) < 0)
+	# A card taller than its safe area scrolls with the mouse wheel: the wheel over the card moves its scroll position.
+	var tile := ItemTile.create(plate, null, 56.0)
+	tile.position = Vector2(120, 120)
+	add_child(tile)
+	await get_tree().process_frame
+	tile.mouse_entered.emit()
+	await get_tree().process_frame
+	var holder := tile.get_node("ItemDetails") as Control
+	var scroll: ScrollContainer = null
+	if holder.get_child_count() > 0:
+		scroll = holder.get_child(0) as ScrollContainer
+	expect("an opened item card has a scroll area", scroll != null and holder.visible)
+	# An item in the middle of the screen gets a card beside it, not pinned to the top of the screen.
+	await _check_card_beside_item(Vector2.ZERO, true)
+	if scroll != null:
+		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
+		await get_tree().process_frame
+		expect("the card overlaps its item's edge, so the pointer crosses from item to card without a gap", scroll.get_global_rect().intersects(tile.get_global_rect()))
+		await get_tree().process_frame
+		expect("a tall item card overflows its scroll area so the wheel has something to move", scroll.get_v_scroll_bar().max_value > scroll.size.y)
+		expect("the scroll area takes the mouse so the wheel reaches it", scroll.mouse_filter == Control.MOUSE_FILTER_PASS)
+	# The same placement holds for the item at (120,120): beside it, top aligned, inside the safe area.
+	await _check_card_beside_item(Vector2(120, 120), false)
+	# At the left and right screen edges the clamp must keep the card overlapping its item, so there is still no gap to cross.
+	var view_size := get_viewport().get_visible_rect().size
+	for edge_x in [view_size.x - 60.0, 2.0]:
+		var edge_tile := ItemTile.create(plate, null, 56.0)
+		edge_tile.position = Vector2(edge_x, 120.0)
+		add_child(edge_tile)
+		await get_tree().process_frame
+		edge_tile.mouse_entered.emit()
+		await get_tree().process_frame
+		var edge_holder := edge_tile.get_node("ItemDetails") as Control
+		var edge_scroll: ScrollContainer = null
+		if edge_holder.get_child_count() > 0:
+			edge_scroll = edge_holder.get_child(0) as ScrollContainer
+		expect("at the screen edge x=%d the card still overlaps its item across the hover edge" % int(edge_x),
+			edge_scroll != null and ItemTile._keeps_hover_edge(edge_scroll.get_global_rect(), edge_tile.get_global_rect()))
+		edge_tile.queue_free()
+		await get_tree().process_frame
+	tile.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+## A hover card opens beside its item, at the item's position on screen. Opened with the item at `at`, the card must sit on one side of it,
+## overlapping across that edge by HOVER_OVERLAP. Beside a left or right side its top is the item's top; above or below, its left is the
+## item's left. It is never above the top of the screen, and never above its item by more than its own height. A card pinned to the top of
+## the screen (the wrong-height bug) fails the top-alignment check for an item in the middle of the screen.
+func _check_card_beside_item(at: Vector2, centred: bool) -> void:
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
+	var tile := ItemTile.create(plate, null, 56.0)
+	tile.position = at
+	add_child(tile)
+	await get_tree().process_frame
+	if centred:   # the item's real size (its tile size once laid out), centred on the viewport
+		tile.position = get_viewport().get_visible_rect().size * 0.5 - tile.size * 0.5
+	tile.mouse_entered.emit()
+	await get_tree().process_frame   # two frames: the card's wrapping labels settle (layout, then their heights) before placement is read
+	await get_tree().process_frame
+	var holder := tile.get_node("ItemDetails") as Control
+	var scroll: ScrollContainer = null
+	if holder.get_child_count() > 0:
+		scroll = holder.get_child(0) as ScrollContainer
+	expect("an item opens a card", scroll != null and holder.visible)
+	if scroll != null:
+		var item := tile.get_global_rect()
+		var card := scroll.get_global_rect()
+		var tol := 1.5
+		var right := absf(card.position.x - (item.end.x - ItemTile.HOVER_OVERLAP)) <= tol
+		var left := absf(card.end.x - (item.position.x + ItemTile.HOVER_OVERLAP)) <= tol
+		var below := absf(card.position.y - (item.end.y - ItemTile.HOVER_OVERLAP)) <= tol
+		var above := absf(card.end.y - (item.position.y + ItemTile.HOVER_OVERLAP)) <= tol
+		expect("the card sits on one side of its item (card %s, item %s)" % [card, item], right or left or below or above)
+		expect("the card overlaps its item across that edge (card %s, item %s)" % [card, item], ItemTile._keeps_hover_edge(card, item))
+		if right or left:
+			expect("beside its item the card's top is the item's top, not the screen top (card y %d, item y %d)" % [int(card.position.y), int(item.position.y)],
+				absf(card.position.y - item.position.y) <= tol)
+		if below or above:
+			expect("above or below its item the card's left is the item's left (card x %d, item x %d)" % [int(card.position.x), int(item.position.x)],
+				absf(card.position.x - item.position.x) <= tol)
+		# The safe area the placement uses (ItemTile.focus_card): 8 px from the top and the left, 118 px kept clear at the bottom for the hotbar.
+		var view := get_viewport().get_visible_rect().size
+		var safe_top := 8.0
+		var safe_bottom := view.y - 118.0
+		expect("the card fits the safe area vertically (card y %d to %d, safe %d to %d)" % [int(card.position.y), int(card.end.y), int(safe_top), int(safe_bottom)],
+			card.position.y >= safe_top - tol and card.end.y <= safe_bottom + tol)
+	tile.queue_free()
+	await get_tree().process_frame
+
+## An item pickup's name: 3 s readable and a 0.5 s fade (4 s for a rare or better), and rapid pickups stack instead of overwriting each other.
+func _test_pickup_notice() -> void:
+	expect("an ordinary pickup stays 3 s, then fades in 0.5 s", Fx.pickup_timing(false).is_equal_approx(Vector2(3.0, 0.5)))
+	expect("a rare or important pickup stays 4 s, then fades in 0.5 s", Fx.pickup_timing(true).is_equal_approx(Vector2(4.0, 0.5)))
+	var base := player.global_position + Vector3(0, 2.6, 0)
+	var first := Fx.pickup_text(player, base, "First", Color.WHITE)
+	var second := Fx.pickup_text(player, base, "Second", Color.WHITE)
+	var third := Fx.pickup_text(player, base, "Third", Color.WHITE, true)
+	await get_tree().process_frame
+	expect("three rapid pickups are all still on screen", is_instance_valid(first) and is_instance_valid(second) and is_instance_valid(third))
+	expect("a second pickup starts above the first, not on it", second.global_position.y >= first.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("a third pickup stacks above the second", third.global_position.y >= second.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("the rapid pickups keep their own text", first.text == "First" and second.text == "Second" and third.text == "Third")
+	var other := Fx.pickup_text(game.companion, base, "Archer", Color.WHITE)
+	expect("another hero's pickup does not stack on this one", absf(other.global_position.y - base.y) < 0.001)
+	# Lines already freed, and lines queued for deletion, must not break later pickups: the live ones still stack.
+	var stale := Fx.pickup_text(player, base, "Stale", Color.WHITE)
+	stale.queue_free()
+	await get_tree().process_frame
+	var fresh := Fx.pickup_text(player, base, "Fresh", Color.WHITE)
+	var queued := Fx.pickup_text(player, base, "Queued", Color.WHITE)
+	queued.queue_free()
+	var after := Fx.pickup_text(player, base, "After", Color.WHITE)
+	await get_tree().process_frame
+	expect("pickups after freed and queued lines still show", is_instance_valid(fresh) and is_instance_valid(after))
+	expect("a pickup after a freed line stacks above the live lines", fresh.global_position.y >= third.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("a pickup after a queued line stacks above the live lines", after.global_position.y >= fresh.global_position.y + Fx.PICKUP_STEP - 0.001)
+	for label in [first, second, third, other, fresh, after]:
+		label.queue_free()
+	await get_tree().process_frame

@@ -316,8 +316,8 @@ func _test_crypt_road() -> void:
 	var groups: Dictionary = {}
 	for e: Enemy in all:
 		groups[e.group_id] = int(groups.get(e.group_id, 0)) + 1
-	expect("road has fourteen authored groups and no multiplied filler", groups.size() == 14 and all.size() == 36 and groups.values().all(func(n): return int(n) <= 3))
-	expect("road has no acid or explosive/support packs", all.all(func(e: Enemy): return e.variant in ["zombie", "rock_thrower"]))
+	expect("road has twenty-four authored groups and no multiplied filler", groups.size() == 24 and all.size() == 61 and groups.values().all(func(n): return int(n) <= 3))
+	expect("road has no acid or explosive/support packs", all.all(func(e: Enemy): return e.variant in ["zombie", "rock_thrower", "ghoul", "brute", "warden"]))
 	var mates: Array = all.filter(func(e: Enemy): return e.group_id == 6)
 	mates[0].wake()
 	expect("only the small local group wakes together", mates.size() == 2 and mates.all(func(e: Enemy): return e._aggro))
@@ -348,3 +348,81 @@ func _test_crypt_road() -> void:
 	player.reset_physics_interpolation()
 	await get_tree().create_timer(1.2).timeout
 	expect("walking out through the gate with the nests gone ends the run", run.is_ending())
+
+## Wave 3 road density: how many bodies each stretch of the Crypt Road holds, how far apart they stand, where the brutes and elites
+## are, and that a regrow puts the whole population back exactly once.
+func _test_road_density() -> void:
+	TownState.road_seed = 7
+	var arena_before: Arena = arena
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	arena_before.queue_free()
+	await get_tree().process_frame
+	var place_arena: Arena = CryptRoad.make_arena()
+	game.add_child(place_arena)
+	place_arena.build(false)
+	var place := CryptRoad.new()
+	game.add_child(place)
+	place.build(place_arena)
+	await place.wait_for_navigation()
+	var run: RunDirector = game.director
+	run.set_job(TownState.crypt_road_offer())
+	run.start_location(place)
+	await get_tree().process_frame
+	var segments: Dictionary = {"intro": 0, "graveyard": 0, "wood": 0, "courtyard": 0, "forecourt": 0}
+	var positions: Array[Vector3] = []
+	var brute_z: Array[float] = []
+	var warden_z: float = 999.0
+	var kinds: Dictionary = {}
+	var groups: Dictionary = {}
+	var nest: Vector3 = place.nests[2].global_position
+	var brute_near_nest: bool = false
+	var enemies: Array = get_tree().get_nodes_in_group("enemies").filter(func(n): return n is Enemy and n.group_id > 0 and n.group_id < 100)
+	for e: Enemy in enemies:
+		var z: float = e.global_position.z - place_arena.origin_offset.z
+		var seg: String = "forecourt" if z <= -146.0 else ("courtyard" if z <= -40.0 else ("wood" if z <= 40.0 else ("graveyard" if z <= 110.0 else "intro")))
+		segments[seg] = int(segments[seg]) + 1
+		positions.append(e.global_position)
+		kinds[e.variant] = int(kinds.get(e.variant, 0)) + 1
+		groups[e.group_id] = int(groups.get(e.group_id, 0)) + 1
+		if e.variant == "brute":
+			brute_z.append(z)
+			brute_near_nest = brute_near_nest or e.global_position.distance_to(nest) < 18.0
+		if e.variant == "warden":
+			warden_z = minf(warden_z, z)
+	print("  road density: ", segments, " total ", enemies.size(), " groups ", groups.size(), " kinds ", kinds)
+	var intro: int = int(segments["intro"])
+	var graveyard: int = int(segments["graveyard"])
+	var wood: int = int(segments["wood"])
+	var courtyard: int = int(segments["courtyard"])
+	expect("the opening stretch stays manageable (%d bodies)" % intro, intro >= 8 and intro <= 10)
+	expect("the graveyard stretch is 40%% to 100%% busier than before, not a swarm (%d)" % graveyard, graveyard >= 14 and graveyard <= 20)
+	expect("the wooded choke is at least half again as busy as before (%d)" % wood, wood >= 12 and wood <= 16)
+	expect("the courtyard is at least half again as busy as before (%d)" % courtyard, courtyard >= 12 and courtyard <= 16)
+	expect("the forecourt keeps its own two bodies (%d)" % int(segments["forecourt"]), int(segments["forecourt"]) == 2)
+	expect("no stretch holds more bodies than the per-segment cap (%d)" % RoadEncounterRoster.SEGMENT_CAP,
+		graveyard <= RoadEncounterRoster.SEGMENT_CAP and wood <= RoadEncounterRoster.SEGMENT_CAP and courtyard <= RoadEncounterRoster.SEGMENT_CAP)
+	expect("the road holds no more than %d bodies in all" % RoadEncounterRoster.TOTAL_CAP, enemies.size() <= RoadEncounterRoster.TOTAL_CAP)
+	expect("no group is larger than four bodies", groups.values().all(func(n): return int(n) <= 4))
+	var overlapping: int = 0
+	for i in positions.size():
+		for j in range(i + 1, positions.size()):
+			var a: Vector3 = positions[i]
+			var b: Vector3 = positions[j]
+			if Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z)) < 1.2:
+				overlapping += 1
+				print("  overlap: ", a, " ", b, " groups ", enemies[i].group_id, " ", enemies[j].group_id)
+	expect("no two enemies spawn overlapping (%d pairs)" % overlapping, overlapping == 0)
+	expect("brutes guard the wooded choke, the graveyard and the third nest's approach", brute_z.size() == 3 and brute_near_nest
+		and brute_z.any(func(z): return z > 40.0 and z <= 110.0) and brute_z.any(func(z): return z > -40.0 and z <= 40.0))
+	expect("a warden stands in the courtyard, before the forecourt (z %.0f)" % warden_z, warden_z > -146.0 and warden_z <= -110.0)
+	# A regrow (the quest is handed in again) puts the whole population back once, with nothing doubled.
+	await place.regrow()
+	await get_tree().process_frame
+	var after: Array = get_tree().get_nodes_in_group("enemies").filter(func(n): return n is Enemy and n.group_id > 0 and n.group_id < 100)
+	expect("a regrow restores the same population exactly once (%d, was %d)" % [after.size(), enemies.size()], after.size() == enemies.size())
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	place.queue_free()
+	place_arena.queue_free()
+	await get_tree().process_frame

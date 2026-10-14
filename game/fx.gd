@@ -106,6 +106,50 @@ static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size
 	tween.tween_property(label, "modulate:a", 0.0, duration * 0.45).set_delay(duration * 0.55)
 	tween.chain().tween_callback(label.queue_free)
 
+## An item pickup's name over the hero: fully readable for PICKUP_HOLD seconds (PICKUP_HOLD_IMPORTANT for a rare, unique or set item), then
+## a PICKUP_FADE fade. Only this hero's own pickups stack: each new line starts just above the highest one still showing, so rapid
+## pickups read as a column instead of writing over each other. Returns the label (for checks).
+const PICKUP_HOLD := 3.0
+const PICKUP_HOLD_IMPORTANT := 4.0
+const PICKUP_FADE := 0.5
+const PICKUP_STEP := 0.42   # world height between two pickup lines in the same column
+const PICKUP_RISE := 1.4
+static var _pickup_lines: Array[Label3D] = []
+
+## How long a pickup line is fully visible and how long it then takes to fade: (hold seconds, fade seconds).
+static func pickup_timing(important: bool) -> Vector2:
+	return Vector2(PICKUP_HOLD_IMPORTANT if important else PICKUP_HOLD, PICKUP_FADE)
+
+static func pickup_text(from: Node3D, pos: Vector3, text: String, color: Color, important: bool = false, size: int = 40) -> Label3D:
+	var owner_id: int = from.get_instance_id()
+	var live: Array[Label3D] = []   # typed: only lines still showing are kept (freed or queued ones are dropped)
+	for line in _pickup_lines:
+		if is_instance_valid(line) and not line.is_queued_for_deletion():
+			live.append(line)
+	_pickup_lines = live
+	var top: float = pos.y
+	for line in _pickup_lines:
+		if int(line.get_meta("owner", 0)) == owner_id:
+			top = maxf(top, line.global_position.y + PICKUP_STEP)
+	var label := Label3D.new()
+	label.text = text
+	label.modulate = color
+	label.font_size = size
+	label.outline_size = 12
+	label.pixel_size = 0.006
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.set_meta("owner", owner_id)
+	from.get_tree().current_scene.add_child(label)
+	label.global_position = Vector3(pos.x, top, pos.z)
+	_pickup_lines.append(label)
+	var timing := pickup_timing(important)
+	var tween := label.create_tween().set_parallel(true)
+	tween.tween_property(label, "global_position:y", top + PICKUP_RISE, timing.x + timing.y).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate:a", 0.0, timing.y).set_delay(timing.x)
+	tween.chain().tween_callback(label.queue_free)
+	return label
+
 static var _slow_scale: float = 1.0
 static var _slow_id: int = 0
 static var _stopped: bool = false
