@@ -50,13 +50,15 @@ func _ready() -> void:
 		# Apply after both the authored Crypt Road and job modifiers, so the opt-in profile sets the final values.
 		AtmosphereProfile.apply_environment(world_environment, sun)
 		AtmosphereProfile.apply_local_lights(arena)
+		if location is TestDungeon:
+			(location as TestDungeon).tune_look(world_environment)   # the dungeon's rooms are kept brighter than the shared profile
 	_mark("world + nav bake")
 
 	player = Player.new()
 	add_child(player)
 	TownScene._apply_run_gear(player)   # what the town holds (nothing, for a run that did not come from town)
 	if location != null:
-		player.global_position = CryptRoad.START
+		player.global_position = location.start_position()
 		for arg in OS.get_cmdline_user_args():   # `-- --crypt --at=x,z`: start somewhere along the road (developer tool)
 			if arg.begins_with("--at="):
 				var xz: PackedStringArray = arg.substr(5).split(",")
@@ -115,7 +117,11 @@ func _ready() -> void:
 	add_child(dev)
 	if dev.run_from_args():
 		return
-	rig.start_zoomed_out()
+	if location is TestDungeon:   # the dungeon caps the zoom and starts closer, for its own view
+		rig.zoom_max = TestDungeon.ZOOM_MAX
+		rig.set_zoom_now(TestDungeon.ZOOM_START)
+	else:
+		rig.start_zoomed_out()
 	# The navigation map only learns about the arena a physics frame or two after it is built (and, coming from the menu,
 	# still holds the old scene's data until then); spawn the first wave once it is ready.
 	await get_tree().physics_frame
@@ -179,7 +185,14 @@ func _build_world() -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
 
-	if String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
+	if OS.get_cmdline_user_args().has("--dungeon"):   # dev test level (game/world/test_dungeon.gd): no job, just the dungeon
+		arena = TestDungeon.make_arena()
+		add_child(arena)
+		arena.build(false)
+		location = TestDungeon.new()
+		add_child(location)
+		location.build(arena)
+	elif String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
 		arena = CryptRoad.make_arena()
 		add_child(arena)
 		arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
