@@ -4,7 +4,7 @@ extends RefCounted
 ## default look is unchanged. The values are starting points, tuned by eye from the gameplay camera. Only environment and light
 ## settings are touched: no gameplay, AI, navigation, collision or UI. Combines with `-- --modular`.
 ##
-## What it does: exponential fog that reads (cool grey-green, with aerial perspective), ambient down to about 0.3 so form comes
+## What it does: restrained cool fog with aerial perspective, ambient down to about 0.25 so form comes
 ## from the sun and the local lights, a stronger sun with shadows, moderate SSAO, warm falloff on the braziers, shrines and fire
 ## pits, the hero torch as the one shadow-casting local light, and an AgX tonemap with slight desaturation and glow on emissives.
 
@@ -17,20 +17,20 @@ static func enabled() -> bool:
 ## Sets the world environment and the sun. Called after the Crypt Road's own multipliers, so these values are the final look.
 static func apply_environment(environment: Environment, sun: DirectionalLight3D) -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.40, 0.47, 0.46)   # cool grey-green, desaturated
-	environment.ambient_light_energy = 0.32
+	environment.ambient_light_color = Color(0.35, 0.38, 0.42)   # cool and desaturated, without a green cast
+	environment.ambient_light_energy = 0.25
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = 1.0
 	environment.adjustment_enabled = true
-	environment.adjustment_saturation = 0.88
+	environment.adjustment_saturation = 0.9
 	environment.glow_enabled = true
 	environment.glow_intensity = 0.4
 	environment.glow_hdr_threshold = 1.2   # only emissives above this glow (fire, magic), not the lit stone
 	environment.fog_enabled = true
 	environment.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	environment.fog_light_color = Color(0.30, 0.37, 0.36)
-	environment.fog_density = 0.03
-	environment.fog_aerial_perspective = 0.6
+	environment.fog_light_color = Color(0.07, 0.08, 0.09)
+	environment.fog_density = 0.012
+	environment.fog_aerial_perspective = 0.3
 	environment.fog_sky_affect = 0.5
 	environment.ssao_enabled = true
 	environment.ssao_radius = 1.2
@@ -49,6 +49,8 @@ static func apply_local_lights(root: Node) -> void:
 		light.omni_attenuation = 1.4   # faster falloff: pools of light against the cool ambient
 		if light.light_color.r > light.light_color.g:   # warm lights only
 			light.light_color = light.light_color.lerp(Color(1.0, 0.6, 0.3), 0.3)
+			light.light_energy *= 1.8
+			light.omni_range *= 1.3
 
 ## The hero torch: a warmer, stronger light, and the one shadow-casting local light (SHADOW_CASTING_LOCAL_LIGHTS).
 static func style_hero_torch(torch: OmniLight3D) -> void:
