@@ -363,28 +363,32 @@ def make_clips(arm, style, live=False):
               "RightLowerArm": (0, 0, 0), "Chest": (0, 0, 0), "Head": (0, 0, 0), "Hips": (0, 0, 0)}),
     ], False))
 
-    # hit: flinch back and out, then recover (one-shot)
+    # hit: flinch back and out, then recover (one-shot, 40 frames at 24 fps = 1.67 s, matching the live hit length)
     clips.append(("hit", [
         (1, {}),
-        (4, {"Chest": (-0.3, 0, 0), "Head": (-0.35, 0, 0.1), "LeftUpperArm": (-0.2, 0, 0.35),
-             "RightUpperArm": (-0.2, 0, -0.35), "Hips": (-0.05, 0, 0.04)}),
-        (10, {"Chest": (-0.1, 0, 0), "Head": (-0.12, 0, 0), "LeftUpperArm": (0, 0, 0.1),
-              "RightUpperArm": (0, 0, -0.1), "Hips": (0, 0, 0)}),
-        (16, {"Chest": (0, 0, 0), "Head": (0, 0, 0), "LeftUpperArm": (0, 0, 0), "RightUpperArm": (0, 0, 0)}),
+        (5, {"Chest": (-0.30, 0, 0), "Head": (-0.30, 0, 0.10), "LeftUpperArm": (-0.20, 0, 0.35),
+             "RightUpperArm": (-0.20, 0, -0.35), "Hips": (-0.05, 0, 0.04)}),
+        (16, {"Chest": (-0.10, 0, 0), "Head": (-0.12, 0, 0), "LeftUpperArm": (0, 0, 0.10),
+              "RightUpperArm": (0, 0, -0.10), "Hips": (0, 0, 0)}),
+        (29, {"Chest": (-0.03, 0, 0), "Head": (-0.03, 0, 0), "LeftUpperArm": (0, 0, 0.02),
+              "RightUpperArm": (0, 0, -0.02)}),
+        (40, {"Chest": (0, 0, 0), "Head": (0, 0, 0), "LeftUpperArm": (0, 0, 0), "RightUpperArm": (0, 0, 0)}),
     ], False))
 
-    # death: knees give, torso and head fall backward, holds at the end (one-shot)
+    # death: knees buckle and the torso and head fall backward over 85 frames at 24 fps (3.5 s, matching the live
+    # death length). Chain rotations add up along Hips, Spine, Chest and Head; they stay near 80 degrees so
+    # the body lands on its back instead of folding over.
     clips.append(("death", [
         (1, {}),
-        (12, {"Chest": (-0.5, 0, 0), "Head": (-0.4, 0, 0), "Hips": (-0.2, 0, 0),
-              "LeftLowerLeg": (-0.5, 0, 0), "RightLowerLeg": (-0.5, 0, 0),
-              "LeftUpperArm": (-0.4, 0, 0.2), "RightUpperArm": (-0.4, 0, -0.2)}),
-        (30, {"Chest": (-1.0, 0, 0), "Head": (-0.7, 0, 0), "Hips": (-0.45, 0, 0), "Spine": (-0.3, 0, 0),
-              "LeftLowerLeg": (-0.9, 0, 0), "RightLowerLeg": (-0.9, 0, 0),
-              "LeftUpperArm": (-0.9, 0, 0.5), "RightUpperArm": (-0.9, 0, -0.5)}),
-        (48, {"Chest": (-1.25, 0, 0), "Head": (-1.0, 0, 0), "Hips": (-0.6, 0, 0), "Spine": (-0.4, 0, 0),
-              "LeftLowerLeg": (-1.0, 0, 0), "RightLowerLeg": (-1.0, 0, 0),
-              "LeftUpperArm": (-1.1, 0, 0.6), "RightUpperArm": (-1.1, 0, -0.6)}),
+        (21, {"Chest": (-0.15, 0, 0), "Head": (-0.10, 0, 0), "Hips": (-0.08, 0, 0),
+              "LeftLowerLeg": (-0.35, 0, 0), "RightLowerLeg": (-0.35, 0, 0),
+              "LeftUpperArm": (-0.40, 0, 0.20), "RightUpperArm": (-0.40, 0, -0.20)}),
+        (48, {"Chest": (-0.45, 0, 0), "Head": (-0.20, 0, 0), "Hips": (-0.25, 0, 0), "Spine": (-0.15, 0, 0),
+              "LeftLowerLeg": (-0.70, 0, 0), "RightLowerLeg": (-0.70, 0, 0),
+              "LeftUpperArm": (-0.90, 0, 0.45), "RightUpperArm": (-0.90, 0, -0.45)}),
+        (85, {"Chest": (-0.55, 0, 0), "Head": (-0.25, 0, 0), "Hips": (-0.35, 0, 0), "Spine": (-0.20, 0, 0),
+               "LeftLowerLeg": (-0.85, 0, 0), "RightLowerLeg": (-0.85, 0, 0),
+               "LeftUpperArm": (-1.10, 0, 0.55), "RightUpperArm": (-1.10, 0, -0.55)}),
     ], False))
 
     signs = {b: bone_fwd_sign(arm, live_name(b) if live else b) for b in DEFORM}

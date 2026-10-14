@@ -42,6 +42,10 @@ PALETTE = {
     "rust": (0.42, 0.21, 0.11),
     "eye_milk": (0.70, 0.70, 0.64),
     "void": (0.04, 0.04, 0.05),
+    "ash": (0.22, 0.25, 0.20),        # grey-green ash skin, darker than the flesh tone
+    "ash_dark": (0.15, 0.17, 0.14),
+    "cloth": (0.20, 0.19, 0.17),
+    "bone_old": (0.46, 0.43, 0.36),
 }
 
 
@@ -111,54 +115,64 @@ def clear_scene():
 
 # --------------------------------------------------------------------------- zombie
 def build_zombie(b, J):
-    """Hunched, shambling, medium. Rot-bloated torso with a torn tunic, a broken bone splinter on the
-    left forearm, a sunken dark right eye and a milky left eye, and a cheek bone showing through."""
+    """Gaunt, hunched, medium. Faceted ash-grey skin, a back hump, exposed ribs over a torn tunic, bone
+    splinter on the left forearm, a sunken dark right eye and a milky left eye. Faceted tubes only (no
+    spheres on the body) so the silhouette reads as carved low-poly, not mannequin."""
     for side, f in (("L", lambda p: p), ("R", er.mir)):
         hip, knee, ank, ball, toe = (f(J[k]) for k in ("hip", "knee", "ank", "ball", "toe"))
-        thigh_mid = (hip + knee) * 0.5
-        shin_mid = (knee + ank) * 0.5 + Vector((0, 0.02, 0))
-        b.tube(f"Z_{side}Thigh", [hip, thigh_mid, knee], [0.10, 0.085, 0.065], mat="flesh", jitter=0.05, seed=40)
-        b.tube(f"Z_{side}Shin", [knee, shin_mid, ank], [0.065, 0.075, 0.04], mat="flesh", jitter=0.05, seed=41)
-        b.tube(f"Z_{side}Foot", [ank, ball], [0.045, 0.05], mat="flesh", sides=8)
-        b.tube(f"Z_{side}Toes", [ball, toe], [0.03, 0.04], mat="bone_dark", sides=6)
-    # torn leather wrap over the right shin only
+        b.tube(f"Z_{side}Thigh", [hip, (hip + knee) * 0.5, knee], [0.085, 0.07, 0.05], mat="ash",
+               sides=8, jitter=0.06, seed=40)
+        b.tube(f"Z_{side}Shin", [knee, (knee + ank) * 0.5 + Vector((0, 0.02, 0)), ank], [0.05, 0.058, 0.032],
+               mat="ash", sides=8, jitter=0.06, seed=41)
+        b.tube(f"Z_{side}Foot", [ank, ball], [0.04, 0.042], mat="ash_dark", sides=5)
+        b.tube(f"Z_{side}Toes", [ball, toe], [0.026, 0.03], mat="bone_old", sides=5)
     rk = er.mir(J["knee"]) + Vector((0, 0, 0.05))
     ra = er.mir(J["ank"]) + Vector((0, 0, 0.12))
-    b.tube("Z_RWrap", [rk, (rk + ra) * 0.5, ra], [0.085, 0.09, 0.07], mat="leather", jitter=0.55, seed=44,
-           cap0=False, cap1=False)
+    b.tube("Z_RWrap", [rk, (rk + ra) * 0.5, ra], [0.07, 0.075, 0.06], mat="leather", sides=8, jitter=0.55,
+           seed=44, cap0=False, cap1=False)
 
-    # torso, rot patch on the belly, torn tunic hanging to mid thigh, belt
-    b.tube("Z_Torso", [J["hips"], J["spine"], J["chest"], J["neck"]], [0.19, 0.17, 0.19, 0.12],
-           [0.12, 0.14, 0.13, 0.09], mat="flesh", sides=10, jitter=0.14, seed=3)
-    b.tube("Z_RotPatch", [Vector((0, 0.0, 0.99)), Vector((0.02, -0.04, 1.10))], [0.205, 0.19], [0.15, 0.14],
-           mat="rot", sides=8, jitter=0.5, seed=7, cap0=False, cap1=False)
-    b.tube("Z_Tunic", [Vector((0, 0.02, 0.60)), Vector((0, 0.01, 0.76)), Vector((0, 0.0, 0.93))],
-           [0.25, 0.23, 0.20], [0.17, 0.16, 0.14], mat="leather", sides=10, jitter=0.45, seed=9,
+    # gaunt torso: a narrow faceted column, pelvis to neck
+    b.tube("Z_Pelvis", [Vector((0, 0.0, 0.90)), J["hips"]], [0.15, 0.16], [0.10, 0.11], mat="ash_dark",
+           sides=8, jitter=0.04, seed=2)
+    b.tube("Z_Torso", [J["hips"], J["spine"], J["chest"], J["neck"]], [0.15, 0.14, 0.15, 0.09],
+           [0.095, 0.085, 0.095, 0.065], mat="ash", sides=8, jitter=0.08, seed=3)
+    # back hump (kyphosis): faceted ridge, not a sphere
+    b.tube("Z_Hump", [Vector((0, 0.09, 1.12)), Vector((0, 0.13, 1.27)), Vector((0, 0.11, 1.40))],
+           [0.11, 0.14, 0.09], [0.07, 0.09, 0.06], mat="ash_dark", sides=8, jitter=0.1, seed=7)
+    # rot blotch on the belly, a flat faceted shell
+    b.tube("Z_RotPatch", [Vector((0, -0.02, 0.98)), Vector((0.01, -0.06, 1.08))], [0.16, 0.15],
+           [0.11, 0.10], mat="rot", sides=8, jitter=0.4, seed=8, cap0=False, cap1=False)
+    # exposed ribs over the chest front, with the torn tunic hanging open at the sides
+    for k, z in enumerate((1.04, 1.12, 1.20, 1.28)):
+        b.tube(f"Z_Rib{k}", [Vector((0.13, -0.06, z)), Vector((0.0, -0.17, z + 0.01)),
+                             Vector((-0.13, -0.06, z))], 0.011, mat="bone", sides=4)
+    b.tube("Z_Sternum", [Vector((0, -0.16, 1.00)), Vector((0, -0.18, 1.30))], [0.012, 0.01], mat="bone", sides=4)
+    # torn tunic: back panel, ragged hem, drapes over the hips
+    b.tube("Z_Tunic", [Vector((0, 0.02, 0.60)), Vector((0, 0.01, 0.76)), Vector((0, 0.0, 0.94))],
+           [0.20, 0.19, 0.16], [0.14, 0.13, 0.11], mat="cloth", sides=8, jitter=0.5, seed=9,
            cap0=False, cap1=False)
-    b.tube("Z_Belt", [Vector((0, 0.0, 0.90)), Vector((0, 0.0, 0.98))], 0.20, 0.13, mat="leather", sides=10)
-    b.box((0.0, -0.14, 0.94), (0.07, 0.02, 0.05), "bone_dark")  # buckle
-    # kyphotic upper back hump and rounded deltoids carry the hunch in silhouette
-    b.blob((0.0, 0.10, 1.30), (0.18, 0.12, 0.17), "flesh", sub=3)
-    b.blob((0.02, 0.07, 1.36), (0.11, 0.09, 0.09), "rot", sub=2)
-    for s in (-1, 1):
-        b.blob((0.19 * s, -0.03, 1.36), (0.09, 0.09, 0.08), "flesh", sub=2)
-    b.blob((-0.10, -0.13, 1.05), (0.035, 0.02, 0.03), "blood", sub=1)  # old blood on the tunic
+    b.tube("Z_Belt", [Vector((0, 0.0, 0.90)), Vector((0, 0.0, 0.98))], 0.16, 0.11, mat="leather", sides=8)
+    b.box((0.0, -0.13, 0.94), (0.06, 0.02, 0.045), "bone_dark")
+    b.tube("Z_Blood", [Vector((-0.09, -0.12, 1.02)), Vector((-0.10, -0.13, 1.06))], [0.03, 0.02],
+           mat="blood", sides=5)
 
-    # neck stays on the spine; the head group below is carried forward and down (hunch)
-    b.tube("Z_Neck", [J["neck"], J["head"]], 0.055, mat="flesh", sides=8)
+    # neck and a faceted skull (the cranium is a tapered tube, not a sphere)
+    b.tube("Z_Neck", [J["neck"], J["head"]], 0.045, mat="ash", sides=8)
     n0 = len(b.objs)
-    b.tube("Z_Skull", [Vector((0, -0.17, 1.52)), Vector((0, -0.17, 1.63))],
-           [0.07, 0.09], [0.08, 0.095], mat="flesh", sides=10, jitter=0.08, seed=11, cap1=False)
-    b.blob((0.0, -0.17, 1.66), (0.085, 0.095, 0.115), "flesh", sub=3)     # rounded cranium, no flat top
-    b.tube("Z_Jaw", [Vector((0, -0.17, 1.52)), Vector((0, -0.23, 1.50)), Vector((0, -0.27, 1.46))],
-           [0.05, 0.045, 0.04], [0.04, 0.035, 0.03], mat="bone", sides=8)
+    b.tube("Z_Skull", [Vector((0, -0.17, 1.50)), Vector((0, -0.17, 1.60)), Vector((0, -0.17, 1.70)),
+                       Vector((0, -0.17, 1.76))],
+           [0.065, 0.085, 0.075, 0.045], [0.08, 0.095, 0.085, 0.05], mat="ash", sides=8, jitter=0.05, seed=11,
+           cap1=True)
+    b.tube("Z_Jaw", [Vector((0, -0.17, 1.52)), Vector((0, -0.23, 1.49)), Vector((0, -0.27, 1.45))],
+           [0.045, 0.04, 0.035], [0.035, 0.03, 0.025], mat="bone", sides=5)
     b.blob((0.032, -0.25, 1.64), (0.02, 0.010, 0.02), "eye_milk", sub=1)     # milky left eye
     b.blob((-0.034, -0.245, 1.63), (0.024, 0.012, 0.026), "void", sub=1)     # sunken dark right eye
-    b.blob((-0.075, -0.19, 1.60), (0.03, 0.03, 0.025), "bone", sub=1)        # cheek bone showing
-    b.blob((0.0, -0.22, 1.67), (0.075, 0.03, 0.028), "bone_dark", sub=1)     # heavy brow ridge
-    b.tube("Z_Nose", [Vector((0, -0.25, 1.60)), Vector((0, -0.27, 1.575))], [0.012, 0.006], mat="flesh", sides=4)
-    b.tube("Z_TeethL", [Vector((0.03, -0.27, 1.48)), Vector((0.03, -0.285, 1.46))], 0.008, mat="bone", sides=4)
-    b.tube("Z_TeethR", [Vector((-0.02, -0.27, 1.48)), Vector((-0.02, -0.28, 1.455))], 0.008, mat="bone", sides=4)
+    b.tube("Z_CheekL", [Vector((-0.06, -0.22, 1.60)), Vector((-0.09, -0.15, 1.60))], [0.02, 0.012],
+           mat="bone", sides=4)                                              # exposed cheek bone
+    b.blob((0.0, -0.22, 1.67), (0.07, 0.03, 0.026), "ash_dark", sub=1)     # heavy brow ridge
+    b.tube("Z_Nose", [Vector((0, -0.25, 1.60)), Vector((0, -0.27, 1.575))], [0.012, 0.006], mat="ash", sides=4)
+    b.tube("Z_TeethL", [Vector((0.03, -0.27, 1.47)), Vector((0.03, -0.285, 1.45))], 0.008, mat="bone", sides=4)
+    b.tube("Z_TeethR", [Vector((-0.02, -0.27, 1.47)), Vector((-0.02, -0.28, 1.445))], 0.008, mat="bone", sides=4)
     b.tube("Z_Hair1", [Vector((0.02, -0.10, 1.76)), Vector((0.05, -0.05, 1.70)), Vector((0.08, -0.03, 1.60))],
            [0.012, 0.006, 0.002], mat="leather", sides=4)
     b.tube("Z_Hair2", [Vector((-0.04, -0.12, 1.75)), Vector((-0.06, -0.08, 1.69))], [0.01, 0.003],
@@ -166,20 +180,23 @@ def build_zombie(b, J):
     for o in b.objs[n0:]:
         o.location += Vector((0, -0.07, -0.03))
 
-    # arms: both reach forward with claw fingers; left forearm has a broken bone splinter, right sleeve is torn
+    # arms: long and thin, faceted, reaching forward; left forearm has a broken bone splinter
     for side, f in (("L", lambda p: p), ("R", er.mir)):
         sh, el, wr, he = (f(J[k]) for k in ("sho", "elb", "wri", "hand_end"))
-        b.tube(f"Z_{side}Upper", [sh, (sh + el) * 0.5, el], [0.065, 0.06, 0.05], mat="flesh", sides=8)
-        b.tube(f"Z_{side}Fore", [el, (el + wr) * 0.5, wr], [0.05, 0.045, 0.035], mat="flesh", sides=8)
-        b.tube(f"Z_{side}Palm", [wr, he], [0.04, 0.03], mat="flesh", sides=8)
-        for dx in (-0.02, 0.0, 0.02):
+        b.tube(f"Z_{side}Upper", [sh, (sh + el) * 0.5, el], [0.05, 0.045, 0.04], mat="ash", sides=8)
+        b.tube(f"Z_{side}Fore", [el, (el + wr) * 0.5, wr], [0.04, 0.035, 0.028], mat="ash", sides=8)
+        b.tube(f"Z_{side}Palm", [wr, he], [0.032, 0.026], mat="ash_dark", sides=5)
+        for dx in (-0.018, 0.0, 0.018):
             tip = he + Vector((dx, -0.06, -0.06))
-            b.tube(f"Z_{side}Claw{dx:+.2f}", [he + Vector((dx, 0, 0)), tip], [0.016, 0.004], mat="bone", sides=5)
+            b.tube(f"Z_{side}Claw{dx:+.2f}", [he + Vector((dx, 0, 0)), tip], [0.014, 0.004], mat="bone", sides=4)
     lf = (J["elb"] + J["wri"]) * 0.5
-    b.tube("Z_LSplinter", [lf, lf + Vector((0.07, -0.04, -0.02))], [0.012, 0.002], mat="bone", sides=5)
-    rsh = er.mir(J["sho"])
-    b.tube("Z_RSleeve", [rsh, (rsh + er.mir(J["elb"])) * 0.5], [0.085, 0.07], mat="leather", sides=8,
-           jitter=0.5, seed=52, cap0=False, cap1=False)
+    b.tube("Z_LSplinter", [lf, lf + Vector((0.07, -0.04, -0.02))], [0.011, 0.002], mat="bone", sides=4)
+    # torn rags hanging from the shoulders
+    for side, f in (("L", lambda p: p), ("R", er.mir)):
+        sh = f(J["sho"])
+        b.tube(f"Z_{side}Rag", [sh + Vector((0, 0, 0.02)), sh + Vector((0.01, -0.03, -0.12)),
+                                sh + Vector((0.02, -0.05, -0.22))], [0.05, 0.045, 0.03], mat="cloth", sides=8,
+               jitter=0.5, seed=50 if side == "L" else 52, cap0=False, cap1=False)
 
 
 # --------------------------------------------------------------------------- warden
@@ -366,6 +383,21 @@ def render_preview(path, height):
     bpy.ops.render.render(write_still=True)
 
 
+LIVE_HEIGHT = {"zombie": 1.75}   # live zombie mesh height in metres (assets/models/zombie, char1)
+
+
+def scale_rig(obj, arm, factor):
+    """Uniformly scale the skinned mesh and its armature about the origin (weights are unchanged)."""
+    for v in obj.data.vertices:
+        v.co *= factor
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    for eb in arm.data.edit_bones:
+        eb.head *= factor
+        eb.tail *= factor
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
 def build_rigged(name, out_dir, preview, live=False, clip_cache=None):
     joints_fn, builder_fn, style, height = RIGGED[name]
     clear_scene()
@@ -378,6 +410,11 @@ def build_rigged(name, out_dir, preview, live=False, clip_cache=None):
         er.skin_object(o, rows, rigid=b.rigid.get(o.name))
     obj = finalize(b)
     er.attach_armature(obj, arm)
+    if live and name in LIVE_HEIGHT:
+        zs = [v.co.z for v in obj.data.vertices]
+        factor = LIVE_HEIGHT[name] / (max(zs) - min(zs))
+        scale_rig(obj, arm, factor)
+        print("SCALE %s height %.3f -> %.3f (x%.4f)" % (name, max(zs) - min(zs), LIVE_HEIGHT[name], factor))
     actions, sign = er.make_clips(arm, style, live=live)
     tris = triangle_count(obj)
     if live:
