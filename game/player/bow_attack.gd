@@ -46,6 +46,7 @@ var _rejected: Array[Vector3] = []
 var holds: int = 0
 var retry_attempts: int = 0
 var shots: int = 0
+var refusals: int = 0
 var _holding: bool = false
 
 func _init(character: Player) -> void:
@@ -89,7 +90,10 @@ func start_prop(prop: Destructible) -> void:
 
 func _begin(target: Actor, prop: Destructible) -> void:
 	var point := _shot_point(target, prop)
-	if not p.stats.is_ranged() or p.skills.busy or not Nav.sight_clear(p, p.global_position, point, prop):
+	if not p.stats.is_ranged() or p.skills.busy:
+		return
+	if not Nav.sight_clear(p, p.global_position, point, prop):
+		refusals += 1   # a shot asked for without sight is refused here, and counted for the selftest
 		return
 	p.skills.clear_queue()
 	_target = target

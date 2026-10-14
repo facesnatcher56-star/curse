@@ -41,8 +41,10 @@ func _test_archer_targets() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	expect("sight: a barrel between archer and enemy blocks the sight line", not Nav.line_clear(archer, enemy.global_position))
+	var refused0: int = archer.bow.refusals
 	archer.bow.start(enemy)
 	expect("sight: the bow refuses a blocked shot (no draw starts)", not archer.skills.busy)
+	expect("sight: the refusal is counted (refusals increased by the blocked start)", archer.bow.refusals > refused0)
 	archer.bow.engage(enemy, null, 1.0 / 60.0)
 	expect("sight: engage with a blocked target does not start a shot", not archer.skills.busy)
 	archer.bow._pick_spot(enemy.global_position, null)
@@ -88,6 +90,22 @@ func _test_archer_targets() -> void:
 	archer.reset_physics_interpolation()
 	# The player's order goes through the hotkey's own code (Player.order_companions_to_prop); the archer's AI then shoots the nest
 	# on its own, through the same engagement as any ordered target, until the destructible breaks.
+	# Negative: an archer nobody ordered never attacks a nest, however clear the shot. The party AI runs for 600 frames here.
+	var idle_nest: Destructible = arena.place_prop("crypt/nest", lane + Vector3(11.0, 0.0, 5.0), 0.0, 1.9) as Destructible
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	archer.testing_disabled = false
+	archer.attack_prop = null
+	var idle_hp: float = idle_nest.hp
+	var idle_shots: int = archer.bow.shots
+	for i in 600:
+		await get_tree().physics_frame
+	expect("negative: an unordered archer leaves a clear-sight nest untouched over 600 frames (hp unchanged, not broken)",
+		is_equal_approx(idle_nest.hp, idle_hp) and not idle_nest.broken)
+	expect("negative: an unordered archer begins no shot at the nest (shot count unchanged)", archer.bow.shots == idle_shots)
+	idle_nest.queue_free()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
 	archer.testing_disabled = false   # this one is the party AI's own shot: it must run
 	var broke: Array[Destructible] = []
 	order_nest.destroyed.connect(func(prop: Destructible) -> void: broke.append(prop))
@@ -183,6 +201,7 @@ func _test_archer_positioning() -> void:
 		await get_tree().physics_frame
 	var requests: int = Nav.requests_total - queries0
 	print("OSCILLATION: spot_changes=", changes, " nav_path_requests=", requests, " spot_reach=", snappedf(reach, 0.01))
+	expect("oscillation: a firing position is chosen (it exists at the end of the window)", archer.bow._has_spot)
 	expect("oscillation: the firing position changes at most twice in two seconds", changes <= 2)
 	expect("navigation: the walk to the firing position makes path requests (bounded, non-zero)", requests >= 1 and requests <= 20)
 
