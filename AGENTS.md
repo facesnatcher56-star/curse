@@ -7,9 +7,11 @@ Read [CLAUDE.md](CLAUDE.md) first. Its required checks and ask-when-uncertain ru
 every agent working on this project. Check the whole gameplay context and equivalent uses
 of a mechanic, not just the edited component.
 
-Every visual change must follow the screenshot-review, resolution/interface-scale matrix,
-hover/tooltip/focus and interaction verification workflow in CLAUDE.md and docs/UI_THEME.md.
-This is a standing owner instruction for all agents, not an optional final polish step.
+Visual verification is risk-based, as set out in CLAUDE.md, docs/UI_THEME.md and
+docs/DEVELOPMENT_RULES.md. Minor localized UI changes need one representative inspection;
+significant layout changes need representative resolutions and scale boundaries; only global
+display, scaling or layout-system changes need the complete matrix. Screenshot inspection is
+required when appearance changes and a display is available. Disclose any deferred visual check.
 
 Standing owner instruction, including future tasks: whenever uncertainty remains, ask the
 owner before implementing the uncertain part. Do not guess. This applies to all agents.

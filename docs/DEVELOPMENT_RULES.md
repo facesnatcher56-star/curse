@@ -201,6 +201,12 @@ If CI fails, investigate its logs and correct the specific failure. Do not start
 
 ## 11. Player-Facing Behavior Requires Player-Facing Validation
 
+Visual verification tiers (these replace any requirement to run the full resolution/interface-scale matrix for every visual change):
+- Minor localized UI change: inspect the affected interaction at one representative resolution.
+- Significant UI or layout change: inspect representative resolutions and relevant scale boundaries, including affected hover, focus and scroll behaviour.
+- Global display, scaling or layout-system change: run the complete resolution and interface-scale matrix.
+- Unrelated gameplay or backend change: no visual matrix requirement unless rendering or UI behaviour is affected.
+
 Automated tests cannot fully establish:
 - Whether combat feels satisfying.
 - Whether AI behaves naturally.
