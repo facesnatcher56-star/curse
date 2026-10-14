@@ -29,6 +29,21 @@ The game remains grounded and weathered, as required by ART_DIRECTION.md.
 Do not restore the removed resource strip, render fake consumables, bake gameplay values
 into artwork, or introduce another independent theme system. Ask the owner when uncertain.
 
+## Visual verification tiers
+
+Visual checks follow the risk-based policy in `docs/DEVELOPMENT_RULES.md`:
+
+- Minor localized UI change: visually inspect the affected interaction at one representative resolution.
+- Significant UI or layout change: inspect representative supported resolutions and the relevant
+  interface-scale boundaries, including affected hover, focus and scroll behaviour.
+- Global display, scaling or layout-system change: run the complete resolution and interface-scale matrix
+  described below.
+- Unrelated gameplay or backend change: no visual matrix requirement.
+
+Screenshot inspection is required when visual appearance changes and a suitable display is available.
+Deferred visual checks must be reported as known gaps, never marked verified. Automated bounds assertions
+do not replace inspection.
+
 ## Verification tools
 
 `--selftest --only=theme` follows `GameSettings.RESOLUTIONS`: currently 1280x720, 1600x900,

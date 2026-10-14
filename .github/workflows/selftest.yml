@@ -1,9 +1,12 @@
 name: Self-test
 
-# Runs the game's built-in headless self-test (navigation, combat, hotkeys, skills, items...) on every push and PR.
+# Runs the game's built-in headless self-test (navigation, combat, hotkeys, skills, items...).
+# Pull requests are the authoritative pre-merge check. Pushes run only on main (post-merge verification),
+# so an unchanged commit is not tested twice: once on the branch push and again on its PR.
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 concurrency:
   group: selftest-${{ github.ref }}
