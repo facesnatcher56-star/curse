@@ -58,8 +58,19 @@ jobs:
           path: .godot
           key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('.lfs-assets-id', 'project.godot') }}
 
+      - name: Check importable source art
+        run: python3 tools/ci_check_imports.py --source-art
+
       - name: Import project
         run: ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . --import
+
+      - name: Verify imported assets
+        run: |
+          if ! python3 tools/ci_check_imports.py --missing-imports; then
+            echo "Missing imported assets after first import; retrying once"
+            ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . --import
+            python3 tools/ci_check_imports.py --missing-imports
+          fi
 
       - name: Run self-test
         run: |
@@ -92,6 +103,7 @@ jobs:
           python3 -m unittest discover -s tools -p "test_ds2_catalog.py"
           python3 -m unittest discover -s tools -p "test_ds2_skill_suites.py"
           python3 -m unittest discover -s tools -p "test_ci_check_selftest.py"
+          python3 -m unittest discover -s tools -p "test_ci_check_imports.py"
 
       - name: Check results
         if: always()
