@@ -3,6 +3,12 @@
 Godot 4.8-dev2, GDScript. Click-to-move ARPG, fixed 3/4 camera, controller supported. Layout and where things live:
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Development process
+
+Read [docs/DEVELOPMENT_RULES.md](docs/DEVELOPMENT_RULES.md) before accepting development tasks. It sets
+the risk-based testing, review and integration policy for all agents. The owner's standing rules below
+(ask when uncertain, UI visual checks) still apply and take precedence where they are more specific.
+
 ## Combat baseline
 
 Dungeon Siege II combat is the baseline. Follow

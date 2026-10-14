@@ -1,5 +1,8 @@
 # Notes for agents
 
+Read [docs/DEVELOPMENT_RULES.md](docs/DEVELOPMENT_RULES.md) before accepting development tasks. It is the
+shared engineering and multi-agent policy. The owner's standing instructions below still apply.
+
 Read [CLAUDE.md](CLAUDE.md) first. Its required checks and ask-when-uncertain rule apply to
 every agent working on this project. Check the whole gameplay context and equivalent uses
 of a mechanic, not just the edited component.
