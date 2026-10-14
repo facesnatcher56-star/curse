@@ -93,3 +93,43 @@ Not verified: Cutter/other rigs, quality of deformation at extreme clips for the
 `data/appearance/equipment_visuals.json` maps item def ids to separate GLBs in `assets/models/modular/` (one piece per file); `game/modular_appearance.gd` binds them to the game skeleton. `game/dev/modular_check.gd` checks equip, unequip, mixed sets, save/restore and clip availability. The default presentation is unchanged: the opt-in changes in `player.gd`, `player_stats.gd`, `actor.gd`, `character_model.gd` and `bow_attack.gd` are inert without `--modular`.
 
 Triangles per worn build (hair/beard hidden when a helm covers them): plate knight 11,942, leather archer 3,546, mage 3,178. Mage and archer are under the 5,000 budget floor and are not yet at the knight's level.
+
+## 7. Placeholder item visuals (reused meshes, NOT finished art)
+
+These items show another item's mesh until they get their own GLB (rows marked `"placeholder": true` in `data/appearance/equipment_visuals.json`). Do not treat them as final.
+
+| Item | Currently shows | Needs |
+|---|---|---|
+| mail_hauberk, chain_mail | plate cuirass + plate arms (tor_plate, arm_plate) | mail hauberk with sleeves, ring texture/silhouette |
+| carved_tunic | leather jerkin (tor_leather) | its own tunic |
+| dragon_helm | great helm (hlm_great) | dragon crest helm |
+| carved_cap | leather cap (hlm_cap) | its own cap |
+| studded_gloves | leather gloves (glv_leather) | studded gauntlets |
+| heater_shield, buckler | kite shield (shd_kite) | heater and buckler shapes (the buckler is also much smaller) |
+
+Finished-for-now visuals: plate_cuirass, leather_jerkin, apprentice_robe (robe + mantle), iron_helm, leather_cap, woven_hood, iron_gauntlets, leather_gloves, iron_greaves, leather_boots, sorcerer_boots, kite_shield, short_bow. Items with no row (weapons other than the bow, rings, amulets) change nothing on the body; swords and other weapons still use the game's existing held models.
+
+## 8. Flag-off review (default presentation)
+
+Changes to live files, all inert without `-- --modular` (verified by `modular_check.gd` without the flag: no appearance, fused knight mesh present, gauntlet fists mounted, equipping armour changes nothing):
+
+- `character_model.gd`: `build(folder, clips, fists = true)`; default still builds the fists.
+- `actor.gd`: `_build_model(..., fists = true)` passes it through.
+- `player.gd`: `appearance` var (null by default), `refresh_appearance()` (no-op when null), `ModularAppearance.enabled_for(member_id)` is false without the flag; `_build_model` receives `fists = not modular`, i.e. true.
+- `player_stats.gd`: three `p.refresh_appearance()` calls after equipment changes (no-op by default).
+- `bow_attack.gd`: bow path picks the kit bow only when `p.appearance` has one; default still `BOW_MODEL`.
+- `modular_appearance.gd` is a new class; it is only instantiated with the flag. Loading the script itself runs no code (static table is lazy).
+Only effect when flag-off: one extra static call and an `OS.get_cmdline_user_args()` scan at hero creation.
+
+Launch: `godot --path <repo> -- --modular` (hero uses the modular pieces; Cutter and every other actor keep the default look).
+
+## 9. Verification run for the integration candidate
+
+Godot renders (Forward+, 1280x720, only one screen available on the test machine):
+- `docs/art/renders2/GAMEPLAY_*` real gameplay camera and character scale; `CLOSE_*` inspection camera (front/back/side, run, hit, death, atk_slash) for plate, leather, mage, mixed, archer.
+- `docs/art/renders3/RIGDEMO_*` sword and shield on the live rig.
+- `docs/art/renders4/BOW_*` draw, full draw, release, arrow in flight (live BowAttack and CompanionArrow).
+No Blender previews are included.
+
+Checks (all headless or windowed, none part of --selftest): `game/dev/modular_check.gd` (with and without `-- --modular`: equip, unequip, mixed sets, helm hiding hair/beard, hood hiding hair, robe hiding the gambeson, save and JSON restore, control switch hero/cutter, a fresh game scene rebuilt from a save), `game/dev/modular_bow_check.gd` (draw, release, arrow leaves the bow, both hands), `game/dev/modular_rig_demo.gd` (clips, sword, shield).
+Known visual gaps: Mage and archer faces are plain (small nose, brow, eyes); hands are blocky; cloth has no physics; the robe hem can still clip a boot at extreme leg poses; leather and robe pieces were not inspected at 1080p or 1440p or with the controller; weapons other than the bow still use the game's held models.

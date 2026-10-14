@@ -45,6 +45,17 @@ func run() -> void:
 	for enemy in get_nodes_in_group("enemies"):
 		enemy.set_physics_process(false)
 	var hero: Player = PartyManager.current().bodies["hero"]
+	if not ("--modular" in OS.get_cmdline_user_args()):
+		# flag-off: the default presentation must be exactly the shipped one
+		check("default: no modular appearance on the hero", hero.appearance == null and not ModularAppearance.enabled_for("hero"))
+		check("default: fused knight mesh present", not hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
+		check("default: gauntlet fists mounted on both hands", hero.model._mounts.has("RightHand") and hero.model._mounts.has("LeftHand"))
+		hero.stats.wear(Items.Slot.ARMOR, item(Items.Slot.ARMOR, "Plate Cuirass"))
+		check("default: equipping armour adds no pieces and does not error", hero.appearance == null)
+		check("default: cutter unchanged", PartyManager.current().bodies["cutter"].appearance == null)
+		print("MODULAR CHECK ", "OK (default path)" if failures == 0 else "FAILED (%d)" % failures)
+		quit(1 if failures > 0 else 0)
+		return
 	check("hero uses the modular appearance (run with -- --modular)", hero.appearance != null)
 	if hero.appearance == null:
 		quit(1)
@@ -118,8 +129,17 @@ func run() -> void:
 	await create_timer(0.3).timeout
 	check("death clip plays on the modular rig", hero.model.anim.current_animation == "game/death" and hero.model.anim.is_playing())
 
+	# --- controlled-character switching: the other member keeps the default presentation, the hero keeps its pieces
+	var party := PartyManager.current()
+	var keep: Array = pieces(hero).duplicate()
+	check("switch control to cutter", party.select("cutter"))
+	check("cutter keeps the default presentation", party.bodies["cutter"].appearance == null)
+	check("switch control back to hero", party.select("hero"))
+	check("hero pieces unchanged after switching", pieces(hero) == keep and attached(hero) == keep)
+
 	if shots != "":
 		await take_shots(game, hero, shots)
+	await reload_check(game, hero)
 	print("MODULAR CHECK ", "OK" if failures == 0 else "FAILED (%d)" % failures)
 	quit(1 if failures > 0 else 0)
 
@@ -171,7 +191,7 @@ func take_shots(game: Node3D, hero: Player, dir: String) -> void:
 			close.global_position = around + Vector3(2.6, 1.2, 4.0)
 			close.look_at(around)
 			hero.model.once(clip, 0.0, 1.0, 0.0)
-			hero.model.anim.seek(0.35 if clip != "death" else 0.9, true)
+			hero.model.anim.seek(0.35 if clip != "death" else 2.6, true)
 			hero.model.anim.pause()
 			await save("CLOSE_%s_%s" % [tag, clip], dir)
 			hero.model.anim.play("game/idle_alert")
@@ -190,3 +210,22 @@ func take_shots(game: Node3D, hero: Player, dir: String) -> void:
 		close.look_at(around)
 		hero.model.loop(clip)
 		await save("CLOSE_archer_%s" % clip, dir)
+
+## A new game scene built from a serialised save restores the worn pieces (Player._ready path, not just refresh).
+func reload_check(game: Node3D, hero: Player) -> void:
+	wear_set(hero, {Items.Slot.ARMOR: item(Items.Slot.ARMOR, "Apprentice Robe"), Items.Slot.HELM: item(Items.Slot.HELM, "Woven Hood"),
+		Items.Slot.BOOTS: item(Items.Slot.BOOTS, "Sorcerer Boots")})
+	var want: Array = pieces(hero).duplicate()
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(PartyManager.current().to_dict()))
+	game.queue_free()
+	await process_frame
+	await process_frame
+	PartyManager.current().reset(true)
+	PartyManager.current().load_data(saved)
+	var fresh := load("res://game/main.tscn").instantiate() as Node3D
+	root.add_child(fresh)
+	current_scene = fresh
+	await create_timer(1.0).timeout
+	var again: Player = PartyManager.current().bodies["hero"]
+	print("RELOAD worn=", pieces(again), " wanted=", want)
+	check("reloaded game rebuilds the same worn pieces from the save", again.appearance != null and pieces(again) == want and attached(again) == want)

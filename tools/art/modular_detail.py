@@ -352,16 +352,18 @@ def robe(bm, dl):
     # hem trim band (a second slightly wider skirt strip)
     loft(bm, dl, [Ring((0, 0, 0.22), Z, 0.362, 0.350, sk, flutes), Ring((0, 0, 0.14), Z, 0.372, 0.360, sk, flutes), Ring((0, 0, 0.075), Z, 0.380, 0.368, sk, hem)],
          n=16, mats=[2, 2])
-    # tabard panels (front and back) hanging from the shoulders, V-cut hem
-    for ang, wid in ((FRONT, 0.60), (BACK, 0.60)):
-        def vhem(a, ang=ang):
-            return (1.0, -0.20 * (1.0 - abs(a - ang) / wid))
-        loft(bm, dl, [Ring((0, 0, 1.46), Z, 0.230, 0.162, W(Chest=1)), Ring((0, 0, 1.18), Z, 0.206, 0.150, W(Chest=0.5, Spine=0.5)),
-                      Ring((0, 0, 0.95), Z, 0.250, 0.186, sk), Ring((0, 0, 0.70), Z, 0.292, 0.272, sk), Ring((0, 0, 0.46), Z, 0.328, 0.304, sk, vhem)],
-             n=6, arc=(ang - wid, ang + wid), mats=[5, 5, 5, 5], solidify=0.008)
-        loft(bm, dl, [Ring((0, 0, 1.46), Z, 0.236, 0.168, W(Chest=1)), Ring((0, 0, 1.18), Z, 0.212, 0.156, W(Chest=0.5, Spine=0.5)),
-                      Ring((0, 0, 0.95), Z, 0.256, 0.192, sk), Ring((0, 0, 0.70), Z, 0.298, 0.278, sk), Ring((0, 0, 0.46), Z, 0.334, 0.310, sk, vhem)],
-             n=2, arc=(ang - 0.07, ang + 0.07), mats=[2, 2, 2, 2], solidify=0.004)   # centre braid
+    # tabard panels (front and back) hanging from the shoulders, V-cut hem. They sit a clear 4-5 cm outside the
+    # fluted robe (flutes are +-3%) so the two surfaces never coincide (no z-fighting) and the panel reads as a layer.
+    def layer(off, ang, wid, mat, nseg, thick):
+        def vhem(a_, ang=ang, wid=wid):
+            return (1.0, -0.20 * (1.0 - abs(a_ - ang) / wid))
+        rs = [(1.46, 0.230, 0.162, W(Chest=1), None), (1.18, 0.206, 0.150, W(Chest=0.5, Spine=0.5), None),
+              (0.95, 0.250, 0.186, sk, None), (0.70, 0.292, 0.272, sk, None), (0.46, 0.328, 0.304, sk, vhem)]
+        loft(bm, dl, [Ring((0, 0, z), Z, rx + off, ry + off, w, m) for z, rx, ry, w, m in rs],
+             n=nseg, arc=(ang - wid, ang + wid) if nseg > 2 else (ang - 0.07, ang + 0.07), mats=[mat] * 4, solidify=thick)
+    for ang in (FRONT, BACK):
+        layer(0.045, ang, 0.60, 5, 6, 0.008)
+        layer(0.058, ang, 0.07, 2, 2, 0.004)   # gold centre braid, proud of the panel
     # sleeves: bell sleeves with a lighter lining cuff
     for s in (1, -1):
         sl = arm_rings(s, infl=0.028, radii=(0.052, 0.050, 0.050, 0.056, 0.062), flare=0.06)

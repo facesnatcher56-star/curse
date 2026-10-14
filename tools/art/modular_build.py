@@ -204,7 +204,7 @@ def bow(bm, dl):
     half = 0.78
     def pt(t):
         # recurved: belly bulges to -X at the grip, tips curl back toward +X then slightly forward
-        x = -0.14 * (1 - t * t) + 0.03 * max(0.0, abs(t) - 0.8) / 0.2
+        x = -0.14 * (1 - t * t) + 0.0
         return Vector((x, 0.0, half * t))
     pts = [pt(i / N) for i in range(-N, N + 1)]
     rings = []
