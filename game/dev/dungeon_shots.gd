@@ -45,8 +45,12 @@ func _process(_delta: float) -> bool:
 	_frames += 1
 	if _frames == 5:
 		DisplayServer.window_set_size(Vector2i(1920, 1080))
-	if _frames < 240 or _main.player == null:
+	if _frames < 480 or _main.player == null:   # the job banner (4 s) is up for the first seconds, so the shots wait for it to pass
 		return false
+	if _main.player != null:
+		# The HUD's hurt overlay tints the whole frame red while hurt_flash runs down. It is a HUD effect, not lighting, so the shots
+		# clear it (the fight itself is unchanged).
+		_main.player.hurt_flash = 0.0
 	if _wait > 0:
 		_wait -= 1
 		return false

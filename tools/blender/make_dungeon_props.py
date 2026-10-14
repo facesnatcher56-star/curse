@@ -24,7 +24,8 @@ PALETTE = {
     # Floor flags: two tones close together, so the floor reads as one calm surface rather than a checkerboard.
     "flag_a": ((0.085, 0.082, 0.078), 0.0, 0.94),
     "flag_b": ((0.074, 0.072, 0.068), 0.0, 0.95),
-    "dirt": ((0.05, 0.046, 0.04), 0.0, 0.97),
+    "dirt": ((0.085, 0.08, 0.072), 0.0, 0.97),
+    "grout": ((0.03, 0.03, 0.032), 0.0, 0.97),   # thin dark grey joints, not black
     "wood_weathered": ((0.30, 0.22, 0.15), 0.0, 0.95),
     "wood_dark": ((0.18, 0.13, 0.09), 0.0, 0.95),
     "iron": ((0.17, 0.17, 0.18), 0.25, 0.75),
@@ -119,11 +120,14 @@ def finish_and_export(name, build, keys, seed):
 
 
 def build_pillar(bm, rng):
-    """A square stone pillar, 0.8 m wide and 3 m tall, with a plinth and a worn capital."""
-    add_box(bm, (0, 0, 0.12), (1.0, 1.0, 0.24), mat=1)
-    add_box(bm, (0, 0, 1.6), (0.7, 0.7, 2.9), rot=(0, 0, 0.04), mat=0)
-    add_box(bm, (0, 0, 3.12), (0.95, 0.95, 0.24), mat=1)
-    jitter(bm, rng, 0.012)
+    """A stone pillar, about 3.2 m: a plinth and a stepped base, an eight-sided shaft that narrows slightly, and a stepped capital
+    with a cap block, so it does not read as a plain box."""
+    add_box(bm, (0, 0, 0.14), (1.1, 1.1, 0.28), mat=1)      # plinth
+    add_box(bm, (0, 0, 0.36), (0.9, 0.9, 0.16), mat=0)      # base step
+    add_cone(bm, (0, 0, 1.7), 0.36, 0.3, 2.6, 8, mat=0)     # the shaft, eight-sided, from 0.4 m to 3.0 m
+    add_box(bm, (0, 0, 2.98), (0.84, 0.84, 0.12), mat=0)    # capital step
+    add_box(bm, (0, 0, 3.12), (1.1, 1.1, 0.24), mat=1)      # cap block
+    jitter(bm, rng, 0.01)
 
 
 def build_crate(bm, rng):
@@ -165,25 +169,43 @@ def build_torch_sconce(bm, rng):
     jitter(bm, rng, 0.005)
 
 
+FLAG_TONES = [0.92, 0.96, 1.0, 1.04, 1.08]   # per-slab value, about plus or minus 8 percent of the flag base
+for _i, _f in enumerate(FLAG_TONES):
+    PALETTE["flag_t%d" % _i] = ((0.082 * _f, 0.079 * _f, 0.075 * _f), 0.0, 0.94)
+FLOOR_KEYS = ["flag_t0", "flag_t1", "flag_t2", "flag_t3", "flag_t4", "grout"]
+GROUT = 5
+
+
 def build_floor_flag(bm, rng):
-    """A 2 m floor tile of irregular flagstones: two columns, each split at its own random height into two or three slabs, so the
-    joints do not line up. The two tones sit close together, and about one tile in three carries a dirt patch."""
-    split_x = rng.uniform(0.85, 1.15)
-    for col in (0, 1):
-        x0 = -1.0 if col == 0 else split_x - 0.0
-        x1 = split_x if col == 0 else 1.0
-        y = -1.0
-        while y < 1.0 - 0.01:
-            h = min(rng.uniform(0.6, 1.2), 1.0 - y)
-            if 1.0 - (y + h) < 0.45:
-                h = 1.0 - y
-            add_box(bm, ((x0 + x1) / 2, y + h / 2, 0.06), (x1 - x0 - 0.03, h - 0.03, 0.1),
-                    rot=(0, 0, rng.uniform(-0.015, 0.015)), mat=0 if rng.random() < 0.55 else 1)
-            y += h
-    if rng.random() < 0.33:
-        add_box(bm, (rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5), 0.12), (rng.uniform(0.3, 0.6), rng.uniform(0.3, 0.6), 0.04),
-                rot=(0, 0, rng.uniform(0, 1.5)), mat=2)
-    jitter(bm, rng, 0.003)
+    """A 2 m worn flagstone tile, like the worn road tile: running-bond rows (each row starts at its own offset, so no joint runs
+    straight across the room), slabs 0.5 to 1.0 m wide with 2.5 cm joints, a per-slab value about plus or minus 8 percent, some
+    cracked, and about one in ten missing so the grout bed shows through. The joints are only a little darker than the stone."""
+    add_box(bm, (0, 0, 0.03), (2.0, 2.0, 0.06), mat=GROUT)      # the grout bed, a little darker than the stone
+    y = -1.0
+    while y < 1.0 - 0.01:
+        h = min(rng.uniform(0.42, 0.62), 1.0 - y)
+        if 1.0 - (y + h) < 0.3:
+            h = 1.0 - y
+        x = -1.0
+        first = rng.choice([0.25, 0.5, 0.75])   # the running-bond offset for this row
+        widths = [first]
+        while sum(widths) < 2.0 - 0.01:
+            widths.append(rng.choice([0.5, 0.75, 1.0]))
+        widths[-1] = 2.0 - sum(widths[:-1])
+        for w in widths:
+            if w <= 0.01:
+                continue
+            if rng.random() >= 0.1:
+                cx = x + w / 2
+                cy = y + h / 2
+                add_box(bm, (cx, cy, 0.09), (w - 0.025, h - 0.025, 0.1), rot=(0, 0, rng.uniform(-0.02, 0.02)),
+                        mat=rng.randrange(5))
+                if rng.random() < 0.2:   # a crack across the stone, in the joint colour
+                    add_box(bm, (cx + rng.uniform(-0.1, 0.1), cy, 0.146), (w * 0.6, 0.02, 0.01),
+                            rot=(0, 0, rng.uniform(-0.8, 0.8)), mat=GROUT)
+            x += w
+        y += h
+    jitter(bm, rng, 0.002)
 
 
 def build_wall_large(bm, rng, broken):
@@ -206,7 +228,7 @@ def build_wall_large(bm, rng, broken):
 
 
 if __name__ == "__main__":
-    finish_and_export("floor_flag", build_floor_flag, ["flag_a", "flag_b", "dirt"], 17)
+    finish_and_export("floor_flag", build_floor_flag, FLOOR_KEYS, 17)
     finish_and_export("wall_large_a", lambda bm, rng: build_wall_large(bm, rng, False), ["stone_light", "stone_dark"], 19)
     finish_and_export("wall_large_b", lambda bm, rng: build_wall_large(bm, rng, True), ["stone_light", "stone_dark"], 23)
     finish_and_export("pillar", build_pillar, ["stone_light", "stone_dark"], 3)
