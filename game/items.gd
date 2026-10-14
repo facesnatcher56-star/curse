@@ -12,6 +12,13 @@ extends RefCounted
 enum Slot { WEAPON, ARMOR, RING, SHIELD, HELM, GLOVES, BOOTS, AMULET, RING2 }
 enum Rarity { NORMAL, MAGIC, RARE, UNIQUE, SET }
 
+## The comparison key of the one "cannot wear it yet" warning (not a stat row, so it sits on no line of the card).
+const WARNING_KEY := "__warning"
+
+## The comparison key of a modifier's row. Modifiers are prefixed so one named like a base stat (affixes also use "armor") cannot share its row.
+static func mod_key(stat: String) -> String:
+	return "mod:" + stat
+
 const SLOT_NAMES: Array[String] = ["Weapon", "Body Armor", "Ring", "Shield", "Helm", "Gloves", "Boots", "Amulet", "Ring"]
 ## The item kind an AffixDef names in its `slots`, per Slot.
 const KINDS: Array[String] = ["weapon", "body", "ring", "shield", "helm", "gloves", "boots", "amulet", "ring"]
@@ -453,21 +460,29 @@ static func roll_choices(level: int, rare_chance: float = 0.15) -> Array[Diction
 
 ## How `item` compares with what is worn in its place: lines of {text, sign} (sign +1 better, -1 worse, 0 neutral) for the tooltip. An
 ## unmet requirement comes first, as a worse line.
-static func compare(item: Dictionary, current: Variant, member_id: String = "hero") -> Array[Dictionary]:
+## The single "cannot wear it yet" warning for an item, shown once on any card (empty when the hero may wear it).
+static func wear_warning(item: Dictionary, member_id: String = "hero") -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if not hero_can_wear(item, member_id):
-		out.append({"text": "%s (you cannot wear it yet)" % requirement_text(item, member_id), "sign": -1})
+		out.append({"text": "You cannot wear this yet", "sign": -1, "key": WARNING_KEY, "delta": ""})
+	return out
+
+## How `item` compares with what is worn in its place. Each entry: {text, sign, key, delta}: `key` is the stat row it belongs beside (see
+## rows()), `delta` is the signed change alone, e.g. "(-1)", and `text` is the whole thing, e.g. "Armor 8 (-1)". sign is +1 better,
+## -1 worse, 0 neutral. The unmet-requirement warning comes first (key WARNING_KEY); an empty slot is one line of its own.
+static func compare(item: Dictionary, current: Variant, member_id: String = "hero") -> Array[Dictionary]:
+	var out: Array[Dictionary] = wear_warning(item, member_id)
 	if current == null:
-		out.append({"text": "Nothing worn in this slot", "sign": 1})
+		out.append({"text": "Nothing worn in this slot", "sign": 1, "key": "", "delta": ""})
 		return out
 	var worn: Dictionary = current
 	var a: Dictionary = item["stats"]
 	var b: Dictionary = worn["stats"]
 	if a.has("max") and b.has("max"):
-		_diff(out, "Damage", (float(a["min"]) + float(a["max"])) * 0.5, (float(b["min"]) + float(b["max"])) * 0.5, true, "%.1f")
-		_diff(out, "Speed", float(a["speed"]), float(b["speed"]), true, "x%.2f")
+		_diff(out, "damage", "Damage", (float(a["min"]) + float(a["max"])) * 0.5, (float(b["min"]) + float(b["max"])) * 0.5, "%.1f", "%.1f")
+		_diff(out, "speed", "Speed", float(a["speed"]), float(b["speed"]), "x%.2f", "%.2f")
 	if a.has("armor") or b.has("armor"):
-		_diff(out, "Armor", float(a.get("armor", 0.0)), float(b.get("armor", 0.0)), true, "%d")
+		_diff(out, "armor", "Armor", float(a.get("armor", 0.0)), float(b.get("armor", 0.0)), "%d", "%d")
 	var mine: Dictionary = mods_of(item)
 	var theirs: Dictionary = mods_of(worn)
 	var stats: Array = mine.keys()
@@ -475,55 +490,67 @@ static func compare(item: Dictionary, current: Variant, member_id: String = "her
 		if not stats.has(stat):
 			stats.append(stat)
 	for stat in stats:
-		_diff(out, String(AffixDb.STAT_NAMES.get(stat, stat)), float(mine.get(stat, 0.0)), float(theirs.get(stat, 0.0)), true,
-			"%d%%" if AffixDb.is_percent(String(stat)) else "%d")
+		var fmt: String = "%d%%" if AffixDb.is_percent(String(stat)) else "%d"
+		_diff(out, mod_key(String(stat)), String(AffixDb.STAT_NAMES.get(stat, stat)), float(mine.get(stat, 0.0)), float(theirs.get(stat, 0.0)), fmt, fmt)
 	if out.is_empty():
-		out.append({"text": "Same as what you wear", "sign": 0})
+		out.append({"text": "Same as what you wear", "sign": 0, "key": "", "delta": ""})
 	return out
 
-static func _diff(out: Array[Dictionary], label: String, value: float, other: float, higher_is_better: bool, fmt: String) -> void:
+## Records one stat's change when it differs: `value_fmt` shows the item's own number, `delta_fmt` the signed change (higher is better).
+static func _diff(out: Array[Dictionary], key: String, label: String, value: float, other: float, value_fmt: String, delta_fmt: String) -> void:
 	if is_equal_approx(value, other):
 		return
 	var delta: float = value - other
-	var better: bool = (delta > 0.0) == higher_is_better
-	var shown: String = (fmt % value) + "   (%s%s)" % ["+" if delta > 0.0 else "-", (fmt % absf(delta)).trim_prefix("x")]
-	out.append({"text": "%s  %s" % [label, shown], "sign": 1 if better else -1})
+	var delta_text: String = "(%s%s)" % ["+" if delta > 0.0 else "-", (delta_fmt % absf(delta)).trim_prefix("x")]
+	out.append({"text": "%s %s %s" % [label, value_fmt % value, delta_text], "sign": 1 if delta > 0.0 else -1, "key": key, "delta": delta_text})
 
 ## The model an item lies on the ground as (from its definition; made in Blender by tools/blender/make_items.py).
 static func model_path(item: Dictionary) -> String:
 	return ItemDb.get_def(String(item["def"])).model_path
 
 ## Text lines for a tooltip/card: its numbers, its modifiers, its set, its level and what it needs.
+## The text lines of an item's card (see rows()).
 static func lines(item: Dictionary, member_id: String = "hero") -> Array[String]:
 	var out: Array[String] = []
+	for row in rows(item, member_id):
+		out.append(String(row["text"]))
+	return out
+
+## Every line of an item's card as {text, key}: its numbers, its modifiers, its set, its level and what it needs. A stat line's `key` is the
+## stat it shows ("damage", "speed", "armor" or a modifier id), which is where its comparison with the worn piece is drawn; other lines
+## have key "".
+static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	var stats: Dictionary = item["stats"]
 	var def: ItemDef = ItemDb.get_def(String(item["def"]))
 	if stats.has("max"):
-		out.append("Damage %d-%d    Speed x%.2f%s" % [int(stats["min"]), int(stats["max"]), stats["speed"],
-			"    Two-handed" if bool(def.profile.get("two_handed", false)) else ""])
+		out.append({"text": "Damage %d-%d" % [int(stats["min"]), int(stats["max"])], "key": "damage"})
+		out.append({"text": "Speed x%.2f" % float(stats["speed"]), "key": "speed"})
+		if bool(def.profile.get("two_handed", false)):
+			out.append({"text": "Two-handed", "key": ""})
 		var style: String = String(def.profile.get("style", ""))
 		if style != "":
-			out.append(style)
+			out.append({"text": style, "key": ""})
 	if stats.has("armor"):
-		out.append("Armor %d" % int(stats["armor"]))
+		out.append({"text": "Armor %d" % int(stats["armor"]), "key": "armor"})
 	var mods: Dictionary = mods_of(item)
 	for stat in mods:
 		if String(stat).ends_with("_added_max"):
 			continue
 		if String(stat).ends_with("_added") and float(mods.get(stat + "_max", 0.0)) > float(mods[stat]):
-			out.append("+%d–%d %s" % [int(mods[stat]), int(mods[stat + "_max"]), String(AffixDb.STAT_NAMES.get(stat, stat))])
+			out.append({"text": "+%d–%d %s" % [int(mods[stat]), int(mods[stat + "_max"]), String(AffixDb.STAT_NAMES.get(stat, stat))], "key": mod_key(String(stat))})
 			continue
-		out.append(AffixDb.describe_stat(String(stat), float(mods[stat])))
+		out.append({"text": AffixDb.describe_stat(String(stat), float(mods[stat])), "key": mod_key(String(stat))})
 	var u: UniqueDef = UniqueDb.get_unique(String(item.get("unique", "")))
 	if u != null and u.set_id != "":
 		var set_def: SetDef = UniqueDb.get_set(u.set_id)
 		if set_def != null:
-			out.append("Part of %s" % set_def.display_name)
+			out.append({"text": "Part of %s" % set_def.display_name, "key": ""})
 			for count in set_def.bonuses:
 				var parts: PackedStringArray = []
 				for stat in set_def.bonuses[count]:
 					parts.append(AffixDb.describe_stat(String(stat), float(set_def.bonuses[count][stat])))
-				out.append("  %s worn: %s" % [count, ", ".join(parts)])
+				out.append({"text": "  %s worn: %s" % [count, ", ".join(parts)], "key": ""})
 			for count in set_def.passive_effect_tiers:
 				var parts: PackedStringArray = []
 				for effect in set_def.passive_effect_tiers[count]:
@@ -531,13 +558,13 @@ static func lines(item: Dictionary, member_id: String = "hero") -> Array[String]
 						var line := passive_effect_line(effect)
 						if line != "": parts.append(line)
 				if not parts.is_empty():
-					out.append("  %s worn: %s" % [count, ", ".join(parts)])
+					out.append({"text": "  %s worn: %s" % [count, ", ".join(parts)], "key": ""})
 	for effect in passive_effects_of(item):
 		var line := passive_effect_line(effect)
 		if line != "":
-			out.append(line)
+			out.append({"text": line, "key": ""})
 	var need: String = requirement_text(item, member_id)
-	out.append("Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""])
+	out.append({"text": "Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""], "key": ""})
 	return out
 
 static func passive_effect_line(effect: Dictionary) -> String:

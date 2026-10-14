@@ -99,7 +99,10 @@ func _test_loot_appraisal() -> void:
 	var walk_lock: Dictionary = hud.loot_cards._walk_over(d_lock.item)
 	var walk_even: Dictionary = hud.loot_cards._walk_over(d_even.item)
 	expect("the card says an upgrade is waiting in the bag", String(walk_up.text).contains("better than what you wear"))
-	expect("the card says a locked piece cannot be worn yet", String(walk_lock.text).contains("cannot wear it yet"))
+	expect("a locked piece's walk-over line does not repeat the cannot-wear warning", String(walk_lock.text) == "Walk over it: it goes in the bag")
+	expect("the locked piece's card shows the cannot-wear warning once",
+		ItemTile.display_rows(d_lock.item, Items.compare(d_lock.item, null, PartyManager.current().active_id), PartyManager.current().active_id).filter(
+			func(r: Dictionary) -> bool: return String(r["text"]).contains("cannot wear")).size() == 1)
 	expect("an even piece keeps the plain bag line", String(walk_even.text) == "Walk over it: it goes in the bag")
 	var rects: Array = hud.loot_cards.names.map(func(e): return e["rect"])
 	var clashes: int = 0

@@ -420,7 +420,8 @@ func pickup(item: Dictionary) -> String:
 			return ""
 		text = "Found %s (bag)" % item["name"]
 	# (no "Equipped X" / "Found X (bag)" line: the item name floating over the hero is enough; `text` is still returned for callers and tests)
-	Fx.text_at(p, p.global_position + Vector3(0, 2.6, 0), String(item["name"]), color, 40)
+	var important: bool = int(item["rarity"]) >= Items.Rarity.RARE   # rare, unique and set pickups stay readable a second longer
+	Fx.pickup_text(p, p.global_position + Vector3(0, 2.6, 0), String(item["name"]), color, important)
 	return text
 
 func add_to_bag(item: Dictionary) -> bool:

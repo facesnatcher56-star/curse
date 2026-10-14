@@ -36,65 +36,64 @@ func draw(size_px: Vector2, font: Font) -> void:
 	var anchor: Vector2 = pointer + Vector2(24, 18) if not Gamepad.active else Vector2(size_px.x * 0.5 + 40.0, size_px.y * 0.5 - 150.0)
 	_draw_card(drop.item, hud.player.stats.equipment.get(int(drop.item["slot"])), anchor, size_px, font, true, true)
 
-## An item's details card at `anchor`: name, kind, stats and effect, then (optionally) how it compares with `worn`, and (for a drop on the
-## ground) whether walking over it will put it on or send it to the bag.
+## An item's details card at `anchor`: the same lines every item card shows (ItemTile.display_rows), then, for a drop on the ground, whether
+## walking over it will put it on or send it to the bag. The card keeps its full text size and grows with its content. With the return
+## waystone prompt on screen it takes clear room beside that prompt; it is never shrunk to fit.
 func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vector2, font: Font, with_compare: bool, for_drop: bool) -> void:
 	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
-	var width: float = 340.0
-	var pad: float = 14.0
-	var inner: float = width - pad * 2.0
-	var lines: Array[String] = Items.lines(item, PartyManager.current().active_id)
-	var compare: Array[Dictionary] = []
-	if with_compare:
-		compare = Items.compare(item, worn, PartyManager.current().active_id)
-	var height: float = pad * 2.0 + 54.0
-	for line in lines:
-		height += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y + 4.0
-	if with_compare:
-		height += 30.0 + 18.0 * compare.size()
-	if for_drop:
-		height += 30.0
-	var pos := Vector2(clampf(anchor.x, 8.0, size_px.x - width - 8.0), clampf(anchor.y, 8.0, size_px.y - height - 110.0))
+	var member: String = PartyManager.current().active_id
+	var comparison: Array[Dictionary] = Items.compare(item, worn, member) if with_compare else Items.wear_warning(item, member)
+	var rows: Array[Dictionary] = ItemTile.display_rows(item, comparison, member)
+	var m := _card_metrics(item, rows, font, for_drop)
+	var card_size := Vector2(m.width, m.height)
 	var return_prompt := _return_prompt_rect() if for_drop else Rect2()
+	var origin: Vector2
 	if return_prompt.has_area():
-		var layout := _return_card_layout(item, lines, compare, anchor, size_px, return_prompt, font, with_compare)
-		if layout.is_empty():
-			push_warning("No clear return-card space in viewport")
-			return
-		ground_card_rect = layout.rect
-		hud.draw_set_transform(layout.rect.position, 0.0, Vector2.ONE * float(layout.scale))
-		_draw_return_card_body(item, worn, lines, compare, layout.metrics, color, font, with_compare)
-		hud.draw_set_transform(Vector2.ZERO)
-		return
+		origin = _return_card_origin(card_size, anchor, size_px, return_prompt)
+	else:
+		origin = Vector2(clampf(anchor.x, 8.0, maxf(8.0, size_px.x - card_size.x - 8.0)), clampf(anchor.y, 8.0, maxf(8.0, size_px.y - card_size.y - 110.0)))
 	if for_drop:
-		ground_card_rect = Rect2(pos, Vector2(width, height))
-	UiTheme.draw_panel(hud, Rect2(pos, Vector2(width, height)), 0.97)
-	hud.draw_rect(Rect2(pos + Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
-	var y: float = pos.y + pad + 18.0
-	UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), String(item["name"]), 21, color, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-	y += 20.0
-	UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
-		Color(1, 1, 1, 0.55))
-	y += 10.0
-	for line in lines:
-		var h: float = font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner, 14).y
-		hud.draw_multiline_string(font, Vector2(pos.x + pad + 6.0, y + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, ItemTile.stat_line_color(item, line))
-		y += h + 4.0
-	if with_compare:
+		ground_card_rect = Rect2(origin, card_size)
+	hud.draw_set_transform(origin, 0.0, Vector2.ONE)
+	_draw_card_body(item, rows, m, color, font, for_drop)
+	hud.draw_set_transform(Vector2.ZERO)
+
+## Every position on the card, relative to its top-left. Measuring and drawing both read these, so they cannot drift apart.
+func _card_metrics(item: Dictionary, rows: Array[Dictionary], font: Font, for_drop: bool) -> Dictionary:
+	var width: float = ItemTile.CARD_WIDTH
+	var pad := 14.0
+	var inner := width - pad * 2.0
+	var name_h := maxf(20.0, font.get_multiline_string_size(String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21).y)
+	var kind_y := pad + name_h + 12.0
+	var y := kind_y + 8.0
+	var line_ys: Array[float] = []
+	for row in rows:
+		line_ys.append(y + 14.0)
+		y += font.get_multiline_string_size(String(row["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y + 4.0
+	var m := {"width": width, "inner": inner, "kind_y": kind_y, "line_ys": line_ys, "drop_y": 0.0}
+	if for_drop:
 		y += 8.0
-		hud.draw_line(Vector2(pos.x + pad, y), Vector2(pos.x + width - pad, y), Color(1, 1, 1, 0.12), 1.0)
-		y += 18.0
-		UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
-			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-		for entry in compare:
-			y += 18.0
-			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
-			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
-			UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), mark + String(entry["text"]), 14, sign_color)
+		m["drop_y"] = y + 14.0
+		y += font.get_multiline_string_size(String(_walk_over(item).text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y
+	m["height"] = y + pad
+	return m
+
+func _draw_card_body(item: Dictionary, rows: Array[Dictionary], m: Dictionary, color: Color, font: Font, for_drop: bool) -> void:
+	var width: float = m.width
+	var height: float = m.height
+	var pad := 14.0
+	var inner: float = m.inner
+	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, Vector2(width, height)), 0.97)
+	hud.draw_rect(Rect2(Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
+	hud.draw_multiline_string(font, Vector2(pad + 6.0, pad + 18.0), String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21, -1, color)
+	UiTheme.text(hud, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
+		Color(1, 1, 1, 0.55))
+	for i in rows.size():
+		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), String(rows[i]["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1,
+			rows[i]["color"])
 	if for_drop:
-		y += 26.0
 		var walk: Dictionary = _walk_over(item)
-		UiTheme.text(hud, font, Vector2(pos.x + pad + 6.0, y), String(walk.text), 14, walk.color)
+		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.drop_y), String(walk.text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1, walk.color)
 
 ## What walking over a drop does, with the appraisal's verdict: worn at once, a better piece waiting in the bag, or not wearable yet.
 func _walk_over(item: Dictionary) -> Dictionary:
@@ -105,7 +104,7 @@ func _walk_over(item: Dictionary) -> Dictionary:
 		LootAppraisal.Verdict.UPGRADE:
 			return {"text": "Walk over it: it goes in the bag (better than what you wear)", "color": UPGRADE_COLOR}
 		LootAppraisal.Verdict.LOCKED:
-			return {"text": "Walk over it: it goes in the bag (you cannot wear it yet)", "color": LOCKED_COLOR}
+			return {"text": "Walk over it: it goes in the bag", "color": LOCKED_COLOR}   # the card's one "You cannot wear this yet" line says why
 	return {"text": "Walk over it: it goes in the bag", "color": Color(0.7, 0.68, 0.62)}
 
 ## Restrict clearance to the active return-waystone decision; other cards retain their layout.
@@ -120,69 +119,9 @@ func _return_prompt_rect() -> Rect2:
 		node = node.get_parent()
 	return Rect2()
 
-## Measure all content before fitting: wrapping is part of the card, not a later addition. The return card keeps its text at full size and
-## spends the slack on rhythm instead: a tighter line gap and, when every row fits half the card, the comparison in two columns.
-## Positions are relative to the card's top-left; measuring and drawing both read them, so they cannot drift apart.
-var _return_card_measure_key: Array = []
-var _return_card_measures: Array[Dictionary] = []
-
-func _return_card_metrics(item: Dictionary, lines: Array[String], compare: Array[Dictionary], width: float, font: Font, with_compare: bool) -> Dictionary:
-	var pad := 12.0
-	var inner := width - pad * 2.0
-	var name_h := maxf(20.0, font.get_multiline_string_size(String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21).y)
-	var y := pad + 18.0 + name_h   # baseline of the kind line
-	var kind_y := y
-	y += 4.0
-	var line_ys: Array[float] = []
-	for line in lines:
-		line_ys.append(y + 14.0)
-		y += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14).y + 3.0
-	var m := {"width": width, "inner": inner, "name_h": name_h, "kind_y": kind_y, "line_ys": line_ys, "cols": 1}
-	if with_compare:
-		y += 4.0
-		m["rule_y"] = y
-		y += 15.0
-		m["header_y"] = y
-		var cols := 2 if compare.size() >= 3 else 1
-		for entry in compare:
-			if font.get_string_size("+ " + String(entry["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > inner * 0.5 - 12.0:
-				cols = 1
-		m["cols"] = cols
-		m["rows_y"] = y + 18.0
-		y += 18.0 * ceilf(float(compare.size()) / float(cols))
-	y += 21.0   # the walk-over line
-	m["drop_y"] = y
-	m["height"] = y + 12.0
-	return m
-
-func _draw_return_card_body(item: Dictionary, worn: Variant, lines: Array[String], compare: Array[Dictionary], m: Dictionary, color: Color, font: Font, with_compare: bool) -> void:
-	var width: float = m.width
-	var height: float = m.height
-	var pad := 12.0
-	var inner: float = m.inner
-	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, Vector2(width, height)), 0.97)
-	hud.draw_rect(Rect2(Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
-	hud.draw_multiline_string(font, Vector2(pad + 6.0, pad + 18.0), String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21, -1, color)
-	UiTheme.text(hud, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13, Color(1, 1, 1, 0.55))
-	for i in lines.size():
-		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), lines[i], HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, ItemTile.stat_line_color(item, lines[i]))
-	if with_compare:
-		hud.draw_line(Vector2(pad, m.rule_y), Vector2(width - pad, m.rule_y), Color(1, 1, 1, 0.12), 1.0)
-		UiTheme.text(hud, font, Vector2(pad + 6.0, m.header_y), "Compared with %s" % (String((worn as Dictionary)["name"]) if worn != null else "your gear"), 13,
-			Color(0.7, 0.68, 0.62), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0)
-		var per_col: int = ceili(float(compare.size()) / float(m.cols))
-		for i in compare.size():
-			var entry: Dictionary = compare[i]
-			var sign_color: Color = Color(0.5, 0.85, 0.5) if int(entry["sign"]) > 0 else (Color(0.9, 0.45, 0.4) if int(entry["sign"]) < 0 else Color(0.75, 0.75, 0.75))
-			var mark: String = "+ " if int(entry["sign"]) > 0 else ("- " if int(entry["sign"]) < 0 else "= ")
-			UiTheme.text(hud, font, Vector2(pad + 6.0 + float(i / per_col) * inner * 0.5, float(m.rows_y) + 18.0 * float(i % per_col)), mark + String(entry["text"]), 14, sign_color)
-	var walk: Dictionary = _walk_over(item)
-	UiTheme.text(hud, font, Vector2(pad + 6.0, m.drop_y), String(walk.text), 14, walk.color)
-
-## Find empty rectangles from actual obstacle edges, then fit the complete card into them.
-## Prefer full-size typography, widening wrapped content before uniformly scaling it.
-## No unsafe original-anchor fallback: every result is bounded and unobstructed.
-func _return_card_layout(item: Dictionary, lines: Array[String], compare: Array[Dictionary], anchor: Vector2, screen: Vector2, prompt: Rect2, font: Font, with_compare: bool) -> Dictionary:
+## Where the card goes on the return waystone: the nearest spot to its item where the whole card (at full size) is clear of the prompt, the
+## HUD and the name plates. Only when no such spot exists does it stay on screen beside the item and accept the overlap, rather than shrink.
+func _return_card_origin(card_size: Vector2, anchor: Vector2, screen: Vector2, prompt: Rect2) -> Vector2:
 	var obstacles: Array[Rect2] = [prompt.grow(6.0), Hud.minimap_rect(screen, hud.use_ds2_ui).grow(7.0), Hud.orb_rect(screen, false).grow(7.0), Hud.orb_rect(screen, true).grow(7.0)]
 	obstacles.append(Rect2(14, 14 + hud.top_offset, 250, 62 if hud.objective != "" or hud.wave > 0 else 38).grow(6.0))
 	var node := hud.get_parent()
@@ -222,30 +161,21 @@ func _return_card_layout(item: Dictionary, lines: Array[String], compare: Array[
 				top = maxf(top, span.y)
 			if top < bounds.end.y:
 				spaces.append(Rect2(left, top, right - left, bounds.end.y - top))
-	var measure_key: Array = [String(item["name"]), lines, compare, font, with_compare]
-	if measure_key != _return_card_measure_key:
-		_return_card_measure_key = measure_key.duplicate(true)
-		_return_card_measures.clear()
-		for width in range(340, 641, 20):
-			_return_card_measures.append(_return_card_metrics(item, lines, compare, float(width), font, with_compare))
-	var best: Dictionary = {}
+	var best := Vector2.ZERO
 	var best_score := INF
-	for metrics in _return_card_measures:
-		var content := Vector2(metrics.width, metrics.height)
-		var width := content.x
-		for space in spaces:
-			# The drawn panel includes a four-pixel shadow; reserve it too.
-			var room := space.grow(-4.0)
-			var scale := minf(1.0, minf(room.size.x / content.x, room.size.y / content.y))
-			if scale <= 0.0:
-				continue
-			var extent := content * scale
-			var pos := Vector2(clampf(anchor.x, room.position.x, room.end.x - extent.x), clampf(anchor.y, room.position.y, room.end.y - extent.y))
-			var score := (1.0 - scale) * 10000000.0 + (width - 340) * 100.0 + pos.distance_squared_to(anchor)
-			if score < best_score:
-				best_score = score
-				best = {"rect": Rect2(pos, extent), "content": content, "scale": scale, "metrics": metrics}
-	return best
+	for space in spaces:
+		var room := space.grow(-4.0)   # the drawn panel has a four-pixel shadow: keep it clear too
+		if room.size.x < card_size.x or room.size.y < card_size.y:
+			continue
+		var pos := Vector2(clampf(anchor.x, room.position.x, room.end.x - card_size.x), clampf(anchor.y, room.position.y, room.end.y - card_size.y))
+		var score := pos.distance_squared_to(anchor)
+		if score < best_score:
+			best_score = score
+			best = pos
+	if best_score < INF:
+		return best
+	return Vector2(clampf(anchor.x, bounds.position.x, maxf(bounds.position.x, bounds.end.x - card_size.x)),
+		clampf(anchor.y, bounds.position.y, maxf(bounds.position.y, bounds.end.y - card_size.y)))
 
 ## The dropped item the player is pointing at: under the mouse (by where it is on screen), or with a controller the nearest within reach.
 func drop_in_focus() -> LootDrop:
