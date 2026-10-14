@@ -18,16 +18,16 @@ Blender is the source for hand-built models (`tools/blender/`). Every export use
   white on a joined mesh (Blender 5.2 exporter issue, see `tools/blender/make_crypt_props.py`), split the object by material and
   export each piece alone.
 
-## Humanoid skeleton standard (PROVISIONAL)
+## Player skeleton standard (knight2 game rig)
 
-**Status: provisional.** The experiment rig and the knight2 game rig are not interchangeable. Lane A decides with the owner
-whether the lowest-risk path is to reuse the experiment rig through an adapter or to retarget onto the game rig. The shared rig
-spec is finalized only after Lane A demonstrates live-game compatibility. Until then, the table below is the verified reference
-for names and parents, not a settled standard, and new rigs should not be built to it yet.
+The live knight2 game skeleton, `assets/models/knight2/rigged.glb`, is the **target for modular player equipment**. Lane A has
+demonstrated the live-game path: its equipment kit is retargeted onto knight2 (commit a05f2ac). The table below is verified
+against that rig, read directly from its skin. It has **24 joints** under one armature object, `Armature`, with `Hips` under it.
+There is **no `Root` bone**: `Hips` is the top bone.
 
-The table is verified against the Knight rig, `assets/models/knight2/rigged.glb`, read directly from its skin. That asset is
-being replaced, so it is the reference for bone names and pose only, not for triangle count. It has **24 joints** under one
-armature object, `Armature`, with `Hips` under it. There is **no `Root` bone**: `Hips` is the top bone.
+The experiment rig is **not interchangeable** with knight2. It differs in bone names and rest pose, so animation clips, bone
+attachments and the Godot code (`game/character_model.gd`) cannot be assumed to carry over. Do not build player equipment to the
+experiment rig.
 
 | Bone | Parent | Notes |
 | --- | --- | --- |
@@ -45,13 +45,24 @@ armature object, `Armature`, with `Hips` under it. There is **no `Root` bone**: 
 - No finger bones. Hands are a single grip shape (the Knight's hands have no finger rig, and the code relies on that).
 - Weapons attach to `RightHand` (or `LeftHand` for off-hand items). Do not add extra attachment bones.
 
+## Enemy rigs
+
+Enemy rigs are **independent** unless a shared clip set requires compatibility. An enemy does not have to use the player's
+skeleton, and the player's bone table does not bind enemies. Enemy clips are keyed by the names in `game/data/enemy_def.gd`
+(`clips`, default `idle`, `walk`, `attack`, `hit`, `death`, and `attack_clip`), so an enemy rig must provide clips under those
+names to work with its definition.
+
+**Open item (owner and Lane B):** Lane B's zombie and warden prototypes use the experiment knight skeleton. Whether they stay on
+that rig or move to a shared enemy skeleton is not decided here. Decide that with the owner before any further enemy rig is
+built. Until then, prototype enemies keep their current rig and their clips must match the `enemy_def.gd` names.
+
 ## Naming conventions
 
 - **Files:** lowercase snake_case, prefixed by class: `char_knight_hero.glb`, `enemy_zombie_walker.glb`, `prop_barrel_wood.glb`,
   `env_house_small.glb`. Existing folders keep their `model.glb` names until they are next re-exported.
 - **Objects and meshes:** PascalCase with a role: `Body`, `Head`, `ArmorPauldronL`, `ArmorPauldronR`, `Sword`.
-- **Armatures:** `Armature` for humanoid rigs, matching the Knight; `Rig_<Name>` for any other rig. (Provisional with the skeleton.)
-- **Bones:** the names in the skeleton table above, once the skeleton is finalized.
+- **Armatures:** `Armature` for player rigs, matching knight2; `Rig_<Name>` for enemy and other rigs.
+- **Bones:** the names in the player skeleton table above for player equipment; enemy rigs name their own bones.
 - **Materials:** lowercase snake_case, no prefix: `iron`, `dark_steel`, `leather_dark`, `wood`, `bone`, `moss`.
 - **Textures (only if used):** `<asset>_atlas.png`, one per asset.
 
@@ -91,12 +102,14 @@ category.
 
 1. Visible triangle count is within its class guideline, or the overage is justified in the commit.
 2. Origin at the feet (or the base for props), scale in metres, transforms applied.
-3. Humanoids follow the skeleton table above, rest pose A-pose, under one armature (once the skeleton is finalized).
+3. Player equipment follows the player skeleton table above, rest pose A-pose, under one armature. Enemy rigs follow the Enemy rigs section.
 4. Names follow the conventions above; at most 4 materials and at most one atlas.
 5. Reads as a silhouette from the far zoom-out, and matches the look in ART_DIRECTION.md.
 
 ## Open items
 
-- **Skeleton:** provisional until Lane A demonstrates live-game compatibility (adapter or retarget decision).
+- **Enemy rig decision (owner and Lane B):** whether Lane B's zombie and warden prototypes stay on the experiment knight skeleton or
+  move to a shared enemy skeleton. Not decided here.
+- **Experiment rig:** differs from knight2 in bone names and rest pose. Lane A retargets its kit onto knight2 (a05f2ac).
 - **knight2** (`assets/models/knight2/rigged.glb`, 22,845 triangles unequipped) is being replaced. Do not optimise it.
 - **Environment budget:** no fixed number yet; set per asset from visible scale.
