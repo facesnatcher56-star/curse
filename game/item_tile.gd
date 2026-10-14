@@ -102,6 +102,9 @@ static func _delta_color(sign_value: int) -> Color:
 static func _wrapping_label(text: String, size: int, color: Color) -> Label:
 	var label := _label(text, size, color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# A wrapping label measures its height at the width it has. Before the container lays it out that width is 0, which wraps every word
+	# onto its own line and made the card taller than the screen. Give it the card's width up front so its height is its text.
+	label.size.x = CARD_WIDTH
 	return label
 
 ## Shared by inventory/shop cards and ground-loot cards.
