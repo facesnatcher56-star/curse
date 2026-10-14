@@ -208,7 +208,7 @@ func _test_item_icons() -> void:
 			card = (child as Control).get_child(0) as Control
 	expect("pointing at a tile shows a card that describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
 	tile.mouse_exited.emit()
-	await get_tree().process_frame   # the card closes at the end of the frame, once nothing still hovers it
+	await Signal(tile.get_node("ItemDetails"), "hover_resolved")   # the close is deferred: wait for its decision itself, not a frame count
 	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
 	tile.queue_free()
 	# On the ground an item is the item itself with its name over it in its rarity's colour, not a picture of it.
@@ -409,9 +409,22 @@ func _test_item_card() -> void:
 	fire_sword["mods"] = ["fire_added_1"]
 	var plain_sword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
 	var fire_compare := Items.compare(fire_sword, plain_sword, member)
-	var raw_or_max := fire_compare.any(func(e: Dictionary) -> bool: return String(e["text"]).contains("_max") or String(e["text"]).contains("Maximum") or String(e["text"]).contains("_added"))
-	expect("an elemental item compares without a raw or separate maximum row: %s" % [fire_compare], not raw_or_max)
+	var raw_key := fire_compare.any(func(e: Dictionary) -> bool: return String(e["text"]).contains("_max") or String(e["text"]).contains("_added"))
+	expect("an elemental item compares with no raw stat key in any row: %s" % [fire_compare], not raw_key)
 	expect("an elemental item's fire change is one row", fire_compare.any(func(e: Dictionary) -> bool: return String(e["key"]) == Items.mod_key("fire_added")))
+	# Equal minimum, different maximum: both pieces hit for 2 at the minimum, but the worn one's maximum is 6 and this one's is 4. That is a real
+	# change, shown on its own row in red, and the two are not reported as the same.
+	var lower_max: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	lower_max["mods"] = ["fire_added_1"]
+	var higher_max: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	higher_max["mods"] = ["fire_added_2"]
+	higher_max["mod_values"] = {"fire_added_2": 2.0}
+	var max_compare := Items.compare(lower_max, higher_max, member)
+	expect("equal minimum with a different maximum is not reported as the same: %s" % [max_compare],
+		not max_compare.any(func(e: Dictionary) -> bool: return String(e["text"]) == "Same as what you wear"))
+	var max_rows := max_compare.filter(func(e: Dictionary) -> bool: return String(e["text"]).begins_with("Maximum fire damage"))
+	expect("the lower maximum is its own row, named and red: %s" % [max_compare],
+		max_rows.size() == 1 and String(max_rows[0]["text"]) == "Maximum fire damage 4 (-2)" and int(max_rows[0]["sign"]) < 0)
 	# A card taller than its safe area scrolls with the mouse wheel: the wheel over the card moves its scroll position.
 	var tile := ItemTile.create(plate, null, 56.0)
 	tile.position = Vector2(120, 120)
@@ -426,6 +439,8 @@ func _test_item_card() -> void:
 	expect("an opened item card has a scroll area", scroll != null and holder.visible)
 	if scroll != null:
 		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
+		await get_tree().process_frame
+		expect("the card overlaps its item's edge, so the pointer crosses from item to card without a gap", scroll.get_global_rect().intersects(tile.get_global_rect()))
 		await get_tree().process_frame
 		expect("a tall item card overflows its scroll area so the wheel has something to move", scroll.get_v_scroll_bar().max_value > scroll.size.y)
 		expect("the scroll area takes the mouse so the wheel reaches it", scroll.mouse_filter == Control.MOUSE_FILTER_PASS)
