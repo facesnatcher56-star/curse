@@ -5,6 +5,7 @@ extends RefCounted
 ## (including the brute), keeps the live model_path. Nothing here changes AI, attacks, hitboxes or balance.
 
 const FLAG := "--enemyart"
+const CLASSIC_FLAG := "--classic"
 ## Enemy id -> converted model folder. The brute is intentionally absent: it stays on its live model.
 const CONVERTED := {
 	"zombie": "res://assets/art_staging/enemies/zombie_converted",
@@ -12,8 +13,10 @@ const CONVERTED := {
 }
 
 
+## Converted enemies (zombie, ghoul) are on by default; opt out with `--classic`.
+## `--enemyart` is accepted as a harmless no-op. The brute stays on its live model.
 static func enabled() -> bool:
-	return OS.get_cmdline_user_args().has(FLAG)
+	return not OS.get_cmdline_user_args().has(CLASSIC_FLAG)
 
 
 ## The model folder an enemy definition should load. Falls back to the live folder when the flag is off or

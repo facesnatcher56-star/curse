@@ -1,9 +1,10 @@
 extends Node3D
 ## Main menu: the knight standing in the ruins with zombies watching from the dark, plus Play / Settings / Quit.
 
-## The menu is skipped for now: a normal launch (no user arguments) goes straight to a fresh town.
-const SKIP_MENU := true
-const GAME_SCENE := "res://game/town.tscn"   # Play starts in the world: the town, with the Crypt Road already loaded beyond its gate
+## The menu is shown on normal launch; Play goes straight to the test dungeon.
+const SKIP_MENU := false
+const DUNGEON_SCENE := "res://game/main.tscn"
+const TOWN_SCENE := "res://game/town.tscn"   # reachable via dev flag --town
 const KNIGHT_DIR := "res://assets/models/knight2"
 const ZOMBIE_DIR := "res://assets/models/zombie"
 
@@ -20,8 +21,15 @@ func _ready() -> void:
 	if args.has("--itemlab"):
 		LoadingScreen.go.call_deferred(get_tree(), "res://game/dev/item_lab/item_test_lab.tscn")
 		return
+	if args.has("--dungeon") or args.has("--crypt") or args.has("--selftest"):
+		LoadingScreen.go.call_deferred(get_tree(), DUNGEON_SCENE)
+		return
+	if args.has("--startshot"):
+		var target: String = TOWN_SCENE if args.has("--town") else DUNGEON_SCENE
+		LoadingScreen.go.call_deferred(get_tree(), target)
+		return
 	if SKIP_MENU and args.is_empty():
-		LoadingScreen.go.call_deferred(get_tree(), GAME_SCENE)
+		LoadingScreen.go.call_deferred(get_tree(), DUNGEON_SCENE)
 		return
 	_build_backdrop()
 	_build_ui()
@@ -166,7 +174,8 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size = Vector2(0, 30)
 	_buttons.add_child(spacer)
 	var play := UiTheme.button("Play", 320.0)
-	play.pressed.connect(func() -> void: LoadingScreen.go(get_tree(), GAME_SCENE))
+	var start_scene: String = TOWN_SCENE if OS.get_cmdline_user_args().has("--town") else DUNGEON_SCENE
+	play.pressed.connect(func() -> void: LoadingScreen.go(get_tree(), start_scene))
 	_buttons.add_child(play)
 	_settings_button = UiTheme.button("Settings", 320.0)
 	_settings_button.pressed.connect(_open_settings)
