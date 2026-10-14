@@ -208,7 +208,7 @@ func _test_item_icons() -> void:
 			card = (child as Control).get_child(0) as Control
 	expect("pointing at a tile shows a card that describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
 	tile.mouse_exited.emit()
-	await (tile.get_node("ItemDetails") as Control).hover_resolved   # the close is deferred: wait for its decision itself, not a frame count
+	await Signal(tile.get_node("ItemDetails"), "hover_resolved")   # the close is deferred: wait for its decision itself, not a frame count
 	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
 	tile.queue_free()
 	# On the ground an item is the item itself with its name over it in its rarity's colour, not a picture of it.

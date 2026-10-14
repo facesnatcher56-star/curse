@@ -232,7 +232,7 @@ static func _close_when_unhovered(holder: Control) -> void:
 		return
 	if not (bool(holder.get_meta("item_hover", false)) or bool(holder.get_meta("card_hover", false))):
 		holder.visible = false
-	holder.hover_resolved.emit()   # after the decision, so a test can await the close itself rather than a frame count
+	holder.emit_signal("hover_resolved")   # after the decision, so a test can await the close itself rather than a frame count
 
 static func decorate_button(button: Button, it: Dictionary, worn: Variant) -> void:
 	button.set_script(preload("res://game/item_button.gd"))
