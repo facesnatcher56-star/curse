@@ -251,8 +251,7 @@ func _test_destructibles() -> void:
 	var barrel: Destructible = Destructible.near(get_tree(), Vector3(34, 0, 34), 0.5)
 	expect("a placed barrel is breakable", barrel != null and barrel.prop_name == "barrel")
 	var obstacles_before: int = arena.obstacles.size()
-	expect("a scratch does not break it", not barrel.hit(3.0, Vector3.RIGHT) and not barrel.broken and barrel.hp < barrel.max_hp)
-	expect("a proper blow does", barrel.hit(30.0, Vector3.RIGHT))
+	expect("any hit breaks a barrel", barrel.hit(0.5, Vector3.RIGHT) and barrel.broken)
 	await get_tree().create_timer(0.3).timeout
 	expect("it throws pieces", get_tree().get_nodes_in_group("debris").size() >= 10)
 	expect("what is broken stops being an obstacle", arena.obstacles.size() == obstacles_before - 1 and Destructible.near(get_tree(), Vector3(34, 0, 34), 0.5) == null)

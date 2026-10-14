@@ -159,6 +159,8 @@ func try_roll(cursor: Vector3) -> void:
 
 func tick_roll(delta: float) -> void:
 	shove_enemies(delta)
+	# Barrels, crates and urns in (or just ahead of) the hero's footprint burst along the roll, before the move so they never catch it.
+	Destructible.blast(p.get_tree(), p.global_position + roll_dir * 0.3, p.body_radius + 0.3, 1.0, roll_dir, 2.0, Destructible.ROLL)
 	roll_t += delta
 	var u: float = clampf(roll_t / ROLL_TIME, 0.0, 1.0)
 	p.model.scrub(lerpf(ROLL_CLIP_START, ROLL_CLIP_END, u))

@@ -9,7 +9,10 @@ extends Node3D
 ## prop -> hit points, what it is made of (decides the pieces), how many pieces, and what it may drop.
 ## "hero": the hero's own swings and skills break it (and clicking it sends them to swing at it), not only the big effects.
 const STATS := {
-	"barrel": {"hp": 10.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true},
+	# Barrels, crates and urns go in any single hit and when the hero rolls through them ("one_hit", "roll_break"); no hit-point bar is drawn.
+	"barrel": {"hp": 1.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
+	"crate": {"hp": 1.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
+	"urn": {"hp": 1.0, "material": "ceramic", "chunks": 14, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
 	"wrecked_cart": {"hp": 45.0, "material": "wood", "chunks": 26, "orb": 0.0, "potion": 0.2, "item": 0.12},
 	"gravestone": {"hp": 40.0, "material": "stone", "chunks": 13, "orb": 0.0, "potion": 0.0, "item": 0.14},
 	"brazier": {"hp": 30.0, "material": "iron", "chunks": 12, "orb": 0.0, "potion": 0.0, "item": 0.0},
@@ -18,6 +21,8 @@ const STATS := {
 }
 ## Pass as `only_kind` to limit a blast or a search to the props the hero's own attacks break.
 const HERO := "hero"
+## Pass as `only_kind` for the props a dodge roll breaks (`roll_break` in STATS).
+const ROLL := "roll"
 
 ## Sent once when it is broken, with the prop (the Crypt Road counts its nests this way).
 signal destroyed(prop: Destructible)
@@ -55,6 +60,8 @@ func configure(owner_arena: Arena, name_of_prop: String, visual: Node3D, body: S
 func _is_kind(only_kind: String) -> bool:
 	if only_kind == "" or only_kind == prop_name:
 		return true
+	if only_kind == ROLL:
+		return bool(STATS[prop_name].get("roll_break", false))
 	return only_kind == HERO and bool(STATS[prop_name].get("hero", false))
 
 # --- Breaking things -----------------------------------------------------------------------------------------------------------
@@ -106,6 +113,8 @@ func hit(damage: float, dir: Vector3, force: float = 1.0) -> bool:
 	if broken:
 		return false
 	hp -= damage
+	if damage > 0.0 and bool(STATS[prop_name].get("one_hit", false)):
+		hp = 0.0
 	if hp <= 0.0:
 		shatter(dir, force)
 		return true
@@ -134,6 +143,8 @@ func shatter(dir: Vector3, force: float = 1.0) -> void:
 		return
 	broken = true
 	remove_from_group("destructibles")
+	if _body != null:
+		_body.collision_layer = 0   # stops blocking at once, so a roll that broke it is not caught on it for the rest of the frame
 	var centre: Vector3 = global_position
 	var stats: Dictionary = STATS[prop_name]
 	for i in int(stats["chunks"]):
@@ -172,6 +183,8 @@ func _dust_color() -> Color:
 			return Color(0.2, 0.19, 0.18)
 		"flesh":
 			return Color(0.22, 0.12, 0.09)
+		"ceramic":
+			return Color(0.45, 0.3, 0.2)
 	return Color(0.28, 0.2, 0.12)
 
 ## One flying piece, made to look like what broke: splintered planks, jagged stone, scraps of iron (a few still glowing).
@@ -185,6 +198,9 @@ func _spawn_chunk(dir: Vector3, force: float, scale_factor: float) -> void:
 		"stone":
 			size = Vector3(randf_range(0.1, 0.26), randf_range(0.07, 0.2), randf_range(0.1, 0.24)) * scale_factor
 			color = Color(0.33, 0.33, 0.35) * randf_range(0.7, 1.15)
+		"ceramic":   # curved shards of fired clay
+			size = Vector3(randf_range(0.07, 0.18), randf_range(0.02, 0.04), randf_range(0.07, 0.18)) * scale_factor
+			color = Color(0.5, 0.3, 0.18) * randf_range(0.7, 1.15)
 		"iron":
 			size = Vector3(randf_range(0.04, 0.16), randf_range(0.03, 0.1), randf_range(0.04, 0.14)) * scale_factor
 			color = Color(0.17, 0.15, 0.14) * randf_range(0.7, 1.2)

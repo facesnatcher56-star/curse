@@ -56,6 +56,7 @@ func begin() -> bool:
 	if p.is_controlled():
 		p.attack_prop = null   # a companion's standing nest order outlives the fall; it ends on completion, cancel or no firing spot
 	p.pickup_target = null
+	p.chest_target = null
 	if _authored():
 		# Scrubbed by the fall's own clock (so a hit-pause freezes it and the phases keep their exact lengths) once the first
 		# moments have blended in from the pose the blow caught him in. A blend only advances while the clip runs, so it runs for
