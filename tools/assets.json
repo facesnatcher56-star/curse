@@ -1,6 +1,6 @@
 {
   "hero": {
-    "prompt": "Dark fantasy human warrior, full body, standing in A-pose, arms slightly out from the body, wearing worn dented steel pauldrons and breastplate over leather, tattered cloth tabard, sturdy boots, holding a plain longsword in the right hand, grim determined bearded face, realistic hand-painted game character, PBR",
+    "prompt": "Dark fantasy human warrior, full body, standing in A-pose, arms slightly out from the body, wearing worn dented steel pauldrons and breastplate over leather, tattered cloth tabard, sturdy boots, holding a plain longsword in the right hand, grim determined bearded face, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 20000,
     "rig": true,
@@ -23,7 +23,7 @@
     }
   },
   "zombie": {
-    "prompt": "Rotting undead zombie villager, full body, standing in A-pose, arms hanging slightly away from the body, gray-green decayed skin with exposed wounds, torn filthy ragged peasant clothes, hollow glowing eyes, hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "prompt": "Rotting undead zombie villager, full body, standing in A-pose, arms hanging slightly away from the body, gray-green decayed skin with exposed wounds, torn filthy ragged peasant clothes, hollow glowing eyes, hunched posture, geometric low-poly dark fantasy game creature, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 12000,
     "rig": true,
@@ -98,7 +98,7 @@
     "texture_resolution": "2k"
   },
   "zombie_brute": {
-    "prompt": "Huge bloated hulking undead brute zombie, full body, standing in A-pose, arms hanging slightly away from the body, thick rotting gray-green skin with stitched wounds and exposed ribs, torn leather apron and rusty chains, glowing eyes, massive fists, realistic hand-painted dark fantasy game creature, PBR",
+    "prompt": "Huge bloated hulking undead brute zombie, full body, standing in A-pose, arms hanging slightly away from the body, thick rotting gray-green skin with stitched wounds and exposed ribs, torn leather apron and rusty chains, glowing eyes, massive fists, geometric low-poly dark fantasy game creature, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 14000,
     "rig": true,
@@ -111,7 +111,7 @@
     }
   },
   "knight": {
-    "prompt": "Heroic dark fantasy knight, full body, standing in a straight T-pose with arms stretched straight out to the sides and open empty hands, no weapon, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, heavy dented steel plate armor with leather straps, hooded dark cloth cape, bearded determined face, realistic hand-painted game character, PBR",
+    "prompt": "Heroic dark fantasy knight, full body, standing in a straight T-pose with arms stretched straight out to the sides and open empty hands, no weapon, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, heavy dented steel plate armor with leather straps, hooded dark cloth cape, bearded determined face, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "t-pose",
     "polycount": 22000,
     "rig": true,
@@ -132,7 +132,7 @@
     }
   },
   "knight2": {
-    "prompt": "Heroic medieval knight, full body, standing in a straight T-pose with arms stretched straight out to the sides, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, full steel plate armor with a closed great helm, fitted leather gloves as simple gauntlets, short plain tabard to the thighs, absolutely no cape, no cloak, no hood, no wings, no spikes and no loose flowing cloth, clean compact silhouette, realistic hand-painted game character, PBR",
+    "prompt": "Heroic medieval knight, full body, standing in a straight T-pose with arms stretched straight out to the sides, bulky broad-shouldered muscular build with thick limbs and sturdy proportions, full steel plate armor with a closed great helm, fitted leather gloves as simple gauntlets, short plain tabard to the thighs, absolutely no cape, no cloak, no hood, no wings, no spikes and no loose flowing cloth, clean compact silhouette, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "t-pose",
     "polycount": 22000,
     "rig": true,
@@ -162,7 +162,7 @@
     }
   },
   "spitter": {
-    "prompt": "Bloated undead spitter, full body, standing in A-pose, arms hanging slightly away from the body, swollen throat sac and gaping jaw dripping green acid, sickly yellow-green skin with open sores, tattered rags, hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "prompt": "Bloated undead spitter, full body, standing in A-pose, arms hanging slightly away from the body, swollen throat sac and gaping jaw dripping green acid, sickly yellow-green skin with open sores, tattered rags, hunched posture, geometric low-poly dark fantasy game creature, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 12000,
     "rig": true,
@@ -176,7 +176,7 @@
     }
   },
   "ghoul": {
-    "prompt": "Feral emaciated ghoul, full body, standing in A-pose, arms hanging slightly away from the body, very thin elongated limbs, ashen grey skin stretched over ribs, long clawed hands, hollow glowing eyes, matted hair, crouched hunched posture, realistic hand-painted dark fantasy game creature, PBR",
+    "prompt": "Feral emaciated ghoul, full body, standing in A-pose, arms hanging slightly away from the body, very thin elongated limbs, ashen grey skin stretched over ribs, long clawed hands, hollow glowing eyes, matted hair, crouched hunched posture, geometric low-poly dark fantasy game creature, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 12000,
     "rig": true,
@@ -191,7 +191,7 @@
     }
   },
   "bloater": {
-    "prompt": "Hugely swollen bloated undead corpse, full body, standing in A-pose, arms hanging slightly away from the body, grotesquely distended belly covered in glowing green pustules, stitched pale skin, small head, torn burial shroud, realistic hand-painted dark fantasy game creature, PBR",
+    "prompt": "Hugely swollen bloated undead corpse, full body, standing in A-pose, arms hanging slightly away from the body, grotesquely distended belly covered in glowing green pustules, stitched pale skin, small head, torn burial shroud, geometric low-poly dark fantasy game creature, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 12000,
     "rig": true,
@@ -205,7 +205,7 @@
     }
   },
   "priest": {
-    "prompt": "Plague priest necromancer, full body, standing in A-pose, arms hanging slightly away from the body, tattered black robes, plague doctor bird mask, holding a bone staff topped with a glowing sickly green orb, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Plague priest necromancer, full body, standing in A-pose, arms hanging slightly away from the body, tattered black robes, plague doctor bird mask, holding a bone staff topped with a glowing sickly green orb, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 14000,
     "rig": true,
@@ -219,7 +219,7 @@
     }
   },
   "npc_vendor": {
-    "prompt": "Weary human market trader in his fifties, stocky, patched leather apron over a stained wool tunic, coin pouches and a heavy satchel on his belt, thick grey stubble, tired shrewd face, bare head, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Weary human market trader in his fifties, stocky, patched leather apron over a stained wool tunic, coin pouches and a heavy satchel on his belt, thick grey stubble, tired shrewd face, bare head, full body, standing in A-pose, arms slightly away from the body, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 15000,
     "rig": true,
@@ -230,7 +230,7 @@
     }
   },
   "npc_keeper": {
-    "prompt": "Stern grizzled human woman, town warden and record keeper, long dark weathered coat with a high collar, ink-stained fingerless gloves, a ring of iron keys and a rolled parchment at her belt, short cropped grey hair, hard tired face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Stern grizzled human woman, town warden and record keeper, long dark weathered coat with a high collar, ink-stained fingerless gloves, a ring of iron keys and a rolled parchment at her belt, short cropped grey hair, hard tired face, full body, standing in A-pose, arms slightly away from the body, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 15000,
     "rig": true,
@@ -241,7 +241,7 @@
     }
   },
   "npc_healer": {
-    "prompt": "Old human woman healer, hunched slightly, layered patched shawls and a faded brown hooded cloak, bandages wrapped on her hands, bundles of dried herbs and small bottles hanging from a rope belt, deep-lined kind but weary face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Old human woman healer, hunched slightly, layered patched shawls and a faded brown hooded cloak, bandages wrapped on her hands, bundles of dried herbs and small bottles hanging from a rope belt, deep-lined kind but weary face, full body, standing in A-pose, arms slightly away from the body, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 15000,
     "rig": true,
@@ -252,7 +252,7 @@
     }
   },
   "npc_recruit": {
-    "prompt": "Scarred human mercenary survivor, wearing mismatched scavenged leather armour with one dented steel pauldron, a torn cloak, wrapped forearms, a short sword sheathed at the hip, short dark hair, a long scar across the cheek, wary hard face, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Scarred human mercenary survivor, wearing mismatched scavenged leather armour with one dented steel pauldron, a torn cloak, wrapped forearms, a short sword sheathed at the hip, short dark hair, a long scar across the cheek, wary hard face, full body, standing in A-pose, arms slightly away from the body, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 15000,
     "rig": true,
@@ -311,7 +311,7 @@
     "texture_resolution": "2k"
   },
   "npc_smith": {
-    "prompt": "Burly human blacksmith in his forties, bald with a short soot-dark beard, thick bare forearms scarred by burns, heavy scorched leather apron over a patched wool shirt, leather wrist guards, tired hard face, no weapon or tools in his hands, full body, standing in A-pose, arms slightly away from the body, realistic hand-painted dark fantasy game character, PBR",
+    "prompt": "Burly human blacksmith in his forties, bald with a short soot-dark beard, thick bare forearms scarred by burns, heavy scorched leather apron over a patched wool shirt, leather wrist guards, tired hard face, no weapon or tools in his hands, full body, standing in A-pose, arms slightly away from the body, geometric low-poly dark fantasy game character, faceted polygonal geometry",
     "pose": "a-pose",
     "polycount": 15000,
     "rig": true,
