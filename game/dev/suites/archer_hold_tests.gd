@@ -110,7 +110,8 @@ func _test_archer_moving() -> void:
 	enemy.aggro_range = 0.0
 	enemy.max_health = 500.0
 	enemy.health = enemy.max_health
-	var barrel: Destructible = arena.place_prop("barrel", lane + Vector3(7.0, 0.0, 0.0), 0.0, 1.0) as Destructible
+	# A fixed walled block between the archer and the target's whole path: the archer must find a firing position off the line.
+	var block: StaticBody3D = _walls_around(lane + Vector3(7.0, 0.0, 0.0), 3.0, 3.0)
 	for i in 3:
 		await get_tree().physics_frame
 	var bow: BowAttack = archer.bow
@@ -133,8 +134,8 @@ func _test_archer_moving() -> void:
 		await get_tree().physics_frame
 	print("MOVING TARGET: frames=", frames, " spot_changes=", changes, " shots=", bow.shots - shots0, " holds=", bow.holds)
 	expect("moving target: the firing position changes at most six times over five seconds (no oscillation)", changes <= 6)
-	expect("moving target: the archer holds a position or has fired by the end", bow._has_spot or bow.shots > shots0)
+	expect("moving target: the archer repositions while the target moves (at least one firing position chosen)", changes >= 1)
 	bow.cancel()
-	barrel.queue_free()
+	block.queue_free()
 	enemy.queue_free()
 	await get_tree().physics_frame
