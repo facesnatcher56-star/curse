@@ -66,8 +66,10 @@ graphics.
 
 ## Prompt wording (Meshy and other generators)
 
-`tools/art_direction.py` holds the shared wording; `tools/meshy.py` and `tools/meshy_icons.py` add it automatically. Anything
-that sends a prompt to a generator must include it. Short form:
+`tools/art_direction.py` holds the shared wording, in two helpers. `styled_3d()` is for models, textures and environment pieces
+(`tools/meshy.py` uses it). `styled_2d()` is for ability icons, inventory icons and UI art (`tools/meshy_icons.py` uses it).
+Do not put 3D modelling wording into 2D prompts. Each helper appends its direction unless the exact text is already present.
+Anything that sends a prompt to a generator must go through one of them. Short form (3D):
 
 > gritty dark fantasy, geometric low-poly PS2-era-inspired geometry with clearly faceted forms and believable humanoid
 > proportions, modern lighting, soft shadows and fog, worn weathered grimy materials, muted palette of steel, charcoal, leather,
