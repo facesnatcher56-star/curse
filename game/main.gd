@@ -11,6 +11,7 @@ var rig: CameraRig
 var director: RunDirector
 var location: CryptRoad   # set when the job is played in an authored location instead of the wave arena
 var world_environment: Environment
+var sun: DirectionalLight3D
 
 var _boot_ms: int = 0
 
@@ -45,6 +46,10 @@ func _ready() -> void:
 	_mark("settings")
 	_build_world()
 	_apply_job_mood(TownState.job)
+	if location != null and AtmosphereProfile.enabled():
+		# Apply after both the authored Crypt Road and job modifiers, so the opt-in profile sets the final values.
+		AtmosphereProfile.apply_environment(world_environment, sun)
+		AtmosphereProfile.apply_local_lights(arena)
 	_mark("world + nav bake")
 
 	player = Player.new()
@@ -67,6 +72,8 @@ func _ready() -> void:
 	torch.light_energy = 1.1
 	torch.omni_range = 9.0
 	torch.position = Vector3(0, 3.0, 0)
+	if location != null and AtmosphereProfile.enabled():
+		AtmosphereProfile.style_hero_torch(torch)
 	player.add_child(torch)
 
 	rig = CameraRig.new()
@@ -163,7 +170,7 @@ func _build_world() -> void:
 	world_environment = environment
 	add_child(env)
 
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58, -35, 0)
 	sun.light_color = Color(0.8, 0.85, 1.0)
 	sun.light_energy = 1.1
