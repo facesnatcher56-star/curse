@@ -5,6 +5,21 @@ Skeleton convention = Lane A knight (Curse_Knight_Experiment/scripts/build_knigh
   UpperLeg/LowerLeg/Foot/Toes) + LeftHandProp and RightHandProp = 24 bones total.
   Character faces -Y, +X is the character's LEFT, ground at Z = 0, metres.
   Bones use align_roll(FWD) for limbs and align_roll(UP) for feet; pitch about local X bends forward.
+
+Compatibility decision (owner review, option a: keep independent, live path unchanged):
+  - Live enemies load data/enemies/*.tres model_path -> assets/models/<name>/ (rigged.glb + anims.res),
+    via enemy.gd (_build_model, fallback zombie folder). Nothing references assets/art_staging/enemies.
+  - Live enemy rigs (zombie, zombie_brute, ghoul) and the player knight2 share one 24-joint Mixamo-style
+    skeleton: Hips, Spine, Spine01, Spine02, neck, Head, Left/RightShoulder, Left/RightArm, Left/RightForeArm,
+    Left/RightHand, Left/RightUpLeg, Left/RightLeg, Left/RightFoot, Left/RightToeBase.
+  - This knight-convention rig matches 9 of its 24 names exactly (Hips, Spine, Head, Shoulders, Hands, Feet).
+    The other 15 differ (UpperArm/LowerArm/UpperLeg/LowerLeg/Toes per side, Neck, Chest, Root, props), and the
+    live rig has Spine01/Spine02 where this one has Spine and Chest, so clips do not transfer by name.
+  - Live clip tracks key on those Mixamo names (anims.res). Required clips idle, walk, attack, hit and death
+    exist here. Optional clips (run, scream, charge_run, throw, cast) are requested only through has_clip(), so
+    their absence falls back to walk or idle rather than failing.
+  - Retargeting (option b) would mean renaming bones, adding the Spine01/Spine02 split and re-authoring the
+    optional clips. That waits for the owner to approve a deliberate enemy swap.
 """
 
 import math
