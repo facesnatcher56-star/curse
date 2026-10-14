@@ -11,16 +11,14 @@ extends Node3D
 const STATS := {
 	# Barrels, crates and urns go in any single hit and when the hero rolls through them ("one_hit", "roll_break"); no hit-point bar is drawn.
 	"barrel": {"hp": 1.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
-	"crate": {"hp": 1.0, "material": "wood", "chunks": 15, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
-	"urn": {"hp": 1.0, "material": "ceramic", "chunks": 14, "orb": 0.2, "potion": 0.07, "item": 0.0, "hero": true, "one_hit": true, "roll_break": true},
 	"wrecked_cart": {"hp": 45.0, "material": "wood", "chunks": 26, "orb": 0.0, "potion": 0.2, "item": 0.12},
 	"gravestone": {"hp": 40.0, "material": "stone", "chunks": 13, "orb": 0.0, "potion": 0.0, "item": 0.14},
 	"brazier": {"hp": 30.0, "material": "iron", "chunks": 12, "orb": 0.0, "potion": 0.0, "item": 0.0},
 	# A corrupted nest (the Crypt Road's objective): tough, bursts into gore and a green cloud, and pays out well.
 	"nest": {"hp": 140.0, "material": "flesh", "chunks": 24, "orb": 0.4, "potion": 0.25, "item": 0.4, "hero": true},
-	# Dungeon props (the test dungeon places them): a wooden crate, and a clay urn that breaks like stone.
-	"crate": {"hp": 22.0, "material": "wood", "chunks": 18, "orb": 0.0, "potion": 0.1, "item": 0.08, "hero": true},
-	"urn": {"hp": 12.0, "material": "stone", "chunks": 14, "orb": 0.0, "potion": 0.12, "item": 0.1, "hero": true},
+	# Dungeon props (the test dungeon places them): a wooden crate, and a clay urn (ceramic shards). Both go in one hit and when rolled through.
+	"crate": {"hp": 1.0, "material": "wood", "chunks": 18, "orb": 0.0, "potion": 0.1, "item": 0.08, "hero": true, "one_hit": true, "roll_break": true},
+	"urn": {"hp": 1.0, "material": "ceramic", "chunks": 14, "orb": 0.0, "potion": 0.12, "item": 0.1, "hero": true, "one_hit": true, "roll_break": true},
 }
 ## Pass as `only_kind` to limit a blast or a search to the props the hero's own attacks break.
 const HERO := "hero"
