@@ -120,7 +120,7 @@ func _ready() -> void:
 	_orbit_dir = 1.0 if randf() < 0.5 else -1.0
 	_orbit_flip = randf_range(1.5, 3.5)
 	ring = attack_range + randf_range(0.9, 1.6)
-	var folder: String = def.model_path
+	var folder: String = EnemyArt.model_folder(def)   # live model_path unless --enemyart (staged zombie)
 	var borrowed: bool = not (ResourceLoader.exists(folder + "/rigged.glb") and ResourceLoader.exists(folder + "/anims.res"))
 	if borrowed:
 		folder = def.fallback_model_path
