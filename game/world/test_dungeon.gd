@@ -157,9 +157,23 @@ func spawn_encounters(for_director: RunDirector) -> void:
 ## Brighter than the shared profile alone, so the rooms stay readable: enemies, props and loot must be easy to see. Called by main
 ## after the profile is applied, and only under --atmosphere.
 func tune_look(environment: Environment) -> void:
-	environment.ambient_light_color = Color(0.5, 0.53, 0.58)
+	# Neutral enough that the warm sconces read as warm: the room stays bright, and the warmth comes from the torch pools.
+	environment.ambient_light_color = Color(0.5, 0.51, 0.54)
 	environment.ambient_light_energy = 0.55
 	environment.fog_density = 0.008
+	environment.background_mode = Environment.BG_COLOR   # no sky: beyond the walls is void
+	environment.background_color = Color(0.0, 0.0, 0.0)
+	# The warm lights (sconces, hearth) get a stronger pool of warm light. Their flicker keeps its own base energy, so the base is
+	# set too, or the flicker would hand the old value back every frame.
+	for node in arena.find_children("*", "OmniLight3D", true, false):
+		var light := node as OmniLight3D
+		if light.light_color.r <= light.light_color.g:
+			continue
+		light.light_color = Color(1.0, 0.56, 0.24)
+		light.light_energy *= 1.5
+		for child in light.get_children():
+			if child is FlickerLight:
+				(child as FlickerLight)._base = light.light_energy
 
 
 # --- The plan ---------------------------------------------------------------------------------------------------------------------
