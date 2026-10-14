@@ -71,7 +71,63 @@ def zombie_joints():
     }
 
 
-def bone_rows(J):
+# Live rig bone Z axes (world, from the live zombie GLB via Blender import). Used by build_armature(live=True)
+# so each staging bone takes the same local frame as the live bone, which fixes the 180-degree roll mismatch.
+LIVE_Z = {
+    "Hips": (0.0000, -0.9992, -0.0411),
+    "Spine02": (0.0000, -0.9992, -0.0411),
+    "Spine01": (0.0000, -0.9992, -0.0411),
+    "neck": (0.0000, -0.9962, -0.0873),
+    "Head": (-0.0588, -0.9934, -0.0989),
+    "LeftShoulder": (0.0002, -0.0003, 1.0000),
+    "LeftArm": (0.5629, -0.8050, 0.1876),
+    "LeftForeArm": (-0.1112, -0.5057, -0.8555),
+    "LeftHand": (-0.2605, -0.6680, -0.6971),
+    "RightShoulder": (-0.0002, -0.0003, 1.0000),
+    "RightArm": (-0.5924, -0.7846, 0.1828),
+    "RightForeArm": (0.1333, -0.5431, -0.8290),
+    "RightHand": (-0.0005, -0.5887, -0.8084),
+    "LeftUpLeg": (0.1778, 0.9792, -0.0974),
+    "LeftLeg": (0.0694, 0.9538, 0.2922),
+    "LeftFoot": (0.6358, 0.7621, -0.1224),
+    "LeftToeBase": (-0.0000, 0.0000, 1.0000),
+    "RightUpLeg": (-0.1714, 0.9803, -0.0985),
+    "RightLeg": (-0.0762, 0.9530, 0.2933),
+    "RightFoot": (-0.6725, 0.7371, -0.0669),
+    "RightToeBase": (0.0000, -0.0000, 1.0000),
+}
+
+
+# Live Mixamo-style joint names (zombie, zombie_brute, ghoul and knight2 rigs). Applied only when live=True;
+# the authoring convention stays the default.
+LIVE_SUFFIX = {"UpperArm": "Arm", "LowerArm": "ForeArm", "UpperLeg": "UpLeg", "LowerLeg": "Leg", "Toes": "ToeBase"}
+LIVE_EXACT = {"Spine": "Spine01", "Chest": "Spine02", "Neck": "neck"}
+
+
+def live_name(name):
+    if name in LIVE_EXACT:
+        return LIVE_EXACT[name]
+    for key in sorted(LIVE_SUFFIX, key=len, reverse=True):
+        if name.endswith(key):
+            return name[: -len(key)] + LIVE_SUFFIX[key]
+    return name
+
+
+def bone_rows(J, live=False):
+    """(name, head, tail, parent, roll_axis) for the bones. live=True renames to the live joint names and
+    drops Root and the two prop bones (21 bones)."""
+    rows = _authoring_rows(J)
+    if not live:
+        return rows
+    out = []
+    for name, h, t, parent, roll in rows:
+        if name in DEFORM_SKIP:
+            continue
+        out.append((live_name(name), h, t, live_name(parent) if parent and parent not in DEFORM_SKIP else None, roll))
+    return out
+
+
+def _authoring_rows(J):
     """(name, head, tail, parent, roll_axis) for all 24 bones, mirrored right side from the left."""
     rows = [
         ("Root", J["root"], J["root"] + V(0, 0, 0.25), None, FWD),
@@ -97,22 +153,23 @@ def bone_rows(J):
     return rows
 
 
-def build_armature(coll, J, name):
+def build_armature(coll, J, name, live=False):
     arm_data = bpy.data.armatures.new(name + "_Rig")
-    arm = bpy.data.objects.new(name + "_Rig", arm_data)
+    arm = bpy.data.objects.new("Armature", arm_data)
     coll.objects.link(arm)
     bpy.context.view_layer.objects.active = arm
     arm.select_set(True)
     bpy.ops.object.mode_set(mode="EDIT")
     eb = arm_data.edit_bones
-    rows = bone_rows(J)
+    rows = bone_rows(J, live=live)
+    connect = {live_name(c) for c in CONNECT} if live else CONNECT
     for bname, h, t, parent, roll_axis in rows:
         b = eb.new(bname)
         b.head, b.tail = h, t
-        b.align_roll(roll_axis)
+        b.align_roll(Vector(LIVE_Z[bname]) if live and bname in LIVE_Z else roll_axis)
         if parent:
             b.parent = eb[parent]
-            b.use_connect = bname in CONNECT
+            b.use_connect = bname in connect
     bpy.ops.object.mode_set(mode="OBJECT")
     arm_data.display_type = "OCTAHEDRAL"
     arm.show_in_front = True
@@ -157,9 +214,18 @@ def attach_armature(obj, arm):
     mod.object = arm
 
 
-def fwd_sign(arm):
+def bone_fwd_sign(arm, bname):
+    """+1 when a positive pitch about this bone's local X moves its tail toward the front (-Y). Per bone,
+    because the live rig and the authoring rig do not share local frames."""
+    m = arm.data.bones[bname].matrix_local.to_3x3()
+    d = m @ V(0, 1, 0)
+    nd = m @ Matrix.Rotation(0.2, 3, "X") @ m.inverted() @ d
+    return 1.0 if (nd.y - d.y) < 0 else -1.0
+
+
+def fwd_sign(arm, live=False):
     """+1 when a positive pitch about the bone's local X swings the limb toward the front (-Y)."""
-    bone = arm.data.bones["LeftUpperLeg"]
+    bone = arm.data.bones[live_name("LeftUpperLeg") if live else "LeftUpperLeg"]
     m = bone.matrix_local.to_3x3()
     d = m @ V(0, 1, 0)
     rot = Matrix.Rotation(0.2, 3, "X")
@@ -228,9 +294,9 @@ DEFORM = ["Hips", "Spine", "Chest", "Neck", "Head",
           "LeftToes", "RightToes"]
 
 
-def write_clip(arm, name, keys, loop, sign):
+def write_clip(arm, name, keys, loop, signs, live=False):
     """keys: list of (frame, {bone: (rx, ry, rz)}) with rx a forward pitch in radians (sign applied here).
-    Missing bones keep their last value.  Hips may carry an optional 'loc' entry as a 4th item."""
+    Missing bones keep their last value.  Authoring bone names are mapped to live names when live=True."""
     act = bpy.data.actions.new(name)
     arm.animation_data_create()
     arm.animation_data.action = act
@@ -238,9 +304,9 @@ def write_clip(arm, name, keys, loop, sign):
     for frame, upd in keys:
         for bname, vals in upd.items():
             rx, ry, rz = vals
-            state[bname] = (rx * sign, ry, rz)
+            state[bname] = (rx * signs.get(bname, 1.0), ry, rz)
         for bname in DEFORM:
-            pb = arm.pose.bones[bname]
+            pb = arm.pose.bones[live_name(bname) if live else bname]
             pb.rotation_mode = "XYZ"
             pb.rotation_euler = state[bname]
             pb.keyframe_insert("rotation_euler", frame=frame)
@@ -249,7 +315,7 @@ def write_clip(arm, name, keys, loop, sign):
     return act
 
 
-def make_clips(arm, style):
+def make_clips(arm, style, live=False):
     """Five clips shared by all rigged enemies, tuned per enemy by `style`.
     Pitch values are forward-positive; write_clip converts with the calibrated sign."""
     s = style
@@ -321,9 +387,10 @@ def make_clips(arm, style):
               "LeftUpperArm": (-1.1, 0, 0.6), "RightUpperArm": (-1.1, 0, -0.6)}),
     ], False))
 
-    sign = fwd_sign(arm)
+    signs = {b: bone_fwd_sign(arm, live_name(b) if live else b) for b in DEFORM}
+    sign = fwd_sign(arm, live)
     out = {}
     for name, keys, loop in clips:
-        write_clip(arm, name, keys, loop, sign)
+        write_clip(arm, name, keys, loop, signs, live)
         out[name] = bpy.data.actions[name]
     return out, sign

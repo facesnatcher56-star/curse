@@ -329,7 +329,7 @@ def triangle_count(obj):
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
 
-def export_glb(objs, path, animated=False):
+def export_glb(objs, path, animated=False, active_only=False):
     bpy.ops.object.select_all(action="DESELECT")
     for o in objs:
         o.select_set(True)
@@ -337,7 +337,8 @@ def export_glb(objs, path, animated=False):
     kwargs = dict(filepath=path, export_format="GLB", use_selection=True, export_apply=False, export_yup=True,
                   export_materials="EXPORT")
     if animated:
-        kwargs.update(export_animations=True, export_animation_mode="ACTIONS", export_skins=True)
+        kwargs.update(export_animations=True, export_animation_mode="ACTIVE_ACTIONS" if active_only else "ACTIONS",
+                      export_skins=True)
     bpy.ops.export_scene.gltf(**kwargs)
 
 
@@ -365,20 +366,33 @@ def render_preview(path, height):
     bpy.ops.render.render(write_still=True)
 
 
-def build_rigged(name, out_dir, preview):
+def build_rigged(name, out_dir, preview, live=False, clip_cache=None):
     joints_fn, builder_fn, style, height = RIGGED[name]
     clear_scene()
     coll = bpy.context.scene.collection
     b = Builder()
     J = joints_fn()
-    arm, rows = er.build_armature(coll, J, name.capitalize())
+    arm, rows = er.build_armature(coll, J, name.capitalize(), live=live)
     builder_fn(b, J)
     for o in b.objs:
         er.skin_object(o, rows, rigid=b.rigid.get(o.name))
     obj = finalize(b)
     er.attach_armature(obj, arm)
-    actions, sign = er.make_clips(arm, style)
+    actions, sign = er.make_clips(arm, style, live=live)
     tris = triangle_count(obj)
+    if live:
+        # Live mode: rigged.glb holds only the mesh and skeleton (clips come from anims.res), plus one
+        # anim_<clip>.glb per clip in clip_cache for tools/bake_anims.gd.
+        os.makedirs(out_dir, exist_ok=True)
+        export_glb([arm, obj], os.path.join(out_dir, "rigged.glb"), animated=False)
+        for clip in sorted(actions):
+            arm.animation_data.action = actions[clip]
+            export_glb([arm, obj], os.path.join(clip_cache, "anim_%s.glb" % clip), animated=True, active_only=True)
+        arm.animation_data.action = None
+        print("LIVE %s tris=%d bones=%d joints=%s clips=%s out=%s cache=%s" % (
+            name, tris, len(arm.data.bones), ",".join(b.name for b in arm.data.bones),
+            ",".join(sorted(actions)), out_dir, clip_cache))
+        return
     out_path = os.path.join(out_dir, name + "_rigged.glb")
     export_glb([arm, obj], out_path, animated=True)
     print("ENEMY %s tris=%d bones=%d clips=%s fwd_sign=%+.0f glb=%s" % (
@@ -414,6 +428,8 @@ def main():
     which = "all"
     out_dir = os.path.join(os.getcwd(), "assets", "art_staging", "enemies")
     preview = False
+    live = False
+    clip_cache = None
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -425,12 +441,17 @@ def main():
             i += 1
         elif a == "--preview":
             preview = True
+        elif a == "--live":
+            live = True
+        elif a == "--clip-cache":
+            clip_cache = argv[i + 1]
+            i += 1
         i += 1
     names = list(RIGGED) + list(STATIC) if which == "all" else [which]
     os.makedirs(os.path.join(out_dir, "previews"), exist_ok=True)
     for name in names:
         if name in RIGGED:
-            build_rigged(name, out_dir, preview)
+            build_rigged(name, out_dir, preview, live=live, clip_cache=clip_cache)
         else:
             build_static(name, out_dir, preview)
 
