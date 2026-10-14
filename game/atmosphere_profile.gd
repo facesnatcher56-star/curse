@@ -11,6 +11,10 @@ extends RefCounted
 ## At most this many local lights cast shadows. Only the hero torch does (see style_hero_torch); everything else is shadowless.
 const SHADOW_CASTING_LOCAL_LIGHTS := 1
 
+## The road's full-strength values (the town blends from its own outside values to these by depth, see TownScene._update_world).
+const AMBIENT_TARGET := 0.25
+const FOG_TARGET := 0.012
+
 static func enabled() -> bool:
 	return "--atmosphere" in OS.get_cmdline_user_args()
 
@@ -18,7 +22,7 @@ static func enabled() -> bool:
 static func apply_environment(environment: Environment, sun: DirectionalLight3D) -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.35, 0.38, 0.42)   # cool and desaturated, without a green cast
-	environment.ambient_light_energy = 0.25
+	environment.ambient_light_energy = AMBIENT_TARGET
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = 1.0
 	environment.adjustment_enabled = true
@@ -29,7 +33,7 @@ static func apply_environment(environment: Environment, sun: DirectionalLight3D)
 	environment.fog_enabled = true
 	environment.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	environment.fog_light_color = Color(0.07, 0.08, 0.09)
-	environment.fog_density = 0.012
+	environment.fog_density = FOG_TARGET
 	environment.fog_aerial_perspective = 0.3
 	environment.fog_sky_affect = 0.5
 	environment.ssao_enabled = true
@@ -58,3 +62,11 @@ static func style_hero_torch(torch: OmniLight3D) -> void:
 	torch.light_energy = 1.8
 	torch.omni_attenuation = 1.4
 	torch.shadow_enabled = SHADOW_CASTING_LOCAL_LIGHTS > 0
+
+## A hero torch for a scene that has none (the town): the same light as main.gd's torch, styled for the atmosphere.
+static func make_hero_torch() -> OmniLight3D:
+	var torch := OmniLight3D.new()
+	torch.omni_range = 9.0
+	torch.position = Vector3(0, 3.0, 0)
+	style_hero_torch(torch)
+	return torch
