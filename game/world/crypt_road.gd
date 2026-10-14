@@ -97,11 +97,16 @@ func build(for_arena: Arena) -> void:
 		arena.bake_navigation()   # in the world the town bakes the one shared navigation mesh once everything is placed
 
 ## The navigation map takes its new regions on a background thread, and this one is big: true once the road is really in it.
+## Where the hero begins in this location (the test dungeon overrides it).
+func start_position() -> Vector3:
+	return START
+
 func navigation_ready() -> bool:
 	var map: RID = get_world_3d().navigation_map
 	if NavigationServer3D.map_get_iteration_id(map) == 0:   # a query before the first synchronisation is an error
 		return false
-	return NavigationServer3D.map_get_closest_point(map, at(START.x, START.z)).distance_to(at(START.x, START.z)) < 3.0
+	var start: Vector3 = start_position()
+	return NavigationServer3D.map_get_closest_point(map, at(start.x, start.z)).distance_to(at(start.x, start.z)) < 3.0
 
 ## Waits (a few seconds at most) for navigation_ready(), so monsters are not spawned onto an empty map and snapped to the origin.
 func wait_for_navigation() -> void:

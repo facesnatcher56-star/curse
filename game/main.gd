@@ -51,7 +51,7 @@ func _ready() -> void:
 	add_child(player)
 	TownScene._apply_run_gear(player)   # what the town holds (nothing, for a run that did not come from town)
 	if location != null:
-		player.global_position = CryptRoad.START
+		player.global_position = location.start_position()
 		for arg in OS.get_cmdline_user_args():   # `-- --crypt --at=x,z`: start somewhere along the road (developer tool)
 			if arg.begins_with("--at="):
 				var xz: PackedStringArray = arg.substr(5).split(",")
@@ -172,7 +172,16 @@ func _build_world() -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
 
-	if String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
+	if OS.get_cmdline_user_args().has("--dungeon"):   # dev test level (game/world/test_dungeon.gd): no job, just the dungeon
+		arena = TestDungeon.make_arena()
+		add_child(arena)
+		arena.build(false)
+		location = TestDungeon.new()
+		add_child(location)
+		location.build(arena)
+		if OS.get_cmdline_user_args().has("--atmosphere"):
+			TestDungeon.apply_atmosphere(environment, sun)
+	elif String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
 		arena = CryptRoad.make_arena()
 		add_child(arena)
 		arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
