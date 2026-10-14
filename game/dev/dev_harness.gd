@@ -168,6 +168,7 @@ const ONLY_TESTS := {
 "archerpositioning": "_test_archer_positioning",
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
+"roaddensity": "_test_road_density",
 }
 
 var _failures: PackedStringArray = []
