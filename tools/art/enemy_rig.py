@@ -301,8 +301,12 @@ def write_clip(arm, name, keys, loop, signs, live=False):
     arm.animation_data_create()
     arm.animation_data.action = act
     state = {b: (0.0, 0.0, 0.0) for b in DEFORM}
+    hips_loc = (0.0, 0.0, 0.0)   # bone-local translation of Hips (Y up, Z forward); used by death to drop
     for frame, upd in keys:
         for bname, vals in upd.items():
+            if bname == "Hips_loc":
+                hips_loc = vals
+                continue
             rx, ry, rz = vals
             state[bname] = (rx * signs.get(bname, 1.0), ry, rz)
         for bname in DEFORM:
@@ -310,6 +314,10 @@ def write_clip(arm, name, keys, loop, signs, live=False):
             pb.rotation_mode = "XYZ"
             pb.rotation_euler = state[bname]
             pb.keyframe_insert("rotation_euler", frame=frame)
+        if "Hips" in DEFORM:
+            hp = arm.pose.bones[live_name("Hips") if live else "Hips"]
+            hp.location = hips_loc
+            hp.keyframe_insert("location", frame=frame)
     act["kn_loop"] = bool(loop)
     arm.animation_data.action = None
     return act
@@ -380,13 +388,13 @@ def make_clips(arm, style, live=False):
     # the body lands on its back instead of folding over.
     clips.append(("death", [
         (1, {}),
-        (21, {"Chest": (-0.15, 0, 0), "Head": (-0.10, 0, 0), "Hips": (-0.08, 0, 0),
+        (21, {"Hips_loc": (0.0, -0.08, -0.02), "Chest": (-0.15, 0, 0), "Head": (-0.10, 0, 0), "Hips": (-0.08, 0, 0),
               "LeftLowerLeg": (-0.35, 0, 0), "RightLowerLeg": (-0.35, 0, 0),
               "LeftUpperArm": (-0.40, 0, 0.20), "RightUpperArm": (-0.40, 0, -0.20)}),
-        (48, {"Chest": (-0.45, 0, 0), "Head": (-0.20, 0, 0), "Hips": (-0.25, 0, 0), "Spine": (-0.15, 0, 0),
+        (48, {"Hips_loc": (0.0, -0.30, -0.08), "Chest": (-0.45, 0, 0), "Head": (-0.20, 0, 0), "Hips": (-0.25, 0, 0), "Spine": (-0.15, 0, 0),
               "LeftLowerLeg": (-0.70, 0, 0), "RightLowerLeg": (-0.70, 0, 0),
               "LeftUpperArm": (-0.90, 0, 0.45), "RightUpperArm": (-0.90, 0, -0.45)}),
-        (85, {"Chest": (-0.55, 0, 0), "Head": (-0.25, 0, 0), "Hips": (-0.35, 0, 0), "Spine": (-0.20, 0, 0),
+        (85, {"Hips_loc": (0.0, -0.62, -0.18), "Chest": (-0.55, 0, 0), "Head": (-0.25, 0, 0), "Hips": (-0.35, 0, 0), "Spine": (-0.20, 0, 0),
                "LeftLowerLeg": (-0.85, 0, 0), "RightLowerLeg": (-0.85, 0, 0),
                "LeftUpperArm": (-1.10, 0, 0.55), "RightUpperArm": (-1.10, 0, -0.55)}),
     ], False))

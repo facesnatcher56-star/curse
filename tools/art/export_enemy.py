@@ -42,8 +42,8 @@ PALETTE = {
     "rust": (0.42, 0.21, 0.11),
     "eye_milk": (0.70, 0.70, 0.64),
     "void": (0.04, 0.04, 0.05),
-    "ash": (0.22, 0.25, 0.20),        # grey-green ash skin, darker than the flesh tone
-    "ash_dark": (0.15, 0.17, 0.14),
+    "ash": (0.16, 0.165, 0.155),      # grave grey, only a hint of green
+    "ash_dark": (0.105, 0.11, 0.10),
     "cloth": (0.20, 0.19, 0.17),
     "bone_old": (0.46, 0.43, 0.36),
 }
@@ -137,8 +137,8 @@ def build_zombie(b, J):
     b.tube("Z_Torso", [J["hips"], J["spine"], J["chest"], J["neck"]], [0.15, 0.14, 0.15, 0.09],
            [0.095, 0.085, 0.095, 0.065], mat="ash", sides=8, jitter=0.08, seed=3)
     # back hump (kyphosis): faceted ridge, not a sphere
-    b.tube("Z_Hump", [Vector((0, 0.09, 1.12)), Vector((0, 0.13, 1.27)), Vector((0, 0.11, 1.40))],
-           [0.11, 0.14, 0.09], [0.07, 0.09, 0.06], mat="ash_dark", sides=8, jitter=0.1, seed=7)
+    b.tube("Z_SpineRidge", [Vector((0, 0.07, 1.14)), Vector((0, 0.10, 1.28)), Vector((0, 0.09, 1.40))],
+           [0.045, 0.05, 0.035], [0.035, 0.04, 0.03], mat="ash_dark", sides=6, jitter=0.1, seed=7)
     # rot blotch on the belly, a flat faceted shell
     b.tube("Z_RotPatch", [Vector((0, -0.02, 0.98)), Vector((0.01, -0.06, 1.08))], [0.16, 0.15],
            [0.11, 0.10], mat="rot", sides=8, jitter=0.4, seed=8, cap0=False, cap1=False)
@@ -194,9 +194,10 @@ def build_zombie(b, J):
     # torn rags hanging from the shoulders
     for side, f in (("L", lambda p: p), ("R", er.mir)):
         sh = f(J["sho"])
-        b.tube(f"Z_{side}Rag", [sh + Vector((0, 0, 0.02)), sh + Vector((0.01, -0.03, -0.12)),
-                                sh + Vector((0.02, -0.05, -0.22))], [0.05, 0.045, 0.03], mat="cloth", sides=8,
-               jitter=0.5, seed=50 if side == "L" else 52, cap0=False, cap1=False)
+        b.tube(f"Z_{side}Rag", [sh + Vector((0, 0.01, 0.0)), sh + Vector((0.01, -0.03, -0.20)),
+                                sh + Vector((0.02, -0.05, -0.40)), sh + Vector((0.03, -0.06, -0.52))],
+               [0.028, 0.024, 0.02, 0.012], mat="cloth", sides=5, jitter=0.6, seed=50 if side == "L" else 52,
+               cap0=False, cap1=False)
 
 
 # --------------------------------------------------------------------------- warden
