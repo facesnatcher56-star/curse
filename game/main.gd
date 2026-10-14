@@ -67,6 +67,8 @@ func _ready() -> void:
 	torch.light_energy = 1.1
 	torch.omni_range = 9.0
 	torch.position = Vector3(0, 3.0, 0)
+	if location != null and AtmosphereProfile.enabled():
+		AtmosphereProfile.style_hero_torch(torch)
 	player.add_child(torch)
 
 	rig = CameraRig.new()
@@ -181,6 +183,9 @@ func _build_world() -> void:
 		location.build(arena)
 		environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
 		environment.fog_density *= CryptRoad.FOG_MULT
+		if AtmosphereProfile.enabled():   # opt-in look (issue #21): sets the final values over the multipliers above
+			AtmosphereProfile.apply_environment(environment, sun)
+			AtmosphereProfile.apply_local_lights(arena)
 	else:
 		arena = Arena.new()
 		add_child(arena)
