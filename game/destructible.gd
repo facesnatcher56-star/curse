@@ -18,6 +18,9 @@ const STATS := {
 	"brazier": {"hp": 30.0, "material": "iron", "chunks": 12, "orb": 0.0, "potion": 0.0, "item": 0.0},
 	# A corrupted nest (the Crypt Road's objective): tough, bursts into gore and a green cloud, and pays out well.
 	"nest": {"hp": 140.0, "material": "flesh", "chunks": 24, "orb": 0.4, "potion": 0.25, "item": 0.4, "hero": true},
+	# Dungeon props (the test dungeon places them): a wooden crate, and a clay urn that breaks like stone.
+	"crate": {"hp": 22.0, "material": "wood", "chunks": 18, "orb": 0.0, "potion": 0.1, "item": 0.08, "hero": true},
+	"urn": {"hp": 12.0, "material": "stone", "chunks": 14, "orb": 0.0, "potion": 0.12, "item": 0.1, "hero": true},
 }
 ## Pass as `only_kind` to limit a blast or a search to the props the hero's own attacks break.
 const HERO := "hero"
