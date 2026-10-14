@@ -1,7 +1,7 @@
 """Retarget the modular kit (built by modular_build.py on the Knight rig) onto the game's Meshy skeleton and
 export one GLB per equipment piece.
 
-Run:  blender.exe -b assets/art_staging/knight/Curse_Modular.blend -P tools/art/modular_export.py -- <out_dir>
+Run:  blender.exe -b assets/art_staging/knight/source/Curse_Modular.blend -P tools/art/modular_export.py -- <out_dir>
 
 Why: the game's clips (Player.CLIPS, ~36 of them) are authored on the Meshy skeleton of assets/models/knight2.
 Meshes must therefore be bound to *that* skeleton. Each kit mesh is rest-pose-retargeted with linear blend

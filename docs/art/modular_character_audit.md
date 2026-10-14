@@ -45,7 +45,7 @@ Kit total 12992 tris; one worn loadout is far lower (leather fighter 2192, mage 
 ## 3. Outputs
 
 - `assets/art_staging/knight/knight_baseline.glb`: unmodified knight.
-- `assets/art_staging/knight/curse_modular.glb` and `Curse_Modular.blend`: the kit.
+- `assets/art_staging/knight/curse_modular.glb` and `source/Curse_Modular.blend` (Blender source, `.gdignore`d so Godot never imports it): the kit.
 - `assets/art_staging/knight/modular_demo.tscn`: one skinned character, presets and per-slot swapping by mesh visibility (keys in the script header). Not wired into the live player.
 - `docs/art/renders/godot_*.png`: Godot renders (Forward+, D3D12) of 4 loadouts in idle front/back, run, attack, plus hit, death and walk. These are Godot renders, not Blender previews; no Blender previews were made.
 
