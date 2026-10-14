@@ -175,7 +175,16 @@ func _test_loot_rewards() -> void:
 	if drops.size() == 1:
 		var drop: LootDrop = drops[0]
 		var level: int = int(drop.item["level"])
-		expect("the reward's item level (%d) sits near the monster's level 18" % level, level >= 18 - 6 and level <= 18 + 3)
+		# A miniboss reward is unique or set ~8% of the time; those come from their own wide windows (Items.UNIQUE_WINDOW /
+		# SET_WINDOW), exactly as the distribution check below exempts them. Plain, magic and rare stay in the tight window.
+		var reward_rarity: int = int(drop.item["rarity"])
+		var window := Vector2i(-6, 3)
+		if reward_rarity == Items.Rarity.UNIQUE:
+			window = Items.UNIQUE_WINDOW
+		elif reward_rarity == Items.Rarity.SET:
+			window = Items.SET_WINDOW
+		expect("the reward's item level (%d, rarity %d) sits in its window around the monster's level 18" % [level, reward_rarity],
+			level >= 18 + window.x and level <= 18 + window.y)
 		expect("the reward has a model on the ground and a plate with a verdict", drop.get_node_or_null("Model") != null and hud.loot_cards.names.any(func(e): return e["drop"] == drop))
 		var plates: Array = hud.loot_cards.names.filter(func(e): return e["drop"] == drop)
 		if not plates.is_empty():
