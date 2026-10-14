@@ -62,7 +62,7 @@ func _run() -> void:
 	label.add_theme_font_size_override("font_size", 36)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	layer.add_child(label)
-	for view in ["close", "wide"]:
+	for view in ["close"]:
 		camera.position = Vector3(0, 9.0, 6.5) * (0.6 if view == "close" else 4.2)
 		for pose in ["walk", "attack", "death"]:
 			for source in ["live", "converted"]:

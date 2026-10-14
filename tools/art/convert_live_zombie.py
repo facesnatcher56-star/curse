@@ -1,9 +1,9 @@
 """Staging only: convert the LIVE zombie into a faceted low-poly version that keeps its armature and skin.
 
-    blender.exe -b -P tools/art/convert_live_zombie.py -- --target 2500 --out assets/art_staging/enemies/zombie_converted
+    blender.exe -b -P tools/art/convert_live_zombie.py -- --target 4000 --out assets/art_staging/enemies/zombie_converted
 
 Steps: import assets/models/zombie/rigged.glb, pick the skinned mesh, collapse-decimate to the target
-triangle count, then a planar pass, re-normalise the skin weights, sample each face's colour from the live
+triangle count without a planar pass, re-normalise the skin weights, sample each face's colour from the live
 texture and posterise it into a small palette (one material per palette entry, so each face is a flat facet),
 and export rigged.glb with the original armature. Animations come from the live anims.res, copied next to it.
 The live files are read only; nothing under assets/models is written.
@@ -25,7 +25,10 @@ LIVE_ANIMS = os.path.join(ROOT, "assets/models/zombie/anims.res")
 
 # Muted palette from docs/ART_DIRECTION.md (earth, iron, bone, ash, sickly green and grey-blue flesh,
 # with at most two warm accents: rust and blood).
-PALETTE = {
+# Classify each decimated face against the live texture's colour family, then render it
+# with lower linear-light values. This keeps the texture's dark/mid pattern without
+# letting lit bone or skin facets outshine ash in the game renderer.
+REFERENCE_PALETTE = {
     "bone": (0.62, 0.58, 0.48),
     "ash": (0.42, 0.42, 0.40),
     "grave_grey": (0.24, 0.24, 0.23),
@@ -36,11 +39,22 @@ PALETTE = {
     "rust": (0.42, 0.22, 0.12),
     "blood": (0.32, 0.07, 0.07),
 }
+PALETTE = {
+    "bone": (0.14, 0.135, 0.115),
+    "ash": (0.16, 0.16, 0.15),
+    "grave_grey": (0.085, 0.085, 0.08),
+    "charcoal": (0.035, 0.035, 0.035),
+    "sick_green": (0.10, 0.12, 0.085),
+    "greyblue_flesh": (0.11, 0.12, 0.125),
+    "earth": (0.105, 0.07, 0.045),
+    "rust": (0.13, 0.065, 0.035),
+    "blood": (0.105, 0.02, 0.02),
+}
 
 
 def args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    target, out = 2500, os.path.join(ROOT, "assets/art_staging/enemies/zombie_converted")
+    target, out = 4000, os.path.join(ROOT, "assets/art_staging/enemies/zombie_converted")
     i = 0
     while i < len(argv):
         if argv[i] == "--target":
@@ -75,7 +89,7 @@ def sample(image, uv, pixels):
 
 def nearest_palette(rgb):
     best, best_d = None, 1e9
-    for idx, (name, c) in enumerate(PALETTE.items()):
+    for idx, (name, c) in enumerate(REFERENCE_PALETTE.items()):
         d = (rgb.x - c[0]) ** 2 + (rgb.y - c[1]) ** 2 + (rgb.z - c[2]) ** 2
         if d < best_d:
             best, best_d = idx, d
@@ -106,19 +120,14 @@ def main():
         pixels = array("f", [0.0]) * (image.size[0] * image.size[1] * 4)
         image.pixels.foreach_get(pixels)
 
-    # decimate: collapse to the target, then a planar pass to flatten near-coplanar faces
+    # Collapse alone keeps the silhouette while avoiding the planar dissolve's
+    # long slivers and apparent holes at animated joints.
     ratio = min(1.0, float(target) / float(before))
     dec = obj.modifiers.new("Collapse", "DECIMATE")
     dec.decimate_type = "COLLAPSE"
     dec.ratio = ratio
     bpy.ops.object.modifier_apply(modifier=dec.name)
     print("AFTER_COLLAPSE %d" % tri_count(obj))
-    pl = obj.modifiers.new("Planar", "DECIMATE")
-    pl.decimate_type = "DISSOLVE"
-    pl.angle_limit = 0.0873  # 5 degrees: merge only near-flat regions
-    bpy.ops.object.modifier_apply(modifier=pl.name)
-    print("AFTER_PLANAR %d" % tri_count(obj))
-
     # face colours after decimation: decimate changes the face set, so resample from the original UVs
     # is not possible; instead re-sample from the surviving faces' centres in UV space.
     mesh = obj.data
