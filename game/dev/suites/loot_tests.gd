@@ -404,3 +404,22 @@ func _test_item_card() -> void:
 	else:
 		print("  item card: hero can wear the level-60 plate, so the warning check is skipped")
 	await get_tree().process_frame
+
+## An item pickup's name: 3 s readable and a 0.5 s fade (4 s for a rare or better), and rapid pickups stack instead of overwriting each other.
+func _test_pickup_notice() -> void:
+	expect("an ordinary pickup stays 3 s, then fades in 0.5 s", Fx.pickup_timing(false).is_equal_approx(Vector2(3.0, 0.5)))
+	expect("a rare or important pickup stays 4 s, then fades in 0.5 s", Fx.pickup_timing(true).is_equal_approx(Vector2(4.0, 0.5)))
+	var base := player.global_position + Vector3(0, 2.6, 0)
+	var first := Fx.pickup_text(player, base, "First", Color.WHITE)
+	var second := Fx.pickup_text(player, base, "Second", Color.WHITE)
+	var third := Fx.pickup_text(player, base, "Third", Color.WHITE, true)
+	await get_tree().process_frame
+	expect("three rapid pickups are all still on screen", is_instance_valid(first) and is_instance_valid(second) and is_instance_valid(third))
+	expect("a second pickup starts above the first, not on it", second.global_position.y >= first.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("a third pickup stacks above the second", third.global_position.y >= second.global_position.y + Fx.PICKUP_STEP - 0.001)
+	expect("the rapid pickups keep their own text", first.text == "First" and second.text == "Second" and third.text == "Third")
+	var other := Fx.pickup_text(game.companion, base, "Archer", Color.WHITE)
+	expect("another hero's pickup does not stack on this one", absf(other.global_position.y - base.y) < 0.001)
+	for label in [first, second, third, other]:
+		label.queue_free()
+	await get_tree().process_frame

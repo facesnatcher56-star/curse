@@ -153,7 +153,7 @@ func pick_up(hero: Player) -> void:
 	var verdict: int = LootAppraisal.of(item, hero.stats)
 	if not hero.stats.pickup(item).is_empty():
 		if verdict == LootAppraisal.Verdict.UPGRADE and not worn_at_once:   # it is in the bag, and it is better than what is worn: say so
-			Fx.text_at(hero, hero.global_position + Vector3(0, 3.1, 0), "Upgrade in your bag", LootAppraisal.UPGRADE_COLOR, 30)
+			Fx.pickup_text(hero, hero.global_position + Vector3(0, 3.1, 0), "Upgrade in your bag", LootAppraisal.UPGRADE_COLOR, false, 30)
 		queue_free() # no space: leave the item on the ground, never delete carried loot
 
 func _camera_scale() -> float:
