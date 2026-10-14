@@ -2,6 +2,11 @@ extends DevSuite
 ## Archer targets and sight: which props the bow may break, a sight line blocked by scenery, arrows breaking a nest, and the
 ## controlled archer's order to shoot a nest from a firing position.
 
+## Frames allowed for the ordered nest (140 hp) to break. The starting Short Bow deals 4.9-8.1 per arrow and a shot takes 0.62 s
+## to draw plus 1.05-1.27 s to recover, so an unseeded run needs 18-29 shots, about 1800-3300 frames: the old 2400 sat inside that
+## spread. With the RNG seeded the run is fixed (measured: 22 shots, 22 hits, 2335 frames); this bound leaves about 25% margin.
+const ORDER_FRAME_BOUND := 3000
+
 func _test_archer_targets() -> void:
 	TownState.persist = false
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -44,6 +49,7 @@ func _test_archer_targets() -> void:
 	var refused0: int = archer.bow.refusals
 	archer.bow.start(enemy)
 	expect("sight: the bow refuses a blocked shot (no draw starts)", not archer.skills.busy)
+	print("REFUSALS: before=", refused0, " after=", archer.bow.refusals, " refused_by_blocked_start=", archer.bow.refusals - refused0)
 	expect("sight: the refusal is counted (refusals increased by the blocked start)", archer.bow.refusals > refused0)
 	archer.bow.engage(enemy, null, 1.0 / 60.0)
 	expect("sight: engage with a blocked target does not start a shot", not archer.skills.busy)
@@ -107,18 +113,34 @@ func _test_archer_targets() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	archer.testing_disabled = false   # this one is the party AI's own shot: it must run
+	# Damage per arrow and the recovery after each shot are random draws on the global RNG, which earlier suites leave in any
+	# state (enemy_tests calls randomize()), and an earlier suite may leave the archer a different bow. Seed the RNG and give him
+	# the starting Short Bow, so the break frame is the same in any run order.
+	seed(4242)
+	archer.stats.equipment[Items.Slot.WEAPON] = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")
+	archer.stats.refresh()
 	var broke: Array[Destructible] = []
 	order_nest.destroyed.connect(func(prop: Destructible) -> void: broke.append(prop))
 	var ordered: Destructible = player.order_companions_to_prop(order_nest.global_position)
 	expect("ordered: the hotkey's prop order marks the nest for the archer", ordered == order_nest and archer.attack_prop == order_nest)
+	var shots0: int = archer.bow.shots
+	var nest_hp: float = order_nest.hp
+	var arrow_hits := 0
 	var order_frames := 0
-	for i in 2400:
+	for i in ORDER_FRAME_BOUND:
 		await get_tree().physics_frame
 		order_frames += 1
+		if order_nest.hp < nest_hp:
+			arrow_hits += 1
+			nest_hp = order_nest.hp
 		if not broke.is_empty():
 			break
-	print("NEST ORDER: destroyed_signal=", not broke.is_empty(), " frames=", order_frames, " shots=", archer.bow.shots)
-	expect("ordered: the archer's own shots break the ordered nest (destroyed signal, within 2400 frames)", not broke.is_empty() and broke[0].broken)
+	var order_shots: int = archer.bow.shots - shots0
+	print("NEST ORDER: destroyed_signal=", not broke.is_empty(), " frames=", order_frames, " bound=", ORDER_FRAME_BOUND,
+		" shots=", order_shots, " arrow_hits=", arrow_hits, " damage=", archer.stats.ranged_range(), " attack_speed=", archer.stats.attack_speed())
+	expect("ordered: every arrow loosed at the nest strikes it (no misses)", arrow_hits >= order_shots - 1 and arrow_hits > 0)
+	expect("ordered: the archer's own shots break the ordered nest (destroyed signal, within %d frames)" % ORDER_FRAME_BOUND,
+		not broke.is_empty() and broke[0].broken)
 	archer.attack_prop = null
 	archer.testing_disabled = true
 	archer.bow.cancel()
