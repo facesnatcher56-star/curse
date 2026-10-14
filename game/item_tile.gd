@@ -185,9 +185,10 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		var scroll := ScrollContainer.new()   # a card taller than the screen scrolls instead of clipping or shrinking
 		scroll.name = "DetailScroll"
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE # the card can overlap a merchant button: it must never take clicks
+		scroll.mouse_filter = Control.MOUSE_FILTER_PASS # the wheel reaches a tall card; PASS keeps clicks from landing on a merchant button under it
 		scroll.add_child(detail)
 		holder.add_child(scroll)
+		scroll.mouse_exited.connect(func() -> void: _close_unless_pointer_on(control, holder))
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in detail.find_children("*", "Control", true, false):
 			child.mouse_filter = Control.MOUSE_FILTER_IGNORE # tooltip contents must not intercept a drag destination
@@ -209,7 +210,18 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 	control.focus_exited.connect(func() -> void: holder.visible = false)
 	if on_hover:
 		control.mouse_entered.connect(open)
-		control.mouse_exited.connect(func() -> void: holder.visible = false)
+		control.mouse_exited.connect(func() -> void: _close_unless_pointer_on(control, holder))
+
+## Closes a hover card once the pointer is on neither its item nor the card, so the pointer can move onto the card to scroll it.
+static func _close_unless_pointer_on(control: Control, holder: Control) -> void:
+	if not is_instance_valid(holder) or not holder.visible:
+		return
+	var pointer: Vector2 = control.get_viewport().get_mouse_position()
+	if control.get_global_rect().has_point(pointer):
+		return
+	if holder.get_child_count() > 0 and (holder.get_child(0) as Control).get_global_rect().has_point(pointer):
+		return
+	holder.visible = false
 
 static func decorate_button(button: Button, it: Dictionary, worn: Variant) -> void:
 	button.set_script(preload("res://game/item_button.gd"))

@@ -403,6 +403,33 @@ func _test_item_card() -> void:
 		expect("the cannot-wear warning appears once on the card", warning_labels == 1)
 	else:
 		print("  item card: hero can wear the level-60 plate, so the warning check is skipped")
+	# An elemental damage item compares as one "Fire damage" row. Its "_added_max" maximum is part of that row, not a separate line.
+	var fire_sword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	fire_sword["mods"] = ["fire_added_1"]
+	var plain_sword: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 15, "Longsword")
+	var fire_compare := Items.compare(fire_sword, plain_sword, member)
+	var raw_or_max := fire_compare.any(func(e: Dictionary) -> bool: return String(e["text"]).contains("_max") or String(e["text"]).contains("Maximum") or String(e["text"]).contains("_added"))
+	expect("an elemental item compares without a raw or separate maximum row: %s" % [fire_compare], not raw_or_max)
+	expect("an elemental item's fire change is one row", fire_compare.any(func(e: Dictionary) -> bool: return String(e["key"]) == Items.mod_key("fire_added")))
+	# A card taller than its safe area scrolls with the mouse wheel: the wheel over the card moves its scroll position.
+	var tile := ItemTile.create(plate, null, 56.0)
+	tile.position = Vector2(120, 120)
+	add_child(tile)
+	await get_tree().process_frame
+	tile.mouse_entered.emit()
+	await get_tree().process_frame
+	var holder := tile.get_node("ItemDetails") as Control
+	var scroll: ScrollContainer = null
+	if holder.get_child_count() > 0:
+		scroll = holder.get_child(0) as ScrollContainer
+	expect("an opened item card has a scroll area", scroll != null and holder.visible)
+	if scroll != null:
+		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
+		await get_tree().process_frame
+		expect("a tall item card overflows its scroll area so the wheel has something to move", scroll.get_v_scroll_bar().max_value > scroll.size.y)
+		expect("the scroll area takes the mouse so the wheel reaches it", scroll.mouse_filter == Control.MOUSE_FILTER_PASS)
+	tile.queue_free()
+	await get_tree().process_frame
 	await get_tree().process_frame
 
 ## An item pickup's name: 3 s readable and a 0.5 s fade (4 s for a rare or better), and rapid pickups stack instead of overwriting each other.
