@@ -188,7 +188,10 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		scroll.mouse_filter = Control.MOUSE_FILTER_PASS # the wheel reaches a tall card; PASS keeps clicks from landing on a merchant button under it
 		scroll.add_child(detail)
 		holder.add_child(scroll)
-		scroll.mouse_exited.connect(func() -> void: _close_unless_pointer_on(control, holder))
+		scroll.mouse_entered.connect(func() -> void: holder.set_meta("card_hover", true))
+		scroll.mouse_exited.connect(func() -> void:
+			holder.set_meta("card_hover", false)
+			_close_when_unhovered.bind(holder).call_deferred())
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in detail.find_children("*", "Control", true, false):
 			child.mouse_filter = Control.MOUSE_FILTER_IGNORE # tooltip contents must not intercept a drag destination
@@ -209,17 +212,20 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 			open.call())
 	control.focus_exited.connect(func() -> void: holder.visible = false)
 	if on_hover:
-		control.mouse_entered.connect(open)
-		control.mouse_exited.connect(func() -> void: _close_unless_pointer_on(control, holder))
+		control.mouse_entered.connect(func() -> void:
+			holder.set_meta("item_hover", true)
+			open.call())
+		control.mouse_exited.connect(func() -> void:
+			holder.set_meta("item_hover", false)
+			_close_when_unhovered.bind(holder).call_deferred())   # deferred: the pointer may enter the card in this same event
 
-## Closes a hover card once the pointer is on neither its item nor the card, so the pointer can move onto the card to scroll it.
-static func _close_unless_pointer_on(control: Control, holder: Control) -> void:
-	if not is_instance_valid(holder) or not holder.visible:
+## Closes a hover card once neither its item nor the card is hovered. Hover is tracked from the enter and exit signals, so the decision
+## follows what the pointer did, not a polled position. The check runs at the end of the frame, after a pointer that moved from the item onto
+## the card has entered the card.
+static func _close_when_unhovered(holder: Control) -> void:
+	if not is_instance_valid(holder):
 		return
-	var pointer: Vector2 = control.get_viewport().get_mouse_position()
-	if control.get_global_rect().has_point(pointer):
-		return
-	if holder.get_child_count() > 0 and (holder.get_child(0) as Control).get_global_rect().has_point(pointer):
+	if bool(holder.get_meta("item_hover", false)) or bool(holder.get_meta("card_hover", false)):
 		return
 	holder.visible = false
 
