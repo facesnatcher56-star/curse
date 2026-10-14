@@ -171,9 +171,18 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		]
 		var position := Vector2.ZERO
 		var least := INF
-		for side in sides:
+		var found := false
+		var first := Vector2.ZERO
+		for index in sides.size():
+			var side: Vector2 = sides[index]
 			var candidate := Vector2(clampf(side.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown.x)),
 				clampf(side.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown.y)))
+			if index == 0:
+				first = candidate
+			# A side is usable only if the clamped card still overlaps the item's edge, so the pointer cannot cross a gap.
+			if not _keeps_hover_edge(Rect2(candidate, shown), item_rect):
+				continue
+			found = true
 			var covered := 0.0
 			for blocker in blockers:
 				covered += Rect2(candidate, shown).intersection(blocker).get_area()
@@ -182,7 +191,7 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 				position = candidate
 			if covered <= 0.0:
 				break
-		holder.global_position = position
+		holder.global_position = position if found else first
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
@@ -224,11 +233,19 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 			holder.set_meta("item_hover", false)
 			_close_when_unhovered.bind(holder).call_deferred())   # deferred: the pointer may enter the card in this same event
 
+## Whether a card rect overlaps its item's rect by at least HOVER_OVERLAP across the edge the card sits on (a horizontal side needs that
+## much width, a vertical side that much height), so the pointer crosses from item to card without a gap.
+static func _keeps_hover_edge(card: Rect2, item: Rect2) -> bool:
+	var overlap := card.intersection(item)
+	return (overlap.size.x >= HOVER_OVERLAP and overlap.size.y > 0.0) or (overlap.size.y >= HOVER_OVERLAP and overlap.size.x > 0.0)
+
 ## Closes a hover card once neither its item nor the card is hovered. Hover is tracked from the enter and exit signals, so the decision
 ## follows what the pointer did, not a polled position. The check runs at the end of the frame, after a pointer that moved from the item onto
 ## the card has entered the card.
-static func _close_when_unhovered(holder: Control) -> void:
-	if not is_instance_valid(holder):
+## `holder` is deliberately untyped: this runs as a deferred call, which is handed the bound node even if it was freed in the meantime, and a
+## typed parameter would fail to convert that freed object. It is validated before any use.
+static func _close_when_unhovered(holder) -> void:
+	if not is_instance_valid(holder) or not (holder is Control):
 		return
 	if not (bool(holder.get_meta("item_hover", false)) or bool(holder.get_meta("card_hover", false))):
 		holder.visible = false

@@ -208,7 +208,14 @@ func _test_item_icons() -> void:
 			card = (child as Control).get_child(0) as Control
 	expect("pointing at a tile shows a card that describes the item and compares it", card != null and _label_text(card).contains("Greatsword") and _label_text(card).contains("Damage"))
 	tile.mouse_exited.emit()
-	await Signal(tile.get_node("ItemDetails"), "hover_resolved")   # the close is deferred: wait for its decision itself, not a frame count
+	# The close is a deferred call: wait for its decision, but for at most 10 frames, so a missing decision is a [FAIL], not a hang.
+	var decided: Array = [false]
+	Signal(tile.get_node("ItemDetails"), "hover_resolved").connect(func() -> void: decided[0] = true)
+	var waited := 0
+	while not decided[0] and waited < 10:
+		await get_tree().process_frame
+		waited += 1
+	expect("the close decision arrives within 10 frames", decided[0])
 	expect("and it goes when the pointer leaves", not tile.get_children().any(func(c: Node) -> bool: return c is Control and (c as Control).visible))
 	tile.queue_free()
 	# On the ground an item is the item itself with its name over it in its rarity's colour, not a picture of it.
@@ -444,6 +451,23 @@ func _test_item_card() -> void:
 		await get_tree().process_frame
 		expect("a tall item card overflows its scroll area so the wheel has something to move", scroll.get_v_scroll_bar().max_value > scroll.size.y)
 		expect("the scroll area takes the mouse so the wheel reaches it", scroll.mouse_filter == Control.MOUSE_FILTER_PASS)
+	# At the left and right screen edges the clamp must keep the card overlapping its item, so there is still no gap to cross.
+	var view_size := get_viewport().get_visible_rect().size
+	for edge_x in [view_size.x - 60.0, 2.0]:
+		var edge_tile := ItemTile.create(plate, null, 56.0)
+		edge_tile.position = Vector2(edge_x, 120.0)
+		add_child(edge_tile)
+		await get_tree().process_frame
+		edge_tile.mouse_entered.emit()
+		await get_tree().process_frame
+		var edge_holder := edge_tile.get_node("ItemDetails") as Control
+		var edge_scroll: ScrollContainer = null
+		if edge_holder.get_child_count() > 0:
+			edge_scroll = edge_holder.get_child(0) as ScrollContainer
+		expect("at the screen edge x=%d the card still overlaps its item across the hover edge" % int(edge_x),
+			edge_scroll != null and ItemTile._keeps_hover_edge(edge_scroll.get_global_rect(), edge_tile.get_global_rect()))
+		edge_tile.queue_free()
+		await get_tree().process_frame
 	tile.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
