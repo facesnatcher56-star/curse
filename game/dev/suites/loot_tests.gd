@@ -444,13 +444,8 @@ func _test_item_card() -> void:
 	if holder.get_child_count() > 0:
 		scroll = holder.get_child(0) as ScrollContainer
 	expect("an opened item card has a scroll area", scroll != null and holder.visible)
-	# The height placement uses is the card's text, not a column of single words from labels measured before they had a width.
-	if scroll != null:
-		expect("an opened item card is as tall as its text, so it is not pushed to the screen corner (%d px)" % int(scroll.size.y), scroll.size.y < 600.0)
-	# The opened card sits beside its item: its scroll area is within a few pixels of the item's global rect, not at the screen corner.
-	if scroll != null:
-		var near := scroll.get_global_rect().grow(12.0).intersects(tile.get_global_rect())
-		expect("the opened card is beside its item (scroll %s, item %s)" % [scroll.get_global_rect(), tile.get_global_rect()], near)
+	# An item in the middle of the screen gets a card beside it, not pinned to the top of the screen.
+	await _check_card_beside_item(get_viewport().get_visible_rect().size * 0.5 - Vector2(28, 28))
 	if scroll != null:
 		scroll.size = Vector2(300, 120)   # shorter than the card: it overflows
 		await get_tree().process_frame
@@ -477,6 +472,44 @@ func _test_item_card() -> void:
 		await get_tree().process_frame
 	tile.queue_free()
 	await get_tree().process_frame
+	await get_tree().process_frame
+
+## A hover card opens beside its item, at the item's position on screen. Opened with the item at `at`, the card must sit on one side of it,
+## overlapping across that edge by HOVER_OVERLAP. Beside a left or right side its top is the item's top; above or below, its left is the
+## item's left. It is never above the top of the screen, and never above its item by more than its own height. A card pinned to the top of
+## the screen (the wrong-height bug) fails the top-alignment check for an item in the middle of the screen.
+func _check_card_beside_item(at: Vector2) -> void:
+	var plate: Dictionary = Items.make(Items.Slot.ARMOR, Items.Rarity.NORMAL, 1, "Plate Cuirass")
+	var tile := ItemTile.create(plate, null, 56.0)
+	tile.position = at
+	add_child(tile)
+	await get_tree().process_frame
+	tile.mouse_entered.emit()
+	await get_tree().process_frame
+	var holder := tile.get_node("ItemDetails") as Control
+	var scroll: ScrollContainer = null
+	if holder.get_child_count() > 0:
+		scroll = holder.get_child(0) as ScrollContainer
+	expect("a middle-of-screen item opens a card", scroll != null and holder.visible)
+	if scroll != null:
+		var item := tile.get_global_rect()
+		var card := scroll.get_global_rect()
+		var tol := 1.5
+		var right := absf(card.position.x - (item.end.x - ItemTile.HOVER_OVERLAP)) <= tol
+		var left := absf(card.end.x - (item.position.x + ItemTile.HOVER_OVERLAP)) <= tol
+		var below := absf(card.position.y - (item.end.y - ItemTile.HOVER_OVERLAP)) <= tol
+		var above := absf(card.end.y - (item.position.y + ItemTile.HOVER_OVERLAP)) <= tol
+		expect("the card sits on one side of its item (card %s, item %s)" % [card, item], right or left or below or above)
+		expect("the card overlaps its item across that edge (card %s, item %s)" % [card, item], ItemTile._keeps_hover_edge(card, item))
+		if right or left:
+			expect("beside its item the card's top is the item's top, not the screen top (card y %d, item y %d)" % [int(card.position.y), int(item.position.y)],
+				absf(card.position.y - item.position.y) <= tol)
+		if below or above:
+			expect("above or below its item the card's left is the item's left (card x %d, item x %d)" % [int(card.position.x), int(item.position.x)],
+				absf(card.position.x - item.position.x) <= tol)
+		expect("the card is not above the top of the screen (y %d)" % int(card.position.y), card.position.y >= 0.0)
+		expect("the card is not above its item by more than its own height", card.position.y >= item.position.y - card.size.y)
+	tile.queue_free()
 	await get_tree().process_frame
 
 ## An item pickup's name: 3 s readable and a 0.5 s fade (4 s for a rare or better), and rapid pickups stack instead of overwriting each other.
