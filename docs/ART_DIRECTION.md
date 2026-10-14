@@ -5,7 +5,8 @@ hand-written shaders and particle effects, UI, and (in spirit) sound. If an asse
 excused. When this page and a prompt, a tool default or a convenient shortcut disagree, this page wins.
 
 The asset pipeline rules (Blender export, skeleton, naming, materials and triangle budgets) are in
-[art/PIPELINE.md](art/PIPELINE.md).
+[art/PIPELINE.md](art/PIPELINE.md). The humanoid standard is the live knight2 game skeleton
+(`assets/models/knight2/rigged.glb`), not the experimental Blender rig. Independent monster rigs are allowed where justified.
 
 ## In one line
 

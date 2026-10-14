@@ -18,9 +18,10 @@ Blender is the source for hand-built models (`tools/blender/`). Every export use
   white on a joined mesh (Blender 5.2 exporter issue, see `tools/blender/make_crypt_props.py`), split the object by material and
   export each piece alone.
 
-## Player skeleton standard (knight2 game rig)
+## Humanoid skeleton standard (knight2 game rig)
 
-The live knight2 game skeleton, `assets/models/knight2/rigged.glb`, is the **target for modular player equipment**. Lane A has
+The live knight2 game skeleton, `assets/models/knight2/rigged.glb`, is the **humanoid standard**, not the experimental Blender
+rig. It is the target for modular player equipment. Lane A has
 demonstrated the live-game path: its equipment kit is retargeted onto knight2 (commit a05f2ac). The table below is verified
 against that rig, read directly from its skin. It has **24 joints** under one armature object, `Armature`, with `Hips` under it.
 There is **no `Root` bone**: `Hips` is the top bone.
@@ -47,10 +48,11 @@ experiment rig.
 
 ## Enemy rigs
 
-Enemy rigs are **independent** unless a shared clip set requires compatibility. An enemy does not have to use the player's
-skeleton, and the player's bone table does not bind enemies. Enemy clips are keyed by the names in `game/data/enemy_def.gd`
-(`clips`, default `idle`, `walk`, `attack`, `hit`, `death`, and `attack_clip`), so an enemy rig must provide clips under those
-names to work with its definition.
+Enemy rigs are **independent** unless a shared clip set requires compatibility. Independent monster rigs are allowed where
+justified, for example the staging zombie and warden. An enemy does not have to use the humanoid standard, and the player's
+bone table does not bind enemies. Enemy clips are keyed by the names in `game/data/enemy_def.gd` (`clips`, default `idle`,
+`walk`, `attack`, `hit`, `death`, and `attack_clip`), so an enemy rig must provide clips under those names to work with its
+definition.
 
 **Open item (owner and Lane B):** Lane B's zombie and warden prototypes use the experiment knight skeleton. Whether they stay on
 that rig or move to a shared enemy skeleton is not decided here. Decide that with the owner before any further enemy rig is
