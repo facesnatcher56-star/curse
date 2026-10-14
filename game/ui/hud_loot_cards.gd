@@ -69,12 +69,12 @@ func _card_metrics(item: Dictionary, rows: Array[Dictionary], font: Font, for_dr
 	var line_ys: Array[float] = []
 	for row in rows:
 		line_ys.append(y + 14.0)
-		y += font.get_multiline_string_size(String(row["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14).y + 4.0
+		y += font.get_multiline_string_size(String(row["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y + 4.0
 	var m := {"width": width, "inner": inner, "kind_y": kind_y, "line_ys": line_ys, "drop_y": 0.0}
 	if for_drop:
 		y += 8.0
 		m["drop_y"] = y + 14.0
-		y += font.get_multiline_string_size(String(_walk_over(item).text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14).y
+		y += font.get_multiline_string_size(String(_walk_over(item).text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y
 	m["height"] = y + pad
 	return m
 
@@ -89,11 +89,11 @@ func _draw_card_body(item: Dictionary, rows: Array[Dictionary], m: Dictionary, c
 	UiTheme.text(hud, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
 		Color(1, 1, 1, 0.55))
 	for i in rows.size():
-		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), String(rows[i]["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1,
+		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), String(rows[i]["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1,
 			rows[i]["color"])
 	if for_drop:
 		var walk: Dictionary = _walk_over(item)
-		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.drop_y), String(walk.text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 14, -1, walk.color)
+		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.drop_y), String(walk.text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1, walk.color)
 
 ## What walking over a drop does, with the appraisal's verdict: worn at once, a better piece waiting in the bag, or not wearable yet.
 func _walk_over(item: Dictionary) -> Dictionary:
@@ -104,7 +104,7 @@ func _walk_over(item: Dictionary) -> Dictionary:
 		LootAppraisal.Verdict.UPGRADE:
 			return {"text": "Walk over it: it goes in the bag (better than what you wear)", "color": UPGRADE_COLOR}
 		LootAppraisal.Verdict.LOCKED:
-			return {"text": "Walk over it: it goes in the bag (you cannot wear it yet)", "color": LOCKED_COLOR}
+			return {"text": "Walk over it: it goes in the bag", "color": LOCKED_COLOR}   # the card's one "You cannot wear this yet" line says why
 	return {"text": "Walk over it: it goes in the bag", "color": Color(0.7, 0.68, 0.62)}
 
 ## Restrict clearance to the active return-waystone decision; other cards retain their layout.

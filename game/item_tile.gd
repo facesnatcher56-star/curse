@@ -45,19 +45,19 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 	panel.add_child(box)
 	var member: String = PartyManager.current().active_id
 	var rarity: int = int(it["rarity"])
-	box.add_child(_label(String(it["name"]), 20, Items.RARITY_COLORS[rarity]))
-	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 13, Color(1, 1, 1, 0.55)))
+	box.add_child(_wrapping_label(String(it["name"]), 22, Items.RARITY_COLORS[rarity]))
+	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 14, Color(1, 1, 1, 0.55)))
 	var comparison: Array[Dictionary] = Items.compare(it, worn, member) if with_compare else Items.wear_warning(it, member)
 	for row in display_rows(it, comparison, member):
-		box.add_child(_wrapping_label(String(row["text"]), 14, row["color"]))
+		box.add_child(_wrapping_label(String(row["text"]), 15, row["color"]))
 	if with_equip_hint:
-		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 13, Color(0.7, 0.68, 0.62)))
+		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 14, Color(0.7, 0.68, 0.62)))
 	if not with_action_hint.is_empty():
-		box.add_child(_wrapping_label(with_action_hint, 13, Color(0.7, 0.68, 0.62)))
+		box.add_child(_wrapping_label(with_action_hint, 14, Color(0.7, 0.68, 0.62)))
 	return panel
 
 ## Width of every item card (the trader, stash, inventory and hover cards). Wider than the old 300 so long descriptions wrap in fewer lines.
-const CARD_WIDTH := 400.0
+const CARD_WIDTH := 460.0
 ## The lines of an item card, in order, as {text, color}. Shared by every item card (hover, trader, stash, inventory and the ground). The one
 ## "cannot wear it yet" warning comes first. Each stat then carries its change beside it, coloured by that change ("Armor 8 (-1)" in red); a
 ## change to a stat the item does not have still appears, as its own line. An empty slot's note comes last.
@@ -100,7 +100,6 @@ static func _delta_color(sign_value: int) -> Color:
 static func _wrapping_label(text: String, size: int, color: Color) -> Label:
 	var label := _label(text, size, color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size.x = CARD_WIDTH
 	return label
 
 ## Shared by inventory/shop cards and ground-loot cards.
@@ -150,12 +149,34 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		var extent: Vector2 = detail.get_combined_minimum_size()
 		var shown := Vector2(minf(extent.x, safe_rect.size.x), minf(extent.y, safe_rect.size.y))
 		scroll.size = shown
-		var anchor: Vector2 = control.global_position + Vector2(control.size.x + 12, 0)
-		if anchor.x + shown.x > safe_rect.end.x:
-			anchor.x = control.global_position.x - shown.x - 12
-		var position := Vector2(anchor.x, anchor.y)
-		position.x = clampf(position.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown.x))
-		position.y = clampf(position.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown.y))
+		# Try the sides of the item in turn (right, left, below, above) and take the first that covers no buttons. Buttons are the
+		# merchant's Buy/Sell controls and neighbouring rows; with none clear, the side that covers the least wins.
+		var item_rect := Rect2(control.global_position, control.size)
+		var blockers: Array[Rect2] = []
+		for button in control.get_viewport().find_children("*", "BaseButton", true, false):
+			var other := button as Control
+			if other == null or other == control or holder.is_ancestor_of(other) or not other.is_visible_in_tree():
+				continue
+			blockers.append(other.get_global_rect())
+		var sides: Array[Vector2] = [
+			Vector2(item_rect.end.x + 12, item_rect.position.y),
+			Vector2(item_rect.position.x - shown.x - 12, item_rect.position.y),
+			Vector2(item_rect.position.x, item_rect.end.y + 8),
+			Vector2(item_rect.position.x, item_rect.position.y - shown.y - 8),
+		]
+		var position := Vector2.ZERO
+		var least := INF
+		for side in sides:
+			var candidate := Vector2(clampf(side.x, safe_rect.position.x, maxf(safe_rect.position.x, safe_rect.end.x - shown.x)),
+				clampf(side.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown.y)))
+			var covered := 0.0
+			for blocker in blockers:
+				covered += Rect2(candidate, shown).intersection(blocker).get_area()
+			if covered < least:
+				least = covered
+				position = candidate
+			if covered <= 0.0:
+				break
 		holder.global_position = position
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
