@@ -14,6 +14,8 @@ var tutorial_fighter: bool = false
 ## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
 ## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
 var xp_eligible: bool = true
+## Set when the spawner makes this enemy a champion (Champion.attach / roll_pack): a tougher named body with one affix. Null otherwise.
+var champion: Champion = null
 
 var def: EnemyDef
 var behavior: EnemyBehavior
@@ -153,6 +155,8 @@ func _physics_process(delta: float) -> void:
 	silence_time = maxf(silence_time - delta, 0.0)
 	var frozen: bool = _actor_tick(delta)
 	_update_telegraph(delta)
+	if champion != null and not dead:
+		champion.tick(self, delta)
 	if is_ragdolled() or impaled:
 		return  # the ragdoll (or the skewering player) is driving this actor
 	if frozen:
@@ -229,6 +233,12 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		if snare > 0.0 and Time.get_ticks_msec() - _retreat_ms < 800:
 			apply_snare(snare, float(def.param("snare_amount", 0.6)))
 	super.receive(result, source_pos)
+
+## A champion's shield soaks damage before the body does (see Champion.filter_incoming).
+func _filter_incoming(result: Dictionary) -> Dictionary:
+	if champion != null:
+		return champion.filter_incoming(self, result)
+	return result
 
 ## It has noticed the hero (or been hit): stop what it was doing, and call the rest of its group.
 func is_aggro() -> bool:
@@ -562,6 +572,8 @@ func _exit_tree() -> void:
 
 func _on_death() -> void:
 	release_token()
+	if champion != null:
+		champion.on_death(self)
 	behavior.on_death(last_result)
 	remove_from_group("enemies")
 	await get_tree().create_timer(5.0).timeout

@@ -365,6 +365,7 @@ func _exit_gate() -> void:
 func _group(id: int, mode: String, members: Array, home: Vector2, radius: float = 4.0, feed_at: Vector2 = Vector2.ZERO,
 		patrol: Array[Vector2] = [], tutorial: bool = false) -> void:
 	var threat: float = WorldThreat.for_distance(EXIT_Z - home.y)   # the stretch the group lives in
+	var bodies: Array = []
 	for m in members:
 		var exact: bool = m.size() > 3
 		var copies: int = 1
@@ -393,6 +394,8 @@ func _group(id: int, mode: String, members: Array, home: Vector2, radius: float 
 			for p in patrol:
 				e.patrol.append(at(p.x, p.y))
 			e.alert_delay = 0.0
+			bodies.append(e)
+	Champion.roll_pack(bodies)   # the group may carry a champion (Champion.PACK_CHANCE; trivial openers never do)
 
 ## Every group, standing where the layout says. Called once the navigation map is ready (see Main).
 func spawn_encounters(for_director: RunDirector) -> void:

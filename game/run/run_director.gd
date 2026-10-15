@@ -240,6 +240,7 @@ func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector
 		var centre: Vector3 = _spawn_point(14.0 + lead, 28.0 + lead, centres, 9.0)
 		centres.append(centre)
 		var placed: Array[Vector3] = []
+		var bodies: Array = []
 		for k in pack:
 			var pos: Vector3 = centre
 			for attempt in 8:
@@ -253,7 +254,8 @@ func _spawn_packs(def: EnemyDef, count: int, level: float, centres: Array[Vector
 				if clear:
 					break
 			placed.append(pos)
-			spawn_enemy(_clamp_to_arena(pos), def.id, level)
+			bodies.append(spawn_enemy(_clamp_to_arena(pos), def.id, level))
+		Champion.roll_pack(bodies)   # a pack may carry a champion (Champion.PACK_CHANCE)
 
 ## A spot just behind one of the packs (on the far side from the hero), for enemies that support from the back.
 func _support_point(centres: Array[Vector3]) -> Vector3:
@@ -458,6 +460,8 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, bonuses.magic_find, Quests.world_mult("drop_mult") if world_mode else 1.0, bonuses.gold_find)
 	if not loot.item.is_empty():
 		drop_item(enemy.global_position, loot.item)
+	if enemy.champion != null:   # a champion always drops a magic item or better, on top of the ordinary roll
+		drop_item(enemy.global_position, Champion.loot(enemy.level, enemy.def.tier, bonuses.magic_find))
 	for kind in ["gold", "health", "mana"]:
 		if int(loot[kind]) <= 0: continue
 		var pickup := HealthOrb.new()
