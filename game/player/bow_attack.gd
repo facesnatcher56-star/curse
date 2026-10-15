@@ -72,6 +72,17 @@ func detach() -> void:
 	for node in [_bow_holder, _quiver, _draw_arrow, _string_upper, _string_lower, aura]:
 		if is_instance_valid(node): node.queue_free()
 
+## Put the bow away while the archer holds his dagger (see Player.refresh_weapon_model): the object, its counters and reload stay,
+## and only the models hide. The shot in progress is the caller's to cancel.
+var stowed: bool = false
+
+func set_stowed(on: bool) -> void:
+	stowed = on
+	for node in [_bow_holder, _quiver]:
+		if is_instance_valid(node): node.visible = not on
+	if is_instance_valid(_draw_arrow): _draw_arrow.visible = false
+	_set_bow_string_visible(false)
+
 func disarm() -> void:
 	armed = false
 	if is_instance_valid(aura): aura.queue_free()

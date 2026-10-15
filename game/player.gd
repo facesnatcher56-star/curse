@@ -183,12 +183,20 @@ func refresh_weapon_model() -> void:
 			bow.reload_required = float(saved_bow.get("required", 0.0))
 			bow.reload_remaining = float(saved_bow.get("remaining", 0.0))
 			if bool(saved_bow.get("armed", false)): bow.arm()
+		elif bow.stowed:
+			# Back from the dagger: the same bow object comes out again, its counters and charge kept.
+			bow.set_stowed(false)
+			_held_path = ""
+			model.clear_weapon()
 		return
 	if bow != null:
-		capture_state()
-		bow.detach()
-		bow = null
-		_held_path = ""
+		if stats.bow_worn():
+			bow.set_stowed(true)   # the archer's melee stance keeps the object (counters, charge) and hides the bow
+		else:
+			capture_state()
+			bow.detach()
+			bow = null
+			_held_path = ""
 	var worn: Variant = stats.wielded_weapon()
 	var path: String = SWORD_PATH
 	if worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):

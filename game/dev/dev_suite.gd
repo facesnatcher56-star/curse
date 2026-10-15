@@ -52,6 +52,8 @@ func _own_lane(length: float, width: float) -> Vector3:
 ## A known archer state for a check that runs after other suites: no cooldown or mana spent by earlier fights, no leftover orders or
 ## shot in progress. Earlier suites leave the shared basic cooldown spent, which would otherwise refuse every archer shot.
 func _prepare_archer(archer: ArcherCompanion) -> void:
+	# An earlier suite can leave him in the dagger stance (no target now ends it): the bow he starts with is then the one to use.
+	archer.update_melee_stance(null)
 	archer.bow.cancel()
 	archer.stats.cooldowns.clear()
 	archer.stats.mana = archer.stats.max_mana

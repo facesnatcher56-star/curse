@@ -22,7 +22,7 @@ func _begin_case(archer: ArcherCompanion, lane: Vector3) -> Enemy:
 ## One frame of the game's ranged loop for the archer: the stance decision, the bow's decision, and the busy shot ticking.
 func _frame(archer: ArcherCompanion, target: Enemy) -> void:
 	archer.update_melee_stance(target)
-	if archer.bow != null:
+	if archer.bow != null and archer.stats.is_ranged():
 		archer.bow.engage(target, null, DELTA)
 		if archer.skills.busy:
 			archer.bow.tick(DELTA)
@@ -92,7 +92,8 @@ func _test_archer_stance() -> void:
 	expect("melee: an enemy in contact draws the dagger (stance held)", not archer.stats.stance_weapon.is_empty())
 	expect("melee: the wielded weapon is the dagger", archer.stats.wielded_weapon() != null
 		and ItemDb.get_def(String(archer.stats.wielded_weapon().get("def", ""))).id == "dagger")
-	expect("melee: the archer is not ranged while the dagger is out", not archer.stats.is_ranged() and archer.bow == null)
+	expect("melee: the archer is not ranged while the dagger is out, and the bow is stowed (object kept)",
+		not archer.stats.is_ranged() and archer.bow != null and archer.bow.stowed)
 	expect("melee: the bow is still the worn weapon (only put away, not unequipped)", archer.stats.bow_worn())
 	archer.skills.start_skill("basic", enemy)
 	expect("melee: the basic melee attack starts on the enemy in contact", archer.skills.busy
@@ -109,7 +110,7 @@ func _test_archer_stance() -> void:
 	await get_tree().physics_frame
 	archer.update_melee_stance(enemy)
 	expect("room: with the enemy out of melee the bow comes back", archer.stats.stance_weapon.is_empty() and archer.bow != null
-		and archer.stats.is_ranged())
+		and not archer.bow.stowed and archer.stats.is_ranged())
 
 	# 5. A shot being drawn when the enemy closes is given up for the dagger.
 	bow = archer.bow
@@ -121,13 +122,13 @@ func _test_archer_stance() -> void:
 	enemy.global_position = archer.global_position + Vector3(1.2, 0.0, 0.0)
 	await get_tree().physics_frame
 	archer.update_melee_stance(enemy)
-	expect("draw: an enemy reaching contact mid-draw cancels the shot and draws the dagger", archer.bow == null
-		and not archer.stats.stance_weapon.is_empty() and not archer.skills.busy)
+	expect("draw: an enemy reaching contact mid-draw cancels the shot and draws the dagger", archer.bow != null
+		and archer.bow.stowed and not archer.stats.stance_weapon.is_empty() and not archer.skills.busy)
 
 	# 6. The target is gone: the stance ends.
 	archer.update_melee_stance(null)
 	expect("gone: with no target the dagger is put away and the bow returns", archer.stats.stance_weapon.is_empty()
-		and archer.bow != null and archer.stats.is_ranged())
+		and archer.bow != null and not archer.bow.stowed and archer.stats.is_ranged())
 
 	bow = archer.bow
 	bow.cancel()
