@@ -46,6 +46,7 @@ const SUITES := [
 	preload("res://game/dev/suites/archer_target_tests.gd"),
 	preload("res://game/dev/suites/archer_hold_tests.gd"),
 	preload("res://game/dev/suites/archer_nest_order_tests.gd"),
+	preload("res://game/dev/suites/archer_stance_tests.gd"),
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
 ]
@@ -182,6 +183,7 @@ const ONLY_TESTS := {
 "archerpositioning": "_test_archer_positioning",
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
+"archerstance": "_test_archer_stance",
 "archernestorder": "_test_archer_nest_order",
 "roaddensity": "_test_road_density",
 }
@@ -281,6 +283,8 @@ func _run_selftest() -> void:
 	await _run("_test_archer_hold")
 	_party_restore(party_before)
 	await _run("_test_archer_moving")
+	_party_restore(party_before)
+	await _run("_test_archer_stance")
 	_party_restore(party_before)
 
 	var zombies: Array[Enemy] = []

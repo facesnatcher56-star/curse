@@ -81,7 +81,6 @@ func _press_companion_attack(hero: Player, screen: Vector2) -> Dictionary:
 ## was not held.
 func _run_order(archer: ArcherCompanion, nest: Destructible, bound: int) -> Dictionary:
 	var shots0: int = archer.bow.shots
-	var retreat0: float = archer.bow.retreat_seconds
 	var frames := 0
 	var enemy_frames := 0
 	var unordered_frames := 0
@@ -108,8 +107,7 @@ func _run_order(archer: ArcherCompanion, nest: Destructible, bound: int) -> Dict
 			on_nest["idle"] += 1
 		if archer.attack_prop != nest: unordered_frames += 1
 	return {"broke": nest.broken, "frames": frames, "shots": archer.bow.shots - shots0, "nest_hits": hits, "enemy_frames": enemy_frames,
-		"unordered_frames": unordered_frames, "nest_hp_lost": snappedf(hp0 - nest.hp, 0.1), "on_nest": on_nest,
-		"retreat_s": snappedf(archer.bow.retreat_seconds - retreat0, 0.1)}
+		"unordered_frames": unordered_frames, "nest_hp_lost": snappedf(hp0 - nest.hp, 0.1), "on_nest": on_nest}
 
 ## Puts the hero `distance` from a nest with the archer beside him, both topped up, and lets the camera settle on the hero.
 func _stage(hero: Player, archer: ArcherCompanion, nest: Destructible, distance: float) -> void:
