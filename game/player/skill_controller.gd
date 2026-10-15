@@ -511,6 +511,30 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
 
+## A power's wind-up (PowerController.CASTS). It is the busy action, so every cancel path (a move, a dodge, a potion, a knockdown, another
+## skill) reaches it. The power's damage, stun, cost and recharge happen at the strike frame (tick_busy -> PowerController.impact); a
+## wind-up cut short before then does none of them and is not spent.
+func start_power_cast(id: String, aim: Vector3, cast: Dictionary) -> void:
+	clear_queue()
+	busy_def = cast.duplicate()
+	busy_def["kind"] = "power"
+	busy_def["charged"] = false
+	busy_time = float(cast["time"])
+	busy = true
+	busy_skill = id
+	busy_target = null
+	busy_t = 0.0
+	busy_hit_done = false
+	busy_aim = aim
+	p.combat_timer = 5.0
+	p.movement.has_goal = false
+	p.attack_target = null
+	if bool(cast.get("face", false)):
+		p.face(aim)
+	_release_started = false
+	p.model.manual(String(cast["clip"]))
+	p.model.scrub(float(cast["start"]))
+
 ## An Opening's execution (Openings.STYLES): one melee blow on the marked enemy, timed by the weapon's speed. It is never cancelled by
 ## the enemy moving (the mark is what the hero is committed to), and it grants the hero a short invulnerability.
 func start_opening(target: Actor, style: Dictionary) -> void:
@@ -554,6 +578,13 @@ func _next_basic() -> Dictionary:
 		combo_step = 0
 		combo_timer = 0.0
 		return brutal_skill
+	# An armed Staggering Blow is its own overhead blow; its impact releases the power (see _apply_skill).
+	if p.powers.staggering_armed:
+		var stagger_skill: Dictionary = SkillDb.all()["basic"].duplicate(true)
+		stagger_skill.merge(PowerController.STAGGER_SWING, true)
+		combo_step = 0
+		combo_timer = 0.0
+		return stagger_skill
 	var variants: Array = SkillDb.basic_combo()[combo_step]
 	var skill: Dictionary = SkillDb.all()["basic"].duplicate()
 	skill.merge(variants[randi() % variants.size()], true)
@@ -573,6 +604,9 @@ func tick_busy(delta: float) -> void:
 		p.bow.tick(delta)
 		return
 	var skill: Dictionary = busy_def
+	if String(skill.get("kind", "")) == "power":
+		_tick_power_cast(skill, delta)
+		return
 	busy_t += delta
 	if bool(skill.get("charged", false)):
 		_tick_charged(skill)
@@ -606,6 +640,19 @@ func tick_busy(delta: float) -> void:
 		busy = false
 		if p._trail != null:
 			p._trail.active = false
+
+## A power's wind-up: scrubbed through its clip, the impact at its strike frame, and the cast ends with its recovery.
+func _tick_power_cast(skill: Dictionary, delta: float) -> void:
+	busy_t += delta
+	var duration: float = busy_time
+	var hf: float = hit_fraction(skill)
+	if not busy_hit_done and busy_t >= duration * hf:
+		busy_hit_done = true
+		p.powers.impact(busy_skill, busy_aim)
+	p.model.scrub(CharacterModel.remap(clampf(busy_t / duration, 0.0, 1.0), hf,
+		float(skill["start"]), float(skill["strike"]), float(skill["end"])))
+	if busy_t >= duration:
+		busy = false
 
 ## Two-phase cast: arms rise and the orb swells (gather), then both hands drive forward and it is thrown.
 func _tick_charged(skill: Dictionary) -> void:

@@ -1,5 +1,12 @@
 # Audio credits
 
+## Power cast and impact cues (Lane K, 2026-10-15)
+
+`powers/whirling_strike_cast.wav`, `powers/whirling_strike_hit.wav`, `powers/staggering_cast.wav`, `powers/staggering_hit.wav`,
+`powers/war_cry_cast.wav` and `powers/war_cry_hit.wav` are layered, pitched and filtered composites of the existing recordings listed
+below. Rebuild with `tools/build_power_cues.py` (numpy and soundfile only). No new sources were downloaded and no DS2 audio is used.
+Their licences are the same as the sources' licences, which are still unverified in this file (see the notes above).
+
 ## Layered power cues (owner requested, 2026-10-11)
 
 `powers/brutal_hit.wav`, `powers/take_aim_charge.wav`, `powers/take_aim_fire.wav` and

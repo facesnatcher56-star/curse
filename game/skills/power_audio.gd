@@ -2,7 +2,10 @@ extends RefCounted
 ## Four recorded composites, baked offline; no mixing/DSP overhead in combat.
 ## DS2-inspired pitch and per-event concurrency, with conservative mix headroom.
 
-const EVENTS := ["brutal_hit", "take_aim_charge", "take_aim_fire", "take_aim_hit"]
+## Brutal Attack and Take Aim (the first pass), then the cast and impact cues of Whirling Strike, Staggering Blow and War Cry
+## (tools/build_power_cues.py, sources in assets/audio/CREDITS.md).
+const EVENTS := ["brutal_hit", "take_aim_charge", "take_aim_fire", "take_aim_hit",
+	"whirling_strike_cast", "whirling_strike_hit", "staggering_cast", "staggering_hit", "war_cry_cast", "war_cry_hit"]
 static var _streams: Dictionary = {}
 
 static func play(from: Node3D, event: String) -> bool:

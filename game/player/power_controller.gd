@@ -15,6 +15,28 @@ const WAR_CRY_FEAR := 4.0
 ## Flame Nexus's radius (DS2's file gives only a dummy radius; CURSE CHOICE) and the burn every DS2 fire power leaves (4 s at 0.1 x INT).
 const NEXUS_RADIUS := 4.0
 const FIRE_POWER_BURN := 0.1
+## The wind-up of a power that strikes on impact (Whirling Strike, War Cry). `start`, `strike` and `end` are clip seconds (the strike is the
+## impact frame), `time` the cast's length in seconds. Damage, stun, cost and recharge happen at the impact, never on the key press; a
+## wind-up cut short (death, a knockdown, a move, a dodge, another skill) does none of them and is not spent. Curse's own clips for now
+## (knight2 library); the free library clips replace them when the owner approves the source.
+const CASTS := {
+	"whirling_strike": {"clip": "slash_r", "start": 0.0, "strike": 0.9, "end": 1.5, "time": 0.9},
+	"war_cry": {"clip": "cast", "start": 0.0, "strike": 0.9, "end": 1.4, "time": 1.2, "face": true},
+}
+## Staggering Blow's armed blow: the overhead swing that releases it on impact (the same blow path as a basic attack, with its own clip).
+const STAGGER_SWING := {"clip": "atk_finisher", "start": 0.0, "strike": 0.77, "end": 1.6, "time": 1.45, "weight": 1.8, "lunge": 0.6,
+	"range": 2.6, "mult": 1.0, "staggering_animation": true}
+## Impact feel, bounded: a short hit-pause and a shake when the power hits something, growing with the number hit and capped (seconds
+## and shake amount for Fx). CURSE CHOICE; ordinary hits keep their own pause.
+const IMPACT_PAUSE := 0.03
+const IMPACT_PAUSE_EACH := 0.008
+const IMPACT_PAUSE_MAX := 0.06
+const IMPACT_SHAKE := 0.12
+const IMPACT_SHAKE_EACH := 0.03
+const IMPACT_SHAKE_MAX := 0.24
+## Metres an enemy is thrown back by a power that stuns it (the knock-back uses the same v^2 / 44 relation as Repulse). CURSE CHOICE.
+const WHIRL_KNOCK := 1.6
+const STAGGER_KNOCK := 2.6
 
 var p: Player
 var reload_required: Dictionary = {}    # power id -> damage its recharge needed
@@ -109,26 +131,29 @@ func activate(id: String, cursor: Vector3) -> bool:
 	if why != "":
 		p._say(why)
 		return false
+	if p.skills.busy and String(p.skills.busy_def.get("kind", "")) == "power":
+		p._say("%s is already under way" % PowerDb.get_def(p.skills.busy_skill).display_name)
+		return false
 	p.combat_timer = 5.0
 	var immediate_target: Actor = p.skills.busy_target if is_instance_valid(p.skills.busy_target) else p.attack_target
 	if not is_instance_valid(immediate_target):
 		immediate_target = p.hover_target
 	p.skills.cancel_action()   # Powers interrupt an ordinary attack instead of queuing.
 	p.skills.clear_queue()
+	if CASTS.has(id):
+		# The wind-up starts now; the effect lands at its impact (impact()), and only then is the power spent.
+		p.skills.start_power_cast(id, cursor, CASTS[id])
+		Sfx.power(p, id + "_cast")
+		return true
 	match id:
-		"whirling_strike":
-			_whirling_strike()
-			p.openings.on_power_use()   # one Opening roll for the whole spin
 		"staggering_blow":
 			staggering_armed = true   # the next landed blow releases it, and only then is it spent (DS2: preserved by a miss)
-			Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "Staggering Blow", Color(0.95, 0.7, 0.4), 36)
+			Sfx.power(p, "staggering_cast")
 			if is_instance_valid(immediate_target) and not immediate_target.dead:
 				p.attack_target = immediate_target
 				p.movement.has_goal = false
 				p.skills.start_skill("basic", immediate_target)
 			return true
-		"war_cry":
-			_war_cry(cursor)
 		"provoke":
 			_provoke()
 		"repulse":
@@ -142,20 +167,33 @@ func activate(id: String, cursor: Vector3) -> bool:
 	_spend(id)
 	return true
 
-## Whirling Strike: one spin, every enemy within reach hit for the power's share of the weapon and stunned.
+## The impact of a wind-up that strikes on impact (SkillController.start_power_cast reaches it at the strike frame). A power that was cut
+## short never gets here: nothing is dealt and nothing is spent.
+func impact(id: String, aim: Vector3) -> void:
+	match id:
+		"whirling_strike":
+			_whirling_strike()
+			p.openings.on_power_use()   # one Opening roll for the whole spin
+		"war_cry":
+			_war_cry(aim)
+	_spend(id)
+
+## Whirling Strike: one spin, every enemy within reach hit for the power's share of the weapon, stunned and thrown back a little.
 func _whirling_strike() -> void:
 	var mult: float = value("whirling_strike", "damage_pct") / 100.0
 	var stun: float = value("whirling_strike", "stun")
-	for e in enemies_within(p.global_position, value("whirling_strike", "radius")):
+	var radius: float = value("whirling_strike", "radius")
+	var hit: Array[Enemy] = enemies_within(p.global_position, radius)
+	for e in hit:
 		_strike(e, p.stats.weapon_damage(1.0), "whirling_strike", 2.0, p.global_position, mult)
 		if is_instance_valid(e) and not e.dead:
-			e._gain_stun(stun * (1.0 - e.stun_resist))
-	var spin: Tween = p.create_tween()
-	spin.tween_property(p.visual, "rotation:y", p.visual.rotation.y + TAU, 0.35)
-	Fx.ring(p, p.global_position, value("whirling_strike", "radius"), Color(0.8, 0.75, 0.65))
+			_stagger(e, stun, WHIRL_KNOCK, p.global_position)
+	Fx.sector(p, p.global_position, Vector3.FORWARD, 75.0, radius, Color(0.85, 0.8, 0.7), 0.32, TAU * 0.8, 0.45)
 	Fx.burst(p, p.global_position + Vector3(0, 0.3, 0), Vector3.UP, Color(0.45, 0.4, 0.33), 18, 4.0, 0.05)
-	Sfx.sword_miss(p)
-	Destructible.blast(p.get_tree(), p.global_position, value("whirling_strike", "radius"), 40.0, Vector3.ZERO, 1.2, Destructible.HERO)
+	Destructible.blast(p.get_tree(), p.global_position, radius, 40.0, Vector3.ZERO, 1.2, Destructible.HERO)
+	if not hit.is_empty():
+		Sfx.power(p, "whirling_strike_hit")
+	_impact_feel(hit.size())
 
 ## Staggering Blow, released by the blow that landed on `target`: a shockwave from it stuns everything around and deals the power's damage.
 func release_staggering(target: Actor) -> void:
@@ -166,33 +204,56 @@ func release_staggering(target: Actor) -> void:
 	var centre: Vector3 = target.global_position
 	var mult: float = value("staggering_blow", "damage_pct") / 100.0
 	var stun: float = value("staggering_blow", "stun")
-	for e in enemies_within(centre, value("staggering_blow", "radius")):
+	var radius: float = value("staggering_blow", "radius")
+	var hit: Array[Enemy] = enemies_within(centre, radius)
+	for e in hit:
 		_strike(e, p.stats.weapon_damage(1.0), "staggering_blow", 3.0, centre, mult)
 		if is_instance_valid(e) and not e.dead:
-			e._gain_stun(stun * (1.0 - e.stun_resist))
-	Fx.ring(p, centre, value("staggering_blow", "radius"), Color(0.75, 0.6, 0.4))
+			_stagger(e, stun, STAGGER_KNOCK, centre)
+	Fx.ring(p, centre, radius, Color(0.75, 0.6, 0.4))
 	Fx.burst(p, centre + Vector3(0, 0.2, 0), Vector3.UP, Color(0.4, 0.33, 0.25), 24, 6.0, 0.06)
-	Fx.shake(p, 0.5)
+	Sfx.power(p, "staggering_hit")
+	_impact_feel(hit.size())
 	_spend("staggering_blow")
 
+## A power's stun and throw-back on one enemy: it reels for `stun` (scaled by its resistance) and is pushed away from `from`.
+func _stagger(e: Enemy, stun: float, throw_back: float, from: Vector3) -> void:
+	var out: Vector3 = e.global_position - from
+	out.y = 0.0
+	# knock decays at 22 m/s2 (Actor), so a push of v travels v^2 / 44 m: v = sqrt(44 d) throws it `throw_back` metres.
+	e.knock += (out.normalized() if out.length() > 0.1 else Vector3.FORWARD) * sqrt(44.0 * throw_back) * (1.0 - e.knock_resist)
+	e._gain_stun(stun * (1.0 - e.stun_resist))
+
+## The hit-pause and shake of a power's impact: bounded, and only when it struck something (see IMPACT_*).
+func _impact_feel(hits: int) -> void:
+	if hits <= 0:
+		return
+	var more: int = mini(hits - 1, 4)
+	Fx.hitstop(p, minf(IMPACT_PAUSE + IMPACT_PAUSE_EACH * more, IMPACT_PAUSE_MAX))
+	Fx.shake(p, minf(IMPACT_SHAKE + IMPACT_SHAKE_EACH * more, IMPACT_SHAKE_MAX))
+
 ## War Cry: a cone in front; the enemies in it run in fear with their armour stripped, and the hero's next blows are critical.
+## `cursor` is where the hero faced when he began the shout (the cone's direction).
 func _war_cry(cursor: Vector3) -> void:
 	var facing: Vector3 = cursor - p.global_position
 	facing.y = 0.0
 	facing = facing.normalized() if facing.length() > 0.1 else Vector3(sin(p.visual.rotation.y), 0.0, cos(p.visual.rotation.y))
-	p.face(p.global_position + facing)
 	var shred: float = value("war_cry", "armor_reduction_pct") / 100.0
 	var seconds: float = value("war_cry", "duration")
+	var hit: Array[Enemy] = []
 	for e in enemies_within(p.global_position, WAR_CRY_LENGTH):
 		var to: Vector3 = e.global_position - p.global_position
 		to.y = 0.0
 		if to.length() < 0.5 or rad_to_deg(facing.angle_to(to.normalized())) <= WAR_CRY_HALF_ANGLE:
 			e.shred_armor(shred, seconds)
 			e.frighten(WAR_CRY_FEAR)
+			hit.append(e)
 	p.forced_crits = int(value("war_cry", "critical_hits"))
-	Fx.text_at(p, p.global_position + Vector3(0, 2.5, 0), "War Cry", Color(0.95, 0.55, 0.3), 44)
+	Fx.sector(p, p.global_position, facing, WAR_CRY_HALF_ANGLE, WAR_CRY_LENGTH, Color(0.9, 0.6, 0.35), 0.45)
 	Fx.burst(p, p.global_position + Vector3(0, 1.6, 0) + facing, facing, Color(0.6, 0.5, 0.4), 20, 7.0, 0.04)
-	Fx.shake(p, 0.35)
+	if not hit.is_empty():
+		Sfx.power(p, "war_cry_hit")
+	_impact_feel(hit.size())
 
 ## Provoke: every enemy around turns on the hero, and his armour rises while he holds them.
 func _provoke() -> void:

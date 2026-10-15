@@ -768,3 +768,67 @@ func _screenshot_demo() -> void:
 		var image: Image = get_viewport().get_texture().get_image()
 		image.save_png(OS.get_environment("TEMP") + "/curse_shot_%d.png" % i)
 	get_tree().quit()
+
+## `-- --powerfeel=<power id> [--classic]`: the hero uses one of the three impact powers on a group, in the live dungeon, shown full screen
+## on screen 1 at 1920x1080. Frames run from the key press past the impact into %TEMP%/curse_powerfeel_<id>_N.png; the frame just after the
+## impact is also written to docs/screenshots/power-feel/<id>_<modular|classic>.png.
+func _power_feel_shot(id: String) -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	if DisplayServer.get_screen_count() > 1:
+		DisplayServer.window_set_current_screen(1)
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	await get_tree().create_timer(0.6).timeout
+	game.companion.testing_disabled = true
+	player.global_position = Vector3(40, 0, 40)
+	player.reset_physics_interpolation()
+	player.powers.reset()
+	player.skills.reset()
+	for item in Items.starting_gear():
+		player.stats.equip(item, false)
+	TownState.passive_ranks = {"critical_strike": 8, "fortitude": 8, "smite": 1, "overbear": 1, "barricade": 1, "dodge": 5, "survival": 3,
+		"devastation": 2, "searing_flames": 8, "ignite": 1}
+	if id == "staggering_blow":
+		player.stats.wear(Items.Slot.WEAPON, Items.build(ItemDb.get_def("greatsword"), 6, Items.Rarity.NORMAL))
+	player.stats.refresh()
+	player.visual.rotation.y = 0.0
+	var at: Vector3 = player.global_position
+	var offsets: Array[Vector3] = []
+	if id == "war_cry":
+		offsets = [Vector3(-1.6, 0, 3.4), Vector3(0.9, 0, 4.6), Vector3(-0.4, 0, 6.4), Vector3(2.8, 0, 3.0), Vector3(-3.0, 0, 5.2), Vector3(1.5, 0, -2.5)]
+	elif id == "staggering_blow":
+		offsets = [Vector3(0, 0, 2.6), Vector3(-1.2, 0, 3.3), Vector3(1.4, 0, 3.4), Vector3(0.2, 0, 4.4), Vector3(-2.0, 0, 2.2)]
+	else:
+		offsets = [Vector3(1.6, 0, 0), Vector3(-1.6, 0, 0), Vector3(0, 0, 1.7), Vector3(0, 0, -1.7), Vector3(2.6, 0, 2.2), Vector3(-2.4, 0, -2.0)]
+	var group: Array[Enemy] = []
+	for off in offsets:
+		var e: Enemy = _spawn_enemy(at + off)
+		e.aggro_range = 0.0
+		e.max_health = 5000.0
+		e.health = e.max_health
+		e.dodge_chance = 0.0
+		e.block_chance = 0.0
+		group.append(e)
+	await get_tree().create_timer(0.8).timeout
+	var cursor: Vector3 = at + Vector3(0, 0, 5)
+	if id == "staggering_blow":
+		player.attack_target = group[0]
+	var mode: String = "classic" if "--classic" in OS.get_cmdline_user_args() else "modular"
+	var out_dir: String = ProjectSettings.globalize_path("res://docs/screenshots/power-feel")
+	DirAccess.make_dir_recursive_absolute(out_dir)
+	var went: bool = player.powers.activate(id, cursor)
+	print("POWERFEEL ", id, " ", mode, " activated=", went)
+	for i in 12:
+		await get_tree().create_timer(0.1).timeout
+		var image: Image = get_viewport().get_texture().get_image()
+		image.save_png(OS.get_environment("TEMP") + "/curse_powerfeel_%s_%d.png" % [id, i])
+		if i == 6:
+			image.save_png(out_dir + "/%s_%s.png" % [id, mode])
+	var hit: int = 0
+	for e in group:
+		if is_instance_valid(e) and e.health < e.max_health:
+			hit += 1
+	print("POWERFEEL enemies struck=", hit, " of ", group.size(), " spent=", player.powers.reload_remaining.has(id))
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	get_tree().quit()
