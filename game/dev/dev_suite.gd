@@ -9,6 +9,14 @@ var harness: DevHarness
 func expect(label: String, condition: bool) -> void:
 	harness.record(label, condition)
 
+## Plays the hero's current wind-up (a power's cast, its impact included) to the end, in fixed steps, so a check reads what the impact did
+## rather than the key press. Does nothing when no power wind-up is under way.
+func _settle_cast(hero: Player) -> void:
+	var steps: int = 0
+	while hero.skills.busy and String(hero.skills.busy_def.get("kind", "")) == "power" and steps < 400:
+		hero.skills.tick_busy(0.01)
+		steps += 1
+
 # Short names for the parts of the game the checks drive.
 var player: Player:
 	get: return game.player

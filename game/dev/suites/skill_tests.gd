@@ -211,7 +211,9 @@ func _test_action_queue() -> void:
 	TownState.passive_ranks["smite"] = 1
 	player.powers.reset()
 	s.queue_skill("basic", aim)
-	expect("a power goes off whatever was queued", player.powers.activate("war_cry", aim) and not player.powers.ready("war_cry"))
+	expect("a power starts whatever was queued", player.powers.activate("war_cry", aim) and s.busy and s.queued_skill == "")
+	_settle_cast(player)
+	expect("and is spent at its impact", not player.powers.ready("war_cry"))
 	player.forced_crits = 0
 	player.powers.reset()
 	TownState.passive_ranks.clear()
@@ -295,7 +297,7 @@ func _test_skill_integrity() -> void:
 	expect("death clears action and aim state", not s.busy and s.aiming_id == "" and s.aiming_action == "" and s.queued_skill == "" and s.fire_orb == null)
 	player.dead = true
 	s.start_skill("fireball", null, aim)
-	expect("dead actor cannot restart a skill", not s.busy)
+	expect("dead actor cannot restart a skill (busy %s %s)" % [s.busy_skill, s.busy_def.get("kind", "")], not s.busy)
 	player.revive_at(player.global_position)
 	expect("revive clears blocked input state", s.aim_blocked == "" and not s.swallow_alt and s.busy_def.is_empty() and s.busy_target == null and s.queued_target == null)
 	player.set_physics_process(true)

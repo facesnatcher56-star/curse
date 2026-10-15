@@ -390,6 +390,45 @@ static func ring(from: Node, pos: Vector3, radius: float, color: Color) -> void:
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.3)
 	tween.chain().tween_callback(mesh_instance.queue_free)
 
+## A flat sector of ground that opens outward and fades: a sweeping arc (`spin` turns it through that many radians while it fades) or a
+## cone blast (`half_angle` in degrees, forward along `facing`). Powers use it for their own silhouette, not the shared ring.
+static func sector(from: Node, pos: Vector3, facing: Vector3, half_angle: float, radius: float, color: Color, duration: float,
+		spin: float = 0.0, inner: float = 0.35) -> void:
+	const SEGMENTS := 24
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var half: float = deg_to_rad(half_angle)
+	for i in SEGMENTS:
+		var a0: float = lerpf(-half, half, float(i) / SEGMENTS)
+		var a1: float = lerpf(-half, half, float(i + 1) / SEGMENTS)
+		var o0 := Vector3(sin(a0), 0.0, cos(a0))
+		var o1 := Vector3(sin(a1), 0.0, cos(a1))
+		# Inner edge at `inner` of the radius: a band for a sweep, a short fan for a cone (inner 0 makes a full fan).
+		var i0: Vector3 = o0 * inner
+		var i1: Vector3 = o1 * inner
+		st.add_vertex(i0); st.add_vertex(o0); st.add_vertex(o1)
+		st.add_vertex(i0); st.add_vertex(o1); st.add_vertex(i1)
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.mesh = st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.7)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh_instance.material_override = mat
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	from.get_tree().current_scene.add_child(mesh_instance)
+	mesh_instance.global_position = Vector3(pos.x, 0.09, pos.z)
+	var flat := Vector3(facing.x, 0.0, facing.z)
+	mesh_instance.rotation.y = atan2(flat.x, flat.z) if flat.length() > 0.01 else 0.0
+	mesh_instance.scale = Vector3(0.3 * radius, 1.0, 0.3 * radius)
+	var tween := mesh_instance.create_tween().set_parallel(true)
+	tween.tween_property(mesh_instance, "scale", Vector3(radius, 1.0, radius), duration).set_ease(Tween.EASE_OUT)
+	tween.tween_property(mat, "albedo_color:a", 0.0, duration)
+	if spin != 0.0:
+		tween.tween_property(mesh_instance, "rotation:y", mesh_instance.rotation.y + spin, duration).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_callback(mesh_instance.queue_free)
+
 ## Brief point light for impact flashes.
 static func light_flash(from: Node, pos: Vector3, color: Color, energy: float, duration: float) -> void:
 	var tree: SceneTree = from.get_tree()

@@ -18,6 +18,7 @@ const SUITES := [
 	preload("res://game/dev/suites/dodge_block_tests.gd"),
 	preload("res://game/dev/suites/opening_tests.gd"),
 	preload("res://game/dev/suites/power_damage_tests.gd"),
+	preload("res://game/dev/suites/power_impact_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
 	preload("res://game/dev/suites/inventory_tests.gd"),
@@ -72,6 +73,13 @@ func _run(method: String, args: Array = []) -> Variant:
 	push_error("DevHarness: no suite defines " + method)
 	return null
 
+## The text after `prefix` in a user argument (`-- --powerfeel=war_cry`), or "" when no such argument was given.
+func _user_arg_value(prefix: String) -> String:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with(prefix):
+			return arg.substr(prefix.length())
+	return ""
+
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
@@ -96,6 +104,8 @@ func run_from_args() -> bool:
 		_run("_archer_shot")
 	elif OS.get_cmdline_user_args().has("--takeaimshot"):
 		_run("_take_aim_shot")
+	elif _user_arg_value("--powerfeel=") != "":
+		_run("_power_feel_shot", [_user_arg_value("--powerfeel=")])
 	elif OS.get_cmdline_user_args().has("--brutalshot"):
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
@@ -168,7 +178,7 @@ const ONLY_TESTS := {
 "classnotice": "_test_class_notice",
 "powerui": "_test_power_ui",
 "skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack", "basicsingle": "_test_basic_single_target_physics", "armedfx": "_test_armed_power_fx", "hitinterrupt": "_test_hit_interruption_audit", "poweraudio": "_test_power_audio",
-"actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "rangedrequirements": "_test_ranged_requirements", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers",
+"actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "rangedrequirements": "_test_ranged_requirements", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers", "powerimpact": "_test_power_impact",
 	"movepriority": "_test_move_priority",
 	"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
 "champions": "_test_champions", "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "itemcard": "_test_item_card", "pickupnotice": "_test_pickup_notice", "swarm": "_test_swarm", "gibs": "_test_gibs",
