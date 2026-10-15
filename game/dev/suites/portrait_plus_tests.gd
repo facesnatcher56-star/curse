@@ -137,6 +137,37 @@ func _test_portrait_plus() -> void:
 	hud.close_character()
 	await _settle()
 
+	# Controller: the plus takes focus, and accept on it opens the same tree a click does.
+	companion._badge.grab_focus()
+	await _settle()
+	expect("the Cutter plus takes keyboard or pad focus", companion._badge.has_focus())
+	var accept: InputEvent = InputMap.action_get_events("ui_accept")[0].duplicate()
+	accept.pressed = true
+	get_viewport().push_input(accept)
+	accept.pressed = false
+	get_viewport().push_input(accept)
+	await _settle()
+	expect("accept on the focused plus opens Cutter's skill tree", _skill_view_for("cutter"))
+	await _shot("focus-ring")
+	hud.close_character()
+	await _settle()
+
+	# Fallen: a fallen member's plus still shows and opens their tree (points can be spent), without selecting them or changing control.
+	var active_before := PartyManager.current().active_id
+	var was_dead: bool = cutter.dead
+	cutter.dead = true
+	frame.update_frame(player)
+	await _settle()
+	expect("a fallen member's plus still shows while points are unspent", companion.skill_points > 0 and companion._badge.visible)
+	await _click(_badge_point(companion))
+	expect("clicking a fallen member's plus opens their tree", _skill_view_for("cutter"))
+	expect("and does not select the fallen member (control is unchanged)", PartyManager.current().active_id == active_before)
+	hud.close_character()
+	await _settle()
+	cutter.dead = was_dead
+	frame.update_frame(player)
+	await _settle()
+
 	# A press on the rest of a card still selects that member as before (the plus takes only its own corner).
 	var body_offset := Vector2(170, 60)
 	await _click(companion.get_global_rect().position + body_offset)

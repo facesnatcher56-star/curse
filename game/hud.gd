@@ -22,8 +22,8 @@ var _member_staged: Dictionary = {}
 
 func select_member(body: Player) -> void:
 	var was_skills: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
-	if was_skills and player != null:
-		_member_staged[player.member_id] = character_panel.staged.duplicate(true)
+	if was_skills:   # keyed by the member the open tree is for (a fallen member's tree can be open while another is active)
+		_member_staged[character_panel.member_id] = character_panel.staged.duplicate(true)
 	player = body
 	picker.close()
 	if is_instance_valid(character_panel):
@@ -727,25 +727,31 @@ func _open_character() -> void:
 ## hotbar follow the same body. A fallen member opens nothing (the active-body rules refuse them; see the open question on #15).
 func _open_member_skills(member_id: String) -> void:
 	var body := PartyManager.current().bodies.get(member_id) as Player
-	if not is_instance_valid(body) or body.dead:
+	if not is_instance_valid(body):
+		return
+	var skills_open: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
+	if body.dead:
+		# A fallen member cannot be controlled, but their points can still be spent: the tree opens for them without selecting them.
+		if not (skills_open and character_panel.hero == body):
+			open_skills(body)
 		return
 	if body != player:
 		PartyManager.current().select(member_id)   # re-opens an open skill tree for the new member (see select_member)
 		if player != body:
 			return   # the selection did not take: never open another member's tree
-	var skills_open: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
-	if not skills_open:
+	if not (skills_open and character_panel.hero == body):
 		open_skills()
 
-## The skill screen (DS2's passive trees) in the character panel's place.
-func open_skills() -> void:
+## The skill screen (DS2's passive trees) in the character panel's place. `for_body` is the member whose tree it is (default: the active one).
+func open_skills(for_body: Player = null) -> void:
+	var who: Player = for_body if is_instance_valid(for_body) else player
 	show_gear = true
 	picker.close()
 	if character_panel != null:
 		character_panel.queue_free()
 	character_panel = preload("res://game/ui/skill_tree_view.gd").new()
-	character_panel.hero = player
-	character_panel.staged = _member_staged.get(player.member_id, {}).duplicate(true)
+	character_panel.hero = who
+	character_panel.staged = _member_staged.get(who.member_id, {}).duplicate(true)
 	character_panel.z_index = 20
 	add_child(character_panel)
 	get_tree().paused = true

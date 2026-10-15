@@ -66,6 +66,8 @@ func _draw_badge() -> void:
 	var arm: float = 4.5 + 0.8 * pulse
 	_badge.draw_line(BADGE_CENTRE + Vector2(-arm, 0), BADGE_CENTRE + Vector2(arm, 0), UiTheme.TEXT, 2.5, true)
 	_badge.draw_line(BADGE_CENTRE + Vector2(0, -arm), BADGE_CENTRE + Vector2(0, arm), UiTheme.TEXT, 2.5, true)
+	if _badge.has_focus():   # keyboard / pad focus: a bright ring outside the plus
+		_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS + 4.0, 0.0, TAU, 40, UiTheme.TEXT, 2.0, true)
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
@@ -126,10 +128,20 @@ func _ready() -> void:
 	# Added last so the plus sits over the portrait. The card takes the press (see _select_input), so the badge ignores the mouse itself.
 	_badge = Control.new()
 	_badge.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE   # the mouse is handled by the card (_select_input); the keyboard or pad reaches the plus by focus
+	_badge.focus_mode = Control.FOCUS_ALL
 	_badge.visible = false
 	_badge.draw.connect(_draw_badge)
+	_badge.focus_entered.connect(_badge.queue_redraw)
+	_badge.focus_exited.connect(_badge.queue_redraw)
+	_badge.gui_input.connect(_badge_input)
 	add_child(_badge)
+
+## The focused plus: accept opens this member's skill tree, as a click on it does.
+func _badge_input(event: InputEvent) -> void:
+	if skill_points > 0 and event.is_action_pressed("ui_accept"):
+		skills_requested.emit(member_id)
+		_badge.accept_event()
 
 func _texture(parent: Control, tex: Texture2D, rect: Rect2) -> TextureRect:
 	var image := TextureRect.new()
