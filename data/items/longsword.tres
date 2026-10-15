@@ -18,6 +18,7 @@ stats = {
 "speed": 1.0
 }
 profile = {
+"opening": "stab",
 "style": "Balanced"
 }
 requirements = "melee:#item_level - 2.0"

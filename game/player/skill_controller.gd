@@ -475,6 +475,10 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		clear_queue()
 		p.bow.start(target)
 		return
+	# An Opening on this enemy: the basic attack becomes the weapon's execution (the mark is spent here).
+	if id == "basic" and aim == null and p.openings.try_execute(target):
+		clear_queue()
+		return
 	var skill: Dictionary = SkillDb.all()[id]
 	clear_queue()   # an accepted immediate action replaces any pending order
 	if id == "basic":
@@ -506,6 +510,31 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		fire_orb.grow_to(0.55, float(skill["gather"]) * busy_time / float(skill["time"]))
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
+
+## An Opening's execution (Openings.STYLES): one melee blow on the marked enemy, timed by the weapon's speed. It is never cancelled by
+## the enemy moving (the mark is what the hero is committed to), and it grants the hero a short invulnerability.
+func start_opening(target: Actor, style: Dictionary) -> void:
+	if busy or p.dead or not is_instance_valid(target):
+		return
+	clear_queue()
+	busy_def = style.duplicate()
+	busy_def["kind"] = "melee"
+	busy_def["charged"] = false
+	busy_time = float(style["time"]) / maxf(p.stats.attack_speed(), 0.2)
+	busy = true
+	busy_skill = "opening"
+	busy_target = target
+	busy_t = 0.0
+	busy_hit_done = false
+	busy_aim = target.global_position
+	p.combat_timer = 5.0
+	p.movement.has_goal = false
+	p.face(busy_aim)   # the basic-attack engagement stays: after the execution the hero carries on as before
+	p.invulnerable_time = maxf(p.invulnerable_time, Openings.INVULNERABLE)
+	_release_started = false
+	_style_trail("opening")
+	p.model.manual(String(style["clip"]))
+	p.model.scrub(float(style["start"]))
 
 ## Blade ribbon colour and length: plain steel.
 func _style_trail(_id: String) -> void:
@@ -653,8 +682,15 @@ func _apply_skill(skill: Dictionary) -> void:
 					and p.flat_distance_to(busy_target) - busy_target.body_radius <= float(skill["range"]) + 0.5 \
 					and Nav.line_clear(p, busy_target.global_position):
 				var brutal: bool = busy_skill == "basic" and brutal_armed
+				var opening: bool = busy_skill == "opening"
 				var damage: float = p.stats.weapon_damage(mult)
-				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, true, weight, false, not brutal, p.stats.brutal_mult() * p.stats.power_damage_mult() if brutal else 1.0)
+				# An Opening is a guaranteed critical (it cannot be dodged or blocked) with its own bonus damage on top.
+				var multiplier: float = 1.0
+				if brutal:
+					multiplier = p.stats.brutal_mult() * p.stats.power_damage_mult()
+				elif opening:
+					multiplier = 1.0 + p.openings.damage_bonus() / 100.0
+				var result: Dictionary = Combat.resolve(p, busy_target, damage, Combat.DamageType.PHYSICAL, not opening, weight, opening, not brutal, multiplier)
 				result["skill_id"] = "brutal_attack" if brutal else busy_skill
 				result["finisher"] = skill.get("finisher", false)
 				if brutal and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
@@ -665,7 +701,16 @@ func _apply_skill(skill: Dictionary) -> void:
 					brutal_armed = false
 					p.stats.spend_brutal_attack()
 					_clear_brutal_visual()
-				busy_target.receive(result, p.global_position)
+				var target: Actor = busy_target
+				target.receive(result, p.global_position)
+				if opening:
+					p.openings.on_executed(target, result, skill)
+				elif brutal:
+					if result["outcome"] in [Combat.Outcome.HIT, Combat.Outcome.CRITICAL]:
+						p.openings.on_power_use()   # Brutal Attack is a power: one roll for its use, not a basic-hit roll
+				elif result["outcome"] in [Combat.Outcome.HIT, Combat.Outcome.CRITICAL] and not p.powers.staggering_armed:
+					# A plain basic blow may show an Opening. A blow that releases Staggering Blow rolls once, in release_staggering.
+					p.openings.on_melee_hit(target)
 				if p.powers.staggering_armed and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] \
 						and is_instance_valid(busy_target):
 					p.powers.release_staggering(busy_target)   # DS2's Staggering Blow rides the next blow that lands

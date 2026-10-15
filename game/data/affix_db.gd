@@ -16,13 +16,13 @@ const STAT_NAMES := {
 	"ice_resist": "Ice resistance", "lightning_resist": "Lightning resistance", "death_resist": "Death resistance",
 	"fire_resist": "Fire resistance", "reflect": "Melee damage reflected", "life_regen": "Life recovery", "mana_regen": "Mana recovery",
 	"physical_resist": "Melee and ranged resistance", "melee_resist": "Melee resistance", "ranged_resist": "Ranged resistance", "magical_resist": "Magic damage resistance",
-	"block": "Chance to block melee", "block_ranged": "Chance to block ranged",
+	"block": "Chance to block melee", "block_ranged": "Chance to block ranged", "opening": "Opening chance (melee and shield)", "openings_ignite": "Openings ignite (burn, % of the blow a second)", "openings_heal": "Openings heal (life per execution)",
 	"power_damage": "Power damage", "dodge": "Chance to dodge melee and ranged", "dodge_melee": "Chance to dodge melee", "dodge_ranged": "Chance to dodge ranged", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
 }
 
 ## The stats that are percentages.
 const PERCENT_STATS: Array[String] = ["melee_pct", "ranged_pct", "spell_pct", "life_steal", "mana_steal", "armor_pct", "fire_resist", "ice_resist", "lightning_resist", "death_resist", "reflect", "life_regen", "mana_regen",
-	"block", "block_ranged", "dodge", "dodge_melee", "dodge_ranged", "power_damage", "recharge", "magic_find", "gold_find",
+	"block", "block_ranged", "opening", "openings_ignite", "openings_heal", "dodge", "dodge_melee", "dodge_ranged", "power_damage", "recharge", "magic_find", "gold_find",
 	"physical_resist", "melee_resist", "ranged_resist", "magical_resist"]
 
 static func is_percent(stat: String) -> bool:

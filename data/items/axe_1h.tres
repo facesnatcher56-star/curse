@@ -18,5 +18,6 @@ stats = {
 "speed": 1.0
 }
 profile = {
+"opening": "chop",
 "style": "Heavy chopping blade"
 }

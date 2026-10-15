@@ -14,7 +14,7 @@ const LANES := {
 	"survival": 3, "far_shot": 0, "bleed": 1, "penetrate": 2,
 	"cunning_renewal": 1, "mortal_wound": 0, "ricochet": 2,
 	"brilliance": 0, "devastation": 2, "searing_flames": 2,
-	"quickened_casting": 0, "ignite": 2, "arcane_fury": 0,
+	"quickened_casting": 0, "ignite": 2, "arcane_fury": 0, "opening": 2,
 }
 # Reuse Curse's worn icon language. These are thematic stand-ins, not imported DS2 art.
 const ICONS := {
@@ -26,7 +26,7 @@ const ICONS := {
 	"bleed": "brutal_attack", "penetrate": "skewer", "cunning_renewal": "repulse",
 	"mortal_wound": "staggering_blow", "ricochet": "throw", "brilliance": "items/talisman",
 	"devastation": "detonation", "searing_flames": "fireball", "quickened_casting": "silence",
-	"ignite": "flame_nexus", "arcane_fury": "earthshatter",
+	"ignite": "flame_nexus", "arcane_fury": "earthshatter", "opening": "items/longsword",
 }
 var member_id: String = "hero"
 var tree: String = "melee"

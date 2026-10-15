@@ -16,6 +16,7 @@ const SUITES := [
 	preload("res://game/dev/suites/ranged_modifier_tests.gd"),
 	preload("res://game/dev/suites/element_tests.gd"),
 	preload("res://game/dev/suites/dodge_block_tests.gd"),
+	preload("res://game/dev/suites/opening_tests.gd"),
 	preload("res://game/dev/suites/power_damage_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
@@ -97,6 +98,14 @@ func run_from_args() -> bool:
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
 		_run("_gib_shots")
+	elif OS.get_cmdline_user_args().has("--openingshot"):
+		_run("_opening_shot")
+	elif OS.get_cmdline_user_args().has("--skilltipshot"):
+		_run("_skill_tip_shot")
+	elif OS.get_cmdline_user_args().has("--blockclose"):
+		_run("_block_close_shot")
+	elif OS.get_cmdline_user_args().has("--execclose"):
+		_run("_exec_close_shot")
 	elif OS.get_cmdline_user_args().has("--aimshot"):
 		_run("_aim_shot")
 	elif OS.get_cmdline_user_args().has("--pauseshot"):
@@ -147,7 +156,7 @@ const ONLY_TESTS := {
 "defensiveresistances": "_test_defensive_resistances",
 "rangedmods": "_test_ranged_modifiers",
 "elements": "_test_elements",
-"dodgeblock": "_test_dodge_block",
+"dodgeblock": "_test_dodge_block", "opening": "_test_opening",
 "powerdamage": "_test_power_damage",
 "navigation": "_test_navigation",
 "theme": "_test_ornate_theme",

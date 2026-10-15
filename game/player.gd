@@ -15,7 +15,7 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 	Basis(Vector3(1, 0, 0), PI / 2), Basis(Vector3(1, 0, 0), -PI / 2), Basis(Vector3(1, 0, 0), PI)]
 # Middle of the right fist in the hand bone's space (rig units are cm; the bone origin is the wrist).
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
-const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "death", "leap", "stomp", "yank", "jump", "earthshatter", "atk_slash_r", "atk_slash_l", "atk_slash", "atk_thrust", "atk_finisher", "atk2_slash_r", "atk2_slash_l", "atk2_slash", "atk2_thrust", "atk2_finisher", "idle_rest", "wthrow", "wthrow_release", "wthrow_catch"]
+const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "block", "death", "leap", "stomp", "yank", "jump", "earthshatter", "atk_slash_r", "atk_slash_l", "atk_slash", "atk_thrust", "atk_finisher", "atk2_slash_r", "atk2_slash_l", "atk2_slash", "atk2_thrust", "atk2_finisher", "idle_rest", "wthrow", "wthrow_release", "wthrow_catch"]
 
 # State the hero itself owns (everything else lives in a component).
 var combat_timer: float = 0.0
@@ -47,6 +47,7 @@ var skills: SkillController
 var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
 var knockdown: Knockdown
 var hit_reaction: HitReaction
+var openings: Openings   # the Opening passive: a mark on an enemy, and its execution (game/player/openings.gd)
 var member_id: String = "hero"
 var character: CharacterState:
 	get: return PartyManager.current().member(member_id)
@@ -102,6 +103,7 @@ func _init() -> void:
 	powers = PowerController.new(self)
 	knockdown = Knockdown.new(self)
 	hit_reaction = HitReaction.new(self)
+	openings = Openings.new(self)
 
 var _grip_index: int = 3
 var _held_path: String = SWORD_PATH
@@ -236,6 +238,7 @@ func _play_flinch() -> void:
 
 func _physics_process(delta: float) -> void:
 	powers.tick(delta)   # (power timers and Repulse's field run through a hit-pause too)
+	openings.tick(delta)
 	_dormancy_timer -= delta
 	if _dormancy_timer <= 0.0:
 		_dormancy_timer = 0.5
@@ -1066,6 +1069,8 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 
 func _on_avoided(outcome: int) -> void:
 	combat_timer = 5.0
+	if outcome == Combat.Outcome.BLOCK:
+		_on_blocked()
 	# DS2's Rebuke: a block hits back for 0.4-2.5 x Melee level and stuns for 1-2 s.
 	var rebuke: int = TownState.effective_passive_rank("rebuke", member_id)
 	if rebuke > 0 and outcome == Combat.Outcome.BLOCK and last_hit_by is Enemy and not last_hit_by.dead:
@@ -1073,6 +1078,14 @@ func _on_avoided(outcome: int) -> void:
 		last_hit_by.receive({"outcome": Combat.Outcome.HIT, "damage": maxf(PassiveDb.get_def("rebuke").value(rebuke) * melee, 1.0), "weight": 1.0,
 			"source": self, "type": Combat.DamageType.PHYSICAL, "secondary": true, "skill_id": "rebuke"}, global_position)
 		last_hit_by._gain_stun(PassiveDb.get_def("rebuke").extra_value("stun", rebuke))
+
+## A blow caught on the shield: the guard clip (only when the swing in progress is not using the body), the shield's ring, and the Shield
+## Openings roll on the attacker. Blocks are not stunned, so the hero keeps his footing.
+func _on_blocked() -> void:
+	if not dead and not knockdown.active() and not skills.busy and model != null and model.anim != null and model.anim.has_animation("game/block"):
+		model.once("block", 0.0, 1.0, 0.04)
+	Sfx.sample(self, "sword_hit", -6.0, 1.45)   # the shield's ring: the blade's recording, higher and quieter (a dedicated shield recording is pending)
+	openings.on_block(last_hit_by)
 
 func _popup_tint() -> Color:
 	return Color(1.0, 0.35, 0.3)

@@ -457,7 +457,9 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 	if enemy.has_meta("loot_generated"): return
 	enemy.set_meta("loot_generated", true)
 	if bonuses.is_empty(): bonuses = PartyManager.current().loot_bonuses()
-	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, bonuses.magic_find, Quests.world_mult("drop_mult") if world_mode else 1.0, bonuses.gold_find)
+	# An Opening's execution leaves a better chance of gear (its own multiplier, set on the enemy; 1.0 otherwise).
+	var drop_mult: float = (Quests.world_mult("drop_mult") if world_mode else 1.0) * float(enemy.get_meta("opening_drop_mult", 1.0))
+	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, bonuses.magic_find, drop_mult, bonuses.gold_find)
 	if not loot.item.is_empty():
 		drop_item(enemy.global_position, loot.item)
 	if enemy.champion != null:   # a champion always drops a magic item or better, on top of the ordinary roll

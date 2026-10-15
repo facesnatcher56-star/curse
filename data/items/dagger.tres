@@ -19,6 +19,7 @@ stats = {
 }
 inventory_size = Vector2i(1, 2)
 profile = {
+"opening": "backstab",
 "style": "Quick piercing blade"
 }
 requirements = ""

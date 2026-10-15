@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="PassiveDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/passive_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "opening"
+display_name = "Opening"
+tree = "melee"
+class_level = 12
+prereqs = {}
+first = 3.0
+last = 12.0
+text = "Spots an Opening on %s%% of melee hits"
+order = 10
+table = Array[float]([3, 3.47, 3.95, 4.42, 4.89, 5.37, 5.84, 6.32, 6.79, 7.26, 7.74, 8.21, 8.68, 9.16, 9.63, 10.11, 10.58, 11.05, 11.53, 12])
+extra = {
+"spot": [3, 3.47, 3.95, 4.42, 4.89, 5.37, 5.84, 6.32, 6.79, 7.26, 7.74, 8.21, 8.68, 9.16, 9.63, 10.11, 10.58, 11.05, 11.53, 12],
+"shield": [8, 9.16, 10.32, 11.47, 12.63, 13.79, 14.95, 16.11, 17.26, 18.42, 19.58, 20.74, 21.89, 23.05, 24.21, 25.37, 26.53, 27.68, 28.84, 30],
+"damage": [20, 25.26, 30.53, 35.79, 41.05, 46.32, 51.58, 56.84, 62.11, 67.37, 72.63, 77.89, 83.16, 88.42, 93.68, 98.95, 104.21, 109.47, 114.74, 120],
+"drop": [10, 12.63, 15.26, 17.89, 20.53, 23.16, 25.79, 28.42, 31.05, 33.68, 36.32, 38.95, 41.58, 44.21, 46.84, 49.47, 52.11, 54.74, 57.37, 60],
+"charge": [5, 6.05, 7.11, 8.16, 9.21, 10.26, 11.32, 12.37, 13.42, 14.47, 15.53, 16.58, 17.63, 18.68, 19.74, 20.79, 21.84, 22.89, 23.95, 25]
+}
+needs = ""
+description = "Opening, passive, melee. Every guard breaks. Every fighter falters. A true warrior sees it, and ends it. While fighting in melee, or when you block an attack with a shield, you sometimes spot a fatal flaw in an enemy's defence. Strike it within 1.5 seconds to execute a brutal finishing move suited to your weapon. Guaranteed critical hit (+%d%% damage), +%d%% item drop chance, restores %d%% power charge. Against champions: shatters their defining strength. Rank up to spot Openings more often and strike harder."
+description_values = Array[String](["damage", "drop", "charge"])

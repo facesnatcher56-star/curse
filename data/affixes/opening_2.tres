@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AffixDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/data/affix_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "opening_2"
+family = "opening"
+tier = 2
+stat = "opening"
+title = "of Foresight"
+position = "suffix"
+level = 20
+value = 6.0
+max_value = 6.0
+value_ceiling = 6.0
+percent = true
+slots = Array[String](["weapon", "shield"])
+classes = Array[String](["fighter"])

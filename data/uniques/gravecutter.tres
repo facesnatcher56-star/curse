@@ -16,3 +16,4 @@ mods = {
 }
 set_id = ""
 requirements = ""
+opening_style = "grave_cleave"

@@ -1,5 +1,26 @@
 # Combat reference and decision rule
 
+## Openings and shield blocking (2026-10-14, Lane I, PROVISIONAL)
+
+DS2 has no Opening. The passive, its trigger rules and its numbers are Curse choices, labelled in `game/player/openings.gd` and
+`data/passives/opening.tres`, and are not yet confirmed by the owner (see the PR's open questions).
+
+* **Block (DS2 baseline, unchanged roll):** a shield's melee or ranged block chance is rolled after the dodge and before resistance. A blocked
+  blow deals nothing. Before this change a block had only a spark burst and a knockback. It now also plays the knight2 `block` clip (a 0.5 s
+  guard authored by `tools/author_block_anims.gd`, which is skipped while a swing is in progress) and a shield ring sound (the blade's recording,
+  higher and quieter: a dedicated shield recording is pending).
+* **Opening (melee passive, rank 1-20):** each basic melee hit that lands may mark the nearest enemy in reach (3-12 % a hit), and each melee power use rolls once for the whole use (not per enemy hit). A successful shield block
+  may mark the attacker (8-30 %). One mark at a time: the mark lasts 1.5 s and a 4 s cooldown follows it. The mark is a gold ring and a cue.
+  The execution starts from the basic attack on the marked enemy (click or controller attack): the weapon's own execution. Only a block-triggered mark plays the shield bash: a shield never overrides a melee-triggered execution.
+  It is a guaranteed critical that cannot be dodged or blocked, with +20-120 % damage on top, +10-60 % drop chance for that enemy, and 5-25 %
+  of each charging power's recharge given back. The hero is invulnerable for 0.5 s.
+* **Executions (V1 reuses existing clips):** sword and falchion `atk_thrust` (stab), axe `atk_finisher` (chop), mace, club and warhammer `power`
+  (crush, stuns enemies within 2.5 m for 1.5 s), dagger `atk_thrust` at a quicker pace (backstab), greatsword `atk2_thrust` (impale), any shield
+  `stomp` (bash; block-triggered marks only). The Gravecutter (unique falchion) has `atk_slash_r` (grave cleave, stuns within 2.5 m for 0.6 s).
+  No spear exists in the data yet, so there is no pin. Custom clips are still needed for every execution.
+* **Gear:** `opening` (+chance to both triggers), `openings_ignite` (a burn of 20 % of the blow a second for 3 s), `openings_heal` (2 % of maximum life).
+* **Champions:** a hook only (`Openings._champion_break`). Lane G owns the affix; no instant kill.
+
 Explicit engagement (2026-10-12, owner request): clicking an enemy now retains
 the basic attack order after button release. When that target dies or is freed,
 the common character selects the nearest living, aggro enemy whose target is
