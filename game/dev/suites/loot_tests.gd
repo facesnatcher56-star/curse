@@ -269,8 +269,9 @@ func _test_destructibles() -> void:
 	player.powers.reset()
 	arena.place_prop("barrel", Vector3(27.6, 0, 30), 0.0, 1.0)
 	await get_tree().process_frame
-	expect("a Whirling Strike smashes a barrel beside the hero", player.powers.activate("whirling_strike", player.global_position)
-		and Destructible.near(get_tree(), Vector3(27.6, 0, 30), 0.3) == null)
+	var went: bool = player.powers.activate("whirling_strike", player.global_position)
+	_settle_cast(player)
+	expect("a Whirling Strike smashes a barrel beside the hero at its impact", went and Destructible.near(get_tree(), Vector3(27.6, 0, 30), 0.3) == null)
 	TownState.passive_ranks.clear()
 	player.powers.reset()
 	# Clicking a prop sends the hero to swing at it.

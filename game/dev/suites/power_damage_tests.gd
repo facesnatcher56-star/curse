@@ -54,8 +54,9 @@ func _whirling() -> float:
 	_ring[1].global_position += Vector3(0, 0, 40)
 	_ring[2].global_position += Vector3(0, 0, 40)
 	player.powers.reset()
-	seed(1101)
 	player.powers.activate("whirling_strike", player.global_position)
+	seed(1101)   # the rolls are drawn at the strike, so the seed is set once the wind-up is under way
+	_settle_cast(player)
 	return _loss()
 
 ## Flame Nexus (a fire power).
