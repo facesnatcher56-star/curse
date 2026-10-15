@@ -205,3 +205,13 @@ Curse choices: every rank's values are DS2's own, except that Take Aim's ranks 1
 slip: rank 3 and every other ranged power use Ranged); DS2's `desperate_frenzy`
 is Deadly Strike (confirmed in passive_skills.gas); War Cry's cone (8 m, 70 degrees), its fear (4 s), Flame Nexus's radius (4 m) and the reach of
 targeted powers (14 m) are Curse's (DS2's file gives only dummy radii); Cutter buys no passives, so his Take Aim stays at rank 1 and grows with his Ranged level.
+
+## Champions (Curse addition, owner roadmap #34; not a DS2 mechanic)
+
+Dungeon Siege II's installed data has no champion affix system, so this is a labelled Curse departure, not a DS2 rule. A pack may carry one
+champion (`game/enemies/champion.gd`, `Champion.PACK_CHANCE`, 12% per pack): tougher (life x2.5, average blow x1.25), named after its
+affix, marked by a coloured light and a name over its head, and given ONE affix from `Champion.AFFIXES`: Fast (speed x1.5), Shielded (a
+shield of 35% of its life that must break first), Summoner (two trivial zombies every 10 s, up to four alive, paying no XP) or Volatile
+(a 3 m blast after a 1.3 s telegraph, 1.8 x its average blow to the hero). Trivial and level-one openers never carry one. Its drop is a
+magic item or better, a rare 30% of the time, on top of the ordinary roll. Every number is a provisional tunable awaiting owner review.
+Checks: `--only=champions`; look: `-- --championshot`.

@@ -218,6 +218,31 @@ func _enemy_shot() -> void:
 	print("enemy kinds (left to right): ", ", ".join(names))
 	get_tree().quit()
 
+## `-- --championshot`: a plain zombie beside one champion of each affix, facing the camera; frame in %TEMP%/curse_champions.png.
+func _champion_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	var plain: Enemy = _spawn_enemy(player.global_position + Vector3(-4.2, 0, -3.0), "zombie")
+	plain.aggro_range = 0.0
+	plain.visual.rotation.y = PI
+	var x: float = -2.8
+	var volatile: Enemy = null
+	for affix in Champion.AFFIXES.keys():
+		var z: Enemy = _spawn_enemy(player.global_position + Vector3(x, 0, -3.0), "zombie")
+		z.aggro_range = 0.0
+		Champion.attach(z, affix)
+		z.visual.rotation.y = PI
+		if affix == "explodes":
+			volatile = z
+		x += 2.8
+	await get_tree().create_timer(1.0).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_champions.png")
+	volatile.champion.on_death(volatile)   # the telegraph: the ring is on the ground, the blast is still to come
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_champions_telegraph.png")
+	print("champion shot: plain zombie, then ", ", ".join(Champion.AFFIXES.keys()))
+	get_tree().quit()
+
 ## `-- --skillshot=gibs`: a fireball detonates on low-health zombies; frames in %TEMP%/curse_gib_N.png.
 func _gib_shots() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
