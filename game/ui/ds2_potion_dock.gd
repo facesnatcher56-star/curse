@@ -39,15 +39,17 @@ func _ready() -> void:
 	_hp_flask.texture = HEALTH_FLASK_TEX
 	_hp_flask.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_hp_flask.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_hp_flask.custom_minimum_size = Vector2(28, 28)
-	_hp_flask.size = Vector2(28, 28)
+	# The flask sits in the upper-left 22 px, leaving the lower-right corner free for the stack count.
+	_hp_flask.position = Vector2(0, 0)
+	_hp_flask.custom_minimum_size = Vector2(22, 22)
+	_hp_flask.size = Vector2(22, 22)
 	_hp_flask.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hp_box.add_child(_hp_flask)
 
 	_hp_count_lbl = Label.new()
 	_hp_count_lbl.text = "1"
-	_hp_count_lbl.position = Vector2(10, 12)
-	_hp_count_lbl.size = Vector2(16, 14)
+	_hp_count_lbl.position = Vector2(12, 17)
+	_hp_count_lbl.size = Vector2(16, 11)
 	_hp_count_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_hp_count_lbl.add_theme_font_override("font", UiTheme.heading_font())
 	_hp_count_lbl.add_theme_font_size_override("font_size", 10)

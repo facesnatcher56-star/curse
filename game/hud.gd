@@ -218,6 +218,10 @@ func _draw() -> void:
 	var extra: int = player.skills.hotbar.size()
 	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
+	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
+	if use_ds2_ui:
+		for gap in range(slot_count - 1):
+			UiTheme.draw_stud(self, Vector2(x0 + gap * (slot + 8) + slot + 4.0, y0 + slot * 0.5), 1.8)
 	if picker.is_open():
 		picker.draw(font, size_px)
 	else:
@@ -536,13 +540,12 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 
 	# Bronze corner studs on the bay
 	for corner in [bay_rect.position + Vector2(3, 3), Vector2(bay_rect.end.x - 3, bay_rect.position.y + 3), Vector2(bay_rect.position.x + 3, bay_rect.end.y - 3), bay_rect.end - Vector2(3, 3)]:
-		draw_circle(corner, 2.5, Color(0.05, 0.04, 0.03, 0.9))
-		draw_circle(corner, 1.8, Color(0.72, 0.58, 0.34, 0.9))
+		UiTheme.draw_stud(self, corner, 1.8)
 
 	# 3. Decorative central medallion at the top lip of the runner bar
 	var mid_x: float = x0 + total * 0.5
 	var medal_pos := Vector2(mid_x, bar_y + 1.0)
-	draw_texture_rect(UiTheme.art("crest"), Rect2(medal_pos - Vector2(80, 24), Vector2(160, 48)), false)
+	UiTheme.draw_crest(self, medal_pos)
 	draw_circle(medal_pos + Vector2(0, 1), 12.0, Color(0.05, 0.04, 0.03, 0.85))
 	draw_circle(medal_pos, 11.0, Color(0.14, 0.12, 0.10))
 	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
