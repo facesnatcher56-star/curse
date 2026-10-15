@@ -445,6 +445,53 @@ func _test_ds2_items() -> void:
 	stats.refresh()
 	await get_tree().process_frame
 
+## Ranged and caster weapons never ask for Strength: every live bow and crossbow base, every built instance of them (rare strength
+## modifiers included), and every DS2 catalogue entry for a ranged, bow, crossbow, thrown or staff weapon. Their class is Ranged or a caster skill.
+func _test_ranged_requirements() -> void:
+	var empty_context := {"levels": {}, "attributes": {}, "passive_ranks": {}}
+	var strength_terms := func(source: String) -> bool:
+		for term in EquipmentRequirement.parse(source).get("terms", []):
+			if String(term["canonical"]) == "strength":
+				return true
+		return false
+	var ranged_bases := 0
+	var ranged_ok := true
+	var text_ok := true
+	for d in ItemDb.all().values():
+		var def: ItemDef = d
+		if not (def.item_type == "bow" or def.item_type == "crossbow" or def.item_type == "thrown" or bool(def.profile.get("ranged", false))):
+			continue
+		ranged_bases += 1
+		for level in def.levels:
+			for rarity in [Items.Rarity.NORMAL, Items.Rarity.RARE]:
+				var mods: Array = ["strength_2", "dexterity_2"] if rarity == Items.Rarity.RARE else []
+				var item: Dictionary = Items.build(def, level, rarity, mods)
+				var source := Items.requirement_expression(item)
+				ranged_ok = ranged_ok and not strength_terms.call(source) and Items.requirement(item)["class"] == "ranged"
+				text_ok = text_ok and not EquipmentRequirement.describe(source, float(level), empty_context).contains("Strength")
+	expect("the live ranged bases are checked, the Short Bow among them (%d)" % ranged_bases, ranged_bases >= 1 and ItemDb.get_def("short_bow") != null)
+	expect("no live bow, crossbow or thrown weapon asks for Strength, even with a strength modifier, and their class is Ranged", ranged_ok)
+	expect("and the requirement text never names Strength for them", text_ok)
+	var catalog_file := FileAccess.open("res://data/reference/ds2_equipment_catalog.json", FileAccess.READ)
+	var catalog: Dictionary = JSON.parse_string(catalog_file.get_as_text())
+	var ranged_catalog := 0
+	var catalog_ok := true
+	for catalog_item in catalog.get("items", []):
+		var attack: Dictionary = catalog_item.get("attack", {}) if catalog_item.get("attack", {}) is Dictionary else {}
+		var parent := String(catalog_item.get("parent", ""))
+		var is_ranged_kind := String(attack.get("skill_class", "")) == "ranged" or parent.contains("bow") or parent.contains("crossbow") \
+			or parent.contains("staff") or parent.contains("throw")
+		if not is_ranged_kind:
+			continue
+		ranged_catalog += 1
+		catalog_ok = catalog_ok and not strength_terms.call(String(catalog_item.get("requirements", "")))
+	expect("no DS2 catalogue bow, crossbow, thrown or staff template asks for Strength (%d checked)" % ranged_catalog,
+		ranged_catalog > 100 and catalog_ok)
+	var staff_ok := true
+	var staff_source: String = String(catalog.get("items", []).filter(func(i): return String(i.get("id", "")) == "quest_staff_a1_tower")[0].get("requirements", ""))
+	staff_ok = EquipmentRequirement.parse(staff_source).get("terms", [])[0]["canonical"] == "intelligence"
+	expect("a staff's source requirement is Intelligence (Wise Woman's Staff: %s)" % staff_source, staff_ok)
+
 ## DS2's skill points and passive trees: a point a level (and a human's two), the tiers and prerequisites, the rank cap, buying for good,
 ## a save, the stance requirements (Overbear for two hands, Barricade for a shield), and what the passives do to the hero.
 func _test_skill_tree() -> void:
