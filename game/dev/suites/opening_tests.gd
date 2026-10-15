@@ -228,3 +228,30 @@ func _test_opening() -> void:
 	stats.bag.clear()
 	enemy.queue_free()
 	bystander.queue_free()
+
+## A fresh start (TownState.reset, then a new hero body): the starter buckler is equipped, Barricade 1 and Opening 1 are granted, and
+## those ranks cost no skill points.
+func _test_starting_kit() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var points_before: int = TownState.skill_points_total("hero")
+	expect("a fresh start grants Barricade 1 and Opening 1", TownState.passive_rank("barricade") == 1 and TownState.passive_rank("opening") == 1)
+	expect("the free starting ranks spend no skill points (the full total is left)", TownState.skill_points_left({}, "hero") == points_before)
+	var kit: Array[Dictionary] = Items.starting_gear()
+	expect("the starting kit is longsword, leather jerkin and a level 2 buckler", kit.size() == 3 and kit[2]["def"] == "buckler"
+		and int(kit[2]["level"]) == 2 and int(kit[2]["slot"]) == Items.Slot.SHIELD)
+	# Player._ready equips the kit with stats.equip(item, false) on a fresh hero; the same call is made here on the hero's stats.
+	var hero := player
+	var stats: PlayerStats = hero.stats
+	stats.equipment.clear()
+	stats.bag.clear()
+	var worn: Array = []
+	for item in kit:
+		worn.append(stats.equip(item, false) != null)
+	stats.refresh()
+	expect("every starting item equips on a fresh start (Barricade 1 satisfies the buckler's requirement)", worn == [true, true, true])
+	expect("the buckler is worn in the shield slot", stats.equipment.has(Items.Slot.SHIELD)
+		and String(stats.equipment[Items.Slot.SHIELD].get("def", "")) == "buckler")
+	expect("the worn buckler blocks at Barricade 1 (block chance 2%)", is_equal_approx(hero.block_chance, 0.02))
+	stats.equipment.clear()
+	stats.refresh()

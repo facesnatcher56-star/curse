@@ -158,7 +158,7 @@ const ONLY_TESTS := {
 "defensiveresistances": "_test_defensive_resistances",
 "rangedmods": "_test_ranged_modifiers",
 "elements": "_test_elements",
-"dodgeblock": "_test_dodge_block", "opening": "_test_opening",
+"dodgeblock": "_test_dodge_block", "opening": "_test_opening", "startingkit": "_test_starting_kit",
 "powerdamage": "_test_power_damage",
 "navigation": "_test_navigation",
 "theme": "_test_ornate_theme",

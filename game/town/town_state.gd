@@ -121,7 +121,7 @@ static func reset() -> void:
 	hero_level = 1
 	class_xp = {"melee": 0, "ranged": 0, "combat": 0, "nature": 0}
 	cutter_xp = 0
-	passive_ranks = {}
+	passive_ranks = STARTING_RANKS.duplicate()
 	ensure_npcs()
 	roll_board()
 
@@ -489,6 +489,9 @@ static func main_class() -> String:
 ## Cutter's share of a kill (see RunDirector._pay_kill_xp). Saved with the hero's.
 # --- Skill points and passives (DS2: one point per character level, two more for a human) --------------------------------------------
 const BONUS_SKILL_POINTS := 2
+## Ranks a fresh hero starts with, free (they spend no skill points). The playtest kit gives Barricade 1 so the starter buckler can be worn
+## and block, and Opening 1 so Opening and Shield Openings can be tried from the start.
+const STARTING_RANKS := {"barricade": 1, "opening": 1}
 
 ## Only passives with a verified gameplay consumer may receive equipment ranks. Dormant definitions such as Quick Draw, Bleed, Far Shot,
 ## Penetrate and Ricochet remain out until their combat hooks exist.
@@ -530,7 +533,7 @@ static func skill_points_left(staged: Dictionary = {}, member_id: String = "hero
 	var spent: int = 0
 	var ranks := PartyManager.current().member(member_id).passive_ranks
 	for id in ranks:
-		spent += int(ranks[id])
+		spent += maxi(int(ranks[id]) - int(STARTING_RANKS.get(id, 0)), 0)   # the starting ranks were free
 	for id in staged:
 		spent += int(staged[id])
 	return skill_points_total(member_id) - spent
