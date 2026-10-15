@@ -21,7 +21,7 @@ const INK := Color(0.060, 0.042, 0.036)
 static var _cached: Theme
 static var _art: Dictionary = {}
 const ART_LOGICAL_SIZE := {
-	"metal": Vector2i(256, 256), "parchment": Vector2i(256, 192),
+	"metal": Vector2i(256, 256), "metal_panel": Vector2i(256, 256), "parchment": Vector2i(256, 192),
 	"button": Vector2i(144, 48), "icon": Vector2i(64, 64),
 }
 
@@ -38,15 +38,15 @@ static func art(id: String) -> Texture2D:
 			_art[id] = imported
 	return _art[id]
 
+## Every framed plate stretches (never tiles): tiling repeated the plate's midpoint studs and edge knotwork across long bars and
+## windows (#49). "metal" uses the derived stretch-safe plate (tools/make_panel_art.py): corners drawn once, continuous rails,
+## a seamless texture-bombed leather centre. The button plate has no studs and stretches within a 1.3x range at normal sizes.
 static func framed(id: String = "metal", padding: float = 20.0, tint: Color = Color.WHITE) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
-	style.texture = art(id)
+	style.texture = art("metal_panel" if id == "metal" else id)
 	style.set_texture_margin_all(32 if id != "button" else 16)
-	if id in ["button", "metal"]:
-		# Recessed material repeats instead of smearing into long stripes on
-		# tall tooltips or wide HUD plates. Corners remain separate nine-slices.
-		style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
-		style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	style.set_content_margin_all(padding)
 	style.modulate_color = tint
 	return style
@@ -145,9 +145,14 @@ static func panel_box() -> StyleBoxTexture:
 	return framed("metal", 24)
 
 ## Compact, recessed worn-metal popup; enough inset to clear its carved trim.
+## Tooltips use the square metal plate: its 768 px centre stretches evenly into tall item and skill cards, while the short
+## button plate would stretch vertically into streaks (#49).
 static func tooltip_box() -> StyleBoxTexture:
-	var style := framed("button", 18, Color(0.92, 0.92, 0.92))
-	style.set_texture_margin_all(16)
+	# A smaller corner cell with more padding keeps the first and last lines clear of the carved corners.
+	var style := framed("metal", 30, Color(0.92, 0.92, 0.92))
+	style.set_texture_margin_all(12)
+	style.content_margin_top = 34
+	style.content_margin_bottom = 42
 	return style
 
 ## Same restrained warm edge for item tiles and hand-drawn hotbar controls.
@@ -282,6 +287,11 @@ static func _build() -> Theme:
 	theme.set_stylebox("fill", "ProgressBar", box(EMBER.darkened(0.2), EMBER.darkened(0.45), 1, 2, 0))
 	theme.set_color("font_color", "ProgressBar", TEXT)
 	theme.set_color("font_color", "Label", TEXT)
+	# Body text sits on dark leather and reads thin there: one shared 1 px drop shadow for every text type (#49).
+	for type in ["Label", "Button", "CheckBox", "TooltipLabel"]:
+		theme.set_color("font_shadow_color", type, Color(0, 0, 0, 0.8))
+		theme.set_constant("shadow_offset_x", type, 1)
+		theme.set_constant("shadow_offset_y", type, 1)
 
 	# Tabs
 	theme.set_stylebox("tab_selected", "TabContainer", framed("button", 12, Color(1, 0.42, 0.32)))

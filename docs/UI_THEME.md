@@ -26,6 +26,23 @@ The game remains grounded and weathered, as required by ART_DIRECTION.md.
 - Party vitals, real levels, minimap content, skill paths, power charge overlays and inventory
   rotation stay data-driven. Existing ability icons and OFL fonts are retained.
 
+### Texture repeat and text clarity (#49, 2026-10-15)
+
+- Framed plates stretch instead of tiling. Tiling repeated the metal plate's midpoint studs
+  and edge knotwork along long bars and windows. `assets/ui/ornate/metal_panel.png` is derived
+  from `metal.png` by `tools/make_panel_art.py`: the four ornate corners are kept, every rail is
+  a uniform profile from a stud-free stretch, and the centre is a seamless texture-bombed leather
+  fill with large-scale grime. Tooltips use the metal plate (`tooltip_box`), because the short button
+  plate streaked when stretched into tall cards. Buttons keep `button.png`, stretched.
+- Label, Button, CheckBox and TooltipLabel share one 1 px drop shadow (`UiTheme._build`).
+- Measured at 1080p: the character window is not scaled (fit factor 1.0), so text is rasterised
+  at native size. The legibility gap is contrast on thin serif text, not resampling. Font import
+  (hinting, MSDF) was not A/B tested; that remains open.
+- Verified at 1080p on screen 1 only (`--only=uitexture`): bottom bar, character window, item
+  tooltip and party frames, before and after, in `docs/screenshots/ui-texture/`.
+- Known gaps: 1280x720, 1600x900 and 2560x1440 and the interface-scale matrix are postponed by the
+  owner. The plate is plainer than the previous knotwork edges; the owner has not yet judged richness.
+
 Do not restore the removed resource strip, render fake consumables, bake gameplay values
 into artwork, or introduce another independent theme system. Ask the owner when uncertain.
 
