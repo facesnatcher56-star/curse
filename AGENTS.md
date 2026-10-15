@@ -13,6 +13,13 @@ significant layout changes need representative resolutions and scale boundaries;
 display, scaling or layout-system changes need the complete matrix. Screenshot inspection is
 required when appearance changes and a display is available. Disclose any deferred visual check.
 
+Standing visual direction for all new or revised art and gameplay effects: build in deliberate
+contrast so the subject reads and pops against its actual gameplay surroundings. Use clear
+value and color separation, a strong silhouette, and controlled highlights; avoid muddy,
+washed-out, or low-contrast results that blend into the player, ground, or background. Judge
+the effect in its real gameplay context, not just on an isolated preview, and keep the contrast
+coherent with the established art direction.
+
 Standing owner instruction, including future tasks: whenever uncertainty remains, ask the
 owner before implementing the uncertain part. Do not guess. This applies to all agents.
 

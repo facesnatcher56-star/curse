@@ -18,6 +18,17 @@ const IMPACT_DEDUP_RADIUS := 1.2
 const MAX_FLASH_LIGHTS := 3
 const IMPACT_GROUP := "impact_fx"
 
+const CHARACTER_LEVEL_SIGIL: Texture2D = preload("res://assets/fx/levelup/character_level_sigil_contrast.png")
+const CHARACTER_LEVEL_BEAM: Shader = preload("res://game/level_up_beam.gdshader")
+const CHARACTER_LEVEL_TRAIL: Shader = preload("res://game/level_up_trail.gdshader")
+const CHARACTER_LEVEL_SIGIL_SHADER: Shader = preload("res://game/level_up_sigil.gdshader")
+
+const LEVEL_UP_DURATION := 2.8
+const LEVEL_UP_PEAK_TIME := 1.35
+const LEVEL_UP_GOLD := Color(1.0, 0.68, 0.28)
+const LEVEL_UP_IVORY := Color(1.0, 0.92, 0.68)
+const LEVEL_UP_TEAL := Color(0.33, 0.86, 0.76)
+
 ## True the first time a given kind of impact is claimed near `pos` inside the dedup window; false for a repeat (skip the visuals).
 static func claim_impact(kind: String, pos: Vector3) -> bool:
 	var now: int = Time.get_ticks_msec()
@@ -428,6 +439,369 @@ static func sector(from: Node, pos: Vector3, facing: Vector3, half_angle: float,
 	if spin != 0.0:
 		tween.tween_property(mesh_instance, "rotation:y", mesh_instance.rotation.y + spin, duration).set_ease(Tween.EASE_OUT)
 	tween.chain().tween_callback(mesh_instance.queue_free)
+
+## Character XP level-up: the sigil reveals as power builds, peaks in one compact burst, then resolves by 2.8 s.
+## The Meshy artwork remains the hero; arcs, sparks, light and timing are native Godot effects around it.
+static func character_level_up(from: Node3D, new_level: int = 0) -> void:
+	if not is_instance_valid(from) or not from.is_inside_tree():
+		return
+	var previous := from.get_node_or_null("CharacterLevelUpFx")
+	if previous != null:
+		previous.free() # A repeated ding on one member restarts its own effect; other members stay independent.
+	var height: float = from.body_height if from is Actor else 1.8
+	var radius: float = from.body_radius if from is Actor else 0.38
+	var fx_root := Node3D.new()
+	fx_root.name = "CharacterLevelUpFx"
+	from.add_child(fx_root) # Follow movement and let character deletion/scene changes own cleanup.
+
+	# IGNITE → SURGE: a small localized glow rises in three measured steps, then peaks briefly.
+	var ground_light := OmniLight3D.new()
+	ground_light.light_color = LEVEL_UP_GOLD
+	ground_light.light_energy = 0.0
+	ground_light.omni_range = 2.7
+	ground_light.shadow_enabled = false
+	fx_root.add_child(ground_light)
+	ground_light.position.y = 0.82
+	var ignite := ground_light.create_tween()
+	ignite.tween_property(ground_light, "light_energy", 0.55, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	ignite.tween_property(ground_light, "light_energy", 1.15, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	ignite.tween_property(ground_light, "light_energy", 1.85, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	ignite.tween_property(ground_light, "light_energy", 3.2, 0.10).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	ignite.tween_property(ground_light, "light_energy", 1.25, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	ignite.tween_property(ground_light, "light_energy", 0.0, 1.17).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	# SEAL: let the original Meshy rune work draw itself from the center outward.
+	_level_up_ground_sigil(fx_root, 1.36, LEVEL_UP_DURATION)
+	_level_up_ground_arc(fx_root, 1.10, 0.145, 0.018, 0.66, LEVEL_UP_GOLD, 1.0)
+	_level_up_ground_arc(fx_root, 0.68, 0.155, 0.014, 0.58, LEVEL_UP_TEAL, -1.0)
+	_level_up_sparks(fx_root, 7, radius + 0.12, 0.9, Vector3.UP, 15.0, 0.55, 1.0)
+
+	# SURGE / ASCEND: two smooth filaments spiral in opposite directions and meet at one point overhead.
+	var aura_radius: float = maxf(radius + 0.08, 0.48)
+	var aura_height: float = height + 0.68
+	var pillar := _level_up_beam(fx_root, height + 0.9, radius)
+	if pillar != null:
+		var pillar_material := pillar.material_override as ShaderMaterial
+		var pillar_rise := pillar.create_tween().set_parallel(true)
+		pillar_rise.tween_property(pillar, "scale:y", height + 0.9, LEVEL_UP_PEAK_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		pillar_rise.tween_property(pillar, "position:y", (height + 0.9) * 0.5, LEVEL_UP_PEAK_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		var pillar_glow := pillar.create_tween()
+		pillar_glow.tween_property(pillar_material, "shader_parameter/opacity", 0.10, 0.78)
+		pillar_glow.tween_property(pillar_material, "shader_parameter/opacity", 0.22, 0.57)
+		pillar_glow.tween_interval(0.08)
+		pillar_glow.tween_property(pillar_material, "shader_parameter/opacity", 0.0, 0.95)
+		pillar_glow.tween_callback(pillar.queue_free)
+	for i in 2:
+		var phase: float = TAU * float(i) / 2.0
+		var direction: float = 1.0 if i == 0 else -1.0
+		var trail := _level_up_aura_trail(fx_root, aura_height, aura_radius, phase, direction)
+		if trail == null:
+			continue
+		var trail_material := trail.material_override as ShaderMaterial
+		var trail_rise := trail.create_tween()
+		trail_rise.tween_property(trail_material, "shader_parameter/rise_progress", 1.0, LEVEL_UP_PEAK_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		var trail_glow := trail.create_tween()
+		trail_glow.tween_property(trail_material, "shader_parameter/opacity", 0.30, 0.35)
+		trail_glow.tween_property(trail_material, "shader_parameter/opacity", 0.42, 0.55)
+		trail_glow.tween_property(trail_material, "shader_parameter/opacity", 0.50, 0.45)
+		trail_glow.tween_interval(0.50)
+		trail_glow.tween_property(trail_material, "shader_parameter/opacity", 0.0, 0.95).set_trans(Tween.TRANS_SINE)
+		trail_glow.tween_callback(trail.queue_free)
+		var trail_spin := trail.create_tween()
+		trail_spin.tween_property(trail, "rotation:y", direction * TAU * 0.22, 0.9).set_trans(Tween.TRANS_SINE)
+		trail_spin.tween_property(trail, "rotation:y", direction * TAU * 0.62, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		trail_spin.tween_property(trail, "rotation:y", direction * TAU * 0.82, 1.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# The bright particles are narrow moving streaks, not glowing orbs. Their counts are kept deliberately low.
+	var peak_sparks := _level_up_sparks(fx_root, 12, aura_radius, 0.48, Vector3(0.0, 0.32, 0.0), 76.0, 3.2, 0.7, false)
+	var peak := fx_root.create_tween()
+	peak.tween_interval(LEVEL_UP_PEAK_TIME)
+	peak.tween_callback(func() -> void:
+		if is_instance_valid(peak_sparks):
+			peak_sparks.restart()
+			peak_sparks.emitting = true
+	)
+	_level_up_shockwave(fx_root, LEVEL_UP_PEAK_TIME, 1.48)
+	_level_up_notification(fx_root, height, new_level)
+
+	var cleanup := fx_root.create_tween()
+	cleanup.tween_interval(LEVEL_UP_DURATION)
+	cleanup.tween_callback(fx_root.queue_free)
+
+## Soft tapered golden light column; the Meshy ground sigil is its own floor decal.
+static func _level_up_beam(parent: Node3D, height: float, radius: float) -> MeshInstance3D:
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = maxf(radius * 0.78, 0.28)
+	cylinder.bottom_radius = maxf(radius * 1.28, 0.48)
+	cylinder.height = 1.0
+	cylinder.radial_segments = 32
+	cylinder.rings = 2
+	cylinder.cap_top = false
+	cylinder.cap_bottom = false
+	var material := ShaderMaterial.new()
+	material.shader = CHARACTER_LEVEL_BEAM
+	material.set_shader_parameter("opacity", 0.0)
+	var beam := MeshInstance3D.new()
+	beam.name = "LevelUpGoldenColumn"
+	beam.mesh = cylinder
+	beam.material_override = material
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	beam.scale = Vector3(1.0, 0.01, 1.0)
+	beam.position.y = 0.005
+	parent.add_child(beam)
+	return beam
+
+## Build one tapered ribbon that rises in a spiral and narrows to a point above the hero.
+static func _level_up_aura_trail(parent: Node3D, height: float, orbit_radius: float, phase: float, direction: float) -> MeshInstance3D:
+	const SEGMENTS := 72
+	const HALF_WIDTH := 0.015
+	var vertices := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for segment in range(SEGMENTS + 1):
+		var t: float = float(segment) / float(SEGMENTS)
+		var radius: float = lerpf(orbit_radius, 0.025, smoothstep(0.74, 1.0, t))
+		var angle: float = phase + direction * TAU * 1.55 * t
+		var center := Vector3(cos(angle) * radius, lerpf(0.12, height, t), sin(angle) * radius)
+		var tangent := Vector3(-sin(angle) * radius * TAU * 1.55 * direction, height, cos(angle) * radius * TAU * 1.55 * direction)
+		var side := tangent.cross(Vector3.UP).normalized() * HALF_WIDTH
+		vertices.append(center - side)
+		vertices.append(center + side)
+		uvs.append(Vector2(0.0, t))
+		uvs.append(Vector2(1.0, t))
+		if segment < SEGMENTS:
+			var index: int = segment * 2
+			indices.append_array(PackedInt32Array([index, index + 2, index + 1, index + 1, index + 2, index + 3]))
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var material := ShaderMaterial.new()
+	material.shader = CHARACTER_LEVEL_TRAIL
+	material.set_shader_parameter("opacity", 0.0)
+	material.set_shader_parameter("rise_progress", 0.0)
+	var trail := MeshInstance3D.new()
+	trail.name = "LevelUpGoldenAuraTrail"
+	trail.mesh = mesh
+	trail.material_override = material
+	trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(trail)
+	return trail
+
+## The Meshy ground sigil opens beneath the hero. It ignores physics and input.
+static func _level_up_ground_sigil(parent: Node3D, size: float, lifetime: float) -> MeshInstance3D:
+	var ring := MeshInstance3D.new()
+	ring.name = "LevelUpGroundSigil"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.0, 2.0)
+	ring.mesh = quad
+	var material := ShaderMaterial.new()
+	material.shader = CHARACTER_LEVEL_SIGIL_SHADER
+	material.set_shader_parameter("sigil_texture", CHARACTER_LEVEL_SIGIL)
+	material.set_shader_parameter("opacity", 1.0)
+	material.set_shader_parameter("reveal_progress", 0.02)
+	material.set_shader_parameter("brightness", 0.45)
+	ring.material_override = material
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(ring)
+	ring.position.y = 0.1
+	ring.rotation.x = -PI * 0.5
+	ring.scale = Vector3.ONE * size * 0.88
+	var scale_tween := ring.create_tween()
+	scale_tween.tween_property(ring, "scale", Vector3.ONE * size, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var reveal := ring.create_tween()
+	reveal.tween_property(material, "shader_parameter/reveal_progress", 0.50, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	reveal.tween_property(material, "shader_parameter/reveal_progress", 1.0, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var glow := ring.create_tween()
+	glow.tween_property(material, "shader_parameter/brightness", 0.8, 0.35)
+	glow.tween_property(material, "shader_parameter/brightness", 1.1, 0.55)
+	glow.tween_property(material, "shader_parameter/brightness", 1.7, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	glow.tween_property(material, "shader_parameter/brightness", 2.25, 0.10).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	glow.tween_property(material, "shader_parameter/brightness", 1.15, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	glow.tween_property(material, "shader_parameter/brightness", 0.0, maxf(lifetime - 1.63, 0.05)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var rotation := ring.create_tween()
+	rotation.tween_property(ring, "rotation:z", 0.18, 0.35).set_trans(Tween.TRANS_SINE)
+	rotation.tween_property(ring, "rotation:z", 0.58, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	rotation.tween_property(ring, "rotation:z", 1.20, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	rotation.tween_property(ring, "rotation:z", 1.42, maxf(lifetime - 1.35, 0.05)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var pulse := ring.create_tween()
+	pulse.tween_property(ring, "scale", Vector3.ONE * size * 1.045, 0.12).set_delay(LEVEL_UP_PEAK_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	pulse.tween_property(ring, "scale", Vector3.ONE * size, 0.28).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	return ring
+
+## Two fine, broken rings add counter-rotation while leaving the Meshy sigil as the dominant ground shape.
+static func _level_up_ground_arc(parent: Node3D, radius: float, y: float, width: float, arc_fraction: float, color: Color, direction: float) -> MeshInstance3D:
+	const SEGMENTS := 64
+	var vertices := PackedVector3Array()
+	var indices := PackedInt32Array()
+	var half_width: float = width * 0.5
+	var start: float = 0.0 if direction > 0.0 else TAU * 0.22
+	for segment in range(SEGMENTS + 1):
+		var t: float = float(segment) / float(SEGMENTS)
+		var angle: float = start + TAU * arc_fraction * t
+		var outer: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * (radius + half_width)
+		var inner: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * (radius - half_width)
+		vertices.append(Vector3(inner.x, 0.0, inner.z))
+		vertices.append(Vector3(outer.x, 0.0, outer.z))
+		if segment < SEGMENTS:
+			var index: int = segment * 2
+			indices.append_array(PackedInt32Array([index, index + 1, index + 2, index + 1, index + 3, index + 2]))
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.albedo_color = Color(color.r, color.g, color.b, 0.0)
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 1.15
+	var arc := MeshInstance3D.new()
+	arc.name = "LevelUpCounterArc"
+	arc.mesh = mesh
+	arc.material_override = material
+	arc.position.y = y
+	arc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(arc)
+	var reveal := arc.create_tween()
+	reveal.tween_property(material, "albedo_color:a", 0.64, 0.35)
+	reveal.tween_property(material, "albedo_color:a", 0.84, 0.55)
+	reveal.tween_property(material, "albedo_color:a", 0.95, 0.45)
+	reveal.tween_interval(0.50)
+	reveal.tween_property(material, "albedo_color:a", 0.0, 0.95).set_trans(Tween.TRANS_SINE)
+	var spin := arc.create_tween()
+	spin.tween_property(arc, "rotation:y", direction * TAU * 0.22, 0.9).set_trans(Tween.TRANS_SINE)
+	spin.tween_property(arc, "rotation:y", direction * TAU * 0.60, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	spin.tween_property(arc, "rotation:y", direction * TAU * 0.76, 1.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	return arc
+
+## Warm, narrow streaks rise from around the body; a short one-shot burst marks the level-up peak.
+static func _level_up_sparks(parent: Node3D, count: int, spawn_radius: float, lifetime: float, direction: Vector3, spread: float,
+		velocity: float, velocity_spread: float, emit_on_ready: bool = true) -> CPUParticles3D:
+	var sparks := CPUParticles3D.new()
+	sparks.name = "LevelUpGoldSparks"
+	sparks.amount = count
+	sparks.one_shot = true
+	sparks.explosiveness = 0.82
+	sparks.lifetime = lifetime
+	sparks.local_coords = false
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	sparks.emission_sphere_radius = spawn_radius
+	sparks.direction = direction
+	sparks.spread = spread
+	sparks.initial_velocity_min = maxf(velocity - velocity_spread, 0.1)
+	sparks.initial_velocity_max = velocity + velocity_spread
+	sparks.gravity = Vector3(0.0, -0.48, 0.0)
+	sparks.emitting = emit_on_ready
+	var streak := QuadMesh.new()
+	streak.size = Vector2(0.024, 0.16)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	material.vertex_color_use_as_albedo = true
+	material.albedo_texture = soft_texture()
+	streak.material = material
+	sparks.mesh = streak
+	var ramp := Gradient.new()
+	ramp.set_color(0, LEVEL_UP_IVORY)
+	ramp.add_point(0.35, LEVEL_UP_GOLD)
+	ramp.set_color(1, Color(0.82, 0.30, 0.08, 0.0))
+	sparks.color_ramp = ramp
+	parent.add_child(sparks)
+	sparks.position.y = 0.82
+	sparks.finished.connect(sparks.queue_free)
+	return sparks
+
+## A thin ground shockwave expands across the rune circle on the peak, then fades in under half a second.
+static func _level_up_shockwave(parent: Node3D, delay: float, radius: float) -> MeshInstance3D:
+	var wave := MeshInstance3D.new()
+	wave.name = "LevelUpGroundShockwave"
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.975
+	torus.outer_radius = 1.0
+	torus.ring_segments = 48
+	torus.rings = 6
+	wave.mesh = torus
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(LEVEL_UP_IVORY.r, LEVEL_UP_IVORY.g, LEVEL_UP_IVORY.b, 0.92)
+	material.emission_enabled = true
+	material.emission = LEVEL_UP_GOLD
+	material.emission_energy_multiplier = 2.1
+	wave.material_override = material
+	wave.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	wave.position.y = 0.17
+	wave.scale = Vector3.ONE * 0.025
+	parent.add_child(wave)
+	var expand := wave.create_tween().set_parallel(true)
+	expand.tween_property(wave, "scale", Vector3(radius, 1.0, radius), 0.42).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	expand.tween_property(material, "albedo_color:a", 0.0, 0.42).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	expand.chain().tween_callback(wave.queue_free)
+	return wave
+
+## World-space title above the rising aura, appearing at the crest.
+static func _level_up_notification(parent: Node3D, height: float, new_level: int) -> void:
+	var notice := Node3D.new()
+	notice.name = "LevelUpWorldNotification"
+	notice.position = Vector3(0.0, height + 0.55, 0.0)
+	notice.scale = Vector3.ONE * 0.72
+	notice.visible = false
+	parent.add_child(notice)
+
+	var title := Label3D.new()
+	title.name = "LevelUpWorldTitle"
+	title.text = "LEVEL UP"
+	title.font_size = 68
+	title.pixel_size = 0.004
+	title.outline_size = 12
+	title.outline_modulate = Color(0.08, 0.035, 0.008, 1.0)
+	title.modulate = Color(1.0, 0.88, 0.56, 1.0)
+	title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	title.shaded = false
+	title.no_depth_test = true
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	notice.add_child(title)
+	title.position = Vector3(0.0, 0.11, 0.0)
+
+	if new_level > 0:
+		var level_label := Label3D.new()
+		level_label.name = "LevelUpWorldLevel"
+		level_label.text = "LEVEL %d" % new_level
+		level_label.font_size = 36
+		level_label.pixel_size = 0.004
+		level_label.outline_size = 8
+		level_label.outline_modulate = Color(0.08, 0.035, 0.008, 1.0)
+		level_label.modulate = Color(0.42, 1.0, 0.92, 1.0)
+		level_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		level_label.shaded = false
+		level_label.no_depth_test = true
+		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		notice.add_child(level_label)
+		level_label.position = Vector3(0.0, -0.18, 0.0)
+
+	var tween := notice.create_tween()
+	tween.tween_interval(LEVEL_UP_PEAK_TIME)
+	tween.tween_callback(func() -> void: notice.visible = true)
+	tween.tween_property(notice, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(0.44)
+	tween.set_parallel(true)
+	tween.tween_property(title, "modulate:a", 0.0, 0.78).set_trans(Tween.TRANS_SINE)
+	if new_level > 0:
+		var level_label := notice.get_node("LevelUpWorldLevel") as Label3D
+		tween.tween_property(level_label, "modulate:a", 0.0, 0.78).set_trans(Tween.TRANS_SINE)
+	tween.chain().tween_callback(notice.queue_free)
 
 ## Brief point light for impact flashes.
 static func light_flash(from: Node, pos: Vector3, color: Color, energy: float, duration: float) -> void:

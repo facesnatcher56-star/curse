@@ -165,7 +165,7 @@ func _test_progression() -> void:
 	var view: Control = town.combat_hud.character_panel
 	expect("a fresh character screen reads Level 1 and 0 / 300 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 300 XP")
 	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
-	expect("a level-up puts one small LEVEL plate on the HUD", town.combat_hud.level_toast_text == "LEVEL 2" and town.combat_hud.level_toast_time > 1.0)
+	expect("a level-up keeps the HUD free of a duplicate screen-space plate", town.combat_hud.level_toast_text.is_empty() and town.combat_hud.level_toast_time == 0.0)
 	town.combat_hud._open_character()
 	view = town.combat_hud.character_panel
 	await get_tree().process_frame
@@ -549,7 +549,7 @@ func _test_xp() -> void:
 	town.combat_hud._open_character()
 	var view: Control = town.combat_hud.character_panel
 	TownState.add_hero_xp(HeroProgression.xp_for_level(4) + 10)
-	expect("one large reward is one level-up, and one plate for the level reached", events == [[1, 4]] and town.combat_hud.level_toast_text == "LEVEL 4")
+	expect("one large reward emits one level-up event without a duplicate HUD plate", events == [[1, 4]] and town.combat_hud.level_toast_text.is_empty())
 	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 4" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
 		and town.combat_hud.character_panel == view)
 	TownState.add_hero_xp(HeroProgression.max_xp() * 2)

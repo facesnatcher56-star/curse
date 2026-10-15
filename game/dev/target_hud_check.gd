@@ -68,30 +68,25 @@ func run() -> void:
 	var ground_drop := LootDrop.create(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 1, "Falchion"))
 	town.add_child(ground_drop)
 	ground_drop.toss_from(target.global_position + Vector3(1.5, 0.0, 1.5))
-	var level_toast: ProgressionHud = town.combat_hud.progression_hud
-	level_toast.toast_text = "LEVEL 2"
-	level_toast.toast_time = ProgressionHud.TOAST_SECONDS
-	level_toast.toast_levels = 1
 	for frame in 45: await process_frame
 	if DisplayServer.get_name() != "headless":
 		await RenderingServer.frame_post_draw
 	var target_rect := banner.get_global_rect()
-	var toast_rect := level_toast.toast_rect(banner.get_viewport_rect().size)
-	check("level-up toast clears the target banner", not toast_rect.intersects(target_rect))
+	var toast_rect := town.combat_hud.progression_hud.toast_rect(banner.get_viewport_rect().size)
+	check("level-up toast is removed from the HUD", toast_rect.size == Vector2.ZERO)
 	var party_rect := town.combat_hud.ds2_party_frame.get_global_rect()
 	var loot_plates_clear := true
 	for entry in town.combat_hud.loot_cards.names:
 		var plate: Rect2 = entry["rect"]
 		if plate.grow(6.0).intersects(target_rect) or plate.grow(6.0).intersects(party_rect) or plate.intersects(toast_rect):
 			loot_plates_clear = false
-	check("loot name plates clear target, party frames, and level-up toast", not town.combat_hud.loot_cards.names.is_empty() and loot_plates_clear)
+	check("loot name plates clear target and party frames", not town.combat_hud.loot_cards.names.is_empty() and loot_plates_clear)
 	if DisplayServer.get_name() != "headless":
 		var overlay_capture := OS.get_environment("TEMP").path_join("curse_target_hud_overlays.png")
 		root.get_texture().get_image().save_png(overlay_capture)
 		print("CAPTURE ", overlay_capture)
 	ground_drop.queue_free()
 	town.player.attack_target = null
-	level_toast.toast_time = 0.0
 	for dimensions in GameSettings.RESOLUTIONS:
 		if DisplayServer.get_name() != "headless":
 			root.mode = Window.MODE_WINDOWED

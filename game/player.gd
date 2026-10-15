@@ -832,6 +832,8 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.refresh()
 	if dead:
 		return
+	Fx.character_level_up(self, _new_level)
+	Sfx.sample(self, "leap_land", -12.0, 0.75)
 	health = max_health
 	stats.mana = stats.max_mana
 	stats.cooldowns.clear()

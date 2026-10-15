@@ -38,6 +38,7 @@ const SUITES := [
 	preload("res://game/dev/suites/loot_tests.gd"),
 	preload("res://game/dev/suites/loot_appraisal_tests.gd"),
 	preload("res://game/dev/suites/progression_tests.gd"),
+	preload("res://game/dev/suites/level_up_vfx_tests.gd"),
 	preload("res://game/dev/suites/town_tests.gd"),
 	preload("res://game/dev/suites/world_tests.gd"),
 	preload("res://game/dev/suites/quest_tests.gd"),
@@ -85,7 +86,13 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if DisplayServer.get_screen_count() > 1:
+		if _user_arg_value("--levelupcapture=") != "":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_size(Vector2i(1920, 1080))
+			if DisplayServer.get_screen_count() > 1:
+				DisplayServer.window_set_current_screen(1)
+				DisplayServer.window_set_position(DisplayServer.screen_get_position(1) + Vector2i(30, 30))
+		elif DisplayServer.get_screen_count() > 1:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			DisplayServer.window_set_current_screen(1)
@@ -108,6 +115,8 @@ func run_from_args() -> bool:
 		_run("_take_aim_shot")
 	elif _user_arg_value("--powerfeel=") != "":
 		_run("_power_feel_shot", [_user_arg_value("--powerfeel=")])
+	elif _user_arg_value("--levelupcapture=") != "":
+		_run("_level_up_capture", [_user_arg_value("--levelupcapture=")])
 	elif OS.get_cmdline_user_args().has("--brutalshot"):
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
@@ -184,6 +193,7 @@ const ONLY_TESTS := {
 "actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "rangedrequirements": "_test_ranged_requirements", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers", "powerimpact": "_test_power_impact",
 	"movepriority": "_test_move_priority",
 	"progression": "_test_progression", "worldprogression": "_test_world_progression", "xp": "_test_xp", "savepolicy": "_test_save_policy", "herodown": "_test_hero_knockdown",
+	"levelupfx": "_test_level_up_fx",
 "champions": "_test_champions", "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "itemcard": "_test_item_card", "pickupnotice": "_test_pickup_notice", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "popupclick": "_test_popup_click_through", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "barrelschests": "_test_barrels_chests", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys", "itemlab": "_test_item_lab", "itemlablayout": "_test_item_lab_layout", "itemlabdropdowns": "_test_item_lab_dropdowns", "equipmentintegration": "_test_equipment_integration",
 "lootappraisal": "_test_loot_appraisal",

@@ -57,16 +57,16 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_time = seconds
 
 var progression_hud: ProgressionHud
-## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
+## Compatibility reads for callers that queried the removed screen-space level-up toast.
 var level_toast_text: String:
-	get: return progression_hud.toast_text if progression_hud != null else ""
+	get: return ""
 var level_toast_time: float:
-	get: return progression_hud.toast_time if progression_hud != null else 0.0
+	get: return 0.0
 
 func _ready() -> void:
 	loot_cards.hud = self
 	picker.hud = self
-	progression_hud = ProgressionHud.new()   # the level and XP strip and the level-up plate
+	progression_hud = ProgressionHud.new()   # the level and XP strip; level-up effects play in-world
 	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
