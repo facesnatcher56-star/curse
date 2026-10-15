@@ -1,11 +1,15 @@
 class_name Chest
 extends Node3D
 ## A treasure chest: click it (the hero walks up) or press the use key beside it, the lid swings open, and it gives up its loot once.
-## Opened chests stay open and are empty. Placeholder low-poly box; the dungeon art may swap the mesh later.
+## Opened chests stay open and are empty. Shown as the dungeon chest model (a placeholder box if the model is missing).
 
 const REACH := 3.2   # from its middle: the baked walkable area leaves a gap round the box, so the hero stops 2.3 to 2.8 m out
 const BODY_SIZE := Vector3(1.1, 0.6, 0.7)
 const LID_TIME := 0.45
+## The dungeon's chest model (one mesh, no separate lid), shown at CHEST_HEIGHT metres tall, base on the ground. The box below is only
+## the fallback if the model is missing, and the collision box stays BODY_SIZE either way.
+const MODEL := "res://assets/models/dungeon/chest/model.glb"
+const CHEST_HEIGHT := 0.8
 
 var opened: bool = false
 var _lid: Node3D
@@ -17,6 +21,9 @@ func _ready() -> void:
 		_build()
 
 func _build() -> void:
+	if ResourceLoader.exists(MODEL):
+		_build_model(load(MODEL) as PackedScene)
+		return
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.36, 0.22, 0.1)
 	wood.roughness = 0.9
@@ -49,6 +56,27 @@ func _build() -> void:
 	band.material_override = iron
 	band.position = Vector3(0.0, 0.1, BODY_SIZE.z * 0.5)
 	_lid.add_child(band)
+	_collision = StaticBody3D.new()
+	_collision.collision_layer = Actor.LAYER_WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = BODY_SIZE
+	shape.shape = box
+	shape.position.y = BODY_SIZE.y * 0.5
+	_collision.add_child(shape)
+	add_child(_collision)
+
+## The model as the chest: scaled to CHEST_HEIGHT, centred on the origin and standing on the ground. No lid node in the model, so the
+## open tween has nothing to turn (`_lid` stays null); opening still empties it and drops the loot.
+func _build_model(scene: PackedScene) -> void:
+	var visual: Node3D = scene.instantiate()
+	var bounds: AABB = CharacterModel._bounds_of(visual)
+	var factor: float = CHEST_HEIGHT / maxf(bounds.size.y, 0.001)
+	visual.scale = Vector3.ONE * factor
+	visual.position = Vector3(-bounds.get_center().x, -bounds.position.y, -bounds.get_center().z) * factor
+	var holder := Node3D.new()
+	holder.add_child(visual)
+	add_child(holder)
 	_collision = StaticBody3D.new()
 	_collision.collision_layer = Actor.LAYER_WORLD
 	var shape := CollisionShape3D.new()
