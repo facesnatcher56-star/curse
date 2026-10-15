@@ -164,6 +164,8 @@ func _test_ds2_combat() -> void:
 	player.crit_chance = 1.0
 	expect("a power never crits", int(Combat.resolve(player, target, 10.0, Combat.DamageType.PHYSICAL, true, 1.0, false, false)["outcome"]) == Combat.Outcome.HIT)
 	player.crit_chance = 0.0
+	player.stats.equipment.clear()   # the starting kit (buckler, Barricade 1) must not add resistance or armour to this cap check
+	player.stats.refresh()
 	player.fire_resist = 0.95
 	var burned: Dictionary = Combat.resolve(target, player, 100.0, Combat.DamageType.FIRE, false)
 	expect("a hero's resistance is capped at 80%", absf(float(burned["damage"]) - 20.0) < 0.01)
