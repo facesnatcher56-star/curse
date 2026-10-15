@@ -138,12 +138,12 @@ static func roll_mods(def: ItemDef, level: int, rarity: int, count: int = -1) ->
 	var families: Array[String] = []
 	for position in positions:
 		var item_class := _affix_class(def)
-		var strength_ok := can_roll_strength(def)
-		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families, item_class, strength_ok)
+		var strength_cap := strength_tier_cap(def)
+		var pick: AffixDef = _pick_affix(KINDS[def.slot], level + window.x, level + window.y, position, families, item_class, strength_cap)
 		if pick == null:
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families, item_class, strength_ok)
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, position, families, item_class, strength_cap)
 		if pick == null and position != "":
-			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families, item_class, strength_ok)
+			pick = _pick_affix(KINDS[def.slot], 0, level + window.y, "", families, item_class, strength_cap)
 		if pick != null:
 			out.append(pick.id)
 			families.append(pick.family)
@@ -155,20 +155,21 @@ static func _affix_class(def: ItemDef) -> String:
 		return "ranger" if bool(def.profile.get("ranged", false)) else "fighter"
 	return def.armor_class
 
-## Whether a base can benefit from Strength, so may roll a Strength modifier. DS2's melee and two-handed blows add STR; thrown weapons
-## use DEX and the ranged and magic disciplines do not use it. Owner decision: bows, thrown weapons, staffs and mage armour (robes and
-## similar) never roll Strength; crossbows may. Ranger armour, rings and amulets are unchanged.
-static func can_roll_strength(def: ItemDef) -> bool:
-	if def.item_type == "staff":
-		return false
-	if def.slot == Slot.WEAPON:
-		return def.item_type == "crossbow" or not bool(def.profile.get("ranged", false))
-	return def.armor_class != "mage"
+## Highest strength tier (the tier table in AffixDef.tier) a roll may take on this base; 0 means it never rolls Strength, and 99 means
+## any tier. DS2's melee and two-handed blows add STR, so those benefit. Owner decision: all ranger gear (bows, crossbows, thrown
+## weapons and ranger armour) and mage gear (staffs, robes and similar) never roll Strength. DS2's crossbow bases require only
+## ranged and biting_arrow, not Strength. Rings, amulets and fighter gear are unchanged.
+static func strength_tier_cap(def: ItemDef) -> int:
+	if def.item_type == "staff" or def.armor_class == "mage" or def.armor_class == "ranger":
+		return 0
+	if def.slot == Slot.WEAPON and bool(def.profile.get("ranged", false)):
+		return 0
+	return 99
 
-static func _pick_affix(kind: String, low: int, high: int, position: String, taken: Array[String], item_class: String = "", strength_ok: bool = true) -> AffixDef:
+static func _pick_affix(kind: String, low: int, high: int, position: String, taken: Array[String], item_class: String = "", strength_cap: int = 99) -> AffixDef:
 	var pool: Array[AffixDef] = []
 	for a in AffixDb.eligible(kind, low, high, position):
-		if not strength_ok and a.stat == "str":
+		if a.stat == "str" and (strength_cap <= 0 or a.tier > strength_cap):
 			continue
 		if item_class != "" and not a.classes.is_empty() and not a.classes.has(item_class) and not (item_class == "mage" and (a.classes.has("cmage") or a.classes.has("nmage"))):
 			continue
