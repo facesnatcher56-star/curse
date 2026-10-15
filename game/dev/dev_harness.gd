@@ -50,6 +50,7 @@ const SUITES := [
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
+	preload("res://game/dev/suites/portrait_plus_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -188,6 +189,7 @@ const ONLY_TESTS := {
 "archernestorder": "_test_archer_nest_order",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
+"portraitplus": "_test_portrait_plus",
 "dungeonxp": "_test_dungeon_kill_xp",
 }
 
@@ -329,5 +331,6 @@ func _run_selftest() -> void:
 		parts.append("%s=%d" % [names[int(key)], int(Combat.tally[key])])
 	print("  outcomes: ", ", ".join(parts))
 	print("  kills: ", kills, "  player health: ", int(player.health), "  mana: ", int(player.stats.mana))
+	await _run("_test_portrait_plus")
 	await _run("_test_champions")   # last: it draws random numbers, so nothing after it may depend on the stream
 	_finish()

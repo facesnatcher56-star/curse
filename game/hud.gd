@@ -104,6 +104,7 @@ func _ready() -> void:
 
 	ds2_party_frame = Ds2PartyFrameClass.new()
 	add_child(ds2_party_frame)
+	ds2_party_frame.skills_requested.connect(_open_member_skills)
 
 	ds2_target_banner = Ds2TargetBannerClass.new()
 	add_child(ds2_target_banner)
@@ -721,6 +722,20 @@ func _open_character() -> void:
 	character_panel.z_index = 20
 	add_child(character_panel)
 	get_tree().paused = true
+
+## A party card's plus: that member's skill tree. The member is selected first, as a click on their card would do, so the tree and the
+## hotbar follow the same body. A fallen member opens nothing (the active-body rules refuse them; see the open question on #15).
+func _open_member_skills(member_id: String) -> void:
+	var body := PartyManager.current().bodies.get(member_id) as Player
+	if not is_instance_valid(body) or body.dead:
+		return
+	if body != player:
+		PartyManager.current().select(member_id)   # re-opens an open skill tree for the new member (see select_member)
+		if player != body:
+			return   # the selection did not take: never open another member's tree
+	var skills_open: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
+	if not skills_open:
+		open_skills()
 
 ## The skill screen (DS2's passive trees) in the character panel's place.
 func open_skills() -> void:
