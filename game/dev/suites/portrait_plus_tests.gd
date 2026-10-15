@@ -58,8 +58,18 @@ func _test_portrait_plus() -> void:
 			DisplayServer.window_set_size(Vector2i(int(wh[0]), int(wh[1])))
 			DisplayServer.window_set_position(DisplayServer.screen_get_position(DisplayServer.window_get_current_screen()))
 			for i in 30: await get_tree().process_frame
+	# This suite runs early in the self-test, so it puts back exactly the progression it changes (the hero and Cutter: XP, class XP and
+	# passive ranks) rather than resetting the whole game, which the later suites depend on.
+	var saved_persist: bool = TownState.persist
 	TownState.persist = false
-	TownState.reset()
+	var hero_member := PartyManager.current().member("hero")
+	var cutter_member := PartyManager.current().member("cutter")
+	var saved_hero := [hero_member.xp, hero_member.class_xp.duplicate(true), hero_member.passive_ranks.duplicate(true)]
+	var saved_cutter := [cutter_member.xp, cutter_member.class_xp.duplicate(true), cutter_member.passive_ranks.duplicate(true)]
+	TownState.dev_set_hero_level(1)
+	hero_member.passive_ranks = TownState.STARTING_RANKS.duplicate()
+	cutter_member.xp = 0
+	cutter_member.passive_ranks = {}
 	for enemy in get_tree().get_nodes_in_group("enemies"): enemy.queue_free()
 	Gamepad.active = false
 	await _settle()
@@ -134,5 +144,12 @@ func _test_portrait_plus() -> void:
 	await _click(hero_card.get_global_rect().position + body_offset)
 	expect("a press on the hero card body selects the hero", PartyManager.current().active_id == "hero")
 	await _shot("hover-and-click")
-	TownState.reset()   # leave the shared progression as a fresh game for the suites after this one
+	# Put the progression back as it was, for the suites after this one.
+	hero_member.xp = saved_hero[0]
+	hero_member.class_xp = saved_hero[1]
+	hero_member.passive_ranks = saved_hero[2]
+	cutter_member.xp = saved_cutter[0]
+	cutter_member.class_xp = saved_cutter[1]
+	cutter_member.passive_ranks = saved_cutter[2]
+	TownState.persist = saved_persist
 	frame.update_frame(player)
