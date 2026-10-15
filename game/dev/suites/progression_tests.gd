@@ -634,3 +634,32 @@ func _test_save_policy() -> void:
 	TownState.persist = was_persisting
 	TownState.persist = false
 	TownState.reset()
+
+## A kill in an authored location (the dungeon, `--dungeon`) pays the hero's XP and the class skill of the weapon that did the damage,
+## the same as a kill on the road. The director runs with `location` set and `world_mode` off, as the dungeon's does.
+func _test_dungeon_kill_xp() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var place := CryptRoad.new()
+	place.arena = game.arena   # only the location's distance from the gate is read (threat_at), not its built props
+	var dungeon := RunDirector.new()
+	dungeon.player = player
+	dungeon.location = place
+	game.add_child(dungeon)
+	expect("the dungeon is a connected location without world mode", dungeon.connected() and not dungeon.world_mode)
+	var enemy: Enemy = dungeon.spawn_enemy(player.global_position + Vector3(2.0, 0.0, 0.0), "zombie", 1.0)
+	enemy.aggro_range = 0.0
+	enemy.member_damage = {"hero": {"melee": 60.0}}
+	var xp_before: int = TownState.hero_xp
+	var melee_before: int = int(TownState.class_xp.get("melee", 0))
+	enemy.credit_hero()
+	enemy._apply_damage(enemy.max_health + 10.0)
+	for i in 3:
+		await get_tree().process_frame
+	expect("a kill in the dungeon raises the hero's XP (%d -> %d)" % [xp_before, TownState.hero_xp], TownState.hero_xp > xp_before)
+	expect("a kill in the dungeon raises the melee class XP (%d -> %d)" % [melee_before, int(TownState.class_xp.get("melee", 0))],
+		int(TownState.class_xp.get("melee", 0)) > melee_before)
+	dungeon.queue_free()
+	await get_tree().process_frame
+	place.free()   # never added to the tree
+	TownState.reset()
