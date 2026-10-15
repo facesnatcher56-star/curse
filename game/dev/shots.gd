@@ -261,6 +261,67 @@ func _skill_shots(_which: String) -> void:
 		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_skill_%d.png" % i)
 	get_tree().quit()
 
+## `-- --openingshot`: a shield guard frame sequence against a zombie, then an Opening's mark on the zombie beside it. Frames in %TEMP%.
+func _opening_shot() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	TownState.passive_ranks["opening"] = 20
+	var longsword := Items.build(ItemDb.get_def("longsword"), 10, Items.Rarity.NORMAL, [])
+	player.stats.equipment.clear()
+	player.stats.equipment[Items.Slot.WEAPON] = longsword
+	TownState.persist = false
+	TownState.dev_set_hero_level(40)           # the kite shield and longsword are level 10 bases: the hero must meet their class requirement
+	TownState.passive_ranks["barricade"] = 1   # a shield needs Barricade 1
+	player.stats.equip(Items.build(ItemDb.get_def("kite_shield"), 10, Items.Rarity.NORMAL, []), false)
+	player.stats.refresh()
+	print("DIAG shield_equipped=", player.stats.equipment.has(Items.Slot.SHIELD), " appearance=", player.appearance != null,
+		" worn=", player.appearance.worn if player.appearance != null else [],
+		" shd_nodes=", player.model.find_children("*shd_kite*", "Node3D", true, false).size())
+	player.max_health = 5000.0
+	player.health = 5000.0
+	var guard: Enemy = _spawn_enemy(player.global_position + Vector3(1.8, 0, 0))
+	guard.alert_delay = 999.0
+	guard.set_physics_process(false)
+	await get_tree().create_timer(0.5).timeout
+	var out := OS.get_environment("TEMP")
+	get_viewport().get_texture().get_image().save_png(out + "/curse_block_0_idle.png")
+	player._on_blocked()
+	for i in 6:
+		await get_tree().create_timer(0.07).timeout
+		get_viewport().get_texture().get_image().save_png(out + "/curse_block_%d.png" % (i + 1))
+	var other: Enemy = _spawn_enemy(player.global_position + Vector3(-1.9, 0, 1.0))
+	other.alert_delay = 999.0
+	other.set_physics_process(false)
+	player.openings._mark(other)
+	await get_tree().create_timer(0.3).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/curse_opening_mark.png")
+	print("OPENING_SHOT mark=", player.openings.is_open_on(other), " block_clip=", player.model.current)
+	get_tree().quit()
+
+## `-- --skilltipshot`: the skill screen with the Opening passive hovered at rank 5 (its description and current effect). Frame in %TEMP%.
+func _skill_tip_shot() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.dev_set_hero_level(40)
+	TownState.passive_ranks["opening"] = 5
+	hud.open_skills()
+	await get_tree().create_timer(0.6).timeout
+	var panel = hud.character_panel
+	var found: Button = null
+	for node in panel.find_children("*", "Button", true, false):
+		if node.has_meta("passive_id") and String(node.get_meta("passive_id")) == "opening":
+			found = node
+	if found == null:
+		print("SKILLTIP no opening button")
+		get_tree().quit()
+		return
+	found.mouse_entered.emit()
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_skill_tip.png")
+	print("SKILLTIP detail_visible=", panel._detail.visible, " text=", panel._detail_label.text.replace("\n", " | "))
+	get_tree().quit()
+
 ## `-- --aimshot`: fireball aim preview over a zombie cluster, then hover tooltips for two skills.
 func _aim_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):

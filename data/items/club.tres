@@ -19,6 +19,7 @@ stats = {
 }
 inventory_size = Vector2i(1, 2)
 profile = {
+"opening": "crush",
 "style": "Bludgeon"
 }
 requirements = "melee:#item_level - 2.0"

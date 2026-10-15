@@ -27,6 +27,10 @@ const MAX_RANK := 20
 @export var needs: String = ""
 ## Order within its tree.
 @export var order: int = 0
+## An optional longer description (the design's wording), with one %d/%s per name in `description_values`: each is read at the hero's
+## rank from `extra` (or the main effect, when the name is "value"). Empty for the DS2 passives, which show `text` only.
+@export_multiline var description: String = ""
+@export var description_values: Array[String] = []
 
 ## Its effect at `rank` (0 at rank 0): DS2's table when there is one, otherwise straight from rank 1 to rank 20.
 func value(rank: int) -> float:
@@ -42,6 +46,18 @@ func extra_value(key: String, rank: int) -> float:
 	if rank <= 0 or list.size() != MAX_RANK:
 		return 0.0
 	return float(list[mini(rank, MAX_RANK) - 1])
+
+## `description` filled with the hero's values at `rank` (at least rank 1, so the tooltip shows the numbers before the first point). Empty
+## when the passive has no description.
+func describe_detail(rank: int) -> String:
+	if description == "":
+		return ""
+	var r: int = maxi(rank, 1)
+	var values: Array = []
+	for key in description_values:
+		var v: float = value(r) if key == "value" else extra_value(key, r)
+		values.append(int(round(v)))
+	return description % values
 
 func describe(rank: int) -> String:
 	var v: float = value(maxi(rank, 1))

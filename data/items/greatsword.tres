@@ -18,6 +18,7 @@ stats = {
 "speed": 0.82
 }
 profile = {
+"opening": "impale",
 "two_handed": true,
 "two_hand_clips": {
 "atk_slash_r": {

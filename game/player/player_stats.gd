@@ -235,6 +235,15 @@ func ult_fraction(id: String) -> float:
 func gain_brutal_charge(damage: float) -> void:
 	brutal_reload_remaining = maxf(brutal_reload_remaining - maxf(damage, 0.0), 0.0)
 
+## An Opening's refund: `share` (0-1) of every charging power's recharge is given back: Brutal Attack, Take Aim and the live DS2 powers.
+func refund_power_charge(share: float) -> void:
+	share = clampf(share, 0.0, 1.0)
+	brutal_reload_remaining = maxf(brutal_reload_remaining - brutal_reload_required * share, 0.0)
+	if p.bow != null:
+		p.bow.reload_remaining = maxf(p.bow.reload_remaining - p.bow.reload_required * share, 0.0)
+	if p.powers != null:
+		p.powers.refund(share)
+
 func can_use(id: String) -> bool:
 	if PowerController.LIVE.has(id):
 		return p.powers != null and p.powers.ready(id)

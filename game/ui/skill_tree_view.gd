@@ -166,6 +166,7 @@ Not implemented: " + _plain(def.needs)
 		text += "\nEffective: %d/%d" % [effective_now, PassiveDef.MAX_RANK]
 		if staged_rank > 0: text += " (after confirm: %d)" % effective_after_confirm
 		if effective_now > 0: text += "\nCurrent effect: " + _plain(def.describe(effective_now))
+		if def.description != "": text += "\n\n" + _plain(def.describe_detail(effective_now))
 		if invested_rank < PassiveDef.MAX_RANK:
 			if effective_now < PassiveDef.MAX_RANK:
 				text += "\nNext invested rank: " + _plain(def.describe(mini(effective_now + 1, PassiveDef.MAX_RANK)))

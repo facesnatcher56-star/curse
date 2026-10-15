@@ -16,3 +16,5 @@ extends Resource
 @export var set_id: String = ""
 ## Source-backed passive alterations carried by this unique.
 @export var passive_effects: Array[Dictionary] = []
+## The Opening execution this item gives its wielder instead of its base weapon's ("" keeps the base's; see game/player/openings.gd STYLES).
+@export var opening_style: String = ""

@@ -223,7 +223,7 @@ func flat_distance_to(other: Node3D) -> float:
 	return d.length()
 
 ## Skills whose blow is the hero's sword itself.
-const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "whirling_strike", "staggering_blow"]
+const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "whirling_strike", "staggering_blow", "opening"]
 const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "whirling_strike", "staggering_blow", "flame_nexus", "detonation", "fireball"]
 
 ## Apply a resolved attack (see Combat.resolve) to this actor.

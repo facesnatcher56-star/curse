@@ -47,6 +47,11 @@ func gain(damage: float, skill_id: String = "") -> void:
 		if id != skill_id:
 			reload_remaining[id] = maxf(float(reload_remaining[id]) - maxf(damage, 0.0), 0.0)
 
+## Gives back `share` of each charging power's recharge (an Opening's refund).
+func refund(share: float) -> void:
+	for id in reload_remaining.keys():
+		reload_remaining[id] = maxf(float(reload_remaining[id]) - float(reload_required.get(id, 0.0)) * share, 0.0)
+
 func _spend(id: String) -> void:
 	reload_required[id] = required(id)
 	reload_remaining[id] = reload_required[id]
