@@ -79,6 +79,32 @@ func _archer_shot() -> void:
 		var image: Image = get_viewport().get_texture().get_image()
 		image.resize(1280, 720)
 		image.save_png(OS.get_environment("TEMP") + "/curse_archer_pose_%d.png" % int(progress * 100))
+	# Side view of the bow (a temporary camera on the archer's own right side): the string should sit between the bow and his face,
+	# and the belly should face the way he shoots. Carry (walk) and draw poses.
+	var side_cam := Camera3D.new()
+	add_child(side_cam)
+	side_cam.make_current()
+	var side_dir: Vector3 = archer.visual.global_basis.x.normalized()
+	for mode in ["carry", "draw"]:
+		if mode == "carry":
+			archer.bow._draw = 0.0
+			archer.bow._release = 0.0
+			archer.model.manual("walk")
+			archer.model.scrub(0.25)
+		else:
+			archer.bow._draw = 0.92
+			archer.bow._draw_arrow.visible = true
+			archer.model.manual("idle")
+			archer.model.scrub(0.0)
+		side_cam.global_position = archer.global_position + side_dir * 2.6 + Vector3.UP * 1.3
+		side_cam.look_at(archer.global_position + Vector3.UP * 1.2, Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var side_image: Image = get_viewport().get_texture().get_image()
+		side_image.save_png(OS.get_environment("TEMP") + "/curse_archer_side_%s.png" % mode)
+	side_cam.current = false
+	rig.camera.make_current()
+	print("ARCHER SIDESHOT done")
 	archer.target = get_tree().get_nodes_in_group("enemies")[0] as Enemy
 	archer.target.global_position = archer.global_position + Vector3(0.0, 0.0, 10.0)
 	archer.take_aim_armed = true

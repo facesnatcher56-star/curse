@@ -436,7 +436,9 @@ func _apply_carry_pose() -> void:
 	_aim_chain(["LeftArm", "LeftForeArm"], "LeftHand", carry_hand, 1.0)
 	var hand: Vector3 = _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones["LeftHand"])).origin)
 	var bow_y: Vector3 = (Vector3.UP + forward * 0.22).normalized()
-	var bow_x: Vector3 = side.cross(bow_y).normalized()
+	# The mesh's belly is its local -X and its string its local +X (measured on archer/bow and modular/wpn_bow): local -X points forward,
+	# so the string faces the archer and the belly the target. The limbs stay vertical (local Y is up).
+	var bow_x: Vector3 = -side.cross(bow_y).normalized()
 	var bow_z: Vector3 = bow_x.cross(bow_y).normalized()
 	_bow_holder.top_level = true
 	_bow_holder.global_transform = Transform3D(Basis(bow_x, bow_y, bow_z).scaled(Vector3.ONE * _bow_scale), hand + bow_x * 0.065 * _bow_scale)
@@ -453,10 +455,11 @@ func _present_draw_props(bow_hand: Vector3, nock: Vector3, forward: Vector3) -> 
 	# must not inherit that second transform after already following solved hands.
 	_bow_holder.top_level = true
 	_draw_arrow.top_level = true
-	var bow_centre: Vector3 = bow_hand + forward * 0.065 * bow_scale
+	# The grip sits 0.067 along the belly from the mesh centre, which is now toward forward: the centre lies behind the hand.
+	var bow_centre: Vector3 = bow_hand - forward * 0.065 * bow_scale
 	var arrow_dir: Vector3 = (bow_hand + forward * 0.38 - nock).normalized()
-	# Bow bends in its X/Y plane; arrow was exported with its shaft along +Y.
-	var bow_x: Vector3 = forward
+	# Local -X is the belly (measured): it points at the target, the string faces the archer. Arrow was exported with its shaft along +Y.
+	var bow_x: Vector3 = -forward
 	var bow_y: Vector3 = Vector3.UP
 	var bow_z: Vector3 = bow_x.cross(bow_y).normalized()
 	_bow_holder.global_transform = Transform3D(Basis(bow_x, bow_y, bow_z).scaled(Vector3.ONE * bow_scale), bow_centre)
