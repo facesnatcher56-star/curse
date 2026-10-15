@@ -49,6 +49,7 @@ const SUITES := [
 	preload("res://game/dev/suites/archer_stance_tests.gd"),
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
+	preload("res://game/dev/suites/click_band_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -186,6 +187,7 @@ const ONLY_TESTS := {
 "archerstance": "_test_archer_stance",
 "archernestorder": "_test_archer_nest_order",
 "roaddensity": "_test_road_density",
+"clickband": "_test_click_band",
 "dungeonxp": "_test_dungeon_kill_xp",
 }
 
