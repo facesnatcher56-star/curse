@@ -135,6 +135,18 @@ func _ready() -> void:
 		shots.town = self
 		add_child(shots)
 		shots.run(args)
+	if args.has("--startshot"):
+		var out_path: String = OS.get_environment("TEMP") + "/curse_town_start.png"
+		for arg in args:
+			if arg.begins_with("--out="):
+				out_path = arg.substr(6)
+		await get_tree().create_timer(2.5).timeout
+		var tex := get_viewport().get_texture()
+		var img := tex.get_image() if tex != null else null
+		if img != null:
+			img.save_png(out_path)
+			print("[startshot] saved to ", out_path)
+		get_tree().quit()
 
 ## The gear the hero wears this run: whatever the town holds, over the starting kit.
 static func _apply_run_gear(hero: Player) -> void:

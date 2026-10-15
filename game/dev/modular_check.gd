@@ -45,18 +45,18 @@ func run() -> void:
 	for enemy in get_nodes_in_group("enemies"):
 		enemy.set_physics_process(false)
 	var hero: Player = PartyManager.current().bodies["hero"]
-	if not ("--modular" in OS.get_cmdline_user_args()):
-		# flag-off: the default presentation must be exactly the shipped one
-		check("default: no modular appearance on the hero", hero.appearance == null and not ModularAppearance.enabled_for("hero"))
-		check("default: fused knight mesh present", not hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
-		check("default: gauntlet fists mounted on both hands", hero.model._mounts.has("RightHand") and hero.model._mounts.has("LeftHand"))
+	if "--classic" in OS.get_cmdline_user_args():
+		# classic opt-out: the classic presentation must be exactly the old one
+		check("classic: no modular appearance on the hero", hero.appearance == null and not ModularAppearance.enabled_for("hero"))
+		check("classic: fused knight mesh present", not hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
+		check("classic: gauntlet fists mounted on both hands", hero.model._mounts.has("RightHand") and hero.model._mounts.has("LeftHand"))
 		hero.stats.wear(Items.Slot.ARMOR, item(Items.Slot.ARMOR, "Plate Cuirass"))
-		check("default: equipping armour adds no pieces and does not error", hero.appearance == null)
-		check("default: cutter unchanged", PartyManager.current().bodies["cutter"].appearance == null)
-		print("MODULAR CHECK ", "OK (default path)" if failures == 0 else "FAILED (%d)" % failures)
+		check("classic: equipping armour adds no pieces and does not error", hero.appearance == null)
+		check("classic: cutter unchanged", PartyManager.current().bodies["cutter"].appearance == null)
+		print("MODULAR CHECK ", "OK (classic path)" if failures == 0 else "FAILED (%d)" % failures)
 		quit(1 if failures > 0 else 0)
 		return
-	check("hero uses the modular appearance (run with -- --modular)", hero.appearance != null)
+	check("hero uses the modular appearance", hero.appearance != null)
 	if hero.appearance == null:
 		quit(1)
 		return

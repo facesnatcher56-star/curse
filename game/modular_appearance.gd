@@ -28,9 +28,9 @@ static func table() -> Dictionary:
 		_table = parsed if parsed is Dictionary else {}
 	return _table
 
-## Opt-in while the knight2 presentation stays the default: `-- --modular`.
+## Modular hero is the default; opt out with `--classic`. `--modular` is accepted as a harmless no-op.
 static func enabled_for(member_id: String) -> bool:
-	return member_id == "hero" and "--modular" in OS.get_cmdline_user_args()
+	return member_id == "hero" and not ("--classic" in OS.get_cmdline_user_args())
 
 static func _entry(item: Variant) -> Dictionary:
 	if not (item is Dictionary):

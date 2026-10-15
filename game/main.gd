@@ -34,6 +34,8 @@ func _ready() -> void:
 	_boot_ms = Time.get_ticks_msec()
 	if OS.get_cmdline_user_args().has("--crypt") and TownState.job.is_empty():   # developer shortcut: straight into the Crypt Road
 		TownState.job = TownState.crypt_road_offer()
+	if TownState.npcs.is_empty():
+		TownState.load_or_start()
 	# Pausing (the pause menu) must freeze the whole world, so this node and everything under it is pausable. The
 	# menus and HUD (the CanvasLayer below) and the input relay keep running while paused.
 	get_tree().paused = false
@@ -45,7 +47,8 @@ func _ready() -> void:
 	GameSettings.boot()
 	_mark("settings")
 	_build_world()
-	_apply_job_mood(TownState.job)
+	if not (location is TestDungeon):
+		_apply_job_mood(TownState.job)
 	if location != null and AtmosphereProfile.enabled():
 		# Apply after both the authored Crypt Road and job modifiers, so the opt-in profile sets the final values.
 		AtmosphereProfile.apply_environment(world_environment, sun)
@@ -108,7 +111,7 @@ func _ready() -> void:
 	add_child(director)
 	PartyManager.current().active_member_changed.connect(_party_selected)
 	_party_selected("", PartyManager.current().active_id)
-	if not TownState.job.is_empty() and not director.selftest:
+	if not TownState.job.is_empty() and not director.selftest and not (location is TestDungeon):
 		director.set_job(TownState.job)
 
 	# Developer modes (self-test, screenshot and pose tools) live in DevHarness and take over the run when asked for.
@@ -135,8 +138,15 @@ func _ready() -> void:
 		director.start_wave()
 		_mark("first wave spawned")
 	if OS.get_cmdline_user_args().has("--startshot"):   # a normal run's opening view, for judging the start zoom by eye
+		var out_path: String = OS.get_environment("TEMP") + "/curse_start.png"
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--out="):
+				out_path = arg.substr(6)
 		await get_tree().create_timer(2.5).timeout
-		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_start.png")
+		var img := get_viewport().get_texture().get_image()
+		if img != null:
+			img.save_png(out_path)
+			print("[startshot] saved to ", out_path)
 		get_tree().quit()
 	if OS.get_cmdline_user_args().has("--timing"):
 		await get_tree().create_timer(1.0).timeout
@@ -185,14 +195,7 @@ func _build_world() -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
 
-	if OS.get_cmdline_user_args().has("--dungeon"):   # dev test level (game/world/test_dungeon.gd): no job, just the dungeon
-		arena = TestDungeon.make_arena()
-		add_child(arena)
-		arena.build(false)
-		location = TestDungeon.new()
-		add_child(location)
-		location.build(arena)
-	elif String(TownState.job.get("site", "")) == CryptRoad.SITE_ID:
+	if OS.get_cmdline_user_args().has("--crypt"):
 		arena = CryptRoad.make_arena()
 		add_child(arena)
 		arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
@@ -201,10 +204,17 @@ func _build_world() -> void:
 		location.build(arena)
 		environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
 		environment.fog_density *= CryptRoad.FOG_MULT
-	else:
+	elif OS.get_cmdline_user_args().has("--selftest") or OS.get_cmdline_user_args().has("--shot"):
 		arena = Arena.new()
 		add_child(arena)
 		arena.build()
+	else:
+		arena = TestDungeon.make_arena()
+		add_child(arena)
+		arena.build(false)
+		location = TestDungeon.new()
+		add_child(location)
+		location.build(arena)
 	if hud != null:
 		hud.arena = arena
 

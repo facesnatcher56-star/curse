@@ -15,8 +15,9 @@ const SHADOW_CASTING_LOCAL_LIGHTS := 1
 const AMBIENT_TARGET := 0.25
 const FOG_TARGET := 0.012
 
+## Atmosphere lighting is the default; opt out with `--classic`. `--atmosphere` is accepted as a harmless no-op.
 static func enabled() -> bool:
-	return "--atmosphere" in OS.get_cmdline_user_args()
+	return not ("--classic" in OS.get_cmdline_user_args())
 
 ## Sets the world environment and the sun. Called after the Crypt Road's own multipliers, so these values are the final look.
 static func apply_environment(environment: Environment, sun: DirectionalLight3D) -> void:
