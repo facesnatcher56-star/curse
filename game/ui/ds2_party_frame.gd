@@ -5,6 +5,8 @@ extends Control
 
 const Ds2PartyCardClass := preload("res://game/ui/ds2_party_card.gd")
 
+signal skills_requested(member_id: String)   # a card's plus was clicked: the HUD opens that member's skill tree
+
 var player: Player
 var hero_card: Control
 var companion_card: Control
@@ -31,10 +33,12 @@ func _ready() -> void:
 
 	hero_card = Ds2PartyCardClass.new("Hero", false)
 	box.add_child(hero_card)
+	hero_card.skills_requested.connect(_forward_skills)
 
 	companion_card = Ds2PartyCardClass.new("Cutter", true)
 	companion_card.visible = false
 	box.add_child(companion_card)
+	companion_card.skills_requested.connect(_forward_skills)
 
 	hero_card.set_portrait(KNIGHT_PORTRAIT)
 	hero_card.set_icons(BASIC_ICON, BRUTAL_ICON)
@@ -49,16 +53,22 @@ func update_frame(p: Player) -> void:
 	_update_card(hero_card, party.bodies.get("hero") as Player)
 	_update_card(companion_card, party.bodies.get("cutter") as Player)
 
+func _forward_skills(member: String) -> void:
+	skills_requested.emit(member)
+
 func _update_card(card: Control, body: Player) -> void:
 	card.visible = is_instance_valid(body)
 	if not is_instance_valid(body): return
+	# The one place the plus is counted, for every card: the same rule TownState uses for the skill tree (staged purchases not yet confirmed do not count).
+	card.set_skill_points(TownState.skill_points_left({}, body.member_id))
 	var power_id := "take_aim" if body.stats.is_ranged() else "brutal_attack"
 	card.set_icons(BASIC_ICON, TAKE_AIM_ICON if power_id == "take_aim" else BRUTAL_ICON)
 	card.update_vitals(body.health / maxf(body.max_health, 0.001),
 		body.stats.mana / maxf(body.stats.max_mana, 0.001), HeroProgression.level_fraction(body.character.xp),
 		body.stats.ult_fraction(power_id), preload("res://game/ui/power_button_visual.gd").armed(body, power_id),
 		not body.dead and body.stats.can_use(power_id))
-	card.tooltip_text = "%s — Level %d\n%s\n%s\nSelect this party member" % [
+	card.tooltip_text = "%s — Level %d\n%s\n%s\nSelect this party member%s" % [
 		body.display_name, body.character.level, HeroProgression.progress_text(body.character.xp),
-		"Fallen" if body.dead else ("Active" if body.is_controlled() else "Companion")]
+		"Fallen" if body.dead else ("Active" if body.is_controlled() else "Companion"),
+		"\n%d skill point%s to spend (click the +)" % [card.skill_points, "" if card.skill_points == 1 else "s"] if card.skill_points > 0 else ""]
 	card.queue_redraw()

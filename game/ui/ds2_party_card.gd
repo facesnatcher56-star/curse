@@ -1,9 +1,16 @@
 class_name Ds2PartyCard
 extends Control
 ## Live party state in the shared worn-gold theme; recharge remains inside each power.
+## Unspent skill points show a pulsing plus over the portrait; clicking it asks for that member's skill tree (`skills_requested`).
 const PowerVisual := preload("res://game/ui/power_button_visual.gd")
+signal skills_requested(member_id: String)
+const BADGE_CENTRE := Vector2(12, 11)   # over the portrait's top-left corner, clear of the face, the vitals and the level medal
+const BADGE_RADIUS := 9.0
 var character_name: String = "Hero"
+var member_id: String = "hero"
 var is_companion: bool = false
+var skill_points: int = 0
+var _badge: Control
 var _portrait_rect: TextureRect
 var _weapon_slot: TextureRect
 var _hp_fill: ColorRect
@@ -22,6 +29,7 @@ var _pending_power: Texture2D
 func _init(title: String = "Hero", companion: bool = false) -> void:
 	character_name = title
 	is_companion = companion
+	member_id = "cutter" if companion else "hero"
 	custom_minimum_size = Vector2(240, 96)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -30,9 +38,36 @@ func _init(title: String = "Hero", companion: bool = false) -> void:
 
 func _select_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
-	if (click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT) or event.is_action_pressed("ui_accept"):
-		PartyManager.current().select("cutter" if is_companion else "hero")
+	# The badge is part of this card, so its press is consumed here: it never selects the member or reaches the world.
+	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and _badge_hit(click.position):
+		if skill_points > 0:
+			skills_requested.emit(member_id)
 		accept_event()
+		return
+	if (click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT) or event.is_action_pressed("ui_accept"):
+		PartyManager.current().select(member_id)
+		accept_event()
+
+func _badge_hit(at: Vector2) -> bool:
+	return skill_points > 0 and at.distance_to(BADGE_CENTRE) <= BADGE_RADIUS + 4.0
+
+## Shows the plus while the member has unspent skill points (the caller counts them with TownState; the card does not recount).
+func set_skill_points(points: int) -> void:
+	skill_points = maxi(points, 0)
+	if _badge != null:
+		_badge.visible = skill_points > 0
+		_badge.queue_redraw()
+
+func _draw_badge() -> void:
+	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.005)
+	_badge.draw_circle(BADGE_CENTRE, BADGE_RADIUS + 2.0 + 3.0 * pulse, Color(UiTheme.BRONZE_LIGHT, 0.12 + 0.22 * pulse))
+	_badge.draw_circle(BADGE_CENTRE, BADGE_RADIUS, UiTheme.INK)
+	_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS, 0.0, TAU, 32, UiTheme.BRONZE_LIGHT, 1.5, true)
+	var arm: float = 4.5 + 0.8 * pulse
+	_badge.draw_line(BADGE_CENTRE + Vector2(-arm, 0), BADGE_CENTRE + Vector2(arm, 0), UiTheme.TEXT, 2.5, true)
+	_badge.draw_line(BADGE_CENTRE + Vector2(0, -arm), BADGE_CENTRE + Vector2(0, arm), UiTheme.TEXT, 2.5, true)
+	if _badge.has_focus():   # keyboard / pad focus: a bright ring outside the plus
+		_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS + 4.0, 0.0, TAU, 40, UiTheme.TEXT, 2.0, true)
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()
@@ -90,6 +125,23 @@ func _ready() -> void:
 	_level.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_level.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	medal.add_child(_level)
+	# Added last so the plus sits over the portrait. The card takes the press (see _select_input), so the badge ignores the mouse itself.
+	_badge = Control.new()
+	_badge.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE   # the mouse is handled by the card (_select_input); the keyboard or pad reaches the plus by focus
+	_badge.focus_mode = Control.FOCUS_ALL
+	_badge.visible = false
+	_badge.draw.connect(_draw_badge)
+	_badge.focus_entered.connect(_badge.queue_redraw)
+	_badge.focus_exited.connect(_badge.queue_redraw)
+	_badge.gui_input.connect(_badge_input)
+	add_child(_badge)
+
+## The focused plus: accept opens this member's skill tree, as a click on it does.
+func _badge_input(event: InputEvent) -> void:
+	if skill_points > 0 and event.is_action_pressed("ui_accept"):
+		skills_requested.emit(member_id)
+		_badge.accept_event()
 
 func _texture(parent: Control, tex: Texture2D, rect: Rect2) -> TextureRect:
 	var image := TextureRect.new()

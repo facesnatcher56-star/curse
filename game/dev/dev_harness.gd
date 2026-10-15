@@ -51,6 +51,7 @@ const SUITES := [
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
+	preload("res://game/dev/suites/portrait_plus_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -198,6 +199,7 @@ const ONLY_TESTS := {
 "archernestorder": "_test_archer_nest_order",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
+"portraitplus": "_test_portrait_plus",
 "dungeonxp": "_test_dungeon_kill_xp",
 }
 
@@ -244,6 +246,7 @@ func _run_selftest() -> void:
 	await _run("_test_first_wave")
 	await _run("_test_settings")
 	await _run("_test_zoom")
+	await _run("_test_portrait_plus")   # early: the archer suites later free the Cutter body this check needs
 	await _run("_test_hotkeys")
 	await _run("_test_navigation")
 	await _run("_test_roll_shove")
