@@ -46,7 +46,8 @@ static func roll_pack(members: Array) -> Enemy:
 		var e := node as Enemy
 		if e != null and not e.dead and e.level >= MIN_LEVEL and e.def != null and e.def.tier != "trivial" and not e.tutorial_fighter:
 			eligible.append(e)
-	if eligible.is_empty() or randf() >= chance:
+	# No random draw at all when nothing can happen: a pack that gets no champion must not shift the random stream other spawns use.
+	if chance <= 0.0 or eligible.is_empty() or randf() >= chance:
 		return null
 	var chosen: Enemy = eligible[randi() % eligible.size()]
 	attach(chosen, AFFIXES.keys()[randi() % AFFIXES.size()])

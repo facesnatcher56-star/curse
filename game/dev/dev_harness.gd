@@ -250,7 +250,6 @@ func _run_selftest() -> void:
 	await _run("_test_gamepad")
 	await _run("_test_loading")
 	await _run("_test_enemies")
-	await _run("_test_champions")
 	await _run("_test_balance")
 	await _run("_test_auto_attack")
 	await _run("_test_fireball_cancel")
@@ -314,4 +313,5 @@ func _run_selftest() -> void:
 		parts.append("%s=%d" % [names[int(key)], int(Combat.tally[key])])
 	print("  outcomes: ", ", ".join(parts))
 	print("  kills: ", kills, "  player health: ", int(player.health), "  mana: ", int(player.stats.mana))
+	await _run("_test_champions")   # last: it draws random numbers, so nothing after it may depend on the stream
 	_finish()
