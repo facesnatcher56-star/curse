@@ -10,6 +10,7 @@ func _test_body(offset: Vector3, tier: String = "normal") -> Enemy:
 
 func _test_champions() -> void:
 	var bodies: Array[Enemy] = []
+	var chance_before: float = Champion.chance_override   # restored at the end, whatever the harness had set
 
 	# The pack roll: a trivial opener never carries one; a chance of 1 gives a normal pack exactly one; a chance of 0 gives none.
 	var trivial: Enemy = _test_body(Vector3(12, 0, 0), "trivial")
@@ -24,7 +25,7 @@ func _test_champions() -> void:
 	var plain: Enemy = _test_body(Vector3(15, 0, 0))
 	bodies.append(plain)
 	expect("a pack at chance 0 gets none", Champion.roll_pack([plain]) == null and plain.champion == null)
-	Champion.chance_override = -1.0
+	Champion.chance_override = chance_before
 
 	# Every champion is tougher, named for its affix, and its speed follows the affix.
 	var base: Enemy = _test_body(Vector3(-12, 0, 0))
@@ -107,4 +108,4 @@ func _test_champions() -> void:
 	for body in bodies:
 		if is_instance_valid(body):
 			body.queue_free()
-	Champion.chance_override = -1.0
+	Champion.chance_override = chance_before

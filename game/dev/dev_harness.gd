@@ -197,6 +197,7 @@ func _finish() -> void:
 
 func _run_selftest() -> void:
 	print("SELFTEST start")
+	Champion.chance_override = 0.0   # no random champions in the checks: only champion_tests turns them on
 	var only_name := ""
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
