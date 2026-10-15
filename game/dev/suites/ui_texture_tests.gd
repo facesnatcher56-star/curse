@@ -43,6 +43,11 @@ func _test_ui_texture() -> void:
 	hud._open_character()
 	await _settle()
 	await _capture(out_dir.path_join("%s_character.png" % prefix))
+	hud.open_skills()
+	await _settle()
+	await _capture(out_dir.path_join("%s_skills.png" % prefix))
+	hud._open_character()
+	await _settle()
 	var grid: Control = hud.character_panel.find_child("BackpackGrid", true, false)
 	if grid != null and not grid.tiles.is_empty():
 		var point: Vector2 = (grid.tiles[0] as Control).get_global_rect().get_center()

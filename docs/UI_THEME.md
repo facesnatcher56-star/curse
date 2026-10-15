@@ -42,9 +42,11 @@ The game remains grounded and weathered, as required by ART_DIRECTION.md.
   groups are not built yet.
 - Label, Button, CheckBox and TooltipLabel share one 1 px drop shadow (`UiTheme._build`).
 - Text A/B at 200% (`docs/screenshots/ui-texture/text-ab/`), measured by mean edge gradient on
-  the character title: baseline 21.96; MSDF on both fonts 27.19 (edges stronger but glyphs look
-  heavier); light hinting 21.96 (no measurable change); no hinting 21.49 (softer). Kept the
-  baseline import; MSDF is a global font change for the owner to judge.
+  the character title: baseline 21.96; MSDF on both fonts 27.19 (edges stronger, glyphs slightly
+  heavier); light hinting 21.96 (no measurable change); no hinting 21.49 (softer). MSDF is ON for
+  CrimsonPro and Cinzel, as TD confirmed. Hinting is unchanged. At 1080p the character window,
+  tooltip, skill tree, party frames and hotbar labels were checked for clipping with MSDF on: none found.
+- The potion stack count sits in the flask slot's lower-right corner, clear of the 22 px flask art.
 - `Control.scale`: at 1080p the window is not scaled (fit factor 1.0). At 720p with UI 1.5 it is
   shrunk, and the 200% crop shows smaller but not blurred text. A re-layout at 1.0 was not built.
 - Verified at 1080p on screen 1 only (`--only=uitexture`): bottom bar and both ends, character
