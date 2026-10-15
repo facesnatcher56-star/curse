@@ -236,6 +236,7 @@ func _run_selftest() -> void:
 	await _run("_test_first_wave")
 	await _run("_test_settings")
 	await _run("_test_zoom")
+	await _run("_test_portrait_plus")   # early: the archer suites later free the Cutter body this check needs
 	await _run("_test_hotkeys")
 	await _run("_test_navigation")
 	await _run("_test_roll_shove")
@@ -331,6 +332,5 @@ func _run_selftest() -> void:
 		parts.append("%s=%d" % [names[int(key)], int(Combat.tally[key])])
 	print("  outcomes: ", ", ".join(parts))
 	print("  kills: ", kills, "  player health: ", int(player.health), "  mana: ", int(player.stats.mana))
-	await _run("_test_portrait_plus")
 	await _run("_test_champions")   # last: it draws random numbers, so nothing after it may depend on the stream
 	_finish()

@@ -134,3 +134,5 @@ func _test_portrait_plus() -> void:
 	await _click(hero_card.get_global_rect().position + body_offset)
 	expect("a press on the hero card body selects the hero", PartyManager.current().active_id == "hero")
 	await _shot("hover-and-click")
+	TownState.reset()   # leave the shared progression as a fresh game for the suites after this one
+	frame.update_frame(player)
