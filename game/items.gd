@@ -56,7 +56,7 @@ static func places(slot: int) -> Array[int]:
 	return [slot]
 
 static func starting_gear() -> Array[Dictionary]:
-	return [make(Slot.WEAPON, Rarity.NORMAL, 2, "Longsword"), make(Slot.ARMOR, Rarity.NORMAL, 2, "Leather Jerkin")]
+	return [make(Slot.WEAPON, Rarity.NORMAL, 2, "Longsword"), make(Slot.ARMOR, Rarity.NORMAL, 2, "Leather Jerkin"), build(ItemDb.get_def("buckler"), 2, Rarity.NORMAL)]
 
 ## Builds one item of `slot` at item level `level`: a random base of the slot (or the one named), with random modifiers for its rarity. A
 ## unique or set rarity takes an authored piece of that slot when there is one (otherwise the item is a rare).
