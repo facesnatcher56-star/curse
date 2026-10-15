@@ -189,7 +189,7 @@ func refresh_weapon_model() -> void:
 		bow.detach()
 		bow = null
 		_held_path = ""
-	var worn: Variant = stats.equipment.get(Items.Slot.WEAPON)
+	var worn: Variant = stats.wielded_weapon()
 	var path: String = SWORD_PATH
 	if worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):
 		path = Items.model_path(worn as Dictionary)
@@ -209,6 +209,37 @@ func refresh_weapon_model() -> void:
 	if _trail != null:
 		_trail.base_node = model.weapon_base
 		_trail.tip_node = model.weapon_tip
+
+## An archer's melee stance. An enemy in contact (MELEE_CONTACT, measured like a melee blow) makes him draw his dagger and fight in melee,
+## on the existing melee attack. He switches back to the bow once no enemy is in contact within MELEE_ROOM (or none is fought). He
+## repositions only through the bow's own firing-position rules, never to get out of melee. The bow is put away while the stance is
+## held (refresh_weapon_model), and comes back with its charge kept. Only a bow-carrying member has a stance.
+const MELEE_CONTACT := 2.0
+const MELEE_ROOM := 4.0
+const DAGGER_NAME := "Dagger"
+
+func update_melee_stance(target: Actor) -> void:
+	if model == null or not stats.bow_worn():
+		return
+	var live: bool = is_instance_valid(target) and not target.dead
+	var gap: float = flat_distance_to(target) - target.body_radius if live else INF
+	var in_stance: bool = not stats.stance_weapon.is_empty()
+	var want: bool
+	if not in_stance and gap <= MELEE_CONTACT:
+		want = true
+	elif in_stance and gap >= MELEE_ROOM:
+		want = false
+	else:
+		return
+	if want:
+		# A shot already drawn is given up: the dagger is for an enemy at arm's length.
+		if bow != null and skills.busy and String(skills.busy_def.get("kind", "")) == "ranged":
+			bow.cancel()
+		var level: int = int((stats.equipment.get(Items.Slot.WEAPON) as Dictionary).get("level", 2))
+		stats.stance_weapon = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, level, DAGGER_NAME)
+	else:
+		stats.stance_weapon = {}
+	refresh_weapon_model()
 
 ## A HEAVY blow is an enemy's heavy attack (its strike weight, Actor.HEAVY_BLOW_WEIGHT); it puts him on the ground (see Knockdown).
 func is_heavy_hit(result: Dictionary) -> bool:
@@ -891,6 +922,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 	if _attack_engaged and (not is_instance_valid(attack_target) or attack_target.dead):
 		attack_target = _nearest_attacker()
 		movement.has_goal = false
+	update_melee_stance(attack_target if is_instance_valid(attack_target) and not attack_target.dead else null)
 	var ctrl: bool = Input.is_action_pressed("stand_still")
 	if attack_prop != null:
 		if not is_instance_valid(attack_prop) or attack_prop.broken:

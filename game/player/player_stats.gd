@@ -162,6 +162,9 @@ var potions: int:
 	set(value): TownState.potions = value
 var run_speed: float = 4.5   # DS2 heroes_ds2.gas avg_move_velocity
 var cooldowns: Dictionary = {}
+## An archer's melee stance (see Player.update_melee_stance): while set, this dagger is the wielded weapon and the bow is put away.
+## Never saved; the worn bow stays in `equipment`.
+var stance_weapon: Dictionary = {}
 # Equipment (see items.gd)
 var equipment: Dictionary: # CharacterState is the only equipment store.
 	get: return p.character.equipment
@@ -280,7 +283,7 @@ func use_mana_potion() -> bool:
 ## The wielded weapon's own blow (its base's DS2 curve at its item level, ItemDef.stats_at) plus the gear's minimum and maximum melee
 ## damage. Bare hands are a level 1 one-handed blow.
 func weapon_base_range() -> Vector2:
-	var item: Variant = equipment.get(Items.Slot.WEAPON)
+	var item: Variant = wielded_weapon()
 	var low: float = float((item as Dictionary)["stats"].get("min", 3.105)) if item != null else 3.105
 	var high: float = float((item as Dictionary)["stats"].get("max", 5.175)) if item != null else 5.175
 	var discipline := "ranged" if is_ranged() else "melee"
@@ -292,12 +295,27 @@ func weapon_base_range() -> Vector2:
 func weapon_range(mult: float, thrown: bool = false) -> Vector2:
 	var base: Vector2 = weapon_base_range()
 	var bonus: float = 0.2 * maxf(dexterity if thrown else strength, 10.0)
-	var overbear: float = passive("overbear") if _two_handed(equipment.get(Items.Slot.WEAPON, {})) else 0.0
+	var wielded: Variant = wielded_weapon()
+	var overbear: float = passive("overbear") if wielded != null and _two_handed(wielded as Dictionary) else 0.0
 	return Vector2(base.x + 0.75 * bonus, base.y + 1.25 * bonus) * (1.0 + gear_stat("melee_pct") / 100.0) * (1.0 + overbear / 100.0) * mult
 
 func weapon_damage(mult: float, thrown: bool = false) -> float:
 	var r: Vector2 = weapon_range(mult, thrown)
 	return randf_range(r.x, r.y)
+
+## What the hero fights with now: the archer's dagger during a melee stance, else the worn weapon (null when none).
+func wielded_weapon() -> Variant:
+	if not stance_weapon.is_empty():
+		return stance_weapon
+	return equipment.get(Items.Slot.WEAPON)
+
+## Whether the worn weapon is a bow, whatever stance is held.
+func bow_worn() -> bool:
+	var item: Variant = equipment.get(Items.Slot.WEAPON)
+	if item == null:
+		return false
+	var def: ItemDef = ItemDb.get_def(String((item as Dictionary).get("def", "")))
+	return def != null and bool(def.profile.get("ranged", false))
 
 func is_ranged() -> bool:
 	return bool(weapon_profile("ranged", false))
@@ -311,7 +329,7 @@ func ranged_range() -> Vector2:
 # --- Equipment -----------------------------------------------------------------
 
 func _stat(slot: int, key: String, fallback: float) -> float:
-	var item: Variant = equipment.get(slot)
+	var item: Variant = wielded_weapon() if slot == Items.Slot.WEAPON else equipment.get(slot)
 	if item == null:
 		return fallback
 	return float((item as Dictionary)["stats"].get(key, fallback))
@@ -321,7 +339,7 @@ func weapon_stat(key: String, fallback: float) -> float:
 
 ## One entry of the wielded weapon's profile (ItemDef.profile), `fallback` when it has none or nothing is wielded.
 func weapon_profile(key: String, fallback: Variant = 0.0) -> Variant:
-	var item: Variant = equipment.get(Items.Slot.WEAPON)
+	var item: Variant = wielded_weapon()
 	if item == null:
 		return fallback
 	var def: ItemDef = ItemDb.get_def(String((item as Dictionary).get("def", "")))

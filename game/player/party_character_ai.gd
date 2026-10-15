@@ -56,6 +56,8 @@ func tick(delta: float) -> void:
 				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
 	p.attack_target = target
 	if gap > 16.0: target = null
+	# An enemy in contact turns an archer to his dagger, and his bow comes back when the contact is gone (see Player.update_melee_stance).
+	p.update_melee_stance(target)
 	# A prop (a nest) is attacked only when the player ordered it (the companion-attack hotkey). AI companions never choose a prop
 	# themselves, and melee companions keep to enemies. The order stays held while an enemy is the target; it is measured from the
 	# leader like an enemy is, so Cutter walks to a nest the hero is near rather than ignoring it from 17 m (see track_orders).

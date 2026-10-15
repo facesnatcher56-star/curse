@@ -24,19 +24,21 @@ var aura: BrutalAttackFx
 ## What the current shot is for: an Actor, or a breakable prop (a nest) the controlled archer was ordered to shoot.
 var _target: Actor
 var _prop: Destructible
-## Firing position for the current target: taken `SPOT_RANGE` from it, with sight over the world geometry.
+## Firing position for the current target: found on the rings below, with sight over the world geometry.
 const SHOT_RANGE := 17.0    # the bow's reach, flat, centre to centre (the hero's basic ranged attack)
-const TOO_CLOSE := 7.0      # with a clear shot this near, an archer steps back before loosing
-const SPOT_RANGE := 12.0
+const SPOT_RANGE := 12.0    # centre of the candidate rings (SPOT_RINGS); not a distance the archer walks to
 const SPOT_MIN := 8.0
 const SPOT_ARRIVE := 1.0
 const SPOT_TIMEOUT := 6.0   # a position not reached in this long is given up on
 const UNREACHABLE_AFTER := 8.0   # an ordered prop with no firing spot for this long is given up (see PartyCharacterAI)
-const RETREAT_LIMIT := 1.5  # seconds of backing away from a too-close target before shooting from where he stands
 const REPLAN_COOLDOWN := 0.4
 const RETRY_COOLDOWN := 1.0 # no viable position: hold, then look again
 const MELEE_CLEAR := 4.0    # a firing position this close to an aggro melee enemy is refused
 const SPOT_MOVED := 3.0     # the target has moved this far: positions are chosen again
+## Rings (metres from the target, on the archer's side) that firing positions are taken from: only far enough to shoot, so the
+## nearest sighted ring point wins. The outer ring sits inside the reach limit (SPOT_OUTER) so snapping to the navmesh cannot push it out.
+const SPOT_OUTER := SHOT_RANGE - 1.5
+const SPOT_RINGS := [SPOT_OUTER, SPOT_RANGE + 2.0, SPOT_RANGE, SPOT_RANGE - 2.0]
 const SPOT_ANGLES := [0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.2, -1.2, 1.5, -1.5, 1.8, -1.8, 2.1, -2.1, 2.4, -2.4, 2.7, -2.7]
 var _spot: Vector3
 var _has_spot: bool = false
@@ -51,9 +53,6 @@ var retry_attempts: int = 0
 var blocked_time: float = 0.0
 var shots: int = 0
 var refusals: int = 0
-var _retreat_time: float = 0.0
-var _retreat_from: int = 0   # instance id of the target the backing-away allowance is being spent on
-var retreat_seconds: float = 0.0   # counted for the selftest: total time spent backing away from too-close targets
 var _holding: bool = false
 
 func _init(character: Player) -> void:
@@ -192,27 +191,17 @@ func cancel() -> void:
 	if is_instance_valid(_draw_arrow): _draw_arrow.visible = false
 	_set_bow_string_visible(false)
 
-## One ranged decision for an archer, AI or controlled, against an Actor or a prop. A clear shot in reach is taken; a clear shot that is
-## too close is backed away from, and taken from where he stands when there is no room to back away (or he holds); without a clear
-## shot the archer takes up a reachable firing position with sight of the target and holds there. `hold` (stand still) never walks.
-## The shot itself runs in tick(), which re-checks sight through the draw.
+## One ranged decision for an archer, AI or controlled, against an Actor or a prop. A target in reach with a clear sight line is shot
+## from where he stands: he holds position while he fires, and does not step back or walk to a preferred distance. Only without a clear
+## shot does he take up a reachable firing position with sight of the target (the nearest one, see _pick_spot), and he holds there.
+## `hold` (stand still) never walks. Melee engagement is not decided here: see Player.update_melee_stance. The shot itself runs in
+## tick(), which re-checks sight through the draw.
 func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false) -> void:
 	if p.skills.busy:
 		return
 	_replan_wait = maxf(_replan_wait - delta, 0.0)
 	var point := _shot_point(target, prop)
-	var gap := p.flat_distance_to_point(point)
-	var sight := gap <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
-	# Backing away is bounded: an archer who has not opened the gap in RETREAT_LIMIT (penned in, pushed back) shoots from there.
-	# The allowance is spent once per target, not once per shot; it comes back when the gap opens or the target changes.
-	var subject: int = prop.get_instance_id() if prop != null else (target.get_instance_id() if target != null else 0)
-	if subject != _retreat_from or gap >= TOO_CLOSE:
-		_retreat_from = subject
-		_retreat_time = 0.0
-	if sight and not hold and gap < TOO_CLOSE and _retreat_time < RETREAT_LIMIT and _retreat(point, delta):
-		_retreat_time += delta
-		retreat_seconds += delta
-		return
+	var sight := p.flat_distance_to_point(point) <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
 	if sight and p.stats.can_use("basic"):
 		if prop != null:
 			start_prop(prop)
@@ -272,23 +261,20 @@ func _spot_good(spot: Vector3, point: Vector3, prop: Destructible) -> bool:
 	var reach := Vector2(spot.x - point.x, spot.z - point.z).length()
 	return reach >= SPOT_MIN and reach <= SHOT_RANGE - 1.0 and Nav.sight_clear(p, spot, point, prop)
 
-## Priorities, in order: a clear line of sight (required); a shooting range near the preferred combat distance; separation from
-## melee enemies (a candidate within MELEE_CLEAR of an aggro enemy is refused); lateral positions around an obstruction over a straight
-## advance. Lower score wins. Returns false when no candidate qualifies.
+## Priorities, in order: a clear line of sight and a shooting range (required); the nearest such spot to where the archer stands, so he
+## moves only as far as it takes to shoot (a straight advance wins when it is clear, and an obstruction forces a lateral spot); and
+## separation from melee enemies (a candidate within MELEE_CLEAR of an aggro enemy is refused). Returns false when no candidate qualifies.
 func _pick_spot(point: Vector3, prop: Destructible) -> bool:
 	var away := Vector3(p.global_position.x - point.x, 0.0, p.global_position.z - point.z)
 	away = away.normalized() if away.length() > 0.05 else Vector3.BACK
 	var best := Vector3.ZERO
 	var best_score := INF
-	for ring in [SPOT_RANGE - 2.0, SPOT_RANGE, SPOT_RANGE + 2.0]:
+	for ring: float in SPOT_RINGS:
 		for angle: float in SPOT_ANGLES:
 			var candidate := Nav.snap(p, point + away.rotated(Vector3.UP, angle) * ring)
 			if _is_rejected(candidate) or not _spot_good(candidate, point, prop) or _melee_near(candidate):
 				continue
-			var reach := Vector2(candidate.x - point.x, candidate.z - point.z).length()
-			var score := absf(reach - SPOT_RANGE) + 0.3 * p.flat_distance_to_point(candidate)
-			if absf(angle) < 0.2:
-				score += 0.8   # straight back along the line of advance: a lateral spot is preferred
+			var score := p.flat_distance_to_point(candidate)   # the walk: only as far as it takes to shoot
 			if score < best_score:
 				best_score = score
 				best = candidate
@@ -322,20 +308,6 @@ func _reject_spot() -> void:
 func _is_rejected(spot: Vector3) -> bool:
 	for rejected in _rejected:
 		if Vector2(rejected.x - spot.x, rejected.z - spot.z).length() < 1.0:
-			return true
-	return false
-
-## Steps back from a target too close for a comfortable shot. False when there is no room to.
-func _retreat(point: Vector3, delta: float) -> bool:
-	var away := Vector3(p.global_position.x - point.x, 0.0, p.global_position.z - point.z)
-	if away.length() < 0.05:
-		return false
-	away = away.normalized()
-	var distance := p.flat_distance_to_point(point)
-	for angle: float in [0.0, 0.6, -0.6, 1.2, -1.2]:
-		var retreat := Nav.snap(p, p.global_position + away.rotated(Vector3.UP, angle) * 3.0)
-		if Vector2(retreat.x - point.x, retreat.z - point.z).length() > distance and Nav.clearance(p, p.global_position, retreat):
-			_travel(retreat, delta)
 			return true
 	return false
 

@@ -58,8 +58,8 @@ func _archer_shot() -> void:
 	rig.camera.look_at(archer.global_position + Vector3.UP * 1.1)
 	print("ARCHER screens=", DisplayServer.get_screen_count(), " root mode=", get_tree().root.mode)
 	for clip in ["walk", "run"]:
-		archer._draw = 0.0
-		archer._release = 0.0
+		archer.bow._draw = 0.0
+		archer.bow._release = 0.0
 		archer.model.manual(clip)
 		for phase in [0.0, 0.25, 0.50, 0.75]:
 			archer.model.scrub(phase)
@@ -69,11 +69,11 @@ func _archer_shot() -> void:
 			carry_image.resize(1280, 720)
 			carry_image.save_png(OS.get_environment("TEMP") + "/curse_archer_carry_%s_%d.png" % [clip, int(phase * 100)])
 	for progress in [0.20, 0.50, 0.92]:
-		archer._draw = progress
-		archer._draw_arrow.visible = true
+		archer.bow._draw = progress
+		archer.bow._draw_arrow.visible = true
 		archer.model.manual("idle")
 		archer.model.scrub(0.0)
-		print("ARCHER pose=", progress, " left=", archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["LeftHand"])).origin), " right=", archer._skeleton.to_global(archer._skeleton.get_bone_global_pose(int(archer._pose_bones["RightHand"])).origin))
+		print("ARCHER pose=", progress, " left=", archer.bow._skeleton.to_global(archer.bow._skeleton.get_bone_global_pose(int(archer.bow._pose_bones["LeftHand"])).origin), " right=", archer.bow._skeleton.to_global(archer.bow._skeleton.get_bone_global_pose(int(archer.bow._pose_bones["RightHand"])).origin))
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		var image: Image = get_viewport().get_texture().get_image()
@@ -82,9 +82,9 @@ func _archer_shot() -> void:
 	archer.target = get_tree().get_nodes_in_group("enemies")[0] as Enemy
 	archer.target.global_position = archer.global_position + Vector3(0.0, 0.0, 10.0)
 	archer.take_aim_armed = true
-	archer._draw = 1.0
+	archer.bow._draw = 1.0
 	archer.model.scrub(0.0)
-	archer._loose()
+	archer.bow.loose()
 	for i in 5:
 		await get_tree().physics_frame
 		await RenderingServer.frame_post_draw
