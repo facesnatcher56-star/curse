@@ -38,6 +38,8 @@ const SHIELD_STYLE := "bash"
 var p: Player
 var mark_target: Actor = null
 var mark_left: float = 0.0
+## What made the open mark: "melee" (a melee hit or a power use) or "block" (a successful shield block). Picks the execution.
+var mark_kind: String = ""
 var cooldown: float = 0.0
 var _ring: MeshInstance3D
 var _ring_pulse: float = 0.0
@@ -78,12 +80,11 @@ func drop_bonus() -> float:
 func charge_refund() -> float:
 	return PassiveDb.get_def("opening").extra_value("charge", maxi(rank(), 1))
 
-## The execution the hero's gear gives: the shield's bash when a shield is worn, else the weapon's own. Empty when there is none.
+## The execution for the hero's wielded weapon (a melee-triggered Opening). Empty when there is none. A shield never overrides it: only a
+## mark made by a successful block (mark_kind "block") plays the shield bash, see style_for_kind.
 func style_id() -> String:
 	if p.stats.is_ranged():
 		return ""   # Openings are a melee passive
-	if p.stats.equipment.has(Items.Slot.SHIELD):
-		return SHIELD_STYLE
 	var weapon: Variant = p.stats.equipment.get(Items.Slot.WEAPON)
 	if weapon is Dictionary:
 		var unique: UniqueDef = UniqueDb.get_unique(String((weapon as Dictionary).get("unique", "")))
@@ -91,11 +92,18 @@ func style_id() -> String:
 			return unique.opening_style   # a unique weapon's own execution
 	return String(p.stats.weapon_profile("opening", ""))
 
+## The execution a mark plays: a block-triggered mark plays the shield bash (a shield must be worn), any other mark the weapon's own.
+func style_for_kind(kind: String) -> String:
+	if kind == "block":
+		return SHIELD_STYLE if p.stats.equipment.has(Items.Slot.SHIELD) else ""
+	return style_id()
+
 func style() -> Dictionary:
-	var id: String = style_id()
+	var id: String = style_for_kind(mark_kind)
 	return (STYLES[id] as Dictionary).duplicate() if STYLES.has(id) else {}
 
-## Called after every melee blow the hero lands on `target` (a hit, not a miss, block or secondary effect).
+## Called after a basic melee blow the hero lands on `target` (a hit, not a miss, block or secondary effect). A power rolls once per use
+## through `on_power_use` instead, not once per enemy it hits.
 func on_melee_hit(target: Actor) -> void:
 	if mark_target != null or cooldown > 0.0 or rank() <= 0 or style_id() == "":
 		return
@@ -103,7 +111,17 @@ func on_melee_hit(target: Actor) -> void:
 		return
 	var nearby: Actor = _nearest_enemy_in_reach(target)
 	if nearby != null:
-		_mark(nearby)
+		_mark(nearby, "melee")
+
+## Called once when the hero uses a melee power (Whirling Strike, Staggering Blow, and so on): one roll for the whole use, not per enemy.
+func on_power_use() -> void:
+	if mark_target != null or cooldown > 0.0 or rank() <= 0 or style_id() == "":
+		return
+	if randf() * 100.0 >= spot_chance():
+		return
+	var nearby: Actor = _nearest_enemy_in_reach(null)
+	if nearby != null:
+		_mark(nearby, "melee")
 
 ## Called when the hero blocks a blow on his shield. Only a successful block gets this roll.
 func on_block(attacker: Actor) -> void:
@@ -113,7 +131,7 @@ func on_block(attacker: Actor) -> void:
 		return
 	if randf() * 100.0 >= shield_chance():
 		return
-	_mark(attacker)
+	_mark(attacker, "block")
 
 func _nearest_enemy_in_reach(first: Actor) -> Actor:
 	var best: Actor = null
@@ -130,9 +148,10 @@ func _nearest_enemy_in_reach(first: Actor) -> Actor:
 		best = first
 	return best
 
-func _mark(enemy: Actor) -> void:
+func _mark(enemy: Actor, kind: String) -> void:
 	clear_mark(false)
 	mark_target = enemy
+	mark_kind = kind
 	mark_left = WINDOW
 	marks_made += 1
 	_ring = _make_ring(enemy)
@@ -168,6 +187,7 @@ func clear_mark(cool: bool = true) -> void:
 	_ring = null
 	mark_target = null
 	mark_left = 0.0
+	mark_kind = ""
 	if cool:
 		cooldown = COOLDOWN
 

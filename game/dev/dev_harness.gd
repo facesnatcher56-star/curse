@@ -99,6 +99,10 @@ func run_from_args() -> bool:
 		_run("_opening_shot")
 	elif OS.get_cmdline_user_args().has("--skilltipshot"):
 		_run("_skill_tip_shot")
+	elif OS.get_cmdline_user_args().has("--blockclose"):
+		_run("_block_close_shot")
+	elif OS.get_cmdline_user_args().has("--execclose"):
+		_run("_exec_close_shot")
 	elif OS.get_cmdline_user_args().has("--aimshot"):
 		_run("_aim_shot")
 	elif OS.get_cmdline_user_args().has("--pauseshot"):

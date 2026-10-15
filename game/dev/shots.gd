@@ -293,7 +293,7 @@ func _opening_shot() -> void:
 	var other: Enemy = _spawn_enemy(player.global_position + Vector3(-1.9, 0, 1.0))
 	other.alert_delay = 999.0
 	other.set_physics_process(false)
-	player.openings._mark(other)
+	player.openings._mark(other, "melee")
 	await get_tree().create_timer(0.3).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/curse_opening_mark.png")
 	print("OPENING_SHOT mark=", player.openings.is_open_on(other), " block_clip=", player.model.current)
@@ -320,6 +320,64 @@ func _skill_tip_shot() -> void:
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_skill_tip.png")
 	print("SKILLTIP detail_visible=", panel._detail.visible, " text=", panel._detail_label.text.replace("\n", " | "))
+	get_tree().quit()
+
+## Shared setup for the close-up Opening shots: a sword and kite shield at level 40, Opening at rank 20, and a close camera.
+func _close_setup() -> void:
+	TownState.persist = false
+	TownState.reset()
+	TownState.dev_set_hero_level(40)
+	TownState.passive_ranks["opening"] = 20
+	TownState.passive_ranks["barricade"] = 1
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.stats.equipment.clear()
+	player.stats.equipment[Items.Slot.WEAPON] = Items.build(ItemDb.get_def("longsword"), 10, Items.Rarity.NORMAL, [])
+	player.stats.equip(Items.build(ItemDb.get_def("kite_shield"), 10, Items.Rarity.NORMAL, []), false)
+	player.stats.refresh()
+	player.max_health = 5000.0
+	player.health = 5000.0
+	rig.set_zoom_now(0.6)
+
+## `-- --blockclose`: a real zombie attacks the hero; the block chance is forced to 100% (the real block path, not a dodge) so every
+## landing blow is blocked. Three frames from the moment the guard clip starts. Frames in %TEMP%.
+func _block_close_shot() -> void:
+	await _close_setup()
+	player.block_chance = 1.0
+	player.dodge_chance = 0.0
+	var zombie: Enemy = _spawn_enemy(player.global_position + Vector3(1.3, 0, 0.3))
+	zombie.aggro_range = 40.0
+	zombie.alert_delay = 0.0
+	var waited := 0.0
+	while player.model.current != "block" and waited < 10.0:
+		await get_tree().create_timer(0.02).timeout
+		waited += 0.02
+	var out := OS.get_environment("TEMP")
+	print("BLOCKCLOSE clip=", player.model.current, " waited=", snappedf(waited, 0.01))
+	for i in 3:
+		get_viewport().get_texture().get_image().save_png(out + "/curse_close_block_%d.png" % i)
+		await get_tree().create_timer(0.12).timeout
+	get_tree().quit()
+
+## `-- --execclose`: the sword execution on a marked zombie, started through the basic attack (the click and controller path).
+## Three frames across the 1.0 s stab. Frames in %TEMP%.
+func _exec_close_shot() -> void:
+	await _close_setup()
+	var victim: Enemy = _spawn_enemy(player.global_position + Vector3(1.5, 0, 0))
+	victim.alert_delay = 999.0
+	victim.max_health = 50000.0
+	victim.health = 50000.0
+	victim.set_physics_process(false)
+	await get_tree().create_timer(0.3).timeout
+	player.openings._mark(victim, "melee")
+	player.skills.start_skill("basic", victim)
+	var out := OS.get_environment("TEMP")
+	print("EXEC busy=", player.skills.busy, " skill=", player.skills.busy_skill, " style=", player.openings.style_id())
+	for i in 3:
+		await get_tree().create_timer(0.3).timeout
+		get_viewport().get_texture().get_image().save_png(out + "/curse_close_exec_%d.png" % i)
+	print("EXEC hp_left=", victim.health, " outcome=", str(victim.last_result.get("outcome", "")), " skill=", str(victim.last_result.get("skill_id", "")))
 	get_tree().quit()
 
 ## `-- --aimshot`: fireball aim preview over a zombie cluster, then hover tooltips for two skills.

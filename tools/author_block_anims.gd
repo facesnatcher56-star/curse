@@ -56,16 +56,16 @@ func _keys() -> Array:
 	# Guard: the left (shield) arm forward and across the chest, the elbow bent so the shield sits at chest height facing the enemy.
 	var guard: Dictionary = _merge(stand, {
 		"torso": Vector3(0.0, 0.97, 0.22), "head": Vector3(0.0, 0.98, 0.18),
-		"la": Vector3(-0.2, 0.25, 0.95), "lf": Vector3(-0.45, 0.2, 0.87),
+		"la": Vector3(-0.3, 0.6, 0.75), "lf": Vector3(-0.55, 0.85, 0.4),
 		"ra": Vector3(-0.35, 0.1, 0.93), "rf": Vector3(-0.3, 0.6, 0.74),
 		"blade": Vector3(0.0, 0.8, 0.6)})
 	# Impact: the blow drives the guard back; the chest and head rock with it, the shield arm is pushed in.
 	var impact: Dictionary = _merge(guard, {
 		"hp": -6.0, "torso": Vector3(0.0, 0.95, -0.3), "head": Vector3(0.0, 0.92, -0.12),
-		"la": Vector3(-0.15, 0.2, 0.97), "lf": Vector3(-0.3, 0.12, 0.95),
+		"la": Vector3(-0.25, 0.45, 0.86), "lf": Vector3(-0.45, 0.7, 0.55),
 		"ra": Vector3(-0.4, 0.05, 0.9), "rf": Vector3(-0.35, 0.5, 0.8)})
 	var hold: Dictionary = _merge(guard, {
-		"torso": Vector3(0.0, 0.97, 0.18), "la": Vector3(-0.2, 0.22, 0.95), "lf": Vector3(-0.42, 0.18, 0.89)})
+		"torso": Vector3(0.0, 0.97, 0.18), "la": Vector3(-0.3, 0.6, 0.75), "lf": Vector3(-0.55, 0.85, 0.4)})
 	return [
 		[0.0, stand, 1.0],
 		[0.07, guard, 0.7],

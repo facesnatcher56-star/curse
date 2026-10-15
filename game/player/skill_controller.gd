@@ -705,8 +705,12 @@ func _apply_skill(skill: Dictionary) -> void:
 				target.receive(result, p.global_position)
 				if opening:
 					p.openings.on_executed(target, result, skill)
-				elif result["outcome"] in [Combat.Outcome.HIT, Combat.Outcome.CRITICAL]:
-					p.openings.on_melee_hit(target)   # every landed melee blow may show an Opening on a nearby enemy
+				elif brutal:
+					if result["outcome"] in [Combat.Outcome.HIT, Combat.Outcome.CRITICAL]:
+						p.openings.on_power_use()   # Brutal Attack is a power: one roll for its use, not a basic-hit roll
+				elif result["outcome"] in [Combat.Outcome.HIT, Combat.Outcome.CRITICAL] and not p.powers.staggering_armed:
+					# A plain basic blow may show an Opening. A blow that releases Staggering Blow rolls once, in release_staggering.
+					p.openings.on_melee_hit(target)
 				if p.powers.staggering_armed and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK] \
 						and is_instance_valid(busy_target):
 					p.powers.release_staggering(busy_target)   # DS2's Staggering Blow rides the next blow that lands

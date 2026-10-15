@@ -118,6 +118,7 @@ func activate(id: String, cursor: Vector3) -> bool:
 	match id:
 		"whirling_strike":
 			_whirling_strike()
+			p.openings.on_power_use()   # one Opening roll for the whole spin
 		"staggering_blow":
 			staggering_armed = true   # the next landed blow releases it, and only then is it spent (DS2: preserved by a miss)
 			Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "Staggering Blow", Color(0.95, 0.7, 0.4), 36)
@@ -161,6 +162,7 @@ func release_staggering(target: Actor) -> void:
 	if not staggering_armed or target == null:
 		return
 	staggering_armed = false
+	p.openings.on_power_use()   # one Opening roll for the whole Staggering Blow, not per enemy it stuns
 	var centre: Vector3 = target.global_position
 	var mult: float = value("staggering_blow", "damage_pct") / 100.0
 	var stun: float = value("staggering_blow", "stun")

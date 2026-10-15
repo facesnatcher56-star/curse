@@ -92,7 +92,9 @@ func _test_opening() -> void:
 	TownState.passive_ranks["barricade"] = 1
 	var buckler := Items.build(ItemDb.get_def("buckler"), 6, Items.Rarity.NORMAL, [])
 	expect("the buckler equips beside the longsword (Barricade 1 granted)", stats.equip(buckler, false) != null)
-	expect("a worn shield gives the bash, over the weapon's own execution", openings.style_id() == "bash" and openings.style().get("clip", "") == "stomp")
+	expect("a worn shield does NOT override a melee-triggered execution: the longsword still stabs", openings.style_id() == "stab")
+	expect("a block-triggered mark plays the shield bash (stomp clip)", openings.style_for_kind("block") == "bash"
+		and String(openings.STYLES["bash"].get("clip", "")) == "stomp")
 	TownState.passive_ranks.erase("barricade")
 	stats.equipment.clear()
 	stats.refresh()
@@ -104,7 +106,7 @@ func _test_opening() -> void:
 	enemy.global_position = hero.global_position + Vector3(1.6, 0, 0)
 	openings.clear_mark(false)
 	openings.cooldown = 0.0
-	openings._mark(enemy)
+	openings._mark(enemy, "melee")
 	expect("a mark is made, once, with a 1.5 s window, and a pulsing ring on the enemy", openings.is_open_on(enemy) and openings.marks_made == 1
 		and is_instance_valid(openings._ring) and is_equal_approx(openings.mark_left, Openings.WINDOW))
 	openings.on_melee_hit(enemy)
@@ -114,7 +116,7 @@ func _test_opening() -> void:
 	openings.tick(0.7)
 	expect("the mark expires after its 1.5 s window and starts the cooldown", openings.mark_target == null and openings.marks_expired == 1 and openings.cooldown > 0.0)
 	openings.cooldown = 0.0
-	openings._mark(enemy)
+	openings._mark(enemy, "melee")
 	var hp_before: float = enemy.health
 	expect("striking the marked enemy takes the attack (the execution starts)", openings.try_execute(enemy))
 	expect("the execution uses the weapon's stab, the hero is invulnerable for a moment, and the mark is spent",
@@ -161,6 +163,25 @@ func _test_opening() -> void:
 	expect("Openings heal gives life back when an execution lands (2%% of maximum life)", hero.health > 10.0 + 0.5 and hero.health <= hero.max_health)
 	stats.equipment.clear()
 	stats.refresh()
+
+	# --- A melee power rolls once per use, at the melee spot chance ---------------------------------------------------------------------------
+	stats.equipment.clear()
+	stats.equipment[Items.Slot.WEAPON] = Items.build(ItemDb.get_def("longsword"), 10, Items.Rarity.NORMAL, [])
+	stats.refresh()
+	openings.clear_mark(false)
+	openings.cooldown = 0.0
+	seed(20261015)
+	var power_marks := 0
+	for i in TRIALS:
+		openings.on_power_use()
+		if openings.mark_target != null:
+			power_marks += 1
+			openings.clear_mark(false)
+		openings.cooldown = 0.0
+	expect("a melee power rolls one Opening per use at the melee chance (%d of %d = %.3f, expected 0.12)" % [power_marks, TRIALS, float(power_marks) / TRIALS],
+		_near(float(power_marks) / TRIALS, 0.12))
+	openings.clear_mark(false)
+	openings.cooldown = 0.0
 
 	# --- Shield Openings: only a successful block rolls, and it marks the attacker ----------------------------------------------------------------
 	seed(20261014)
