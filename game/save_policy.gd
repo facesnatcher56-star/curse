@@ -11,8 +11,9 @@ extends RefCounted
 const PRODUCTION_PATH := "user://town.json"
 const DEV_PATH := "user://dev_session/town.json"
 const REAL_SAVE_FLAG := "--write-production-save"
-## Saving is switched on: normal launch reads and writes the production save.
-const SAVING_ENABLED := true
+## Saving is switched off for now: every launch starts a fresh town and nothing is written (the existing production save is neither
+## read nor touched). Flip this to bring normal saving back.
+const SAVING_ENABLED := false
 
 ## Any user argument makes it a developer session (fail safe: a new debug flag is protected without anyone listing it here).
 static func is_dev_session(args: PackedStringArray) -> bool:
