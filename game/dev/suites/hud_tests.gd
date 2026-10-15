@@ -212,8 +212,13 @@ func _test_orb_hud() -> void:
 	hud._process(0.0)
 	var screen: Vector2 = get_viewport().get_visible_rect().size
 	expect("health and mana have opposite bottom vessels", hud.health_orb.position.x < screen.x * 0.5 and hud.mana_orb.position.x > screen.x * 0.5 and hud.health_orb.position.y > screen.y * 0.5)
-	expect("both orb vessels block world clicks", hud.covers(Hud.orb_rect(screen, false).get_center()) and hud.covers(Hud.orb_rect(screen, true).get_center()))
-	expect("map is above mana and blocks world clicks", Hud.minimap_rect(screen).end.y < Hud.orb_rect(screen, true).position.y and hud.covers(Hud.minimap_rect(screen).get_center()))
+	# The vessels are drawn (and block) only in the legacy HUD; the DS2 HUD hides them, so they must not block either.
+	var drawn: bool = not hud.use_ds2_ui
+	expect("both orb vessels block world clicks only where they are drawn", hud.covers(Hud.orb_rect(screen, false).get_center()) == drawn and hud.covers(Hud.orb_rect(screen, true).get_center()) == drawn)
+	var map: Rect2 = Hud.minimap_rect(screen, hud.use_ds2_ui)
+	expect("the map blocks world clicks", hud.covers(map.get_center()))
+	if drawn:
+		expect("the legacy map is above the mana vessel", map.end.y < Hud.orb_rect(screen, true).position.y)
 	var orb: Control = hud.health_orb
 	orb.update_value(30, 120, 0.25, Vector3(5, 0, 0))
 	expect("health level follows the resource fraction", is_equal_approx(orb.level, 0.25) and orb.numbers.text == "30 / 120")

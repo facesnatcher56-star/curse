@@ -420,6 +420,10 @@ func death_detail() -> String:
 		return "Gear, items and XP are kept. The road stays as you left it, and what killed you remembers."
 	return ""
 
+## A round HUD piece (vessel, map) takes the mouse inside its circle plus a small margin, not its whole square.
+static func _in_disc(rect: Rect2, point: Vector2, margin: float) -> bool:
+	return point.distance_to(rect.get_center()) <= rect.size.x * 0.5 + margin
+
 ## True when a screen point is over a HUD panel (minimap, hotbar, resource vessels): the world behind it must not react to the mouse.
 func covers(point: Vector2) -> bool:
 	var size_px: Vector2 = get_viewport_rect().size
@@ -427,11 +431,14 @@ func covers(point: Vector2) -> bool:
 		return true
 	if show_gear and character_panel != null and character_panel.get_global_rect().has_point(point):
 		return true
-	if minimap_rect(size_px, use_ds2_ui).grow(7).has_point(point) or minimap_rect(size_px, false).grow(7).has_point(point):
+	# Only what is drawn in the current UI mode takes the mouse. The DS2 HUD hides the vessels and the legacy map (see _process), so their
+	# rectangles must not block; the round map and vessels block by their circles, not their squares.
+	if _in_disc(minimap_rect(size_px, use_ds2_ui), point, 7.0):
 		return true
-	if progression_hud != null and progression_hud.strip_rect(size_px).grow(22.0).has_point(point):
+	var strip: Rect2 = progression_hud.strip_rect(size_px) if progression_hud != null else Rect2()
+	if strip.has_area() and strip.grow(22.0).has_point(point):
 		return true   # the XP bar and its badge along the bottom
-	if orb_rect(size_px, false).has_point(point) or orb_rect(size_px, true).has_point(point):
+	if not use_ds2_ui and (_in_disc(orb_rect(size_px, false), point, 6.0) or _in_disc(orb_rect(size_px, true), point, 6.0)):
 		return true
 	if use_ds2_ui and point.y >= size_px.y - (hotbar_slot_size(size_px) + 28.0):
 		return true

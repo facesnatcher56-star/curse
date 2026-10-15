@@ -318,7 +318,7 @@ func _test_ui_block() -> void:
 		node.queue_free()
 	await get_tree().process_frame
 	var size_px: Vector2 = get_viewport().get_visible_rect().size
-	var minimap_point: Vector2 = Hud.minimap_rect(size_px).get_center()
+	var minimap_point: Vector2 = Hud.minimap_rect(size_px, game.hud.use_ds2_ui).get_center()   # the map this UI mode draws
 	var open_point: Vector2 = size_px * 0.5
 	expect("the minimap blocks the mouse", game.hud.covers(minimap_point))
 	expect("the hotbar blocks the mouse", game.hud.covers(Vector2(size_px.x * 0.5, size_px.y - 50.0)))
