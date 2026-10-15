@@ -96,7 +96,7 @@ func _archer_shot() -> void:
 			archer.bow._draw_arrow.visible = true
 			archer.model.manual("idle")
 			archer.model.scrub(0.0)
-		side_cam.global_position = archer.global_position + side_dir * 2.6 + Vector3.UP * 1.3
+		side_cam.global_position = archer.global_position + side_dir * 1.7 + Vector3.UP * 1.25
 		side_cam.look_at(archer.global_position + Vector3.UP * 1.2, Vector3.UP)
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw

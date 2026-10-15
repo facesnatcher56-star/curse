@@ -446,7 +446,7 @@ func _apply_carry_pose() -> void:
 	var carry_hand: Vector3 = p.global_position + Vector3.UP * 1.0 + side * 0.42 + forward * 0.12
 	_aim_chain(["LeftArm", "LeftForeArm"], "LeftHand", carry_hand, 1.0)
 	var hand: Vector3 = _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones["LeftHand"])).origin)
-	var bow_y: Vector3 = (Vector3.UP + forward * 0.22).normalized()
+	var bow_y: Vector3 = Vector3.UP   # limbs vertical in carry and walk (no lean): the limb tips sit behind the grip, level
 	# The mesh's belly is its local -X and its string its local +X (measured on archer/bow and modular/wpn_bow): local -X points forward,
 	# so the string faces the archer and the belly the target. The limbs stay vertical (local Y is up).
 	var bow_x: Vector3 = -side.cross(bow_y).normalized()
