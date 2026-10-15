@@ -44,7 +44,7 @@ static func art(id: String) -> Texture2D:
 static func framed(id: String = "metal", padding: float = 20.0, tint: Color = Color.WHITE) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = art("metal_panel" if id == "metal" else id)
-	style.set_texture_margin_all(32 if id != "button" else 16)
+	style.set_texture_margin_all(24 if id == "metal" else (16 if id == "button" else 32))
 	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	style.set_content_margin_all(padding)
@@ -150,7 +150,7 @@ static func panel_box() -> StyleBoxTexture:
 static func tooltip_box() -> StyleBoxTexture:
 	# A smaller corner cell with more padding keeps the first and last lines clear of the carved corners.
 	var style := framed("metal", 30, Color(0.92, 0.92, 0.92))
-	style.set_texture_margin_all(12)
+	style.set_texture_margin_all(24)
 	style.content_margin_top = 34
 	style.content_margin_bottom = 42
 	return style
@@ -209,11 +209,23 @@ static func draw_stat(ci: CanvasItem, font: Font, at: Vector2, icon_id: String, 
 	text(ci, font, Vector2(at.x + icon_px + 6.0, at.y + icon_px * 0.5 + font_size * 0.36), value, font_size, text_color)
 	return stat_width(font, value, icon_px, font_size)
 
+## Plates: the nine-slice corner cell must match the plate's own corner ornament (32 logical px on the metal plate). A smaller margin
+## stretches the corner scroll across the edge, which read as a smeared gold blob on the bottom bar (#49 review).
 static func draw_panel(ci: CanvasItem, rect: Rect2, alpha: float = 0.9, rivets: bool = true) -> void:
 	ci.draw_rect(rect.grow(4.0), Color(0, 0, 0, 0.28))
 	var style := framed("metal" if rivets else "button", 0, Color(1, 1, 1, alpha))
-	style.set_texture_margin_all(minf(24, rect.size.y * 0.3))
+	# The button plate is only 192 px tall: a margin above 16 logical px (64 source px) consumes its centre and streaks its leaves.
+	style.set_texture_margin_all(minf(24, rect.size.y * 0.3) if rivets else minf(16, rect.size.y * 0.3))
 	ci.draw_style_box(style, rect)
+
+## Drop-in ornament layers, placed once by layout (never stretched). A plate's own corners carry its filigree; these add the
+## crest and studs. Lane M's no-repeat rail and crest set can replace the art ids here.
+static func draw_stud(ci: CanvasItem, at: Vector2, radius: float = 2.5) -> void:
+	ci.draw_circle(at, radius + 0.7, Color(0.05, 0.04, 0.03, 0.9))
+	ci.draw_circle(at, radius, Color(0.72, 0.58, 0.34, 0.9))
+
+static func draw_crest(ci: CanvasItem, centre: Vector2, size: Vector2 = Vector2(160, 48)) -> void:
+	ci.draw_texture_rect(art("crest"), Rect2(centre - Vector2(size.x * 0.5, size.y * 0.5), size), false)
 
 ## A resource bar: a recessed dark trough, a fill with a lit upper half, tick marks every tenth, a bronze frame and a shadowed label.
 static func draw_bar(ci: CanvasItem, rect: Rect2, fraction: float, color: Color, label: String, font: Font, size: int = 13) -> void:

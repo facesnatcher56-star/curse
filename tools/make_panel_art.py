@@ -18,7 +18,7 @@ SOURCE = os.path.join(ROOT, "assets", "ui", "ornate", "metal.png")
 TARGET = os.path.join(ROOT, "assets", "ui", "ornate", "metal_panel.png")
 
 SIZE = 1024
-CORNER = 128          # nine-slice margin in source pixels (32 logical px at 4 px per logical px)
+CORNER = 96           # corner cell in source px (24 logical px at 4 px per logical px): the ornament must fit it, or it stretches along the edge
 RAIL = 62             # rows/columns of the gold rail and groove kept from the source edge
 RAIL_COPY = (300, 386)  # stud-free stretch of the same rail, copied over the stud
 QUIET = (340, 684)    # the centre of the source plate: quiet leather with faint cracks

@@ -34,14 +34,27 @@ The game remains grounded and weathered, as required by ART_DIRECTION.md.
   a uniform profile from a stud-free stretch, and the centre is a seamless texture-bombed leather
   fill with large-scale grime. Tooltips use the metal plate (`tooltip_box`), because the short button
   plate streaked when stretched into tall cards. Buttons keep `button.png`, stretched.
+- The plate's nine-slice corner cell is 24 logical px (96 source px), the same margin HUD plates
+  use. A larger margin let the corner filigree spill past its cell and stretch along the bar edge.
+- Ornament layers, placed by layout and never stretched: `UiTheme.draw_stud` (bar corners and
+  one stud per hotbar divider) and `UiTheme.draw_crest` (bar centre). Lane M's no-repeat rail and
+  crest set can replace the art behind these helpers. Brackets around the hotbar and left button
+  groups are not built yet.
 - Label, Button, CheckBox and TooltipLabel share one 1 px drop shadow (`UiTheme._build`).
-- Measured at 1080p: the character window is not scaled (fit factor 1.0), so text is rasterised
-  at native size. The legibility gap is contrast on thin serif text, not resampling. Font import
-  (hinting, MSDF) was not A/B tested; that remains open.
-- Verified at 1080p on screen 1 only (`--only=uitexture`): bottom bar, character window, item
-  tooltip and party frames, before and after, in `docs/screenshots/ui-texture/`.
-- Known gaps: 1280x720, 1600x900 and 2560x1440 and the interface-scale matrix are postponed by the
-  owner. The plate is plainer than the previous knotwork edges; the owner has not yet judged richness.
+- Text A/B at 200% (`docs/screenshots/ui-texture/text-ab/`), measured by mean edge gradient on
+  the character title: baseline 21.96; MSDF on both fonts 27.19 (edges stronger but glyphs look
+  heavier); light hinting 21.96 (no measurable change); no hinting 21.49 (softer). Kept the
+  baseline import; MSDF is a global font change for the owner to judge.
+- `Control.scale`: at 1080p the window is not scaled (fit factor 1.0). At 720p with UI 1.5 it is
+  shrunk, and the 200% crop shows smaller but not blurred text. A re-layout at 1.0 was not built.
+- Verified at 1080p on screen 1 only (`--only=uitexture`): bottom bar and both ends, character
+  window, item tooltip and party frames, before and after, in `docs/screenshots/ui-texture/`.
+- The seven `--only=theme` headless failures (Tough Dragon Helm roll and hover-card fit at the
+  64x64 headless viewport) reproduce with the original `UiTheme` in this checkout. CI never runs
+  `--only=theme` (see `.github/workflows/selftest.yml`), so there is no CI result to compare.
+- Known gaps: 1280x720, 1600x900 and 2560x1440 and the interface-scale matrix are not run: the
+  owner's latest instruction is 1080p only, with higher resolutions later. The owner has not yet
+  judged richness.
 
 Do not restore the removed resource strip, render fake consumables, bake gameplay values
 into artwork, or introduce another independent theme system. Ask the owner when uncertain.
