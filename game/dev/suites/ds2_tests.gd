@@ -445,6 +445,98 @@ func _test_ds2_items() -> void:
 	stats.refresh()
 	await get_tree().process_frame
 
+## Ranged and caster weapons never ask for Strength: every live bow and crossbow base, every built instance of them (rare strength
+## modifiers included), and every DS2 catalogue entry for a ranged, bow, crossbow, thrown or staff weapon. Their class is Ranged or a caster skill.
+func _test_ranged_requirements() -> void:
+	var empty_context := {"levels": {}, "attributes": {}, "passive_ranks": {}}
+	var strength_terms := func(source: String) -> bool:
+		for term in EquipmentRequirement.parse(source).get("terms", []):
+			if String(term["canonical"]) == "strength":
+				return true
+		return false
+	var ranged_bases := 0
+	var ranged_ok := true
+	var text_ok := true
+	for d in ItemDb.all().values():
+		var def: ItemDef = d
+		if not (def.item_type == "bow" or def.item_type == "crossbow" or def.item_type == "thrown" or bool(def.profile.get("ranged", false))):
+			continue
+		ranged_bases += 1
+		for level in def.levels:
+			for rarity in [Items.Rarity.NORMAL, Items.Rarity.RARE]:
+				var mods: Array = ["strength_2", "dexterity_2"] if rarity == Items.Rarity.RARE else []
+				var item: Dictionary = Items.build(def, level, rarity, mods)
+				var source := Items.requirement_expression(item)
+				ranged_ok = ranged_ok and not strength_terms.call(source) and Items.requirement(item)["class"] == "ranged"
+				text_ok = text_ok and not EquipmentRequirement.describe(source, float(level), empty_context).contains("Strength")
+	expect("the live ranged bases are checked, the Short Bow among them (%d)" % ranged_bases, ranged_bases >= 1 and ItemDb.get_def("short_bow") != null)
+	expect("no live bow, crossbow or thrown weapon asks for Strength, even with a strength modifier, and their class is Ranged", ranged_ok)
+	expect("and the requirement text never names Strength for them", text_ok)
+	var catalog_file := FileAccess.open("res://data/reference/ds2_equipment_catalog.json", FileAccess.READ)
+	var catalog: Dictionary = JSON.parse_string(catalog_file.get_as_text())
+	var ranged_catalog := 0
+	var catalog_ok := true
+	for catalog_item in catalog.get("items", []):
+		var attack: Dictionary = catalog_item.get("attack", {}) if catalog_item.get("attack", {}) is Dictionary else {}
+		var parent := String(catalog_item.get("parent", ""))
+		var is_ranged_kind := String(attack.get("skill_class", "")) == "ranged" or parent.contains("bow") or parent.contains("crossbow") \
+			or parent.contains("staff") or parent.contains("throw")
+		if not is_ranged_kind:
+			continue
+		ranged_catalog += 1
+		catalog_ok = catalog_ok and not strength_terms.call(String(catalog_item.get("requirements", "")))
+	expect("no DS2 catalogue bow, crossbow, thrown or staff template asks for Strength (%d checked)" % ranged_catalog,
+		ranged_catalog > 100 and catalog_ok)
+	var staff_ok := true
+	var staff_source: String = String(catalog.get("items", []).filter(func(i): return String(i.get("id", "")) == "quest_staff_a1_tower")[0].get("requirements", ""))
+	staff_ok = EquipmentRequirement.parse(staff_source).get("terms", [])[0]["canonical"] == "intelligence"
+	expect("a staff's source requirement is Intelligence (Wise Woman's Staff: %s)" % staff_source, staff_ok)
+	# Rolled modifiers: ranger gear (bows, crossbows, thrown weapons, ranger armour) and mage gear (staffs, robes and similar) never roll
+	# Strength. DS2's crossbows require no Strength. Rings and amulets are not asserted; fighter gear is the control.
+	var rolled_str := func(def: ItemDef, rarity: int, rolls: int) -> int:
+		var hits := 0
+		for i in rolls:
+			var mods: Array = Items.roll_mods(def, 30, rarity)
+			for id in mods:
+				if AffixDb.get_def(String(id)).stat == "str":
+					hits += 1
+					break
+		return hits
+	var strength_roll_log := ""
+	var rolls_never_str := true
+	for d in ItemDb.all().values():
+		var base: ItemDef = d
+		var hits: int = rolled_str.call(base, Items.Rarity.RARE, 200) + rolled_str.call(base, Items.Rarity.MAGIC, 200)
+		strength_roll_log += "\n  STRROLL %s type=%s slot=%d armor=%s ranged=%s rolls_with_str=%d" % [base.id, base.item_type, base.slot,
+			base.armor_class, str(base.profile.get("ranged", false)), hits]
+		if base.item_type == "bow" or base.item_type == "crossbow" or base.item_type == "thrown" or base.item_type == "staff" \
+				or base.armor_class == "mage" or base.armor_class == "ranger" \
+				or (base.slot == Items.Slot.WEAPON and bool(base.profile.get("ranged", false))):
+			rolls_never_str = rolls_never_str and hits == 0
+	print(strength_roll_log)
+	expect("ranger gear (bows, crossbows, thrown weapons, ranger armour) and mage gear (staffs, robes) never roll a Strength modifier", rolls_never_str)
+	var ranger_bases := 0
+	for d in ItemDb.all().values():
+		if (d as ItemDef).armor_class == "ranger":
+			ranger_bases += 1
+	expect("ranger armour bases are covered by the check (%d)" % ranger_bases, ranger_bases >= 4)
+	var longsword_def: ItemDef = ItemDb.get_def("longsword")
+	expect("a fighter's melee weapon still rolls Strength (control)", rolled_str.call(longsword_def, Items.Rarity.RARE, 400) > 0)
+	var crossbow_def := ItemDef.new()
+	crossbow_def.id = "test_crossbow"
+	crossbow_def.slot = Items.Slot.WEAPON
+	crossbow_def.item_type = "crossbow"
+	crossbow_def.profile = {"ranged": true, "two_handed": true}
+	crossbow_def.levels = [30]
+	expect("a crossbow never rolls Strength (ranger gear; DS2 crossbows require no Strength)", rolled_str.call(crossbow_def, Items.Rarity.RARE, 400) == 0)
+	var staff_def := ItemDef.new()
+	staff_def.id = "test_staff"
+	staff_def.slot = Items.Slot.WEAPON
+	staff_def.item_type = "staff"
+	staff_def.profile = {"two_handed": true}
+	staff_def.levels = [30]
+	expect("a staff never rolls Strength even when it is not marked ranged", rolled_str.call(staff_def, Items.Rarity.RARE, 300) == 0)
+
 ## DS2's skill points and passive trees: a point a level (and a human's two), the tiers and prerequisites, the rank cap, buying for good,
 ## a save, the stance requirements (Overbear for two hands, Barricade for a shield), and what the passives do to the hero.
 func _test_skill_tree() -> void:
