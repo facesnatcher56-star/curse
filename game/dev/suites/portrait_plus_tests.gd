@@ -141,6 +141,7 @@ func _test_portrait_plus() -> void:
 	companion._badge.grab_focus()
 	await _settle()
 	expect("the Cutter plus takes keyboard or pad focus", companion._badge.has_focus())
+	await _shot("focus-ring")
 	var accept: InputEvent = InputMap.action_get_events("ui_accept")[0].duplicate()
 	accept.pressed = true
 	get_viewport().push_input(accept)
@@ -148,7 +149,6 @@ func _test_portrait_plus() -> void:
 	get_viewport().push_input(accept)
 	await _settle()
 	expect("accept on the focused plus opens Cutter's skill tree", _skill_view_for("cutter"))
-	await _shot("focus-ring")
 	hud.close_character()
 	await _settle()
 
