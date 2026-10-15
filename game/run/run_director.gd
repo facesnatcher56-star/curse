@@ -565,8 +565,10 @@ func _on_enemy_died(actor: Actor) -> void:
 	actor.set_meta("death_rewarded", true)
 	var bonuses := PartyManager.current().loot_bonuses()
 	kills += 1
-	if world_mode:
-		var named_xp: int = _report_to_quests(actor, bonuses)
+	# Quests hear the kill in the connected world only; XP is paid wherever the world is connected, which includes an authored
+	# location (the dungeon), where the wave arena never pays (connected() is false there).
+	var named_xp: int = _report_to_quests(actor, bonuses) if world_mode else 0
+	if connected():
 		_pay_kill_xp(actor, named_xp)
 	player.on_enemy_killed(actor)
 	_drop_loot(actor, bonuses)

@@ -188,6 +188,7 @@ const ONLY_TESTS := {
 "archernestorder": "_test_archer_nest_order",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
+"dungeonxp": "_test_dungeon_kill_xp",
 }
 
 var _failures: PackedStringArray = []
