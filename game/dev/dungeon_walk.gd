@@ -4,13 +4,14 @@ extends SceneTree
 ##   godot --headless --path . -s res://game/dev/dungeon_walk.gd -- --dungeon
 
 ## The route: each waypoint must be reached within TOLERANCE metres.
+## The critical path, door to door: the entry, then each corridor and hall to the final hall (see TestDungeon).
 const ROUTE := [
-	Vector3(0, 0, 22), Vector3(0, 0, 3), Vector3(19, 0, -0.5), Vector3(0, 0, 3), Vector3(-20, 0, 2.2),
-	Vector3(0, 0, 3), Vector3(0, 0, -10), Vector3(0, 0, -30),
+	Vector3(0, 0, 100), Vector3(9, 0, 82), Vector3(-20, 0, 64), Vector3(-25, 0, 48), Vector3(0, 0, 30), Vector3(25, 0, 13),
+	Vector3(0, 0, -4), Vector3(-29, 0, -28), Vector3(0, 0, -52), Vector3(21, 0, -76), Vector3(0, 0, -100),
 ]
 const TOLERANCE := 1.4
 const STUCK_SECONDS := 4.0
-const LIMIT_SECONDS := 120.0
+const LIMIT_SECONDS := 240.0   # the critical path is about 345 m
 
 var _main: Node
 var _frames := 0
