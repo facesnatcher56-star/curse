@@ -37,9 +37,8 @@ static func spawn(from: Node3D, pos: Vector3, text: String, color: Color, size: 
 	var face := number._label(text, color, size, 9 if ultimate else 7)
 	if ultimate: face.outline_modulate = Color("24070d")
 	face.render_priority = 1
-	if critical or ultimate:
-		var caption_text := ("ULTIMATE CRITICAL" if critical else "ULTIMATE") if ultimate else "CRITICAL"
-		var caption := number._label(caption_text, Color("ca9562") if ultimate else Color("d6a654"), 24 if ultimate else 23, 5)
+	if critical:
+		var caption := number._label("CRITICAL", Color("ca9562") if ultimate else Color("d6a654"), 24 if ultimate else 23, 5)
 		var up := camera.global_basis.y if camera != null else Vector3.UP
 		caption.position = up * float(size) * 0.0055 * 0.76
 		caption.render_priority = 1

@@ -28,10 +28,10 @@ func _test_damage_number_presentation() -> void:
 	for id in ["brutal_attack", "take_aim", "flame_nexus"]:
 		Fx.popup(player, Combat.Outcome.HIT, 1250.4, Color.TRANSPARENT, id)
 	var powers := get_tree().get_nodes_in_group(DamageNumber.GROUP).slice(before + 5)
-	expect("melee, ranged and spell ultimates share dramatic resolved damage numbers", powers.size() == 3 and powers.all(func(number) -> bool: return (number.get_child(1) as Label3D).text == "1250" and (number.get_child(1) as Label3D).font_size == 86 and (number.get_child(2) as Label3D).text == "ULTIMATE"))
+	expect("melee, ranged and spell powers retain dramatic numerals without an ultimate caption", powers.size() == 3 and powers.all(func(number) -> bool: return number.get_child_count() == 2 and (number.get_child(1) as Label3D).text == "1250" and (number.get_child(1) as Label3D).font_size == 86))
 	Fx.popup(player, Combat.Outcome.CRITICAL, 2750, Color.TRANSPARENT, "take_aim")
 	var power_crit: Node = get_tree().get_nodes_in_group(DamageNumber.GROUP).back()
-	expect("ultimate criticals retain critical identity", (power_crit.get_child(2) as Label3D).text == "ULTIMATE CRITICAL" and (power_crit.get_child(1) as Label3D).font_size == 100)
+	expect("power criticals retain only their critical caption", (power_crit.get_child(2) as Label3D).text == "CRITICAL" and (power_crit.get_child(1) as Label3D).font_size == 100)
 	Fx.popup(player, Combat.Outcome.BLOCK, 0, Color.TRANSPARENT, "brutal_attack")
 	var avoided: Node = get_tree().get_nodes_in_group(DamageNumber.GROUP).back()
 	expect("an avoided ultimate keeps the ordinary Block feedback", avoided.get_child_count() == 2 and (avoided.get_child(1) as Label3D).text == "Block")

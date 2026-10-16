@@ -111,7 +111,7 @@ func _ground_splatter(dir: Vector3, force: float) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var space := get_world_3d().direct_space_state
-	for i in 36:
+	for i in 56:
 		# The same narrow cone as the airborne arterial spray, extending behind the victim.
 		var distance := rng.randf_range(0.4, 5.5) * force
 		var along := dir.rotated(Vector3.UP, rng.randf_range(-0.16, 0.16))
@@ -122,7 +122,7 @@ func _ground_splatter(dir: Vector3, force: float) -> void:
 		# Project onto the visible stone, whose raised tile tops differ from its collider.
 		var drop := Decal.new()
 		drop.name = "GroundBloodDrop"
-		var width := rng.randf_range(0.07, 0.19)
+		var width := rng.randf_range(0.12, 0.30) * (1.0 - 0.25 * distance / (5.5 * force))
 		drop.size = Vector3(width, 1.0, width * rng.randf_range(1.3, 2.5))
 		drop.modulate = Color(0.24, 0.005, 0.014, 0.95)
 		drop.texture_albedo = mist_texture()

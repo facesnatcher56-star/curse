@@ -93,9 +93,11 @@ and an expanding red mist plume along the attacker-to-victim direction. It remai
 and cleans up after 1.25 seconds. It is visual only, applies on both nonlethal and lethal hits, and shares impact deduplication.
 The follow-up revision uses darker blood reds, removes the bright pink impact flecks and deposits small elongated droplets
 along the same spray cone. Droplets project onto walkable ground, appear as the spray falls, then fade; at most eight trails persist.
-All ultimate powers use larger embossed bone-gold damage numerals with a crimson shadow, a stronger impact pop and an ULTIMATE
-caption (ULTIMATE CRITICAL when applicable). Classification uses the resolved hit's power ID; normal hits, ticks, avoided outcomes
+All ultimate powers use larger embossed bone-gold damage numerals with a crimson shadow and a stronger impact pop. The owner
+requested no ULTIMATE caption; only critical hits retain a CRITICAL caption. Classification uses the resolved hit's power ID; normal hits, ticks, avoided outcomes
 and the damage-number visibility setting retain their existing behavior. No damage values or combat timing change.
+The owner removed the inward body-particle activation burst, preserving the armed red glow and the swing's weapon infusion.
+Ground spray coverage is increased to 56 larger droplets per trail, tapering in size with distance behind the victim.
 
 Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
 weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.

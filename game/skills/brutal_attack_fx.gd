@@ -51,7 +51,6 @@ func setup(model: CharacterModel, gather: bool = true) -> void:
 	model.anim.mixer_applied.connect(update_pose)
 	update_pose()
 	if gather:
-		_gather()
 		var energy := BrutalCrimsonFx.new()
 		add_child(energy)
 		energy.setup(get_parent() as Player)
@@ -87,27 +86,6 @@ static func _soft_quad(size: Vector2, tint: Color = Color(0.95, 0.72, 0.36, 0.75
 	mat.albedo_texture = Fx.soft_texture()
 	quad.material = mat
 	return quad
-
-func _gather() -> void:
-	# DS2's short inward shell charge; presentation never delays activation.
-	var gather := CPUParticles3D.new()
-	gather.name = "ChargeGather"
-	gather.amount = 48
-	gather.one_shot = true
-	gather.explosiveness = 1.0
-	gather.lifetime = 0.45
-	gather.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	gather.emission_sphere_radius = 1.35
-	gather.radial_accel_min = -20.0
-	gather.radial_accel_max = -20.0
-	gather.initial_velocity_min = 0.0
-	gather.initial_velocity_max = 0.0
-	gather.gravity = Vector3.ZERO
-	gather.mesh = _soft_quad(Vector2(0.10, 0.24), Color(1.0, 0.04, 0.12, 0.8))
-	gather.color = Color(1.0, 0.06, 0.20, 0.8)
-	add_child(gather)
-	gather.position.y = 1.0
-	gather.finished.connect(gather.queue_free)
 
 static func impact(from: Node, point: Vector3, direction: Vector3, rank: int) -> void:
 	BrutalCrimsonFx.impact(from, point, direction, rank)
