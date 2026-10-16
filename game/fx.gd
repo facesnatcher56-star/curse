@@ -5,8 +5,8 @@ extends RefCounted
 const OUTCOME_STYLE := {
 	Combat.Outcome.MISS: ["Dodge", Color(0.6, 0.95, 1.0), 32],   # the only way a blow misses here is a dodge (DS2 has no accuracy roll)
 	Combat.Outcome.BLOCK: ["Block", Color(0.5, 0.85, 1.0), 34],
-	Combat.Outcome.HIT: ["", Color(1, 1, 1), 36],
-	Combat.Outcome.CRITICAL: ["Critical ", Color(1.0, 0.9, 0.2), 46],
+	Combat.Outcome.HIT: ["", Color("eee0bd"), 48],
+	Combat.Outcome.CRITICAL: ["Critical ", Color("f3c362"), 68],
 }
 
 static var _hitstop_id: int = 0
@@ -92,14 +92,19 @@ static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color
 	if not GameSettings.show_damage_numbers:
 		return
 	var style: Array = OUTCOME_STYLE[outcome]
-	var text: String = style[0]
+	var critical := outcome == Combat.Outcome.CRITICAL
+	var text: String = "" if critical else String(style[0])
 	if outcome != Combat.Outcome.MISS and outcome != Combat.Outcome.BLOCK:
 		text += str(int(round(damage)))
 	var color: Color = style[1]
 	if tint.a > 0.0 and outcome == Combat.Outcome.HIT:
 		color = tint
-	var top: float = from.body_height + 0.4 if from is Actor else 2.2
-	text_at(from, from.global_position + Vector3(randf_range(-0.3, 0.3), top, 0), text, color, style[2])
+	var top: float = from.body_height + 0.22 if from is Actor else 2.2
+	DamageNumber.spawn(from, from.global_position + Vector3(0, top, 0), text, color, int(style[2]), critical)
+
+## Burn and hazard ticks share the same typography and the damage-number setting.
+static func damage_tick(from: Node3D, damage: float, tint: Color) -> void:
+	popup(from, Combat.Outcome.HIT, damage, tint)
 
 static func text_at(from: Node3D, pos: Vector3, text: String, color: Color, size: int = 48, duration: float = 0.9) -> void:
 	var label := Label3D.new()

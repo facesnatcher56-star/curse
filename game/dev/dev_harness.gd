@@ -27,6 +27,7 @@ const SUITES := [
 	preload("res://game/dev/suites/power_audio_tests.gd"),
 	preload("res://game/dev/suites/combat_detail_tests.gd"),
 	preload("res://game/dev/shots.gd"), preload("res://game/dev/perf.gd"),
+	preload("res://game/dev/damage_number_capture.gd"),
 	preload("res://game/dev/suites/skill_tests.gd"),
 	preload("res://game/dev/suites/fireball_tests.gd"),
 	preload("res://game/dev/suites/melee_tests.gd"),
@@ -86,7 +87,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture"):
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--damagecapture"):
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -121,6 +122,8 @@ func run_from_args() -> bool:
 		_run("_melee_rank_capture", [_user_arg_value("--meleecapture=")])
 	elif OS.get_cmdline_user_args().has("--powerbarcapture"):
 		_run("_powerbar_capture")
+	elif OS.get_cmdline_user_args().has("--damagecapture"):
+		_run("_damage_number_capture")
 	elif OS.get_cmdline_user_args().has("--brutalshot"):
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):
@@ -193,6 +196,7 @@ const ONLY_TESTS := {
 "inventoryrotate": "_test_inventory_rotation",
 "classnotice": "_test_class_notice",
 "powerui": "_test_power_ui",
+"damagenumbers": "_test_damage_number_presentation",
 "skillintegrity": "_test_skill_integrity", "archer": "_test_archer_companion", "brutal": "_test_brutal_attack", "basicsingle": "_test_basic_single_target_physics", "armedfx": "_test_armed_power_fx", "hitinterrupt": "_test_hit_interruption_audit", "poweraudio": "_test_power_audio",
 "actionqueue": "_test_action_queue", "classskills": "_test_class_skills", "ds2combat": "_test_ds2_combat", "ds2items": "_test_ds2_items", "rangedrequirements": "_test_ranged_requirements", "skilltree": "_test_skill_tree", "powers": "_test_powers", "livepowers": "_test_live_powers", "powerimpact": "_test_power_impact",
 	"movepriority": "_test_move_priority",
