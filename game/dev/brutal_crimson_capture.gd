@@ -7,6 +7,17 @@ func _test_crimson_fx() -> void:
 	player.add_child(crimson)
 	crimson.setup(player.model)
 	expect("Brutal Attack creates the full crimson gathering effect", crimson.crimson and crimson.get_node_or_null("CrimsonGathering") != null)
+	var flow := crimson.get_node("CrimsonGathering") as BrutalCrimsonFx
+	var base := player.model.weapon_base
+	var tip := player.model.weapon_tip
+	expect("crimson energy converges on the held weapon", flow.to_global(flow.weapon_destination(1)).distance_to(base.global_position.lerp(tip.global_position, 0.6)) < 0.001)
+	var replacement := Node3D.new()
+	player.add_child(replacement)
+	replacement.global_position = tip.global_position + Vector3(1, 0.5, 0)
+	player.model.weapon_tip = replacement
+	expect("gathering follows a replacement weapon marker", flow.to_global(flow.weapon_destination(1)).distance_to(base.global_position.lerp(replacement.global_position, 0.6)) < 0.001)
+	player.model.weapon_tip = tip
+	replacement.queue_free()
 	var orange := BrutalAttackFx.new()
 	player.add_child(orange)
 	orange.setup(player.model, false)

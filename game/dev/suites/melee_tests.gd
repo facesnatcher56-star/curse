@@ -664,7 +664,11 @@ func _test_brutal_attack() -> void:
 	expect("Brutal Attack uses the approved crimson palette while preserving DS2 rank scaling", BrutalAttackFx.rank_color(1) == Color("d61036")
 		and BrutalAttackFx.rank_color(2) == Color("ef2546") and BrutalAttackFx.rank_color(3) == Color("ff5367")
 		and is_equal_approx(BrutalAttackFx.rank_scale(1), 1.0) and is_equal_approx(BrutalAttackFx.rank_scale(3), 1.8))
+	var infusion := aura.get_node("CrimsonGathering") as BrutalCrimsonFx
+	skills.tick_busy(0.14)
+	expect("the powered swing draws body energy into the weapon before contact", infusion.infusion_fraction() >= 0.5 and not skills.busy_hit_done)
 	skills.cancel_action()
+	expect("cancelling the windup restores the armed body energy", skills.brutal_armed and infusion.infusion_fraction() == 0.0)
 	priority_target.queue_free()
 	player.attack_target = null
 	skills.combo_step = 2

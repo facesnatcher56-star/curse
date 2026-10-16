@@ -6,50 +6,111 @@ extends Node3D
 const SHARD_PATH := "res://assets/fx/brutal_crimson_rupture.glb"
 const GROUP := "brutal_crimson_impact"
 const ENERGY_SHADER := preload("res://game/skills/brutal_crimson_energy.gdshader")
+const FLOW_SHADER := preload("res://game/skills/brutal_weapon_flow.gdshader")
 var body: Player
 var _ribbons: Array[MeshInstance3D] = []
+var _weapon_glow: MeshInstance3D
+var _idle_materials: Array[ShaderMaterial] = []
+var _flow_materials: Array[ShaderMaterial] = []
 var _age := 0.0
 static var _shard_mesh: ArrayMesh
 
 func setup(owner_body: Player) -> void:
 	body = owner_body
 	name = "CrimsonGathering"
+	process_priority = 110 # Follow the model's final animated weapon pose (priority 100).
 	for strand in 3:
 		var ribbon := MeshInstance3D.new()
 		ribbon.name = "CrimsonVein%d" % strand
-		var surface := SurfaceTool.new()
-		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for step in 32:
-			var u0 := float(step) / 32.0
-			var u1 := float(step + 1) / 32.0
-			var a := _helix(u0, strand)
-			var b := _helix(u1, strand)
-			var w0 := Vector3.UP * sin(u0 * PI) * 0.075
-			var w1 := Vector3.UP * sin(u1 * PI) * 0.075
-			for vertex in [a - w0, a + w0, b + w1, a - w0, b + w1, b - w1]:
-				surface.set_color(Color(1.0, 0.08, 0.17, 0.75))
-				surface.add_vertex(vertex)
-		surface.generate_normals()
-		ribbon.mesh = surface.commit()
+		ribbon.mesh = ImmediateMesh.new()
 		ribbon.material_override = _blood_material(Color("f31643"))
+		_idle_materials.append(ribbon.material_override as ShaderMaterial)
+		var flow_material := ShaderMaterial.new()
+		flow_material.shader = FLOW_SHADER
+		_flow_materials.append(flow_material)
 		ribbon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(ribbon)
 		_ribbons.append(ribbon)
+	_weapon_glow = MeshInstance3D.new()
+	_weapon_glow.name = "CrimsonWeaponInfusion"
+	_weapon_glow.mesh = ImmediateMesh.new()
+	_weapon_glow.material_override = _energy(Color(1.0, 0.025, 0.10, 0.0), 1.5)
+	(_weapon_glow.material_override as StandardMaterial3D).no_depth_test = true
+	_weapon_glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_weapon_glow)
 
-static func _helix(u: float, strand: int) -> Vector3:
-	var angle := u * TAU * 0.72 + TAU * float(strand) / 3.0
+func infusion_fraction() -> float:
+	if not is_instance_valid(body) or not body.skills.busy or not bool(body.skills.busy_def.get("brutal_animation", false)):
+		return 0.0
+	return clampf(body.skills.busy_t / minf(0.28, body.skills.busy_time * 0.28), 0.0, 1.0)
+
+## The weapon markers are shared with weapon trails and refreshed on equipment changes.
+## Resolve them each frame so swords, axes and replacement weapons all receive the flow.
+func weapon_destination(strand: int) -> Vector3:
+	return to_local(body.model.weapon_base.global_position.lerp(body.model.weapon_tip.global_position, 0.35 + 0.25 * strand))
+
+func _flow_point(u: float, strand: int, destination: Vector3, infusion: float) -> Vector3:
+	var angle := TAU * float(strand) / 3.0 + _age * 0.35
+	var source := Vector3(cos(angle) * 0.60, 0.35 + float(strand) * 0.48, sin(angle) * 0.60)
+	var control := (source + destination) * 0.5 + Vector3.UP * 0.45
+	var pulled_u := lerpf(infusion * 0.97, 1.0, u)
+	var pulled := source.bezier_interpolate(control, control, destination, pulled_u)
+	var orbit_angle := u * TAU * 0.72 + TAU * float(strand) / 3.0 + _age * 1.15
 	var radius := 0.40 + sin(u * PI) * 0.22
-	return Vector3(cos(angle) * radius, 0.18 + u * 1.65, sin(angle) * radius)
+	var orbit := Vector3(cos(orbit_angle) * radius, 0.18 + u * 1.65, sin(orbit_angle) * radius)
+	return orbit.lerp(pulled, minf(infusion * 4.0, 1.0))
+
+func _draw_flow(ribbon: MeshInstance3D, strand: int, destination: Vector3, width_axis: Vector3, infusion: float) -> void:
+	var mesh := ribbon.mesh as ImmediateMesh
+	mesh.clear_surfaces()
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for step in 24:
+		var u0 := float(step) / 24.0
+		var u1 := float(step + 1) / 24.0
+		var a := _flow_point(u0, strand, destination, infusion)
+		var b := _flow_point(u1, strand, destination, infusion)
+		var ribbon_axis := Vector3.UP.lerp(width_axis, minf(infusion * 4.0, 1.0))
+		var w0 := ribbon_axis * (infusion * 0.018 + sin(u0 * PI) * 0.075)
+		var w1 := ribbon_axis * (infusion * 0.018 + sin(u1 * PI) * 0.075)
+		var vertices := [a - w0, a + w0, b + w1, a - w0, b + w1, b - w1]
+		var coords := [Vector2(u0, 0), Vector2(u0, 1), Vector2(u1, 1), Vector2(u0, 0), Vector2(u1, 1), Vector2(u1, 0)]
+		for i in 6:
+			mesh.surface_set_normal((b - a).cross(ribbon_axis).normalized())
+			mesh.surface_set_uv(coords[i])
+			mesh.surface_add_vertex(vertices[i])
+	mesh.surface_end()
+
+func _draw_weapon_glow(width_axis: Vector3, infusion: float) -> void:
+	var mesh := _weapon_glow.mesh as ImmediateMesh
+	mesh.clear_surfaces()
+	if infusion <= 0.0: return
+	var a := to_local(body.model.weapon_base.global_position)
+	var b := to_local(body.model.weapon_tip.global_position)
+	var width := width_axis * 0.060
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for vertex in [a - width, a + width, b + width * 0.15, a - width, b + width * 0.15, b - width * 0.15]:
+		mesh.surface_add_vertex(vertex)
+	mesh.surface_end()
+	(_weapon_glow.material_override as StandardMaterial3D).albedo_color.a = infusion * 0.75
 
 func _process(delta: float) -> void:
 	_age += delta
-	var winding := is_instance_valid(body) and body.skills.busy and bool(body.skills.busy_def.get("brutal_animation", false))
-	var surge := 1.0 + (0.65 if winding else 0.0) + 0.13 * sin(_age * 7.0)
+	var has_weapon := is_instance_valid(body) and is_instance_valid(body.model.weapon_base) and is_instance_valid(body.model.weapon_tip)
+	visible = has_weapon
+	if not has_weapon: return
+	var infusion := infusion_fraction()
+	var surge := 1.0 + infusion * 0.65 + 0.13 * sin(_age * 7.0)
+	var camera := get_viewport().get_camera_3d()
+	var width_axis := global_basis.inverse() * camera.global_basis.x if camera != null else Vector3.RIGHT
 	for i in _ribbons.size():
 		var ribbon := _ribbons[i]
-		ribbon.rotation.y = _age * (2.7 if winding else 1.15)
-		ribbon.scale = Vector3.ONE * (1.08 if winding else 1.0)
-		(ribbon.material_override as ShaderMaterial).set_shader_parameter("surge", surge)
+		_draw_flow(ribbon, i, weapon_destination(i), width_axis, infusion)
+		ribbon.material_override = _flow_materials[i] if infusion > 0.0 else _idle_materials[i]
+		var material := ribbon.material_override as ShaderMaterial
+		material.set_shader_parameter("surge", surge)
+		material.set_shader_parameter("fade", 1.0 - smoothstep(0.75, 1.0, infusion))
+		if infusion > 0.0: material.set_shader_parameter("flow_phase", infusion)
+	_draw_weapon_glow(width_axis, infusion)
 
 static func _blood_material(tint: Color) -> ShaderMaterial:
 	var material := ShaderMaterial.new()

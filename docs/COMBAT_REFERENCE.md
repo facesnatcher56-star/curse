@@ -75,13 +75,17 @@ damage does not refill itself. Its stored activation survives a miss, dodge, blo
 by a successful melee hit. DS2's restrained orange silhouette haze was the original presentation baseline, based on the owner's screenshot.
 
 Brutal Attack presentation (owner revision, 2026-10-16): the owner explicitly chose blood-red supernatural force and requested a
-flashier revision of the full activation, swing and impact sequence. Crimson bone-following wisps, rotating gathering ribbons,
+flashier revision of the full activation, swing and impact sequence. Crimson bone-following wisps, gathering streams into the equipped melee weapon,
 an empowered blade wake and a narrow contact tear now replace the restrained orange presentation. Meshy-generated serrated
 rupture geometry fractures away from a landed hit, with dark cores and bright crimson edges. This is a deliberate Curse departure,
 not DS2 visual parity. The provenance and 20-credit generation are recorded in `assets/fx/brutal_crimson_rupture.json`.
 Rank scale `1 / 1.2 / 1.8` is retained; the former GAS colours `9E5D33 / BC5900 / 8F2808` are replaced by `D61036 / EF2546 / FF5367`.
 The overhead swing's combat timing, persistent armed state, miss-preserves-power rule, damage budget and lethal gibbing remain unchanged.
 Take Aim's shared orange wisps are explicitly preserved and do not receive the crimson gathering ribbons.
+The owner subsequently requested weapon infusion at the start of the swing: armed body glow and orbiting ribbons persist until
+the overhead animation begins, then collapse into live weapon markers over the first 0.28 seconds. The body wisps dim as a narrow
+crimson weapon highlight strengthens. The flow follows animated poses and equipment replacement; a cancelled or missed swing
+restores the armed body effect while the stored power remains available.
 
 Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
 weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.

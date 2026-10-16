@@ -63,10 +63,16 @@ func update_pose() -> void:
 	if not is_instance_valid(skeleton):
 		return
 	var centre: Vector3 = global_position + Vector3.UP * 1.0
+	var energy := get_node_or_null("CrimsonGathering") as BrutalCrimsonFx
+	var infusion := energy.infusion_fraction() if energy != null else 0.0
 	for bone in emitters:
 		var at: Vector3 = skeleton.to_global(skeleton.get_bone_global_pose(bone).origin)
 		var outward: Vector3 = (at - centre).normalized()
 		(emitters[bone] as CPUParticles3D).global_position = at + outward * 0.055
+		if crimson:
+			if infusion > 0.0:
+				(emitters[bone] as CPUParticles3D).global_position = (at + outward * 0.055).lerp(energy.to_global(energy.weapon_destination(1)), infusion)
+			(emitters[bone] as CPUParticles3D).color = Color(1, 1, 1, 1.0 - infusion * 0.9)
 
 static func _soft_quad(size: Vector2, tint: Color = Color(0.95, 0.72, 0.36, 0.75)) -> QuadMesh:
 	var quad := QuadMesh.new()
