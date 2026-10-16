@@ -70,5 +70,5 @@ func _update_card(card: Control, body: Player) -> void:
 	card.tooltip_text = "%s — Level %d\n%s\n%s\nSelect this party member%s" % [
 		body.display_name, body.character.level, HeroProgression.progress_text(body.character.xp),
 		"Fallen" if body.dead else ("Active" if body.is_controlled() else "Companion"),
-		"\n%d skill point%s to spend (click the +)" % [card.skill_points, "" if card.skill_points == 1 else "s"] if card.skill_points > 0 else ""]
+		"\n%d skill point%s to spend%s" % [card.skill_points, "" if card.skill_points == 1 else "s", " (click the +)" if card._badge.visible else ""] if card.skill_points > 0 else ""]
 	card.queue_redraw()

@@ -74,7 +74,7 @@ func handle_hotkeys(cursor: Vector3) -> void:
 	if not Input.is_action_pressed("alt_skill"):
 		for body in PartyManager.current().bodies.values():
 			if is_instance_valid(body): body.skills.swallow_alt = false
-	for i in hotbar.size():
+	for i in GameSettings.hotbar_slot_count():
 		_route_hotbar_action("skill_%d" % (i + 1), hotbar[i], i, cursor)
 	_route_hotbar_action("alt_skill", right_click_skill, HotbarLayout.ALT, cursor)
 	for body in PartyManager.current().bodies.values():

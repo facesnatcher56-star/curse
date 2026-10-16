@@ -21,7 +21,7 @@ var def: EnemyDef
 var behavior: EnemyBehavior
 var target: Actor
 var move_speed: float = 2.4
-var aggro_range: float = 12.0
+var aggro_range: float = 7.0
 var attack_range: float = 1.6
 var attack_time: float = 1.1
 var damage_min: float = 6.0

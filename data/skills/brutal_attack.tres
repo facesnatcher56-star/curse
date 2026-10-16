@@ -21,4 +21,4 @@ weight = 1.0
 lunge = 0.0
 directional = false
 aimed = false
-extra = {"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.08, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": true}}
+extra = {"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.5, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": true}}

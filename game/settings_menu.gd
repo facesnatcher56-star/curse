@@ -302,12 +302,12 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	_hotbar_options.clear()
 	_hotbar_caster_options.clear()
 	var ids: Array[String] = [""]
-	ids.append_array(HotbarLayout.ASSIGNABLE)
+	ids.append_array(HotbarLayout.learned_ids())
 	var names: Array = ["Unassigned"]
-	for id in HotbarLayout.ASSIGNABLE:
+	for id in HotbarLayout.learned_ids():
 		names.append(String(SkillDb.all()[id]["name"]))
 	var slots: Array[int] = []
-	for i in GameSettings.hotbar_slots.size():
+	for i in GameSettings.hotbar_slot_count():
 		slots.append(i)
 	slots.append(HotbarLayout.ALT)
 	var caster_ids: Array[String] = []
@@ -344,7 +344,7 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 func _refresh_hotbar_options() -> void:
 	for slot in _hotbar_options:
 		var id: String = GameSettings.hotbar_skill(int(slot))
-		(_hotbar_options[slot] as OptionButton).select(0 if id == "" else HotbarLayout.ASSIGNABLE.find(id) + 1)
+		(_hotbar_options[slot] as OptionButton).select(0 if id == "" else HotbarLayout.learned_ids().find(id) + 1)
 		var caster_id: String = GameSettings.hotbar_caster(int(slot))
 		var caster_ids: Array = _hotbar_caster_ids()
 		(_hotbar_caster_options[slot] as OptionButton).select(maxi(caster_ids.find(caster_id), 0))

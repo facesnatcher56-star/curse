@@ -80,7 +80,7 @@ func _test_portrait_plus() -> void:
 	expect("the Cutter companion is in the party for this check", cutter != null and companion.visible)
 
 	# Counting: one rule, shared by both cards, and the same number the tree shows.
-	expect("a new hero has two points, so the plus shows from the start", TownState.skill_points_left() == 2 and hero_card.skill_points == 2 and hero_card._badge.visible)
+	expect("a new hero starts with two points but no plus: it only comes up on a level-up", TownState.skill_points_left() == 2 and hero_card.skill_points == 2 and not hero_card._badge.visible)
 	expect("the Cutter card counts through TownState too", companion.skill_points == TownState.skill_points_left({}, "cutter"))
 
 	# Spending clears it: the points go into Fortitude (a melee rank, so the hero needs Melee 1 first).

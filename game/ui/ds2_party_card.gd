@@ -10,6 +10,8 @@ var character_name: String = "Hero"
 var member_id: String = "hero"
 var is_companion: bool = false
 var skill_points: int = 0
+var _seen_points: int = -1   # the points the last update saw (-1: none yet); a rise from it is a level-up
+var _earned: bool = false     # a point was earned while this game ran, so the plus is up
 var _badge: Control
 var _portrait_rect: TextureRect
 var _weapon_slot: TextureRect
@@ -49,17 +51,24 @@ func _select_input(event: InputEvent) -> void:
 		accept_event()
 
 func _badge_hit(at: Vector2) -> bool:
-	return skill_points > 0 and at.distance_to(BADGE_CENTRE) <= BADGE_RADIUS + 4.0
+	return _badge != null and _badge.visible and at.distance_to(BADGE_CENTRE) <= BADGE_RADIUS + 4.0
 
-## Shows the plus while the member has unspent skill points (the caller counts them with TownState; the card does not recount).
+## Shows the plus once this game has seen the member earn a skill point (a level-up), and keeps it up until the points are spent. Points
+## already waiting when the game starts do not raise it (the caller counts them with TownState; the card does not recount).
 func set_skill_points(points: int) -> void:
-	skill_points = maxi(points, 0)
+	points = maxi(points, 0)
+	if _seen_points >= 0 and points > _seen_points:
+		_earned = true
+	if points == 0:
+		_earned = false
+	_seen_points = points
+	skill_points = points
 	if _badge != null:
-		_badge.visible = skill_points > 0
+		_badge.visible = skill_points > 0 and _earned
 		_badge.queue_redraw()
 
 func _draw_badge() -> void:
-	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.005)
+	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.0022)
 	var halo_radius: float = BADGE_RADIUS + 2.0 + 2.5 * pulse
 	_badge.draw_circle(BADGE_CENTRE, halo_radius, Color("ffd34e", 0.10 + 0.16 * pulse))
 	_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS, 0.0, TAU, 48, Color("ffe16a", 0.68 + 0.32 * pulse), 2.0, true)

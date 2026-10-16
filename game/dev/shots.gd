@@ -528,18 +528,19 @@ func _powerbar_capture() -> void:
 	for active_id in powers:
 		for id in powers: _set_capture_power_charge(id, 0.0)
 		var title: String = SkillDb.all()[active_id]["name"]
-		for charge in [0.0, 0.25, 0.50, 0.75, 1.0]:
+		stage.text = "%s | DARK until it charges" % title
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 40)
+		for step in 120:
+			var charge: float = float(step + 1) / 120.0
 			stage.text = "%s | %d%% CHARGE" % [title, int(charge * 100.0)]
 			_set_capture_power_charge(active_id, charge)
-			frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
-		stage.text = "%s | READY - steady forged border after the glint" % title
-		frame_index = await _save_powerbar_frames(out_dir, frame_index, 24)
-		stage.text = "%s | ACTIVATION - frame and icon discharge together (0.18 s)" % title
+			frame_index = await _save_powerbar_frames(out_dir, frame_index, 1)
+		stage.text = "%s | FULL: burst, then it pulses" % title
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 220)
+		stage.text = "%s | SPENT: back to dark" % title
 		player.power_activated.emit(player.member_id, active_id)
 		_set_capture_power_charge(active_id, 0.0)
-		frame_index = await _save_powerbar_frames(out_dir, frame_index, 12)
-		stage.text = "%s | 0%% CHARGE - release finished" % title
-		frame_index = await _save_powerbar_frames(out_dir, frame_index, 24)
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 40)
 	print("POWERBAR_CAPTURE frames=", frame_index, " path=", out_dir)
 	get_tree().quit()
 

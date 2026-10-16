@@ -20,7 +20,6 @@ var show_gear: bool = false
 var character_panel: Control
 var _member_staged: Dictionary = {}
 var _connected_power_signal_ids: Dictionary = {}
-var _power_activation_flash: Dictionary = {}
 var _power_hotkey_vfx: Dictionary = {}
 
 func select_member(body: Player) -> void:
@@ -214,7 +213,7 @@ func _draw() -> void:
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
 	var slot: float = hotbar_slot_size(size_px)
-	var slot_count: int = player.skills.hotbar.size() + 2
+	var slot_count: int = GameSettings.hotbar_slot_count() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var bar_height: float = slot + 28.0
@@ -226,10 +225,10 @@ func _draw() -> void:
 	# (A narrow stamina bar used to sit here, just above the skill tray; stamina is off, see PlayerStats.STAMINA_ON.)
 	if PlayerStats.STAMINA_ON:
 		_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
-	for i in player.skills.hotbar.size():
+	for i in GameSettings.hotbar_slot_count():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font, GameSettings.hotbar_caster(i))
-	var extra: int = player.skills.hotbar.size()
+	var extra: int = GameSettings.hotbar_slot_count()
 	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font, GameSettings.hotbar_alt_caster)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
@@ -466,7 +465,7 @@ func covers(point: Vector2) -> bool:
 ## The hotbar tray's screen rectangle.
 func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
-	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
+	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
 	if use_ds2_ui:
 		var bar_height: float = slot + 28.0
@@ -485,7 +484,7 @@ static func minimap_rect(screen: Vector2, ds2: bool = false) -> Rect2:
 	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
-	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
+	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
 	var available: float = screen.x - orb_rect(screen, false).end.x * 2.0 - 52.0
 	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
 
@@ -574,7 +573,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 	var rect := Rect2(pos, Vector2(size_px, size_px))
 	var action_slot := HudSkillPicker.slot_of_action(action)
 	if action_slot == HotbarLayout.ALT:
-		action_slot = player.skills.hotbar.size()
+		action_slot = GameSettings.hotbar_slot_count()
 	var forge: PowerHotkeyVfx = _power_hotkey_vfx.get(action_slot) as PowerHotkeyVfx
 	if is_instance_valid(forge): forge.hide()
 	draw_rect(rect, UiTheme.INK)
@@ -606,7 +605,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 	else:
 		draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
 	if icon != null:
-		draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
+		if not (ult_cost > 0.0 and is_instance_valid(forge)):   # a power's icon is drawn by its own hotkey effect (dark, filling as it charges)
+			draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
 	if caster_id != "":
@@ -643,18 +643,9 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 
 	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if remaining <= 0.0 and affordable else Color(0.4, 0.4, 0.45, 0.9)
 	if ult_cost > 0.0:
-		var power_key := "%s:%s" % [slot_player.member_id, id]
 		var charge: float = slot_player.stats.ult_fraction(id)
-		if _was_cooling.get(power_key, false) and charge >= 0.999 and slot_player.stats.can_use(id):
-			_ready_flash[power_key] = PowerHotkeyVfx.READY_GLINT_SECONDS
-		_was_cooling[power_key] = charge < 0.999
-		var ready_flash: float = float(_ready_flash.get(power_key, 0.0))
-		var activation_flash: float = float(_power_activation_flash.get(power_key, 0.0))
 		if is_instance_valid(forge):
-			forge.present(icon, rect, charge, _power_frame_available(slot_player, id), remaining > 0.0,
-				ready_flash, activation_flash, use_ds2_ui)
-		_ready_flash[power_key] = maxf(ready_flash - get_process_delta_time(), 0.0)
-		_power_activation_flash[power_key] = maxf(activation_flash - get_process_delta_time(), 0.0)
+			forge.present(icon, rect, charge, _power_frame_available(slot_player, id), remaining > 0.0, use_ds2_ui)
 		border = Color(0.55, 0.4, 0.25, 0.9) if ult_filling else Color(0.85, 0.72, 0.45)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
@@ -737,8 +728,7 @@ var _slot_hits: Array = []  # [{rect, id, action}] for the slots drawn this fram
 var _was_cooling: Dictionary = {}
 var _ready_flash: Dictionary = {}
 
-func _on_power_activated(member_id: String, power_id: String) -> void:
-	_power_activation_flash["%s:%s" % [member_id, power_id]] = PowerHotkeyVfx.RELEASE_SECONDS
+func _on_power_activated(_member_id: String, _power_id: String) -> void:
 	queue_redraw()
 
 ## Charging remains visible while a power is recharging; only its unlock and weapon stance gate the frame.

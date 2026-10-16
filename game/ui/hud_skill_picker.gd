@@ -42,7 +42,7 @@ func slot_at(point: Vector2) -> Dictionary:
 	return {}
 
 func panel_rect(size_px: Vector2) -> Rect2:
-	var count: int = HotbarLayout.ASSIGNABLE.size()
+	var count: int = maxi(HotbarLayout.learned_ids().size(), 1)
 	var width: float = PICKER_PAD * 2.0 + PICKER_CELL * count + PICKER_GAP * (count - 1)
 	var height: float = PICKER_PAD * 2.0 + PICKER_CELL + 30.0 + (46.0 if pending_skill_id != "" else 0.0)
 	var x: float = clampf(_picker_anchor.get_center().x - width * 0.5, 8.0, maxf(size_px.x - width - 8.0, 8.0))
@@ -52,9 +52,10 @@ func panel_rect(size_px: Vector2) -> Rect2:
 func cells(size_px: Vector2) -> Array[Dictionary]:
 	var panel: Rect2 = panel_rect(size_px)
 	var cells: Array[Dictionary] = []
-	for i in HotbarLayout.ASSIGNABLE.size():
+	var learned: Array[String] = HotbarLayout.learned_ids()
+	for i in learned.size():
 		cells.append({"rect": Rect2(panel.position + Vector2(PICKER_PAD + i * (PICKER_CELL + PICKER_GAP), PICKER_PAD + 26.0), Vector2.ONE * PICKER_CELL),
-			"id": HotbarLayout.ASSIGNABLE[i]})
+			"id": learned[i]})
 	return cells
 
 func caster_cells(size_px: Vector2) -> Array[Dictionary]:

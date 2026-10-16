@@ -15,6 +15,8 @@ func _capture(name: String) -> void:
 func _test_power_ui() -> void:
 	TownState.persist = false
 	TownState.reset()
+	expect("a fresh party is offered the basic attack but not skills nobody has learned", HotbarLayout.learned_ids().has("basic") and not HotbarLayout.learned_ids().has("detonation"))
+	expect("a skill nobody has learned is taken off the bar", HotbarLayout.drop_unlearned(["brutal_attack", "", "", "", "", ""], "brutal_attack") == "basic")
 	TownState.dev_set_hero_level(40)
 	await _settle()
 	expect("spent, partial, ready, armed and unavailable states are distinct",
@@ -84,8 +86,8 @@ func _test_power_ui() -> void:
 		player.stats.brutal_reload_remaining = player.stats.ult_cost("brutal_attack") * (1.0 - charge)
 		await _settle()
 		expect("portrait mirrors actual recharge", is_equal_approx(hud.ds2_party_frame.hero_card._power_charge, charge))
-		expect("forged hotkey progress mirrors the same gameplay charge", is_equal_approx(
-			float((hud._power_hotkey_vfx[0] as PowerHotkeyVfx)._frame_material.get_shader_parameter("charge")), charge))
+		expect("hotkey icon fill mirrors the same gameplay charge", is_equal_approx(
+			float((hud._power_hotkey_vfx[0] as PowerHotkeyVfx)._icon_material.get_shader_parameter("fill")), charge))
 		await _capture("power_" + str(int(charge * 100)))
 	player.skills.brutal_armed = true
 	expect("armed visual reads the real hero controller", Visual.armed(player, "brutal_attack"))
@@ -97,25 +99,26 @@ func _test_power_ui() -> void:
 	var forge_b := hud._power_hotkey_vfx[1] as PowerHotkeyVfx
 	var brutal_icon: Texture2D = hud._icon("brutal_attack")
 	var flame_icon: Texture2D = hud._icon("flame_nexus")
-	forge_a.present(brutal_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.6, true, false, 0.0, 0.0, true)
-	forge_b.present(flame_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 0.2, true, false, 0.0, 0.0, true)
-	expect("separate hotkeys own separate frame and icon shader states",
-		forge_a._frame_material != forge_b._frame_material and forge_a._icon_material != forge_b._icon_material
-		and is_equal_approx(float(forge_a._frame_material.get_shader_parameter("charge")), 0.6)
-		and is_equal_approx(float(forge_b._frame_material.get_shader_parameter("charge")), 0.2))
-	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.35, true, false, 0.0, 0.0, true)
-	expect("same hotkey effect accepts a different icon texture and retreats with charge",
-		forge_a._icon.texture == flame_icon
-		and is_equal_approx(float(forge_a._frame_material.get_shader_parameter("charge")), 0.35))
+	forge_a.present(brutal_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.6, true, false, true)
+	forge_b.present(flame_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 0.2, true, false, true)
+	expect("separate hotkeys own separate icon shader states",
+		forge_a._icon_material != forge_b._icon_material
+		and is_equal_approx(float(forge_a._icon_material.get_shader_parameter("fill")), 0.6)
+		and is_equal_approx(float(forge_b._icon_material.get_shader_parameter("fill")), 0.2))
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.35, true, false, true)
+	expect("same hotkey accepts a different icon texture and its fill follows the charge",
+		forge_a._icon.texture == flame_icon and is_equal_approx(float(forge_a._icon_material.get_shader_parameter("fill")), 0.35))
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.0, true, false, true)
+	expect("an empty charge is blacked out", is_zero_approx(float(forge_a._icon_material.get_shader_parameter("fill"))))
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.5, true, false, true)
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 1.0, true, false, true)
+	expect("filling up sets off the burst, and it pulses until spent", forge_a._burst_left > 0.0 and forge_a._ready_now)
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.0, true, false, true)
+	expect("spending the power stops the pulse", not forge_a._ready_now and forge_a._burst_left == 0.0)
+	forge_b.present(brutal_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 1.0, true, false, true)
+	expect("a power already full when assigned pulses without a burst", forge_b._ready_now and forge_b._burst_left == 0.0)
 	forge_a.hide()
 	forge_b.hide()
-	forge_a.present(brutal_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.0, true, false, 0.0, PowerHotkeyVfx.RELEASE_SECONDS, true)
-	forge_b.present(flame_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 0.5, true, false, 0.0, 0.0, true)
-	expect("release synchronizes frame and icon without flashing another slot",
-		is_equal_approx(float(forge_a._frame_material.get_shader_parameter("release")), 1.0)
-		and is_equal_approx(float(forge_a._icon_material.get_shader_parameter("release")), 1.0)
-		and is_zero_approx(float(forge_b._frame_material.get_shader_parameter("release")))
-		and is_zero_approx(float(forge_b._icon_material.get_shader_parameter("release"))))
 	var saved_slot: String = player.skills.hotbar[0]
 	player.skills.hotbar[0] = ""
 	await _settle()

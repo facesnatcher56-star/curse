@@ -143,6 +143,7 @@ func _process(delta: float) -> void:
 	var width_axis := global_basis.inverse() * camera.global_basis.x if camera != null else Vector3.RIGHT
 	for i in _ribbons.size():
 		var ribbon := _ribbons[i]
+		ribbon.visible = infusion > 0.0   # no idle ring around the hero while armed; the veins only appear as they flow into the weapon
 		_draw_flow(ribbon, i, weapon_destination(i), width_axis, infusion)
 		ribbon.material_override = _flow_materials[i] if infusion > 0.0 else _idle_materials[i]
 		var material := ribbon.material_override as ShaderMaterial
