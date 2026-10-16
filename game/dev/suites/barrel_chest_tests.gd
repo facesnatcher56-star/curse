@@ -29,6 +29,8 @@ func _test_barrels_chests() -> void:
 	var chest := Chest.new()
 	get_tree().current_scene.add_child(chest)
 	chest.global_position = lane + Vector3(15, 0, 0)
+	var lid_hinge := chest.find_child("ChestLid", true, false) as Node3D
+	expect("a functional treasure chest has a separate hinged lid", lid_hinge != null)
 	expect("a closed chest is a click target", Chest.near(get_tree(), chest.global_position + Vector3(0, 0, 0.2), 0.35) == chest)
 	player.global_position = chest.global_position + Vector3(-4, 0, 0)
 	expect("it cannot be opened from afar", not chest.in_reach(player))
@@ -42,6 +44,7 @@ func _test_barrels_chests() -> void:
 		seconds += 1.0 / 60.0
 	expect("the hero walks up and opens a chest sent for (%.1f s)" % seconds, chest.opened and player.chest_target == null)
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.3).timeout
+	expect("opening rotates the separate lid on its hinge", lid_hinge != null and absf(lid_hinge.rotation.x) > 1.0)
 	var drops: int = _own_loot(earlier)
 	expect("it dropped one to three items (%d)" % drops, drops >= 1 and drops <= 3)
 	expect("an opened chest is no longer a target", Chest.near(get_tree(), chest.global_position, 1.0) == null)

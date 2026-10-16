@@ -1,13 +1,13 @@
 class_name Chest
 extends Node3D
 ## A treasure chest: click it (the hero walks up) or press the use key beside it, the lid swings open, and it gives up its loot once.
-## Opened chests stay open and are empty. Shown as the dungeon chest model (a placeholder box if the model is missing).
+## Opened chests stay open and are empty. Uses the functional dungeon model with a separately hinged lid (a box fallback is built if it is missing).
 
 const REACH := 3.2   # from its middle: the baked walkable area leaves a gap round the box, so the hero stops 2.3 to 2.8 m out
 const BODY_SIZE := Vector3(1.1, 0.6, 0.7)
 const LID_TIME := 0.45
-## The dungeon's chest model (one mesh, no separate lid), shown at CHEST_HEIGHT metres tall, base on the ground. The box below is only
-## the fallback if the model is missing, and the collision box stays BODY_SIZE either way.
+## The functional dungeon chest model. Its separate ChestLid node is pivoted at the rear hinge; the box below is only the fallback
+## if the model is missing, and the collision box stays BODY_SIZE either way.
 const MODEL := "res://assets/models/dungeon/chest/model.glb"
 const CHEST_HEIGHT := 0.8
 
@@ -66,10 +66,14 @@ func _build() -> void:
 	_collision.add_child(shape)
 	add_child(_collision)
 
-## The model as the chest: scaled to CHEST_HEIGHT, centred on the origin and standing on the ground. No lid node in the model, so the
-## open tween has nothing to turn (`_lid` stays null); opening still empties it and drops the loot.
+## Scale the model to CHEST_HEIGHT, centre it, and find its real lid pivot before adding the unchanged collision box.
 func _build_model(scene: PackedScene) -> void:
 	var visual: Node3D = scene.instantiate()
+	_lid = visual.find_child("ChestLid", true, false) as Node3D
+	if _lid == null:
+		push_error("Functional dungeon chest model has no ChestLid hinge node: " + MODEL)
+		visual.queue_free()
+		return
 	var bounds: AABB = CharacterModel._bounds_of(visual)
 	var factor: float = CHEST_HEIGHT / maxf(bounds.size.y, 0.001)
 	visual.scale = Vector3.ONE * factor
