@@ -155,8 +155,8 @@ static func debris(from: Node, pos: Vector3, amount: int, speed: float) -> void:
 
 # --- Stored powers ---------------------------------------------------------------------
 
-## Brutal Attack is a compact directional wound in the air, not another area explosion. Dark iron-orange
-## streaks continue through the victim while grit and blood carry the weight of the contact.
+## Brutal Attack's owner-approved crimson rupture follows a landed empowered hit.
+## Meshy shards and a narrow contact tear carry the weight of the empowered blow.
 static func brutal_impact(from: Node, point: Vector3, direction: Vector3, rank: int = 1) -> void:
 	BrutalAttackFx.impact(from, point, direction, rank)
 

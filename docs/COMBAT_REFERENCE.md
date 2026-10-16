@@ -72,14 +72,16 @@ reload damage = 21 × (6 + 1.5 × hero level) × (1 + 0.022 × hero level) × ac
 
 After the power lands, subsequent damage dealt by the active party subtracts from that budget. Waiting does nothing. The power's own
 damage does not refill itself. Its stored activation survives a miss, dodge, block, dead target or out-of-range swing and is spent only
-by a successful melee hit. The visible armed state is a restrained orange heat haze that traces just outside the character's
-silhouette like rising steam, based on the owner's direct DS2 screenshot. It is not a weapon coating, ground pool, or fire cloud.
+by a successful melee hit. DS2's restrained orange silhouette haze was the original presentation baseline, based on the owner's screenshot.
 
-Brutal Attack presentation (`BrutalAttackFx`): wisps follow the main body bones after animation evaluation, with a brief inward
-gather on activation (visual only; no cast delay). Impact uses directional cones and forward/backward particles, with DS2's
-rank colours `9E5D33 / BC5900 / 8F2808` and cone scale `1 / 1.2 / 1.8`, traced from `efct_brutal_attack.gas`.
-These are native Godot approximations, not imported DS2 art. The owner's special overhead swing, persistent armed aura,
-miss-preserves-power rule and lethal-power gibbing remain intentional Curse choices.
+Brutal Attack presentation (owner revision, 2026-10-16): the owner explicitly chose blood-red supernatural force and requested a
+flashier revision of the full activation, swing and impact sequence. Crimson bone-following wisps, rotating gathering ribbons,
+an empowered blade wake and a narrow contact tear now replace the restrained orange presentation. Meshy-generated serrated
+rupture geometry fractures away from a landed hit, with dark cores and bright crimson edges. This is a deliberate Curse departure,
+not DS2 visual parity. The provenance and 20-credit generation are recorded in `assets/fx/brutal_crimson_rupture.json`.
+Rank scale `1 / 1.2 / 1.8` is retained; the former GAS colours `9E5D33 / BC5900 / 8F2808` are replaced by `D61036 / EF2546 / FF5367`.
+The overhead swing's combat timing, persistent armed state, miss-preserves-power rule, damage budget and lethal gibbing remain unchanged.
+Take Aim's shared orange wisps are explicitly preserved and do not receive the crimson gathering ribbons.
 
 Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
 weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.

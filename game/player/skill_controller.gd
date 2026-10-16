@@ -592,9 +592,10 @@ func start_opening(target: Actor, style: Dictionary) -> void:
 func _style_trail(_id: String) -> void:
 	if p._trail == null:
 		return
-	p._trail.tint = Color(1.0, 0.92, 0.75)
-	p._trail.max_age = WeaponTrail.DEFAULT_AGE
-	p._trail.strength = 0.4
+	var crimson := bool(busy_def.get("brutal_animation", false))
+	p._trail.tint = Color("ff3456") if crimson else Color(1.0, 0.92, 0.75)
+	p._trail.max_age = 0.32 if crimson else WeaponTrail.DEFAULT_AGE
+	p._trail.strength = 0.7 if crimson else 0.4
 
 ## Picks the next swing of the combo and returns it merged over the basic attack stats.
 func _next_basic() -> Dictionary:
@@ -658,6 +659,7 @@ func tick_busy(delta: float) -> void:
 	if String(skill["kind"]) == "melee":
 		# Coil back while gathering the swing, then throw the weight forward through the strike.
 		var heft: float = clampf(float(skill["weight"]), 0.8, 1.7)
+		if bool(skill.get("brutal_animation", false)): heft = 2.25
 		if u < hf:
 			p.visual.rotation.x = -0.14 * heft * sin(clampf(u / hf, 0.0, 1.0) * PI * 0.5)
 		else:

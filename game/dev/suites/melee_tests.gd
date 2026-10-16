@@ -661,8 +661,8 @@ func _test_brutal_attack() -> void:
 	expect("the arm's steam moves with the attack pose and stays just outside the bone", before_wisp.distance_to(after_wisp) > 0.05
 		and after_wisp.distance_to(after_bone) < 0.07)
 	expect("Brutal Attack starts its brief inward visual charge without delaying the attack", aura.get_node_or_null("ChargeGather") != null and skills.busy_t < 0.08)
-	expect("Brutal Attack uses DS2's three impact colours and rank scaling", BrutalAttackFx.rank_color(1) == Color("9e5d33")
-		and BrutalAttackFx.rank_color(2) == Color("bc5900") and BrutalAttackFx.rank_color(3) == Color("8f2808")
+	expect("Brutal Attack uses the approved crimson palette while preserving DS2 rank scaling", BrutalAttackFx.rank_color(1) == Color("d61036")
+		and BrutalAttackFx.rank_color(2) == Color("ef2546") and BrutalAttackFx.rank_color(3) == Color("ff5367")
 		and is_equal_approx(BrutalAttackFx.rank_scale(1), 1.0) and is_equal_approx(BrutalAttackFx.rank_scale(3), 1.8))
 	skills.cancel_action()
 	priority_target.queue_free()
