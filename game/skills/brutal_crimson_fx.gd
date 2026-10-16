@@ -166,6 +166,7 @@ static func impact(from: Node, point: Vector3, direction: Vector3, rank: int) ->
 		tween.tween_method(fade, 1.0, 0.0, 0.24).set_delay(0.14)
 		tween.chain().tween_callback(root.queue_free)
 	_impact_seam(from, contact, facing, scale_factor)
+	BrutalBloodWake.spawn(from, contact, dir, scale_factor)
 	Fx.light_flash(from, contact, Color("ff284b"), 3.0, 0.14)
 	Fx.burst(from, contact, dir + Vector3.UP * 0.25, hue, 36, 8.0 * scale_factor, 0.045, true)
 	Fx.burst(from, contact, -dir + Vector3.UP * 0.55, Color("ff6571"), 20, 5.0 * scale_factor, 0.027, true)

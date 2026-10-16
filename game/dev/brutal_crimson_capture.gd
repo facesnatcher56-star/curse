@@ -30,8 +30,15 @@ func _test_crimson_fx() -> void:
 	var count := get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).size()
 	SkillFx.brutal_impact(player, at, Vector3.RIGHT, 3)
 	expect("a landed hit creates one Meshy rupture and rejects duplicate reports", count == 6 and get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).size() == count)
+	var wakes := get_tree().get_nodes_in_group(BrutalBloodWake.GROUP)
+	expect("one landed ultimate creates one blood wake despite duplicate impact reports", wakes.size() == 1)
+	var mist := wakes[0].get_node("DirectionalRedMist") as CPUParticles3D
+	var spray := wakes[0].get_node("ArterialSpray") as CPUParticles3D
+	expect("mist and arterial spray travel through the victim along the blow", mist.direction.dot(Vector3.RIGHT) > 0.98 and spray.direction.dot(Vector3.RIGHT) > 0.98)
 	await get_tree().create_timer(0.6).timeout
 	expect("rupture meshes and contact seam clean up", get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).is_empty())
+	await get_tree().create_timer(0.75).timeout
+	expect("the lingering blood wake cleans up", get_tree().get_nodes_in_group(BrutalBloodWake.GROUP).is_empty())
 
 func _brutal_crimson_capture() -> void:
 	TownState.persist = false

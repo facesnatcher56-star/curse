@@ -86,6 +86,9 @@ The owner subsequently requested weapon infusion at the start of the swing: arme
 the overhead animation begins, then collapse into live weapon markers over the first 0.28 seconds. The body wisps dim as a narrow
 crimson weapon highlight strengthens. The flow follows animated poses and equipment replacement; a cancelled or missed swing
 restores the armed body effect while the stored power remains available.
+The owner also requested an exaggerated blood wake behind the victim: each landed Brutal Attack projects a narrow arterial spray
+and an expanding red mist plume along the attacker-to-victim direction. It remains visible briefly after the rupture, fades out,
+and cleans up after 1.25 seconds. It is visual only, applies on both nonlethal and lethal hits, and shares impact deduplication.
 
 Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
 weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.
