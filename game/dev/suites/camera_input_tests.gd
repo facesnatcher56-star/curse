@@ -732,6 +732,7 @@ func _test_pad_camera_and_aim() -> void:
 	await get_tree().physics_frame
 	player.stats.cooldowns.clear()
 	player.stats.mana = player.stats.max_mana
+	GameSettings.assign_hotbar_caster(1, "hero")   # the shared bar routes slot 2 to Cutter by default
 	player.skills.hotbar[1] = "fireball"   # this check exercises the optional skill, outside the default loadout
 	Input.action_press("skill_2")
 	await get_tree().create_timer(0.2).timeout

@@ -341,6 +341,7 @@ func _release_aim(cursor: Vector3) -> void:
 			p._say("Not enough mana")
 		return
 	clear_aim(true)
+	interrupt_for(id, point)   # a cast released mid-swing cancels it, like every other usable skill
 	start_skill(id, null, point)
 
 func clear_aim(keep_orb: bool = false) -> void:

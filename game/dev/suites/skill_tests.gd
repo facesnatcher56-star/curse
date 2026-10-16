@@ -10,7 +10,7 @@ func _test_hotkeys() -> void:
 	player.stats.potions = 3
 	var previous_hotbar := player.skills.hotbar.duplicate()
 	player.skills.assign_slot(3, "fireball")
-	expect("hotkey fixture configures this character's slot", player.character.hotbar[3] == "fireball")
+	expect("hotkey fixture configures this character's slot", player.skills.hotbar[3] == "fireball")
 	var dummy: Enemy = _spawn_enemy(Vector3(1.8, 0, 0))
 	dummy.aggro_range = 0.0
 	dummy.max_health = 900.0
