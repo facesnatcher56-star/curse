@@ -483,10 +483,17 @@ func _hud_shot() -> void:
 ## `-- --powerbarcapture`: record the reusable forged frame with three live power icon textures.
 func _powerbar_capture() -> void:
 	player.set_physics_process(false)
+	for body in PartyManager.current().bodies.values():
+		if is_instance_valid(body): body.set_physics_process(false)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
 	TownState.persist = false
 	TownState.reset()
+	GameSettings.ui_size = 1.0
+	GameSettings.apply_ui_scale()
 	# Unlock three actual powers for this non-saving visual capture only.
 	TownState.passive_ranks = {"critical_strike": 8, "smite": 1, "devastation": 2, "searing_flames": 8, "ignite": 1}
+	for item in Items.starting_gear(): player.stats.equip(item, false)
 	player.stats.refresh()
 	var powers: Array[String] = ["brutal_attack", "war_cry", "flame_nexus"]
 	for i in powers.size():
@@ -494,26 +501,49 @@ func _powerbar_capture() -> void:
 		GameSettings.hotbar_casters[i] = "hero"
 		_set_capture_power_charge(powers[i], 0.0)
 	await get_tree().create_timer(0.5).timeout
-	var out_dir := ProjectSettings.globalize_path("res://.dev_output/powerbar_frames")
+	var view_size := get_viewport().get_visible_rect().size
+	var stage := Label.new()
+	stage.position = Vector2(0, view_size.y - 200)
+	stage.size = Vector2(view_size.x, 40)
+	stage.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stage.add_theme_font_size_override("font_size", 24)
+	stage.add_theme_color_override("font_color", Color("ffe1a0"))
+	stage.add_theme_color_override("font_outline_color", Color.BLACK)
+	stage.add_theme_constant_override("outline_size", 10)
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(stage)
+	var explanation := Label.new()
+	explanation.position = Vector2(0, view_size.y - 150)
+	explanation.size = Vector2(view_size.x, 48)
+	explanation.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	explanation.text = "CONTROLLED STATE PLAYBACK | Same three icons throughout\nStaged gameplay values and release cue; not a recharge-speed or combat test"
+	explanation.add_theme_font_size_override("font_size", 16)
+	explanation.add_theme_color_override("font_outline_color", Color.BLACK)
+	explanation.add_theme_constant_override("outline_size", 8)
+	explanation.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(explanation)
+	var out_dir := ProjectSettings.globalize_path("res://.dev_output/powerbar_icon_v2_frames")
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	for path in DirAccess.get_files_at(out_dir):
-		DirAccess.remove_absolute(out_dir.path_join(path))
 	var frame_index := 0
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30) # dormant, all three different icons
-	for frame in 120:
-		var charge := float(frame + 1) / 120.0
+	for charge in [0.0, 0.25, 0.50, 0.75, 0.95]:
+		stage.text = "%d%% CHARGE | Held for comparison" % int(charge * 100.0)
+		for id in powers: _set_capture_power_charge(id, charge)
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 42)
+	stage.text = "REACHING FULL CHARGE | Watch the icon glint"
+	for frame in 12:
+		var charge := 0.95 + 0.05 * float(frame + 1) / 12.0
 		for id in powers: _set_capture_power_charge(id, charge)
 		frame_index = await _save_powerbar_frame(out_dir, frame_index)
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 36) # fully charged hold
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
+	stage.text = "100% CHARGE | Ready"
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
+	stage.text = "ACTIVATION CUE | Reflections contract into the artwork"
 	for id in powers:
 		player.power_activated.emit(player.member_id, id)
 		_set_capture_power_charge(id, 0.0) # actual post-use recharge state
-	for frame in 18:
-		frame_index = await _save_powerbar_frame(out_dir, frame_index)
-	for frame in 45:
-		var charge := 0.50 * float(frame + 1) / 45.0
-		for id in powers: _set_capture_power_charge(id, charge)
-		frame_index = await _save_powerbar_frame(out_dir, frame_index)
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 18)
+	stage.text = "0% CHARGE | Release finished; artwork returns immediately"
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 60)
 	print("POWERBAR_CAPTURE frames=", frame_index, " path=", out_dir)
 	get_tree().quit()
 
@@ -534,8 +564,9 @@ func _save_powerbar_frames(out_dir: String, start_index: int, count: int) -> int
 
 func _save_powerbar_frame(out_dir: String, frame_index: int) -> int:
 	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png(out_dir.path_join("frame_%04d.png" % frame_index))
+	img.save_jpg(out_dir.path_join("frame_%04d.jpg" % frame_index), 0.97)
 	return frame_index + 1
 
 ## `-- --dropshot`: one of every kind of item lying on the ground next to the hero, and the hotbar's skill picker open on its second slot.

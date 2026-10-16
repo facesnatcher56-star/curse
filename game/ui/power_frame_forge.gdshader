@@ -25,6 +25,7 @@ void fragment() {
 	float release_sweep = 1.0 - smoothstep(0.0, 0.11, abs(UV.x + UV.y - (1.8 - release * 2.4)));
 	vec3 heated = mix(vec3(0.36, 0.12, 0.025), vec3(1.0, 0.62, 0.19), progress);
 	vec3 result = base.rgb + heated * glow * (0.12 + 0.58 * progress);
+	result += vec3(1.0, 0.76, 0.35) * glow * smoothstep(0.72, 1.0, charge) * 0.36;
 	result += vec3(1.0, 0.79, 0.42) * crown * 0.48;
 	result += vec3(1.0, 0.92, 0.68) * enabled * sweep * metal * ready_glint * 0.75;
 	result += vec3(1.0, 0.95, 0.79) * enabled * release_sweep * metal * release * 0.9;
