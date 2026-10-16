@@ -8,7 +8,7 @@ static func armed(hero: Player, id: String) -> bool:
 		"brutal_attack": return hero.skills != null and hero.skills.brutal_armed
 		"staggering_blow": return hero.powers != null and hero.powers.staggering_armed
 		"take_aim":
-			return hero.bow != null and hero.bow.armed
+			return (hero.skills != null and hero.skills.take_aim_targeting) or (hero.bow != null and hero.bow.armed)
 	return false
 
 static func state(charge: float, is_armed: bool, available: bool = true) -> String:

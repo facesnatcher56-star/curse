@@ -14,6 +14,7 @@ var _resolution_option: OptionButton
 var _monitor_option: OptionButton
 var _resolution_choices: Array[int] = []   # RESOLUTIONS indices shown in _resolution_option, in the same order
 var _hotbar_options: Dictionary = {}   # slot number -> its OptionButton (see _build_hotbar_rows)
+var _hotbar_caster_options: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group("settings_menu")
@@ -299,39 +300,60 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	title.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
 	page.add_child(title)
 	_hotbar_options.clear()
+	_hotbar_caster_options.clear()
 	var ids: Array[String] = [""]
 	ids.append_array(HotbarLayout.ASSIGNABLE)
 	var names: Array = ["Unassigned"]
 	for id in HotbarLayout.ASSIGNABLE:
 		names.append(String(SkillDb.all()[id]["name"]))
 	var slots: Array[int] = []
-	for i in _hotbar_member().hotbar.size():
+	for i in GameSettings.hotbar_slots.size():
 		slots.append(i)
 	slots.append(HotbarLayout.ALT)
+	var caster_ids: Array[String] = []
+	var caster_names: Array[String] = []
+	for id in _hotbar_caster_ids():
+		var body := PartyManager.current().bodies.get(id) as Player
+		if is_instance_valid(body):
+			caster_ids.append(String(id))
+			caster_names.append(body.display_name if body.display_name != "" else String(id).capitalize())
+		else:
+			caster_ids.append(String(id))
+			caster_names.append(String(id).capitalize())
 	for slot in slots:
 		var label: String = "Key %d" % (slot + 1) if slot != HotbarLayout.ALT else "Right mouse button"
 		var option: OptionButton = _options(names, 0, func(index: int) -> void:
 			if index == 0:
 				if slot == HotbarLayout.ALT:
 					return
-				_hotbar_member().hotbar[slot] = ""
-				TownState.save()
+				GameSettings.hotbar_slots[slot] = ""
+				GameSettings.save_to_disk()
 			else:
-				var member := _hotbar_member()
-				member.hotbar_alt = HotbarLayout.assign(member.hotbar, member.hotbar_alt, slot, ids[index])
-				TownState.save()
+				GameSettings.assign_hotbar(slot, ids[index])
 			_refresh_hotbar_options())
 		_hotbar_options[slot] = option
 		page.add_child(_row(label, option))
+		var caster_option: OptionButton = _options(caster_names, 0, func(index: int) -> void:
+			if index >= 0 and index < caster_ids.size():
+				GameSettings.assign_hotbar_caster(slot, caster_ids[index])
+			_refresh_hotbar_options())
+		_hotbar_caster_options[slot] = caster_option
+		page.add_child(_row("Caster", caster_option))
 	_refresh_hotbar_options()
-
-func _hotbar_member() -> CharacterState:
-	return PartyManager.current().member(PartyManager.current().active_id)
 
 func _refresh_hotbar_options() -> void:
 	for slot in _hotbar_options:
-		var id: String = HotbarLayout.skill_at(_hotbar_member().hotbar, _hotbar_member().hotbar_alt, int(slot))
+		var id: String = GameSettings.hotbar_skill(int(slot))
 		(_hotbar_options[slot] as OptionButton).select(0 if id == "" else HotbarLayout.ASSIGNABLE.find(id) + 1)
+		var caster_id: String = GameSettings.hotbar_caster(int(slot))
+		var caster_ids: Array = _hotbar_caster_ids()
+		(_hotbar_caster_options[slot] as OptionButton).select(maxi(caster_ids.find(caster_id), 0))
+
+func _hotbar_caster_ids() -> Array:
+	var ids: Array = PartyManager.current().members.keys()
+	if ids.is_empty():
+		ids = ["hero", "cutter"]
+	return ids
 
 # --- rebinding --------------------------------------------------------------------
 

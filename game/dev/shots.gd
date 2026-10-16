@@ -480,6 +480,64 @@ func _hud_shot() -> void:
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
 
+## `-- --powerbarcapture`: record the reusable forged frame with three live power icon textures.
+func _powerbar_capture() -> void:
+	player.set_physics_process(false)
+	TownState.persist = false
+	TownState.reset()
+	# Unlock three actual powers for this non-saving visual capture only.
+	TownState.passive_ranks = {"critical_strike": 8, "smite": 1, "devastation": 2, "searing_flames": 8, "ignite": 1}
+	player.stats.refresh()
+	var powers: Array[String] = ["brutal_attack", "war_cry", "flame_nexus"]
+	for i in powers.size():
+		player.skills.hotbar[i] = powers[i]
+		GameSettings.hotbar_casters[i] = "hero"
+		_set_capture_power_charge(powers[i], 0.0)
+	await get_tree().create_timer(0.5).timeout
+	var out_dir := ProjectSettings.globalize_path("res://.dev_output/powerbar_frames")
+	DirAccess.make_dir_recursive_absolute(out_dir)
+	for path in DirAccess.get_files_at(out_dir):
+		DirAccess.remove_absolute(out_dir.path_join(path))
+	var frame_index := 0
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30) # dormant, all three different icons
+	for frame in 120:
+		var charge := float(frame + 1) / 120.0
+		for id in powers: _set_capture_power_charge(id, charge)
+		frame_index = await _save_powerbar_frame(out_dir, frame_index)
+	frame_index = await _save_powerbar_frames(out_dir, frame_index, 36) # fully charged hold
+	for id in powers:
+		player.power_activated.emit(player.member_id, id)
+		_set_capture_power_charge(id, 0.0) # actual post-use recharge state
+	for frame in 18:
+		frame_index = await _save_powerbar_frame(out_dir, frame_index)
+	for frame in 45:
+		var charge := 0.50 * float(frame + 1) / 45.0
+		for id in powers: _set_capture_power_charge(id, charge)
+		frame_index = await _save_powerbar_frame(out_dir, frame_index)
+	print("POWERBAR_CAPTURE frames=", frame_index, " path=", out_dir)
+	get_tree().quit()
+
+func _set_capture_power_charge(id: String, charge: float) -> void:
+	if id == "brutal_attack":
+		player.stats.brutal_reload_required = player.stats.brutal_recharge_damage()
+		player.stats.brutal_reload_remaining = player.stats.brutal_reload_required * (1.0 - charge)
+	else:
+		var required: float = player.powers.required(id)
+		player.powers.reload_required[id] = required
+		player.powers.reload_remaining[id] = required * (1.0 - charge)
+
+func _save_powerbar_frames(out_dir: String, start_index: int, count: int) -> int:
+	var index := start_index
+	for _i in count:
+		index = await _save_powerbar_frame(out_dir, index)
+	return index
+
+func _save_powerbar_frame(out_dir: String, frame_index: int) -> int:
+	await get_tree().process_frame
+	var img := get_viewport().get_texture().get_image()
+	img.save_png(out_dir.path_join("frame_%04d.png" % frame_index))
+	return frame_index + 1
+
 ## `-- --dropshot`: one of every kind of item lying on the ground next to the hero, and the hotbar's skill picker open on its second slot.
 func _drop_shot() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):

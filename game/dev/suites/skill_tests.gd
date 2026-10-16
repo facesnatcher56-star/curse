@@ -117,8 +117,11 @@ func _test_hotbar() -> void:
 		if cell["id"] == "repulse":
 			repulse_at = (cell["rect"] as Rect2).get_center()
 	press.call(repulse_at)
+	expect("choosing a skill asks for its caster before changing the slot", hud.picker.pending_skill_id == "repulse" and hud.picker.is_open())
+	for cell in hud.picker.caster_cells(size_px):
+		if cell["id"] == "hero": press.call((cell["rect"] as Rect2).get_center())
 	expect("choosing Repulse puts it on the empty key 2", skills.hotbar[1] == "repulse" and not hud.picker.is_open()
-		and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
+		and GameSettings.hotbar_caster(1) == "hero" and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
 	# The mouse button, and closing without choosing.
 	await get_tree().process_frame
 	press.call((mouse_slot["rect"] as Rect2).get_center())
@@ -141,14 +144,24 @@ func _test_hotbar() -> void:
 			take_aim_at = (cell["rect"] as Rect2).get_center()
 	expect("the picker presents Take Aim as an assignable power", take_aim_at != Vector2.ZERO)
 	press.call(take_aim_at)
+	for cell in hud.picker.caster_cells(size_px):
+		if cell["id"] == "cutter": press.call((cell["rect"] as Rect2).get_center())
 	expect("Take Aim can be assigned to hotbar slot 2", skills.hotbar[1] == "take_aim" and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
 	var cutter: ArcherCompanion = game.companion
 	if cutter != null:
+		_prepare_archer(cutter)
+		var saved_ranks := cutter.character.passive_ranks.duplicate()
+		cutter.character.passive_ranks["critical_shot"] = 1
 		cutter.take_aim_armed = false
 		cutter.take_aim_reload_remaining = 0.0
-		expect("Take Aim is usable when Cutter is ready", player.stats.can_use("take_aim") and is_equal_approx(player.stats.ult_fraction("take_aim"), 1.0))
-		skills.activate_take_aim()
-		expect("activating Take Aim hotkey arms Cutter", cutter.take_aim_armed)
+		expect("Take Aim is usable by the slot's assigned Cutter when ready", cutter.stats.can_use("take_aim") and is_equal_approx(cutter.stats.ult_fraction("take_aim"), 1.0))
+		Input.action_press("skill_2")
+		skills._route_hotbar_action("skill_2", "take_aim", 1, player.global_position)
+		Input.action_release("skill_2")
+		expect("the shared Take Aim hotkey commands Cutter", cutter.skills.take_aim_targeting or cutter.take_aim_armed)
+		expect("the controlled melee hero does not take over Cutter's targeting", not player.skills.take_aim_targeting)
+		cutter.skills.cancel_take_aim_targeting()
+		cutter.character.passive_ranks = saved_ranks
 	GameSettings.reset_hotbar()
 
 ## Drive cancellation synchronously so regeneration and input timing cannot mask a spend or refund.

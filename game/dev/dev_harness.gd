@@ -86,7 +86,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "":
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture"):
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -119,6 +119,8 @@ func run_from_args() -> bool:
 		_run("_level_up_capture", [_user_arg_value("--levelupcapture=")])
 	elif _user_arg_value("--meleecapture=") != "":
 		_run("_melee_rank_capture", [_user_arg_value("--meleecapture=")])
+	elif OS.get_cmdline_user_args().has("--powerbarcapture"):
+		_run("_powerbar_capture")
 	elif OS.get_cmdline_user_args().has("--brutalshot"):
 		_run("_brutal_shot")
 	elif OS.get_cmdline_user_args().has("--skillshot=gibs"):

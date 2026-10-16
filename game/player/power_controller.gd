@@ -149,6 +149,7 @@ func activate(id: String, cursor: Vector3) -> bool:
 		"staggering_blow":
 			staggering_armed = true   # the next landed blow releases it, and only then is it spent (DS2: preserved by a miss)
 			Sfx.power(p, "staggering_cast")
+			p.power_activated.emit(p.member_id, id)
 			if is_instance_valid(immediate_target) and not immediate_target.dead:
 				p.attack_target = immediate_target
 				p.movement.has_goal = false
@@ -165,6 +166,7 @@ func activate(id: String, cursor: Vector3) -> bool:
 		"detonation":
 			_fire_blast(_target_point(cursor), value("detonation", "radius"), "detonation", true)
 	_spend(id)
+	p.power_activated.emit(p.member_id, id)
 	return true
 
 ## The impact of a wind-up that strikes on impact (SkillController.start_power_cast reaches it at the strike frame). A power that was cut
@@ -177,6 +179,7 @@ func impact(id: String, aim: Vector3) -> void:
 		"war_cry":
 			_war_cry(aim)
 	_spend(id)
+	p.power_activated.emit(p.member_id, id)
 
 ## Whirling Strike: one spin, every enemy within reach hit for the power's share of the weapon, stunned and thrown back a little.
 func _whirling_strike() -> void:
