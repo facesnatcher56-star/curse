@@ -298,6 +298,20 @@
     "rig": false,
     "texture_resolution": "2k"
   },
+  "dungeon/chest": {
+    "prompt": "Worn dark fantasy treasure chest: iron-banded oak body, arched hinged lid, visible rear hinges, front latch, three-quarter view, base at origin",
+    "polycount": 1000,
+    "rig": false,
+    "texture_resolution": "2k",
+    "texture_prompt": "Dark stained oak, scuffed edges, dull rusted iron bands and hinges, dirt settled into seams, muted brown and charcoal, rough matte surfaces, no glow"
+  },
+  "dungeon/crate": {
+    "prompt": "Closed battered oak supply crate, fully boarded top and sides, rusty iron corner straps, chipped wood, square box, base-centered, three-quarter view",
+    "polycount": 700,
+    "rig": false,
+    "texture_resolution": "2k",
+    "texture_prompt": "Weathered dark brown oak with splinters, dirt, scuffs and chipped edges, a few dull rusty iron fittings, matte rough material, muted palette"
+  },
   "palisade": {
     "prompt": "Short section of sharpened log palisade fence with rope lashings, a few broken stakes, mud and soot at the base, single game prop",
     "polycount": 6000,

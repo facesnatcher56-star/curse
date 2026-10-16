@@ -241,5 +241,21 @@
       "idle": "01a10b73-dbc7-7224-b3e0-ec385afb526a",
       "calm": "01a10b73-dd18-7208-8abb-019f02d7e7ce"
     }
+  },
+  "dungeon_chest": {
+    "preview": "01a14153-5ed3-769f-9471-9583640099b4",
+    "refine": "01a14155-9bc8-75e9-929a-6036ef242a9d"
+  },
+  "dungeon_crate": {
+    "preview": "01a14154-242d-7192-a5d4-aea5bad1d1f0",
+    "refine": "01a14156-f543-72d5-bb50-031b1e1998ea"
+  },
+  "dungeon/chest": {
+    "preview": "01a14153-5ed3-769f-9471-9583640099b4",
+    "refine": "01a14155-9bc8-75e9-929a-6036ef242a9d"
+  },
+  "dungeon/crate": {
+    "preview": "01a1415b-209f-73da-a5af-c178b691afaf",
+    "refine": "01a1415c-767c-7388-8171-4eb7a9b56436"
   }
 }
