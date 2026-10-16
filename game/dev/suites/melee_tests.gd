@@ -666,7 +666,10 @@ func _test_brutal_attack() -> void:
 		and is_equal_approx(BrutalAttackFx.rank_scale(1), 1.0) and is_equal_approx(BrutalAttackFx.rank_scale(3), 1.8))
 	var infusion := aura.get_node("CrimsonGathering") as BrutalCrimsonFx
 	skills.tick_busy(0.14)
-	expect("the powered swing draws body energy into the weapon before contact", infusion.infusion_fraction() >= 0.5 and not skills.busy_hit_done)
+	expect("visible particle infusion is still underway during the draw-back", infusion.infusion_fraction() > 0.0 and infusion.infusion_fraction() < 1.0 and not skills.busy_hit_done)
+	expect("infusion uses most of the actual pre-contact animation", is_equal_approx(infusion.infusion_duration(), skills.busy_time * SkillController.hit_fraction(skills.busy_def) * 0.9))
+	var destination := infusion.to_local(player.model.weapon_base.global_position.lerp(player.model.weapon_tip.global_position, 0.35))
+	expect("the red particles travel from the body into the weapon itself", infusion.mote_position(0, 0).distance_to(destination) > 0.2 and infusion.mote_position(0, 1).distance_to(destination) < 0.001)
 	skills.cancel_action()
 	expect("cancelling the windup restores the armed body energy", skills.brutal_armed and infusion.infusion_fraction() == 0.0)
 	priority_target.queue_free()

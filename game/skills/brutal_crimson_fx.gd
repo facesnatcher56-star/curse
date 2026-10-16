@@ -12,6 +12,7 @@ var _ribbons: Array[MeshInstance3D] = []
 var _weapon_glow: MeshInstance3D
 var _idle_materials: Array[ShaderMaterial] = []
 var _flow_materials: Array[ShaderMaterial] = []
+var _infusion_motes: Array[MeshInstance3D] = []
 var _age := 0.0
 static var _shard_mesh: ArrayMesh
 
@@ -38,11 +39,49 @@ func setup(owner_body: Player) -> void:
 	(_weapon_glow.material_override as StandardMaterial3D).no_depth_test = true
 	_weapon_glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_weapon_glow)
+	var mote_mesh := SphereMesh.new()
+	mote_mesh.radius = 0.042
+	mote_mesh.height = 0.084
+	mote_mesh.radial_segments = 6
+	mote_mesh.rings = 3
+	# Bound HDR intensity so tonemapping keeps the particles crimson rather than orange.
+	var mote_material := _energy(Color(0.75, 0.001, 0.08), 0.35)
+	mote_material.no_depth_test = true
+	for i in 30:
+		var mote := MeshInstance3D.new()
+		mote.name = "InfusionParticle%d" % i
+		mote.mesh = mote_mesh
+		mote.material_override = mote_material
+		mote.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mote.visible = false
+		add_child(mote)
+		_infusion_motes.append(mote)
+
+func infusion_duration() -> float:
+	# Use the existing draw-back almost up to contact; never delay gameplay timing.
+	return maxf(body.skills.busy_time * SkillController.hit_fraction(body.skills.busy_def) * 0.90, 0.001)
 
 func infusion_fraction() -> float:
 	if not is_instance_valid(body) or not body.skills.busy or not bool(body.skills.busy_def.get("brutal_animation", false)):
 		return 0.0
-	return clampf(body.skills.busy_t / minf(0.28, body.skills.busy_time * 0.28), 0.0, 1.0)
+	return clampf(body.skills.busy_t / infusion_duration(), 0.0, 1.0)
+
+func mote_position(index: int, progress: float) -> Vector3:
+	var angle := float(index) * 2.39996
+	var source := Vector3(cos(angle) * 0.70, 0.25 + float(index % 7) * 0.23, sin(angle) * 0.70)
+	var destination := to_local(body.model.weapon_base.global_position.lerp(body.model.weapon_tip.global_position, 0.35 + float(index % 6) * 0.12))
+	var delay := float(index % 5) * 0.035
+	var travel := pow(clampf((progress - delay) / (1.0 - delay), 0.0, 1.0), 1.4)
+	return source.bezier_interpolate(source + Vector3.UP * 0.35, destination + Vector3.UP * 0.15, destination, travel)
+
+func _draw_motes(infusion: float) -> void:
+	for i in _infusion_motes.size():
+		var mote := _infusion_motes[i]
+		mote.visible = infusion > 0.0 and infusion < 1.0
+		if not mote.visible: continue
+		mote.position = mote_position(i, infusion)
+		# Stay vivid and distinct while moving; shrink into the weapon at arrival.
+		mote.scale = Vector3.ONE * (0.65 + float(i % 4) * 0.15) * (1.0 - smoothstep(0.88, 1.0, infusion))
 
 ## The weapon markers are shared with weapon trails and refreshed on equipment changes.
 ## Resolve them each frame so swords, axes and replacement weapons all receive the flow.
@@ -111,6 +150,7 @@ func _process(delta: float) -> void:
 		material.set_shader_parameter("fade", 1.0 - smoothstep(0.75, 1.0, infusion))
 		if infusion > 0.0: material.set_shader_parameter("flow_phase", infusion)
 	_draw_weapon_glow(width_axis, infusion)
+	_draw_motes(infusion)
 
 static func _blood_material(tint: Color) -> ShaderMaterial:
 	var material := ShaderMaterial.new()

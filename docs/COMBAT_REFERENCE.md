@@ -83,7 +83,9 @@ Rank scale `1 / 1.2 / 1.8` is retained; the former GAS colours `9E5D33 / BC5900 
 The overhead swing's combat timing, persistent armed state, miss-preserves-power rule, damage budget and lethal gibbing remain unchanged.
 Take Aim's shared orange wisps are explicitly preserved and do not receive the crimson gathering ribbons.
 The owner subsequently requested weapon infusion at the start of the swing: armed body glow and orbiting ribbons persist until
-the overhead animation begins, then collapse into live weapon markers over the first 0.28 seconds. The body wisps dim as a narrow
+the overhead animation begins, then collapse into live weapon markers over 90% of the existing pre-contact draw-back. Thirty vivid
+red particles visibly accelerate from the body into the weapon throughout that interval. This scales with actual attack speed
+without extending the combat animation or delaying the hit. The body wisps dim as a narrow
 crimson weapon highlight strengthens. The flow follows animated poses and equipment replacement; a cancelled or missed swing
 restores the armed body effect while the stored power remains available.
 The owner also requested an exaggerated blood wake behind the victim: each landed Brutal Attack projects a narrow arterial spray
