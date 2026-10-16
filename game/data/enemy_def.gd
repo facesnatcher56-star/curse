@@ -29,7 +29,7 @@ extends Resource
 @export var knock_resist: float = 0.0
 @export var stun_resist: float = 0.0
 @export var impalable: bool = true
-@export var aggro_range: float = 12.0   # metres at which an enemy notices the hero (each enemy rolls 60-100% of this)
+@export var aggro_range: float = 7.0   # metres at which an enemy notices the hero (each enemy rolls 60-100% of this)
 
 @export_group("Melee clip")
 ## Strike timing measured from the clip (see tools/anim_timing.gd): clip seconds where the swing starts, lands and ends.
