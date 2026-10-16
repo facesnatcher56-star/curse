@@ -99,6 +99,12 @@ static func assign_hotbar_caster(slot: int, member_id: String) -> void:
 	if not OS.get_cmdline_user_args().has("--selftest"):
 		save_to_disk()
 
+## Takes every skill the party has not learned off the bar (call after a rank changes, and when a game starts).
+static func prune_hotbar() -> void:
+	if OS.get_cmdline_user_args().has("--selftest"):
+		return   # the checks set their own loadouts
+	hotbar_alt = HotbarLayout.drop_unlearned(hotbar_slots, hotbar_alt)
+
 ## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.
 static func assign_hotbar(slot: int, id: String) -> void:
 	hotbar_alt = HotbarLayout.assign(hotbar_slots, hotbar_alt, slot, id)

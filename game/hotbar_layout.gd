@@ -29,6 +29,32 @@ static func is_valid(slots: Array, alt: String) -> bool:
 		seen[String(id)] = true
 	return true
 
+## Whether the party can use `id` at all: the basic attack always, a power once any party member has a rank in it.
+static func learned(id: String) -> bool:
+	if id == "basic":
+		return true
+	if PowerDb.get_def(id) == null:
+		return false
+	for member_id in PartyManager.current().members:
+		if PowerDb.hero_rank(id, String(member_id)) > 0:
+			return true
+	return false
+
+## What the picker offers: the assignable skills the party has learned, in the picker's order.
+static func learned_ids() -> Array[String]:
+	var out: Array[String] = []
+	for id in ASSIGNABLE:
+		if learned(id):
+			out.append(id)
+	return out
+
+## Takes anything the party has not learned (any more) off the keys; the right button falls back to the basic attack.
+static func drop_unlearned(slots: Array, alt: String) -> String:
+	for i in slots.size():
+		if String(slots[i]) != "" and not learned(String(slots[i])):
+			slots[i] = ""
+	return alt if learned(alt) else DEFAULT_ALT
+
 ## The slot holding `id` (0.. for the numbered ones, ALT for the mouse button, NONE if none).
 static func where(slots: Array, alt: String, id: String) -> int:
 	if alt == id:

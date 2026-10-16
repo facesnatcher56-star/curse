@@ -60,6 +60,7 @@ func _ready() -> void:
 	player = Player.new()
 	add_child(player)
 	TownScene._apply_run_gear(player)   # what the town holds (nothing, for a run that did not come from town)
+	GameSettings.prune_hotbar()   # only what the party has learned stays on the bar
 	if location != null:
 		player.global_position = location.start_position()
 		for arg in OS.get_cmdline_user_args():   # `-- --crypt --at=x,z`: start somewhere along the road (developer tool)
