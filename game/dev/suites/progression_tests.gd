@@ -10,49 +10,123 @@ func _test_class_notice() -> void:
 	var seen: Array = []
 	var on_increase: Callable = func(levels: Dictionary) -> void: seen.append(levels.duplicate())
 	TownState.events.class_skills_leveled.connect(on_increase)
-	TownState.add_hero_xp(300, false, {"melee": 1})
-	expect("earned class level emits its final level once", seen == [{"melee": 1}])
-	var label: Label3D
-	for node in get_tree().current_scene.get_children():
-		if node is Label3D and node.text == "Melee increased to 1": label = node
-	expect("class increase appears above the hero", label != null and label.global_position.y > player.global_position.y + player.body_height)
+	PartyManager.current().member("hero").class_xp = {"melee": 299, "ranged": 0, "combat": 0, "nature": 0}
 	TownState.add_hero_xp(1, false, {"melee": 1})
-	expect("XP within the same class level is silent", seen.size() == 1)
+	expect("earned class level emits its final level once", seen == [{"melee": 1}])
+	var melee_fx := player.get_node_or_null("MeleeRankUpFx") as Node3D
+	expect("melee rank uses the dedicated forged-rank effect attached to the hero", melee_fx != null and melee_fx.get_parent() == player)
+	var melee_label: Label3D = melee_fx.get_node_or_null("MeleePromotionBadge/MeleeRankPlate/MeleeRankLabel") as Label3D if melee_fx != null else null
+	expect("melee rank effect confirms advancement with a compact Roman rank", melee_label != null and melee_label.text == "MELEE  •  I")
+	expect("melee effect uses a Meshy crest and ascending forged rank marker", melee_fx != null
+		and melee_fx.find_child("MeshyMartialCrest", true, false) != null
+		and melee_fx.find_child("AscendingForgedRankMark", true, false) != null
+		and melee_fx.find_child("ForgedRankFace", true, false) != null
+		and melee_fx.find_child("SlashArc0", true, false) == null)
+	var duplicate_melee_text := false
+	for node in get_tree().current_scene.find_children("*", "Label3D", true, false):
+		if node is Label3D and node.text == "Melee increased to 1": duplicate_melee_text = true
+	expect("melee rank does not also create the old duplicate text toast", not duplicate_melee_text)
+	TownState.add_hero_xp(1, false, {"melee": 1})
+	expect("XP within the same class rank is silent", seen.size() == 1)
 	if DisplayServer.get_name() != "headless":
 		await get_tree().create_timer(0.2).timeout
 		await RenderingServer.frame_post_draw
 		var path: String = OS.get_environment("TEMP").path_join("curse_class_notice.png")
 		get_viewport().get_texture().get_image().save_png(path)
 		print("CLASS_NOTICE_CAPTURE ", path)
-	await get_tree().create_timer(2.2).timeout
-	expect("class notice remains readable beyond its former two-second lifetime", is_instance_valid(label) and label.modulate.a > 0.99)
-	await get_tree().create_timer(1.0).timeout
-	expect("class text fades", is_instance_valid(label) and label.modulate.a < 1.0)
-	await get_tree().create_timer(2.0).timeout
-	expect("class text cleans itself up", not is_instance_valid(label))
+	await get_tree().create_timer(2.15).timeout
+	expect("melee rank effect cleans itself up after its short animation", not is_instance_valid(melee_fx))
 	TownState.reset()
 	expect("reset does not celebrate a class increase", seen.size() == 1)
 	var cutter := PartyManager.current().bodies.get("cutter") as Player
 	if cutter != null:
-		TownState.add_member_xp("cutter", 300, false, {"ranged": 1})
+		PartyManager.current().member("cutter").class_xp = {"melee": 0, "ranged": 299, "combat": 0, "nature": 0}
+		TownState.add_member_xp("cutter", 1, false, {"ranged": 1})
 		var cutter_notices := 0
 		for node in get_tree().current_scene.get_children():
 			if node is Label3D and node.text == "Ranged increased to 1":
 				cutter_notices += 1
 				expect("inactive member's class notice appears above its earner", Vector2(node.global_position.x - cutter.global_position.x, node.global_position.z - cutter.global_position.z).length() < 0.01)
 		expect("inactive member gets one notice without duplicating Hero's legacy event", cutter_notices == 1 and seen.size() == 1)
+		TownState.reset()
+		PartyManager.current().member("cutter").class_xp = {"melee": 299, "ranged": 0, "combat": 0, "nature": 0}
+		TownState.add_member_xp("cutter", 1, false, {"melee": 1})
+		var cutter_melee_fx := cutter.get_node_or_null("MeleeRankUpFx") as Node3D
+		expect("Melee rank on an inactive party member attaches the same effect to Cutter", cutter_melee_fx != null and cutter_melee_fx.get_parent() == cutter
+			and cutter_melee_fx.find_child("MeleeRankLabel", true, false) != null)
+		TownState.reset()
 	TownState.class_xp = {"melee": 299, "ranged": 299, "combat": 299, "nature": 299}
 	TownState.add_hero_xp(4, false, {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})
 	expect("simultaneous increases combine all four classes into one event", seen.size() == 2 and seen[-1] == {"melee": 1, "ranged": 1, "combat": 1, "nature": 1})
 	var combined: bool = false
 	for node in get_tree().current_scene.get_children():
 		if node is Label3D and node.text.contains("Nature Magic increased to 1"):
-			combined = node.text.split("\n").size() == 4
-	expect("simultaneous classes share a readable multiline notice", combined)
+			combined = node.text.split("\n").size() == 3 and not node.text.contains("Melee increased")
+	expect("simultaneous remaining classes share one multiline notice beside the Melee effect", combined)
 	TownState.add_hero_xp(7600, false, {"ranged": 1})
 	expect("a multi-level jump shows only the final class level", int(seen[-1]["ranged"]) == HeroAttributes.class_level(7900))
 	TownState.events.class_skills_leveled.disconnect(on_increase)
 	TownState.reset()
+
+## --meleecapture=hero_still|hero_moving|cutter; add --crypt for the dim authored road.
+## Triggers a real member-aware Melee XP event and saves sequential 60 fps gameplay frames.
+func _melee_rank_capture(case_name: String) -> void:
+	TownState.persist = false
+	TownState.reset()
+	for id in ["hero", "cutter"]:
+		PartyManager.current().member(id).class_xp = {"melee": 299, "ranged": 0, "combat": 0, "nature": 0}
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	var actor: Player = game.companion if case_name == "cutter" else player
+	rig.target = actor
+	if game.location is TestDungeon:
+		rig.zoom_max = TestDungeon.ZOOM_MAX
+	rig.set_zoom_now(0.9)
+	if case_name == "cutter":
+		actor.global_position = player.global_position + Vector3(1.4, 0.0, 0.8)
+	if game.location != null:
+		await game.location.wait_for_navigation()
+		game.director.start_location(game.location)
+	else:
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		game.director.start_wave()
+	# Keep combat from adding damage numbers or interruptions over the presentation sample.
+	await get_tree().process_frame
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	# Clear the entry banner so it cannot cover the rank-up text.
+	await get_tree().create_timer(4.0).timeout
+	var out_path := ProjectSettings.globalize_path("res://.dev_output/melee-rank-frames/" + case_name)
+	var err := DirAccess.make_dir_recursive_absolute(out_path)
+	if err != OK:
+		push_error("Could not create Melee rank capture folder: " + out_path)
+		get_tree().quit(1)
+		return
+	print("MELEE_CAPTURE_START case=", case_name, " output=", out_path, " actor=", actor.member_id,
+		" crypt=", OS.get_cmdline_user_args().has("--crypt"))
+	for frame in 222:
+		if frame == 30:
+			if case_name == "cutter":
+				TownState.add_member_xp("cutter", 1, false, {"melee": 1})
+			else:
+				TownState.add_hero_xp(1, false, {"melee": 1})
+		if case_name == "hero_moving" and frame == 60:
+			actor.movement.goal = actor.global_position + Vector3(2.2, 0.0, 0.0)
+			actor.movement.has_goal = true
+		await RenderingServer.frame_post_draw
+		var image := get_viewport().get_texture().get_image()
+		if image == null:
+			push_error("Melee rank capture returned an empty image at frame " + str(frame))
+			get_tree().quit(1)
+			return
+		var save_err := image.save_jpg(out_path.path_join("frame_%06d.jpg" % frame), 0.92)
+		if save_err != OK:
+			push_error("Could not save Melee rank frame " + str(frame) + ": " + str(save_err))
+			get_tree().quit(1)
+			return
+	print("MELEE_CAPTURE_DONE case=", case_name, " frames=222 fps=60 size=", get_viewport().size)
+	get_tree().quit(0)
 
 ## The hero's permanent level: the curve, awarding XP (several levels at once, the cap), saving, loading, repairing and migrating, and
 ## how the character screen and the HUD show it.

@@ -6,6 +6,7 @@ const CLASS_NOTICE_SECONDS := 5.0 # Previously 2 seconds; owner requested three 
 const STRIP_HEIGHT := 18.0
 ## Where the strip sits above the hotbar's top edge (the stamina bar is the line just above the slots).
 const STRIP_LIFT := 40.0
+const MELEE_RANK_FX: Script = preload("res://game/fx/melee_rank_up_fx.gd")
 
 var _hud: Hud
 var _shown_level: int = 0
@@ -39,6 +40,15 @@ func _on_class_skills_leveled(member_id: String, levels: Dictionary) -> void:
 	var lines: PackedStringArray = []
 	for id in HeroAttributes.CLASSES:
 		if levels.has(id):
+			if id == "melee":
+				var old_fx := body.get_node_or_null("MeleeRankUpFx")
+				if old_fx != null:
+					old_fx.queue_free()
+				var rank_fx := MELEE_RANK_FX.new() as Node3D
+				rank_fx.name = "MeleeRankUpFx"
+				body.add_child(rank_fx)
+				rank_fx.call("start", int(levels[id]))
+				continue
 			lines.append("%s increased to %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
 	if not lines.is_empty():
 		Fx.text_at(body, body.global_position + Vector3(0, body.body_height + 0.6, 0), "\n".join(lines), UiTheme.BRONZE_LIGHT, 32, CLASS_NOTICE_SECONDS)
