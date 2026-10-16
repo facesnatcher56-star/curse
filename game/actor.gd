@@ -266,7 +266,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	away = away.normalized()
 
 	if not calm:
-		Fx.popup(self, outcome, damage, _popup_tint())
+		Fx.popup(self, outcome, damage, _popup_tint(), String(result.get("skill_id", "")))
 	if outcome == Combat.Outcome.MISS:
 		if source is Player and String(result.get("skill_id", "")) in SWORD_SKILLS and not result.get("secondary", false):
 			Sfx.sword_miss(self)   # the blade cut empty air

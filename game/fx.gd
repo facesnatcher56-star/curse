@@ -88,11 +88,12 @@ static func body_impact(from: Node, pos: Vector3, dir: Vector3, kind: String, sp
 	Sfx.body_impact(from, kind, s)
 	return true
 
-static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color(0, 0, 0, 0)) -> void:
+static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color(0, 0, 0, 0), skill_id: String = "") -> void:
 	if not GameSettings.show_damage_numbers:
 		return
 	var style: Array = OUTCOME_STYLE[outcome]
 	var critical := outcome == Combat.Outcome.CRITICAL
+	var ultimate := outcome >= Combat.Outcome.HIT and PowerDb.all().has(skill_id)
 	var text: String = "" if critical else String(style[0])
 	if outcome != Combat.Outcome.MISS and outcome != Combat.Outcome.BLOCK:
 		text += str(int(round(damage)))
@@ -100,7 +101,7 @@ static func popup(from: Node3D, outcome: int, damage: float, tint: Color = Color
 	if tint.a > 0.0 and outcome == Combat.Outcome.HIT:
 		color = tint
 	var top: float = from.body_height + 0.22 if from is Actor else 2.2
-	DamageNumber.spawn(from, from.global_position + Vector3(0, top, 0), text, color, int(style[2]), critical)
+	DamageNumber.spawn(from, from.global_position + Vector3(0, top, 0), text, color, int(style[2]), critical, ultimate)
 
 ## Burn and hazard ticks share the same typography and the damage-number setting.
 static func damage_tick(from: Node3D, damage: float, tint: Color) -> void:

@@ -4,6 +4,7 @@ extends Node3D
 ## Pure presentation: no collision, damage, status or additional hit reports.
 
 const GROUP := "brutal_blood_wake"
+const GROUND_GROUP := "brutal_blood_ground"
 static var _mist_texture: ImageTexture
 
 static func spawn(from: Node, contact: Vector3, direction: Vector3, rank_scale: float) -> void:
@@ -16,6 +17,7 @@ static func spawn(from: Node, contact: Vector3, direction: Vector3, rank_scale: 
 	var force := lerpf(1.0, 1.3, clampf((rank_scale - 1.0) / 0.8, 0.0, 1.0))
 	wake._mist(dir, force)
 	wake._arterial_spray(dir, force)
+	wake._ground_splatter(dir, force)
 	wake.get_tree().create_timer(1.25).timeout.connect(wake.queue_free)
 
 func _mist(dir: Vector3, force: float) -> void:
@@ -49,7 +51,7 @@ func _mist(dir: Vector3, force: float) -> void:
 	mist.scale_amount_curve = growth
 	var ramp := Gradient.new()
 	ramp.offsets = PackedFloat32Array([0, 0.12, 0.55, 1])
-	ramp.colors = PackedColorArray([Color(0.88, 0.025, 0.09, 0.85), Color(0.66, 0.012, 0.055, 0.72), Color(0.43, 0.008, 0.035, 0.45), Color(0.26, 0.003, 0.018, 0)])
+	ramp.colors = PackedColorArray([Color(0.34, 0.008, 0.022, 0.78), Color(0.26, 0.004, 0.014, 0.65), Color(0.17, 0.003, 0.009, 0.40), Color(0.09, 0.001, 0.004, 0)])
 	mist.color_ramp = ramp
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.8, 0.65)
@@ -92,11 +94,50 @@ func _arterial_spray(dir: Vector3, force: float) -> void:
 	drop.material = material
 	spray.mesh = drop
 	var ramp := Gradient.new()
-	ramp.set_color(0, Color("e52136"))
-	ramp.add_point(0.4, Color("a10c22"))
-	ramp.set_color(1, Color(0.30, 0.03, 0.08, 0))
+	ramp.set_color(0, Color("710b18"))
+	ramp.add_point(0.4, Color("480711"))
+	ramp.set_color(1, Color(0.16, 0.009, 0.018, 0))
 	spray.color_ramp = ramp
 	add_child(spray)
+
+func _ground_splatter(dir: Vector3, force: float) -> void:
+	var scene := get_tree().current_scene
+	var existing := get_tree().get_nodes_in_group(GROUND_GROUP)
+	if existing.size() >= 8: existing[0].queue_free()
+	var ground := Node3D.new()
+	ground.name = "BrutalGroundDroplets"
+	ground.add_to_group(GROUND_GROUP)
+	scene.add_child(ground)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var space := get_world_3d().direct_space_state
+	for i in 36:
+		# The same narrow cone as the airborne arterial spray, extending behind the victim.
+		var distance := rng.randf_range(0.4, 5.5) * force
+		var along := dir.rotated(Vector3.UP, rng.randf_range(-0.16, 0.16))
+		var candidate := global_position + along * distance
+		var query := PhysicsRayQueryParameters3D.create(candidate + Vector3.UP * 2.0, candidate - Vector3.UP * 5.0, Actor.LAYER_WORLD)
+		var hit := space.intersect_ray(query)
+		if hit.is_empty() or (hit["normal"] as Vector3).y < 0.7: continue
+		# Project onto the visible stone, whose raised tile tops differ from its collider.
+		var drop := Decal.new()
+		drop.name = "GroundBloodDrop"
+		var width := rng.randf_range(0.07, 0.19)
+		drop.size = Vector3(width, 1.0, width * rng.randf_range(1.3, 2.5))
+		drop.modulate = Color(0.24, 0.005, 0.014, 0.95)
+		drop.texture_albedo = mist_texture()
+		drop.normal_fade = 0.7
+		ground.add_child(drop)
+		var normal: Vector3 = hit["normal"]
+		var z := along.slide(normal).normalized()
+		drop.global_transform = Transform3D(Basis(normal.cross(z).normalized(), normal, z), hit["position"] + normal * 0.25)
+		drop.visible = false
+		var tween := drop.create_tween()
+		tween.tween_interval(0.25 + distance * 0.065)
+		tween.tween_callback(drop.show)
+		tween.tween_interval(6.0)
+		tween.tween_property(drop, "modulate:a", 0.0, 1.5)
+	ground.get_tree().create_timer(8.5).timeout.connect(ground.queue_free)
 
 static func mist_texture() -> ImageTexture:
 	# The dummy renderer cannot initialize an ImageTexture; logic tests need no pixels.

@@ -8,6 +8,7 @@ func _test_damage_number_presentation() -> void:
 	GameSettings.show_damage_numbers = false
 	Fx.popup(player, Combat.Outcome.CRITICAL, 248.0)
 	Fx.damage_tick(player, 12.0, Color.ORANGE)
+	Fx.popup(player, Combat.Outcome.HIT, 900.0, Color.TRANSPARENT, "brutal_attack")
 	expect("damage-number setting suppresses direct hits and ticks", get_tree().get_nodes_in_group(DamageNumber.GROUP).size() == before)
 	GameSettings.show_damage_numbers = true
 	Fx.popup(player, Combat.Outcome.HIT, 37.4)
@@ -24,8 +25,19 @@ func _test_damage_number_presentation() -> void:
 		expect("number styling preserves rounded resolved values and tick tint", normal.text == "37" and critical.text == "248" and tick.text == "12" and tick.modulate == Color.ORANGE)
 		expect("critical remains identified and more prominent", critical.font_size > normal.font_size and (numbers[1].get_child(2) as Label3D).text == "CRITICAL")
 		expect("avoided attacks show their outcome without damage values", (numbers[3].get_child(1) as Label3D).text == "Dodge" and (numbers[4].get_child(1) as Label3D).text == "Block")
-	await get_tree().create_timer(1.2).timeout
+	for id in ["brutal_attack", "take_aim", "flame_nexus"]:
+		Fx.popup(player, Combat.Outcome.HIT, 1250.4, Color.TRANSPARENT, id)
+	var powers := get_tree().get_nodes_in_group(DamageNumber.GROUP).slice(before + 5)
+	expect("melee, ranged and spell ultimates share dramatic resolved damage numbers", powers.size() == 3 and powers.all(func(number) -> bool: return (number.get_child(1) as Label3D).text == "1250" and (number.get_child(1) as Label3D).font_size == 86 and (number.get_child(2) as Label3D).text == "ULTIMATE"))
+	Fx.popup(player, Combat.Outcome.CRITICAL, 2750, Color.TRANSPARENT, "take_aim")
+	var power_crit: Node = get_tree().get_nodes_in_group(DamageNumber.GROUP).back()
+	expect("ultimate criticals retain critical identity", (power_crit.get_child(2) as Label3D).text == "ULTIMATE CRITICAL" and (power_crit.get_child(1) as Label3D).font_size == 100)
+	Fx.popup(player, Combat.Outcome.BLOCK, 0, Color.TRANSPARENT, "brutal_attack")
+	var avoided: Node = get_tree().get_nodes_in_group(DamageNumber.GROUP).back()
+	expect("an avoided ultimate keeps the ordinary Block feedback", avoided.get_child_count() == 2 and (avoided.get_child(1) as Label3D).text == "Block")
+	await get_tree().create_timer(1.5).timeout
 	expect("combat feedback cleans itself up after its hold and fade", numbers.all(func(number) -> bool: return not is_instance_valid(number)))
+	expect("ultimate damage numbers clean up after their longer hold", powers.all(func(number) -> bool: return not is_instance_valid(number)) and not is_instance_valid(power_crit))
 	GameSettings.show_damage_numbers = was_shown
 
 func _damage_number_capture() -> void:

@@ -35,6 +35,10 @@ func _test_crimson_fx() -> void:
 	var mist := wakes[0].get_node("DirectionalRedMist") as CPUParticles3D
 	var spray := wakes[0].get_node("ArterialSpray") as CPUParticles3D
 	expect("mist and arterial spray travel through the victim along the blow", mist.direction.dot(Vector3.RIGHT) > 0.98 and spray.direction.dot(Vector3.RIGHT) > 0.98)
+	var ground := get_tree().get_nodes_in_group(BrutalBloodWake.GROUND_GROUP)
+	expect("the same spray creates one projected ground-droplet trail", ground.size() == 1 and ground[0].get_child_count() > 0)
+	if not ground.is_empty():
+		expect("ground droplets follow the spray behind the victim", ground[0].get_children().all(func(drop) -> bool: return drop.global_position.x > at.x and drop.global_basis.y.dot(Vector3.UP) > 0.7))
 	await get_tree().create_timer(0.6).timeout
 	expect("rupture meshes and contact seam clean up", get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).is_empty())
 	await get_tree().create_timer(0.75).timeout
