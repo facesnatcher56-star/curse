@@ -213,7 +213,7 @@ func _draw() -> void:
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
 	var slot: float = hotbar_slot_size(size_px)
-	var slot_count: int = player.skills.hotbar.size() + 2
+	var slot_count: int = GameSettings.hotbar_slot_count() + 2
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var bar_height: float = slot + 28.0
@@ -225,10 +225,10 @@ func _draw() -> void:
 	# (A narrow stamina bar used to sit here, just above the skill tray; stamina is off, see PlayerStats.STAMINA_ON.)
 	if PlayerStats.STAMINA_ON:
 		_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
-	for i in player.skills.hotbar.size():
+	for i in GameSettings.hotbar_slot_count():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font, GameSettings.hotbar_caster(i))
-	var extra: int = player.skills.hotbar.size()
+	var extra: int = GameSettings.hotbar_slot_count()
 	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font, GameSettings.hotbar_alt_caster)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
@@ -465,7 +465,7 @@ func covers(point: Vector2) -> bool:
 ## The hotbar tray's screen rectangle.
 func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
-	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
+	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
 	var total: float = slot * count + 8.0 * (count - 1)
 	if use_ds2_ui:
 		var bar_height: float = slot + 28.0
@@ -484,7 +484,7 @@ static func minimap_rect(screen: Vector2, ds2: bool = false) -> Rect2:
 	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
-	var count: int = (player.skills.hotbar.size() + 2) if player != null else 8
+	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
 	var available: float = screen.x - orb_rect(screen, false).end.x * 2.0 - 52.0
 	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
 
@@ -573,7 +573,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 	var rect := Rect2(pos, Vector2(size_px, size_px))
 	var action_slot := HudSkillPicker.slot_of_action(action)
 	if action_slot == HotbarLayout.ALT:
-		action_slot = player.skills.hotbar.size()
+		action_slot = GameSettings.hotbar_slot_count()
 	var forge: PowerHotkeyVfx = _power_hotkey_vfx.get(action_slot) as PowerHotkeyVfx
 	if is_instance_valid(forge): forge.hide()
 	draw_rect(rect, UiTheme.INK)

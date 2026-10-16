@@ -99,6 +99,12 @@ static func assign_hotbar_caster(slot: int, member_id: String) -> void:
 	if not OS.get_cmdline_user_args().has("--selftest"):
 		save_to_disk()
 
+## How many numbered hotbar slots are in use: one per party member (every slot in the self-tests, which set their own loadouts).
+static func hotbar_slot_count() -> int:
+	if OS.get_cmdline_user_args().has("--selftest"):
+		return hotbar_slots.size()
+	return clampi(PartyManager.current().members.size(), 1, hotbar_slots.size())
+
 ## Takes every skill the party has not learned off the bar (call after a rank changes, and when a game starts).
 static func prune_hotbar() -> void:
 	if OS.get_cmdline_user_args().has("--selftest"):

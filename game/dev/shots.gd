@@ -536,7 +536,7 @@ func _powerbar_capture() -> void:
 			_set_capture_power_charge(active_id, charge)
 			frame_index = await _save_powerbar_frames(out_dir, frame_index, 1)
 		stage.text = "%s | FULL: burst, then it pulses" % title
-		frame_index = await _save_powerbar_frames(out_dir, frame_index, 200)
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 220)
 		stage.text = "%s | SPENT: back to dark" % title
 		player.power_activated.emit(player.member_id, active_id)
 		_set_capture_power_charge(active_id, 0.0)

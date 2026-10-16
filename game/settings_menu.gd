@@ -307,7 +307,7 @@ func _build_hotbar_rows(page: VBoxContainer) -> void:
 	for id in HotbarLayout.learned_ids():
 		names.append(String(SkillDb.all()[id]["name"]))
 	var slots: Array[int] = []
-	for i in GameSettings.hotbar_slots.size():
+	for i in GameSettings.hotbar_slot_count():
 		slots.append(i)
 	slots.append(HotbarLayout.ALT)
 	var caster_ids: Array[String] = []

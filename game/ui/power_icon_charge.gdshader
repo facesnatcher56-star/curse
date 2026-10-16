@@ -17,6 +17,6 @@ void fragment() {
 	float lum = dot(base.rgb, vec3(0.2126, 0.7152, 0.0722));
 	col *= 1.0 + pulse * 0.28;
 	col += theme * pulse * 0.16 * (0.4 + lum);
-	col += (theme * 1.1 + vec3(0.35)) * burst * (0.35 + lum);
+	col += (theme * 1.6 + vec3(0.6)) * burst * (0.5 + lum);
 	COLOR = vec4(col, base.a);
 }

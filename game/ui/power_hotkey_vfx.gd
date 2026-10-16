@@ -5,7 +5,7 @@ extends Control
 ## All of it follows the assigned power's real charge (the same value the portrait ring reads).
 
 const ICON_SHADER := preload("res://game/ui/power_icon_charge.gdshader")
-const BURST_SECONDS := 0.8
+const BURST_SECONDS := 1.4
 const PULSE_SECONDS := 1.6
 static var _themes: Dictionary = {}
 
@@ -83,8 +83,8 @@ func _process(delta: float) -> void:
 	_clock += delta
 	_burst_left = maxf(_burst_left - delta, 0.0)
 	var pulse: float = 0.5 + 0.5 * sin(_clock * TAU / PULSE_SECONDS) if _ready_now else 0.0
-	var burst: float = pow(_burst_left / BURST_SECONDS, 2.0)
-	_icon_material.set_shader_parameter("pulse", pulse * smoothstep(0.55, 0.3, _burst_left / BURST_SECONDS) if _burst_left > 0.0 else pulse)
+	var burst: float = pow(_burst_left / BURST_SECONDS, 3.0)
+	_icon_material.set_shader_parameter("pulse", pulse * smoothstep(0.5, 0.2, _burst_left / BURST_SECONDS) if _burst_left > 0.0 else pulse)
 	_icon_material.set_shader_parameter("burst", burst)
 	queue_redraw()
 
@@ -96,14 +96,30 @@ func _draw() -> void:
 	if _burst_left > 0.0:
 		var p: float = 1.0 - _burst_left / BURST_SECONDS
 		var fade: float = 1.0 - p
-		for ring in 2:
-			var grow: float = clampf(p * (1.0 + 0.35 * ring), 0.0, 1.0)
-			draw_arc(centre, radius * (0.55 + 0.95 * grow), 0.0, TAU, 48, Color(_theme, 0.85 * fade), 3.0 * fade + 1.0, true)
-		for ray in 14:
-			var angle: float = TAU * float(ray) / 14.0 + 0.2
+		var white := Color(1, 1, 1).lerp(_theme, 0.35)
+		# The climax: a hot flash on the icon, then three shockwaves, long rays and a spray of sparks flying well past the slot.
+		var flash: float = pow(clampf(1.0 - p * 4.0, 0.0, 1.0), 2.0)
+		draw_circle(centre, radius * (1.0 + 1.1 * p), Color(white, 0.55 * flash))
+		draw_circle(centre, radius * (0.6 + 1.6 * p), Color(_theme, 0.28 * fade * fade))
+		for ring in 3:
+			var q: float = clampf((p - 0.08 * ring) / (1.0 - 0.08 * ring), 0.0, 1.0)
+			if q <= 0.0:
+				continue
+			var ring_fade: float = pow(1.0 - q, 1.4)
+			draw_arc(centre, radius * (0.5 + 3.0 * pow(q, 0.6)), 0.0, TAU, 64, Color(_theme, 0.9 * ring_fade), 7.0 * ring_fade + 1.5, true)
+			draw_arc(centre, radius * (0.5 + 3.0 * pow(q, 0.6)) - 3.0, 0.0, TAU, 64, Color(white, 0.55 * ring_fade), 2.0, true)
+		for ray in 24:
+			var angle: float = TAU * float(ray) / 24.0 + 0.1
 			var dir := Vector2(cos(angle), sin(angle))
-			draw_line(centre + dir * radius * (0.7 + 0.8 * p), centre + dir * radius * (0.9 + 1.1 * p), Color(_theme, 0.9 * fade), 2.0, true)
-		draw_circle(centre, radius * (0.4 + 0.5 * p), Color(_theme, 0.30 * fade))
+			var length: float = 2.6 if ray % 2 == 0 else 1.5
+			var reach: float = clampf(p * 2.2, 0.0, 1.0)
+			draw_line(centre + dir * radius * (0.8 + length * 0.55 * reach), centre + dir * radius * (0.8 + length * reach), Color(_theme, 0.95 * pow(fade, 0.8)), 3.5 if ray % 2 == 0 else 2.0, true)
+		for spark in 36:
+			var angle: float = float(spark) * 2.39996
+			var speed: float = 1.6 + 1.9 * fposmod(float(spark) * 0.618, 1.0)
+			var travel: float = radius * speed * (1.0 - pow(1.0 - p, 2.0)) * 1.7
+			var at: Vector2 = centre + Vector2(cos(angle), sin(angle)) * travel + Vector2(0.0, 34.0 * p * p)
+			draw_circle(at, (2.4 + 2.2 * fposmod(float(spark) * 0.37, 1.0)) * fade + 0.6, Color(white if spark % 3 == 0 else _theme, 0.95 * fade))
 	else:
 		var pulse: float = 0.5 + 0.5 * sin(_clock * TAU / PULSE_SECONDS)
 		draw_rect(Rect2(Vector2.ONE * 3.0, size - Vector2.ONE * 6.0), Color(_theme, 0.25 + 0.55 * pulse), false, 2.0)
