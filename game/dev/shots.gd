@@ -516,34 +516,30 @@ func _powerbar_capture() -> void:
 	explanation.position = Vector2(0, view_size.y - 150)
 	explanation.size = Vector2(view_size.x, 48)
 	explanation.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	explanation.text = "CONTROLLED STATE PLAYBACK | Same three icons throughout\nStaged gameplay values and release cue; not a recharge-speed or combat test"
+	explanation.text = "CONTROLLED STATE PLAYBACK | Each icon completes the sequence independently\nStaged gameplay values and release cue; not a recharge-speed or combat test"
 	explanation.add_theme_font_size_override("font_size", 16)
 	explanation.add_theme_color_override("font_outline_color", Color.BLACK)
 	explanation.add_theme_constant_override("outline_size", 8)
 	explanation.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(explanation)
-	var out_dir := ProjectSettings.globalize_path("res://.dev_output/powerbar_icon_v2_frames")
+	var out_dir := ProjectSettings.globalize_path("res://.dev_output/powerbar_forge_v3_frames")
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var frame_index := 0
-	for charge in [0.0, 0.25, 0.50, 0.75, 0.95]:
-		stage.text = "%d%% CHARGE | Held for comparison" % int(charge * 100.0)
-		for id in powers: _set_capture_power_charge(id, charge)
-		frame_index = await _save_powerbar_frames(out_dir, frame_index, 42)
-	stage.text = "REACHING FULL CHARGE | Watch the icon glint"
-	for frame in 12:
-		var charge := 0.95 + 0.05 * float(frame + 1) / 12.0
-		for id in powers: _set_capture_power_charge(id, charge)
-		frame_index = await _save_powerbar_frame(out_dir, frame_index)
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
-	stage.text = "100% CHARGE | Ready"
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
-	stage.text = "ACTIVATION CUE | Reflections contract into the artwork"
-	for id in powers:
-		player.power_activated.emit(player.member_id, id)
-		_set_capture_power_charge(id, 0.0) # actual post-use recharge state
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 18)
-	stage.text = "0% CHARGE | Release finished; artwork returns immediately"
-	frame_index = await _save_powerbar_frames(out_dir, frame_index, 60)
+	for active_id in powers:
+		for id in powers: _set_capture_power_charge(id, 0.0)
+		var title: String = SkillDb.all()[active_id]["name"]
+		for charge in [0.0, 0.25, 0.50, 0.75, 1.0]:
+			stage.text = "%s | %d%% CHARGE" % [title, int(charge * 100.0)]
+			_set_capture_power_charge(active_id, charge)
+			frame_index = await _save_powerbar_frames(out_dir, frame_index, 30)
+		stage.text = "%s | READY - steady forged border after the glint" % title
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 24)
+		stage.text = "%s | ACTIVATION - frame and icon discharge together (0.18 s)" % title
+		player.power_activated.emit(player.member_id, active_id)
+		_set_capture_power_charge(active_id, 0.0)
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 12)
+		stage.text = "%s | 0%% CHARGE - release finished" % title
+		frame_index = await _save_powerbar_frames(out_dir, frame_index, 24)
 	print("POWERBAR_CAPTURE frames=", frame_index, " path=", out_dir)
 	get_tree().quit()
 

@@ -109,6 +109,13 @@ func _test_power_ui() -> void:
 		and is_equal_approx(float(forge_a._frame_material.get_shader_parameter("charge")), 0.35))
 	forge_a.hide()
 	forge_b.hide()
+	forge_a.present(brutal_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 0.0, true, false, 0.0, PowerHotkeyVfx.RELEASE_SECONDS, true)
+	forge_b.present(flame_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 0.5, true, false, 0.0, 0.0, true)
+	expect("release synchronizes frame and icon without flashing another slot",
+		is_equal_approx(float(forge_a._frame_material.get_shader_parameter("release")), 1.0)
+		and is_equal_approx(float(forge_a._icon_material.get_shader_parameter("release")), 1.0)
+		and is_zero_approx(float(forge_b._frame_material.get_shader_parameter("release")))
+		and is_zero_approx(float(forge_b._icon_material.get_shader_parameter("release"))))
 	var saved_slot: String = player.skills.hotbar[0]
 	player.skills.hotbar[0] = ""
 	await _settle()

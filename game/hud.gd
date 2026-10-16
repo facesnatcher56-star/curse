@@ -646,7 +646,7 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		var power_key := "%s:%s" % [slot_player.member_id, id]
 		var charge: float = slot_player.stats.ult_fraction(id)
 		if _was_cooling.get(power_key, false) and charge >= 0.999 and slot_player.stats.can_use(id):
-			_ready_flash[power_key] = 0.35
+			_ready_flash[power_key] = PowerHotkeyVfx.READY_GLINT_SECONDS
 		_was_cooling[power_key] = charge < 0.999
 		var ready_flash: float = float(_ready_flash.get(power_key, 0.0))
 		var activation_flash: float = float(_power_activation_flash.get(power_key, 0.0))
@@ -738,7 +738,7 @@ var _was_cooling: Dictionary = {}
 var _ready_flash: Dictionary = {}
 
 func _on_power_activated(member_id: String, power_id: String) -> void:
-	_power_activation_flash["%s:%s" % [member_id, power_id]] = 0.24
+	_power_activation_flash["%s:%s" % [member_id, power_id]] = PowerHotkeyVfx.RELEASE_SECONDS
 	queue_redraw()
 
 ## Charging remains visible while a power is recharging; only its unlock and weapon stance gate the frame.

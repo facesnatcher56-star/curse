@@ -6,6 +6,8 @@ extends Control
 const FRAME_SHADER := preload("res://game/ui/power_frame_forge.gdshader")
 const ICON_SHADER := preload("res://game/ui/power_icon_awakening.gdshader")
 const LEGACY_FRAME := preload("res://assets/ui/vessels/skill_bezel.png")
+const READY_GLINT_SECONDS := 0.18
+const RELEASE_SECONDS := 0.18
 
 var _frame: NinePatchRect
 var _legacy_frame: TextureRect
@@ -65,9 +67,10 @@ func present(icon: Texture2D, rect: Rect2, charge: float, available: bool, cooli
 	_icon.size = size - _icon.position * 2.0
 	var active_charge := clampf(charge, 0.0, 1.0) if available and not cooling else 0.0
 	_frame_material.set_shader_parameter("charge", active_charge)
+	_frame_material.set_shader_parameter("frame_size", size)
 	_frame_material.set_shader_parameter("enabled", 1.0 if available and not cooling else 0.0)
-	_frame_material.set_shader_parameter("ready_glint", clampf(ready_glint / 0.35, 0.0, 1.0))
-	_frame_material.set_shader_parameter("release", clampf(release / 0.24, 0.0, 1.0))
+	_frame_material.set_shader_parameter("ready_glint", clampf(ready_glint / READY_GLINT_SECONDS, 0.0, 1.0))
+	_frame_material.set_shader_parameter("release", clampf(release / RELEASE_SECONDS, 0.0, 1.0))
 	_icon_material.set_shader_parameter("charge", active_charge)
-	_icon_material.set_shader_parameter("ready_glint", clampf(ready_glint / 0.35, 0.0, 1.0))
-	_icon_material.set_shader_parameter("release", clampf(release / 0.24, 0.0, 1.0))
+	_icon_material.set_shader_parameter("ready_glint", clampf(ready_glint / READY_GLINT_SECONDS, 0.0, 1.0))
+	_icon_material.set_shader_parameter("release", clampf(release / RELEASE_SECONDS, 0.0, 1.0))
