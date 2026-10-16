@@ -72,14 +72,32 @@ reload damage = 21 × (6 + 1.5 × hero level) × (1 + 0.022 × hero level) × ac
 
 After the power lands, subsequent damage dealt by the active party subtracts from that budget. Waiting does nothing. The power's own
 damage does not refill itself. Its stored activation survives a miss, dodge, block, dead target or out-of-range swing and is spent only
-by a successful melee hit. The visible armed state is a restrained orange heat haze that traces just outside the character's
-silhouette like rising steam, based on the owner's direct DS2 screenshot. It is not a weapon coating, ground pool, or fire cloud.
+by a successful melee hit. DS2's restrained orange silhouette haze was the original presentation baseline, based on the owner's screenshot.
 
-Brutal Attack presentation (`BrutalAttackFx`): wisps follow the main body bones after animation evaluation, with a brief inward
-gather on activation (visual only; no cast delay). Impact uses directional cones and forward/backward particles, with DS2's
-rank colours `9E5D33 / BC5900 / 8F2808` and cone scale `1 / 1.2 / 1.8`, traced from `efct_brutal_attack.gas`.
-These are native Godot approximations, not imported DS2 art. The owner's special overhead swing, persistent armed aura,
-miss-preserves-power rule and lethal-power gibbing remain intentional Curse choices.
+Brutal Attack presentation (owner revision, 2026-10-16): the owner explicitly chose blood-red supernatural force and requested a
+flashier revision of the full activation, swing and impact sequence. Crimson bone-following wisps, gathering streams into the equipped melee weapon,
+an empowered blade wake and a narrow contact tear now replace the restrained orange presentation. Meshy-generated serrated
+rupture geometry fractures away from a landed hit, with dark cores and bright crimson edges. This is a deliberate Curse departure,
+not DS2 visual parity. The provenance and 20-credit generation are recorded in `assets/fx/brutal_crimson_rupture.json`.
+Rank scale `1 / 1.2 / 1.8` is retained; the former GAS colours `9E5D33 / BC5900 / 8F2808` are replaced by `D61036 / EF2546 / FF5367`.
+The overhead swing's combat timing, persistent armed state, miss-preserves-power rule, damage budget and lethal gibbing remain unchanged.
+Take Aim's shared orange wisps are explicitly preserved and do not receive the crimson gathering ribbons.
+The owner subsequently requested weapon infusion at the start of the swing: armed body glow and orbiting ribbons persist until
+the overhead animation begins, then collapse into live weapon markers over 90% of the existing pre-contact draw-back. Thirty vivid
+red particles visibly accelerate from the body into the weapon throughout that interval. This scales with actual attack speed
+without extending the combat animation or delaying the hit. The body wisps dim as a narrow
+crimson weapon highlight strengthens. The flow follows animated poses and equipment replacement; a cancelled or missed swing
+restores the armed body effect while the stored power remains available.
+The owner also requested an exaggerated blood wake behind the victim: each landed Brutal Attack projects a narrow arterial spray
+and an expanding red mist plume along the attacker-to-victim direction. It remains visible briefly after the rupture, fades out,
+and cleans up after 1.25 seconds. It is visual only, applies on both nonlethal and lethal hits, and shares impact deduplication.
+The follow-up revision uses darker blood reds, removes the bright pink impact flecks and deposits small elongated droplets
+along the same spray cone. Droplets project onto walkable ground, appear as the spray falls, then fade; at most eight trails persist.
+All ultimate powers use larger embossed bone-gold damage numerals with a crimson shadow and a stronger impact pop. The owner
+requested no ULTIMATE caption; only critical hits retain a CRITICAL caption. Classification uses the resolved hit's power ID; normal hits, ticks, avoided outcomes
+and the damage-number visibility setting retain their existing behavior. No damage values or combat timing change.
+The owner removed the inward body-particle activation burst, preserving the armed red glow and the swing's weapon infusion.
+Ground spray coverage is increased to 56 larger droplets per trail, tapering in size with distance behind the victim.
 
 Current example—Take Aim: Cutter automatically arms DS2's first Ranged power when ready. Its arrow cannot crit and uses the rank's
 weapon-damage multiplier. Verified `power_take_aim.skrit` starts reload at release, not impact: an arrow striking terrain spends it.

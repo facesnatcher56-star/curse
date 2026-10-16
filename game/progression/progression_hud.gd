@@ -1,21 +1,12 @@
 class_name ProgressionHud
 extends Control
-## The HUD's reward loop for the hero's level (see HeroProgression, TownState): a compact level + XP strip over the hotbar, a brief plate
-## when a level is reached. It owns no progression state: the strip reads TownState every frame, and the plate is built from `ProgressionEvents.hero_leveled` (an award that crosses several
-## levels is one event; awards landing while the plate is still up are folded into it, not stacked). Drawn in code like the rest of the HUD.
+## The HUD's reward loop for the hero's level: a compact level + XP strip over the hotbar. The level-up celebration is in-world, attached to the earning character.
 
-const TOAST_SECONDS := 3.2
 const CLASS_NOTICE_SECONDS := 5.0 # Previously 2 seconds; owner requested three extra.
-const TOAST_IN := 0.22
-const TOAST_OUT := 0.7
 const STRIP_HEIGHT := 18.0
 ## Where the strip sits above the hotbar's top edge (the stamina bar is the line just above the slots).
 const STRIP_LIFT := 40.0
-
-var toast_text: String = ""
-var toast_levels: int = 0          # levels the plate in view covers (more than one reads "+N levels")
-var toast_time: float = 0.0
-var toast_count: int = 0           # how many hero_leveled events were folded into the plate (tests read it)
+const MELEE_RANK_FX: Script = preload("res://game/fx/melee_rank_up_fx.gd")
 
 var _hud: Hud
 var _shown_level: int = 0
@@ -29,16 +20,12 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_shown_level = TownState.hero_level
 	_shown_fraction = HeroProgression.level_fraction(TownState.hero_xp)
-	if not TownState.events.hero_leveled.is_connected(_on_hero_leveled):
-		TownState.events.hero_leveled.connect(_on_hero_leveled)
-		TownState.events.hero_xp_changed.connect(_on_xp_changed)
-		TownState.events.member_class_skills_leveled.connect(_on_class_skills_leveled)
-		_connected = true
+	TownState.events.hero_xp_changed.connect(_on_xp_changed)
+	TownState.events.member_class_skills_leveled.connect(_on_class_skills_leveled)
+	_connected = true
 
 func _exit_tree() -> void:
 	if _connected:
-		if TownState.events.hero_leveled.is_connected(_on_hero_leveled):
-			TownState.events.hero_leveled.disconnect(_on_hero_leveled)
 		if TownState.events.hero_xp_changed.is_connected(_on_xp_changed):
 			TownState.events.hero_xp_changed.disconnect(_on_xp_changed)
 		if TownState.events.member_class_skills_leveled.is_connected(_on_class_skills_leveled):
@@ -53,6 +40,15 @@ func _on_class_skills_leveled(member_id: String, levels: Dictionary) -> void:
 	var lines: PackedStringArray = []
 	for id in HeroAttributes.CLASSES:
 		if levels.has(id):
+			if id == "melee":
+				var old_fx := body.get_node_or_null("MeleeRankUpFx")
+				if old_fx != null:
+					old_fx.queue_free()
+				var rank_fx := MELEE_RANK_FX.new() as Node3D
+				rank_fx.name = "MeleeRankUpFx"
+				body.add_child(rank_fx)
+				rank_fx.call("start", int(levels[id]))
+				continue
 			lines.append("%s increased to %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
 	if not lines.is_empty():
 		Fx.text_at(body, body.global_position + Vector3(0, body.body_height + 0.6, 0), "\n".join(lines), UiTheme.BRONZE_LIGHT, 32, CLASS_NOTICE_SECONDS)
@@ -64,20 +60,7 @@ func _on_xp_changed(old_xp: int, new_xp: int) -> void:
 		_shown_level = TownState.hero_level
 		_shown_fraction = HeroProgression.level_fraction(new_xp)
 
-## One level-up, or several at once. A plate still on screen takes the new award into its totals and shows the level now reached.
-func _on_hero_leveled(old_level: int, new_level: int, _new_xp: int) -> void:
-	if toast_time > 0.0:
-		toast_levels += new_level - old_level
-	else:
-		toast_levels = new_level - old_level
-	toast_count += 1
-	toast_text = "LEVEL %d" % new_level
-	toast_time = TOAST_SECONDS
-	if is_inside_tree():
-		Sfx.sample(self, "leap_land", -12.0, 0.75)
-
 func _process(delta: float) -> void:
-	toast_time = maxf(toast_time - delta, 0.0)
 	_flash = maxf(_flash - delta * 2.2, 0.0)
 	if TownState.hero_level != _shown_level:   # a new level: the bar starts over and fills to what is left
 		_shown_level = TownState.hero_level
@@ -111,20 +94,10 @@ func _draw() -> void:
 	var font: Font = ThemeDB.fallback_font
 	if not _hud.player.dead and not _hud.use_ds2_ui:
 		_draw_strip(size_px, font)
-	_draw_toast(size_px, font)
 
-## The level-up plate bounds in viewport coordinates, shared with other HUD elements that must avoid it.
-func toast_rect(size_px: Vector2) -> Rect2:
-	if toast_time <= 0.0:
-		return Rect2()
-	var age: float = TOAST_SECONDS - toast_time
-	var slide: float = (1.0 - clampf(age / TOAST_IN, 0.0, 1.0)) * -12.0
-	var lines: int = 1 if toast_levels > 1 else 0
-	var width: float = 240.0
-	var target_bottom := 80.0
-	if _hud.use_ds2_ui and is_instance_valid(_hud.ds2_target_banner) and _hud.ds2_target_banner.visible:
-		target_bottom = _hud.ds2_target_banner.get_global_rect().end.y + 12.0
-	return Rect2(Vector2((size_px.x - width) * 0.5, target_bottom + slide), Vector2(width, 54.0 + 22.0 * lines))
+## Legacy callers use this geometry to avoid the old screen-space toast. There is no HUD plate now.
+func toast_rect(_size_px: Vector2) -> Rect2:
+	return Rect2()
 
 func _draw_strip(size_px: Vector2, font: Font) -> void:
 	var rect: Rect2 = strip_rect(size_px)
@@ -148,20 +121,4 @@ func _draw_strip(size_px: Vector2, font: Font) -> void:
 	draw_arc(badge, 12.5, 0.0, TAU, 32, UiTheme.BRONZE.darkened(0.3), 1.0)
 	var level_number: String = str(TownState.hero_level)
 	UiTheme.text(self, UiTheme.heading_font(), badge + Vector2(-20.0, 6.0), level_number, 17, UiTheme.BRONZE_LIGHT.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, 40.0)
-
-func _draw_toast(size_px: Vector2, font: Font) -> void:
-	if toast_time <= 0.0:
-		return
-	var age: float = TOAST_SECONDS - toast_time
-	var fade: float = clampf(minf(age / TOAST_IN, toast_time / TOAST_OUT), 0.0, 1.0)
-	var lines: int = 1 if toast_levels > 1 else 0
-	var plate: Rect2 = toast_rect(size_px)
-	UiTheme.draw_panel(self, plate, 0.9 * fade, false)
-	var spread: float = clampf(age / 0.35, 0.0, 1.0)   # the ember line draws out from the middle
-	var line_w: float = (plate.size.x - 48.0) * spread
-	draw_rect(Rect2(Vector2(plate.get_center().x - line_w * 0.5, plate.position.y + 41.0), Vector2(line_w, 2)), Color(UiTheme.EMBER.r, UiTheme.EMBER.g, UiTheme.EMBER.b, 0.8 * fade))
-	UiTheme.text(self, font, plate.position + Vector2(0, 33), toast_text, 30, Color(UiTheme.BRONZE_LIGHT.lightened(0.35), fade), HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
-	var row: float = 62.0
-	if toast_levels > 1:
-		UiTheme.text(self, font, plate.position + Vector2(0, row), "+%d levels" % toast_levels, 15, Color(UiTheme.TEXT_DIM, fade), HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
 

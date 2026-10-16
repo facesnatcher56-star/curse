@@ -266,7 +266,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	away = away.normalized()
 
 	if not calm:
-		Fx.popup(self, outcome, damage, _popup_tint())
+		Fx.popup(self, outcome, damage, _popup_tint(), String(result.get("skill_id", "")))
 	if outcome == Combat.Outcome.MISS:
 		if source is Player and String(result.get("skill_id", "")) in SWORD_SKILLS and not result.get("secondary", false):
 			Sfx.sword_miss(self)   # the blade cut empty air
@@ -681,7 +681,7 @@ func _tick_burn(delta: float) -> void:
 	if _burn_clock >= BURN_TICK:
 		_burn_clock = 0.0
 		if not dead and _burn_owed >= 0.5:
-			Fx.text_at(self, global_position + Vector3(randf_range(-0.3, 0.3), body_height + 0.4, randf_range(-0.2, 0.2)), str(maxi(roundi(_burn_owed), 1)), Color(1.0, 0.55, 0.12), 34)
+			Fx.damage_tick(self, maxi(roundi(_burn_owed), 1), Color(1.0, 0.55, 0.12))
 			Fx.burst(self, global_position + Vector3(0, body_height * 0.6, 0), Vector3.UP, Color(1.0, 0.5, 0.1), 6, 2.8, 0.03)
 			if _flames != null:
 				_flames.scale = Vector3.ONE * 1.35

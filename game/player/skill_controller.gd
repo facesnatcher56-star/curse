@@ -8,20 +8,20 @@ func _init(player: Player) -> void:
 	p = player
 
 const COMBO_WINDOW := 0.9
-## The numbered slots: the very array the settings keep (HotbarLayout), so a change anywhere is a change everywhere.
+## The single-party hotbar: every controlled body reads this same layout.
 var hotbar: Array[String]:
-	get: return p.character.hotbar
-	set(value): p.character.hotbar = value
+	get: return GameSettings.hotbar_slots
+	set(value): GameSettings.hotbar_slots.assign(value)
 var right_click_skill: String:
-	get:
-		return p.character.hotbar_alt
-	set(value):
-		p.character.hotbar_alt = value
+	get: return GameSettings.hotbar_alt
+	set(value): GameSettings.hotbar_alt = value
+
+func caster_id(slot: int) -> String:
+	return GameSettings.hotbar_caster(slot)
 
 ## Puts a skill on a slot (0.. numbered, HotbarLayout.ALT for the right mouse button); if it was on another slot the two swap.
 func assign_slot(slot: int, id: String) -> void:
-	p.character.hotbar_alt = HotbarLayout.assign(hotbar, right_click_skill, slot, id)
-	TownState.save()
+	GameSettings.assign_hotbar(slot, id)
 	clear_aim()
 
 const TAKE_AIM_CURSOR := preload("res://assets/ui/cursors/take_aim_reticle.png")
@@ -71,24 +71,47 @@ func handle_hotkeys(cursor: Vector3) -> void:
 		drink_potion()
 	if Input.is_action_just_pressed("use_mana_potion"):
 		drink_mana_potion()
+	if not Input.is_action_pressed("alt_skill"):
+		for body in PartyManager.current().bodies.values():
+			if is_instance_valid(body): body.skills.swallow_alt = false
 	for i in hotbar.size():
-		var action: String = "skill_%d" % (i + 1)
-		var id: String = hotbar[i]
-		if id == "":
-			continue
-		if not Input.is_action_just_pressed(action):
-			continue
-		if id == "take_aim":
-			activate_take_aim()
-		else:
-			if take_aim_targeting:
-				cancel_take_aim_targeting()
-			if id == "brutal_attack":
-				activate_brutal_attack()
-			elif PowerController.LIVE.has(id):
-				p.powers.activate(id, cursor)
-			else:
-				interrupt_for(id, cursor)
+		_route_hotbar_action("skill_%d" % (i + 1), hotbar[i], i, cursor)
+	_route_hotbar_action("alt_skill", right_click_skill, HotbarLayout.ALT, cursor)
+	for body in PartyManager.current().bodies.values():
+		if is_instance_valid(body) and (body.skills.take_aim_targeting or body.skills.aiming_id != ""):
+			body.skills.check_cancel()
+			body.skills.update_aim(cursor)
+
+## A shared key always sends its command to the member assigned to that slot, independent of who is controlled.
+func _route_hotbar_action(action: String, id: String, slot: int, cursor: Vector3) -> void:
+	if id == "":
+		return
+	var caster_id := GameSettings.hotbar_caster(slot)
+	var caster := PartyManager.current().bodies.get(caster_id) as Player
+	if not is_instance_valid(caster) or caster.dead:
+		if Input.is_action_just_pressed(action):
+			p._say("%s is not available" % caster_id.capitalize())
+		return
+	var controller: SkillController = caster.skills
+	if action == "alt_skill" and (p.skills.swallow_alt or controller.swallow_alt):
+		return
+	if Input.is_action_just_pressed(action) and controller.take_aim_targeting and id != "take_aim":
+		controller.cancel_take_aim_targeting()
+	if bool(SkillDb.all()[id].get("aimed", false)):
+		controller.handle_aimed_key(action, id, cursor)
+		return
+	if not Input.is_action_pressed(action):
+		return
+	if id == "brutal_attack":
+		if Input.is_action_just_pressed(action): controller.activate_brutal_attack()
+	elif id == "take_aim":
+		if Input.is_action_just_pressed(action): controller.activate_take_aim(p.pad_facing_target() as Enemy)
+	elif PowerController.LIVE.has(id):
+		if Input.is_action_just_pressed(action): caster.powers.activate(id, cursor)
+	else:
+		if Input.is_action_just_pressed(action) and id != "basic":
+			controller.interrupt_for(id, cursor)
+		controller.queue_skill(id, cursor)
 
 ## A skill pressed mid-action cancels it (a skill never waits behind a basic swing); the same for a numbered key and for the skill on the right mouse button.
 func interrupt_for(id: String, cursor: Vector3) -> void:
@@ -202,13 +225,14 @@ func activate_brutal_attack() -> void:
 		cancel_action()
 	clear_queue()
 	brutal_armed = true
+	p.power_activated.emit(p.member_id, "brutal_attack")
 	_ensure_brutal_visual()
 	if is_instance_valid(immediate_target) and not immediate_target.dead:
 		p.attack_target = immediate_target
 		p.movement.has_goal = false
 		start_skill("basic", immediate_target)
 
-func activate_take_aim() -> void:
+func activate_take_aim(target_override: Enemy = null) -> void:
 	if not p.stats.can_use("take_aim"):
 		p._say("Take Aim requires Critical Shot, a bow, and full charge")
 		return
@@ -219,16 +243,20 @@ func activate_take_aim() -> void:
 		cancel_take_aim_targeting()
 		return
 	if Gamepad.active:
-		var target := p.pad_facing_target() as Enemy
+		var target := target_override if is_instance_valid(target_override) else p.pad_facing_target() as Enemy
 		if target != null: _arm_take_aim(target)
-		else: p.bow.arm()
+		else:
+			p.bow.arm()
+			p.power_activated.emit(p.member_id, "take_aim")
 		return
 	start_take_aim_targeting()
+	p.power_activated.emit(p.member_id, "take_aim")
 
 func _arm_take_aim(target: Enemy) -> void:
 	if not p.stats.can_use("take_aim"): return
 	cancel_action()
 	p.bow.arm()
+	p.power_activated.emit(p.member_id, "take_aim")
 	p.attack_target = target
 	p.movement.has_goal = false
 	if p.flat_distance_to(target) <= 17.0: start_skill("basic", target)
@@ -313,6 +341,7 @@ func _release_aim(cursor: Vector3) -> void:
 			p._say("Not enough mana")
 		return
 	clear_aim(true)
+	interrupt_for(id, point)   # a cast released mid-swing cancels it, like every other usable skill
 	start_skill(id, null, point)
 
 func clear_aim(keep_orb: bool = false) -> void:
@@ -564,9 +593,10 @@ func start_opening(target: Actor, style: Dictionary) -> void:
 func _style_trail(_id: String) -> void:
 	if p._trail == null:
 		return
-	p._trail.tint = Color(1.0, 0.92, 0.75)
-	p._trail.max_age = WeaponTrail.DEFAULT_AGE
-	p._trail.strength = 0.4
+	var crimson := bool(busy_def.get("brutal_animation", false))
+	p._trail.tint = Color("ff3456") if crimson else Color(1.0, 0.92, 0.75)
+	p._trail.max_age = 0.32 if crimson else WeaponTrail.DEFAULT_AGE
+	p._trail.strength = 0.7 if crimson else 0.4
 
 ## Picks the next swing of the combo and returns it merged over the basic attack stats.
 func _next_basic() -> Dictionary:
@@ -630,6 +660,7 @@ func tick_busy(delta: float) -> void:
 	if String(skill["kind"]) == "melee":
 		# Coil back while gathering the swing, then throw the weight forward through the strike.
 		var heft: float = clampf(float(skill["weight"]), 0.8, 1.7)
+		if bool(skill.get("brutal_animation", false)): heft = 2.25
 		if u < hf:
 			p.visual.rotation.x = -0.14 * heft * sin(clampf(u / hf, 0.0, 1.0) * PI * 0.5)
 		else:

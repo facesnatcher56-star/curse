@@ -19,6 +19,9 @@ var alive: int = 0
 var show_gear: bool = false
 var character_panel: Control
 var _member_staged: Dictionary = {}
+var _connected_power_signal_ids: Dictionary = {}
+var _power_activation_flash: Dictionary = {}
+var _power_hotkey_vfx: Dictionary = {}
 
 func select_member(body: Player) -> void:
 	var was_skills: bool = is_instance_valid(character_panel) and character_panel.get_script() == preload("res://game/ui/skill_tree_view.gd")
@@ -57,16 +60,16 @@ func show_banner(text: String, seconds: float = 2.5) -> void:
 	banner_time = seconds
 
 var progression_hud: ProgressionHud
-## The level-up plate lives in ProgressionHud; these read through so anything that asks the HUD (tests, the town) still can.
+## Compatibility reads for callers that queried the removed screen-space level-up toast.
 var level_toast_text: String:
-	get: return progression_hud.toast_text if progression_hud != null else ""
+	get: return ""
 var level_toast_time: float:
-	get: return progression_hud.toast_time if progression_hud != null else 0.0
+	get: return 0.0
 
 func _ready() -> void:
 	loot_cards.hud = self
 	picker.hud = self
-	progression_hud = ProgressionHud.new()   # the level and XP strip and the level-up plate
+	progression_hud = ProgressionHud.new()   # the level and XP strip; level-up effects play in-world
 	add_child(progression_hud)
 	add_to_group("hud")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -111,6 +114,12 @@ func _ready() -> void:
 
 	ds2_potion_dock = Ds2PotionDockClass.new()
 	add_child(ds2_potion_dock)
+	for slot in 7:
+		var forge := PowerHotkeyVfx.new()
+		forge.name = "PowerHotkeyForge%d" % slot
+		forge.z_index = 2
+		add_child(forge)
+		_power_hotkey_vfx[slot] = forge
 
 ## How far the hotbar sits above the bottom edge: the XP bar and the level badge run along the very bottom, under it.
 const HOTBAR_LIFT := 30.0
@@ -139,6 +148,11 @@ func zone_subtitle() -> String:
 	return "Safe Haven" if zone == "The Last Hearth" else ("Hostile Ground" if zone == "The Crypt Road" else "Deep Beyond")
 
 func _process(delta: float) -> void:
+	for body_variant in PartyManager.current().bodies.values():
+		var body := body_variant as Player
+		if is_instance_valid(body) and not body.dead and not _connected_power_signal_ids.has(body.get_instance_id()):
+			body.power_activated.connect(_on_power_activated)
+			_connected_power_signal_ids[body.get_instance_id()] = true
 	if minimap == null:
 		minimap = HudMinimap.new()
 		minimap.hud = self
@@ -214,9 +228,9 @@ func _draw() -> void:
 		_bar(Vector2(x0, y0 - 13.0), Vector2(total, 5), player.stats.stamina / player.stats.max_stamina, UiTheme.STAMINA, "", font)
 	for i in player.skills.hotbar.size():
 		var id: String = player.skills.hotbar[i]
-		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font)
+		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font, GameSettings.hotbar_caster(i))
 	var extra: int = player.skills.hotbar.size()
-	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font)
+	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font, GameSettings.hotbar_alt_caster)
 	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
 	if use_ds2_ui:
@@ -556,8 +570,13 @@ func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: 
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)
 
 ## One hotbar slot: icon, radial cooldown sweep with seconds left, mana-cost tint, ready flash, bound key.
-func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font) -> void:
+func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font, caster_id: String = "") -> void:
 	var rect := Rect2(pos, Vector2(size_px, size_px))
+	var action_slot := HudSkillPicker.slot_of_action(action)
+	if action_slot == HotbarLayout.ALT:
+		action_slot = player.skills.hotbar.size()
+	var forge: PowerHotkeyVfx = _power_hotkey_vfx.get(action_slot) as PowerHotkeyVfx
+	if is_instance_valid(forge): forge.hide()
 	draw_rect(rect, UiTheme.INK)
 	_slot_hits.append({"rect": rect, "id": id, "action": action})
 	if id == "":
@@ -571,8 +590,10 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		if rect.has_point(get_viewport().get_mouse_position() if mouse_override.x < 0 else mouse_override): UiTheme.draw_hover(self, rect)
 		return
 	var skill: Dictionary = SkillDb.all()[id]
+	var caster := PartyManager.current().bodies.get(caster_id) as Player
+	var slot_player: Player = caster if is_instance_valid(caster) and not caster.dead else player
 	var icon: Texture2D = _icon(id)
-	var ult_cost: float = player.stats.ult_cost(id)
+	var ult_cost: float = slot_player.stats.ult_cost(id)
 	var active_bezel: Texture2D = bezel
 	if use_ds2_ui:
 		active_bezel = ds2_power_bezel if ult_cost > 0.0 else ds2_action_bezel
@@ -588,22 +609,28 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 		draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
 	else:
 		draw_string(font, pos + Vector2(2, size_px * 0.5 + 4), skill["name"], HORIZONTAL_ALIGNMENT_CENTER, size_px - 4, 11, Color(1, 1, 1))
+	if caster_id != "":
+		var badge := Rect2(pos + Vector2(size_px - 22.0, 2.0), Vector2(20.0, 18.0))
+		draw_rect(badge, Color(0.055, 0.045, 0.035, 0.94))
+		draw_rect(badge, Color(0.78, 0.58, 0.30, 0.95), false, 1.0)
+		var caster_label: String = slot_player.display_name if is_instance_valid(caster) and not caster.dead else caster_id.capitalize()
+		draw_string(font, badge.position + Vector2(0, 13), caster_label.substr(0, 1).to_upper(), HORIZONTAL_ALIGNMENT_CENTER, badge.size.x, 13, Color(1.0, 0.86, 0.59))
 
-	var remaining: float = float(player.stats.cooldowns.get(id, 0.0))
-	var fraction: float = player.stats.cooldown_fraction(id)
-	var affordable: bool = player.stats.mana >= player.stats.mana_cost(id)
+	var remaining: float = float(slot_player.stats.cooldowns.get(id, 0.0))
+	var fraction: float = slot_player.stats.cooldown_fraction(id)
+	var affordable: bool = slot_player.stats.mana >= slot_player.stats.mana_cost(id)
 	if not affordable:
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
 	# Powers recharge from dealt damage, independently of ordinary cooldowns.
-	var ult_filling: bool = ult_cost > 0.0 and player.stats.ult_fraction(id) < 1.0
+	var ult_filling: bool = ult_cost > 0.0 and slot_player.stats.ult_fraction(id) < 1.0
 	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
 	if was_on_cooldown and remaining <= 0.0 and not ult_filling:
 		_ready_flash[id] = 0.35
 	_was_cooling[id] = remaining > 0.0 or ult_filling
 	var flash: float = float(_ready_flash.get(id, 0.0))
-	if flash > 0.0:
+	if flash > 0.0 and ult_cost <= 0.0:
 		draw_rect(rect, Color(1, 1, 1, 0.55 * flash / 0.35))
 		_ready_flash[id] = maxf(flash - get_process_delta_time(), 0.0)
 
@@ -616,8 +643,18 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 
 	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if remaining <= 0.0 and affordable else Color(0.4, 0.4, 0.45, 0.9)
 	if ult_cost > 0.0:
-		var visual := preload("res://game/ui/power_button_visual.gd")
-		visual.draw_on(self, rect, player.stats.ult_fraction(id), visual.armed(player, id), player.stats.can_use(id))
+		var power_key := "%s:%s" % [slot_player.member_id, id]
+		var charge: float = slot_player.stats.ult_fraction(id)
+		if _was_cooling.get(power_key, false) and charge >= 0.999 and slot_player.stats.can_use(id):
+			_ready_flash[power_key] = PowerHotkeyVfx.READY_GLINT_SECONDS
+		_was_cooling[power_key] = charge < 0.999
+		var ready_flash: float = float(_ready_flash.get(power_key, 0.0))
+		var activation_flash: float = float(_power_activation_flash.get(power_key, 0.0))
+		if is_instance_valid(forge):
+			forge.present(icon, rect, charge, _power_frame_available(slot_player, id), remaining > 0.0,
+				ready_flash, activation_flash, use_ds2_ui)
+		_ready_flash[power_key] = maxf(ready_flash - get_process_delta_time(), 0.0)
+		_power_activation_flash[power_key] = maxf(activation_flash - get_process_delta_time(), 0.0)
 		border = Color(0.55, 0.4, 0.25, 0.9) if ult_filling else Color(0.85, 0.72, 0.45)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
@@ -629,8 +666,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font)
 	var key_text: String = GameSettings.short_binding_text(action)
 	# (The key sits UNDER the slot, engraved, as on the reference; the old top-left corner hint is gone.)
 	UiTheme.text(self, UiTheme.heading_font(), pos + Vector2(0, (size_px + 13.0) if use_ds2_ui else (size_px + 17.0)), key_text, 12 if use_ds2_ui else 13, Color(0.78, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size_px)
-	if player.stats.mana_cost(id) > 0.0:
-		draw_string(font, pos + Vector2(5, size_px - 5), str(int(player.stats.mana_cost(id))), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
+	if slot_player.stats.mana_cost(id) > 0.0:
+		draw_string(font, pos + Vector2(5, size_px - 5), str(int(slot_player.stats.mana_cost(id))), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.55, 0.75, 1.0))
 	if rect.has_point(get_viewport().get_mouse_position() if mouse_override.x < 0 else mouse_override): UiTheme.draw_hover(self, rect)
 
 ## Hover tooltip for hotbar skills: name, key, cost/cooldown, what it does, and gear that modifies it.
@@ -644,12 +681,16 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if id == "":
 			continue
 		var skill: Dictionary = SkillDb.all()[id]
+		var slot: int = HudSkillPicker.slot_of_action(String(hit["action"]))
+		var caster_id: String = GameSettings.hotbar_caster(slot) if slot != HotbarLayout.NONE else player.member_id
+		var caster := PartyManager.current().bodies.get(caster_id) as Player
+		var slot_player: Player = caster if is_instance_valid(caster) and not caster.dead else player
 		var width: float = 340.0
 		var pad: float = 18.0
 		var inner: float = width - pad * 2.0
 		var stats: Array[String] = []
-		if player.stats.mana_cost(id) > 0.0:
-			stats.append("Mana %d" % int(player.stats.mana_cost(id)))
+		if slot_player.stats.mana_cost(id) > 0.0:
+			stats.append("Mana %d" % int(slot_player.stats.mana_cost(id)))
 		if float(skill["cd"]) > 0.0:
 			stats.append("Cooldown %.1f s" % float(skill["cd"]))
 		if float(skill["range"]) > 0.0:
@@ -657,8 +698,10 @@ func _draw_tooltip(font: Font, size_px: Vector2) -> void:
 		if id == "dodge" and PlayerStats.STAMINA_ON:
 			stats.append("Stamina %d" % int(round(PlayerMovement.ROLL_STAMINA * player.stats.armor_stat("roll_cost", 1.0))))
 		var stat_line: String = "    ".join(stats)
-		var damage_line: String = player.stats.skill_damage_text(id)
+		var damage_line: String = slot_player.stats.skill_damage_text(id)
 		var desc: String = SkillDb.description(id)
+		var caster_name: String = slot_player.display_name if is_instance_valid(caster) and not caster.dead else caster_id.capitalize()
+		desc += "\n\nCaster: %s" % caster_name
 		if HudSkillPicker.slot_of_action(String(hit["action"])) != HotbarLayout.NONE:
 			desc += "\n\nClick to change what is on this key."
 		# Measure, then draw the panel.
@@ -693,6 +736,21 @@ var mouse_override: Vector2 = Vector2(-1.0, -1.0)
 var _slot_hits: Array = []  # [{rect, id, action}] for the slots drawn this frame (tooltip hit-testing)
 var _was_cooling: Dictionary = {}
 var _ready_flash: Dictionary = {}
+
+func _on_power_activated(member_id: String, power_id: String) -> void:
+	_power_activation_flash["%s:%s" % [member_id, power_id]] = PowerHotkeyVfx.RELEASE_SECONDS
+	queue_redraw()
+
+## Charging remains visible while a power is recharging; only its unlock and weapon stance gate the frame.
+func _power_frame_available(body: Player, id: String) -> bool:
+	if PowerController.LIVE.has(id):
+		var def := PowerDb.get_def(id)
+		return def != null and PowerDb.hero_rank(id, body.member_id) > 0 and body.powers.stance_ok(def.stance)
+	if id == "brutal_attack":
+		return PowerDb.hero_rank(id, body.member_id) > 0 and not body.stats.is_ranged()
+	if id == "take_aim":
+		return PowerDb.hero_rank(id, body.member_id) > 0 and body.stats.is_ranged() and body.bow != null
+	return false
 
 func _icon(id: String) -> Texture2D:
 	if not _icons.has(id):

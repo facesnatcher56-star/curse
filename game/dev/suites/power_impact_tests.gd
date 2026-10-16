@@ -17,6 +17,9 @@ func _test_power_impact() -> void:
 	player.set_physics_process(false)
 	var powers: PowerController = player.powers
 	var s: SkillController = player.skills
+	var activation_events: Array[String] = []
+	var record_activation := func(_member: String, id: String) -> void: activation_events.append(id)
+	player.power_activated.connect(record_activation)
 	var was_enabled: bool = Sfx.enabled
 	Sfx.enabled = true
 	powers.reset()
@@ -43,6 +46,7 @@ func _test_power_impact() -> void:
 	expect("Whirling Strike starts its wind-up", powers.activate("whirling_strike", player.global_position) and s.busy)
 	expect("the key press deals no damage and stuns nothing", untouched.call() and near.all(func(e: Enemy) -> bool: return e.stun_time <= 0.0))
 	expect("the power is not spent while it winds up", not powers.reload_remaining.has("whirling_strike") and powers.ready("whirling_strike"))
+	expect("a wind-up does not trigger the hotkey release highlight", activation_events.is_empty())
 	expect("a second power cannot start over a wind-up in progress", not powers.activate("war_cry", player.global_position) and s.busy_skill == "whirling_strike")
 	expect("the cast cue plays on the key press", Sfx.played_log.has("whirling_strike_cast") and not Sfx.played_log.has("whirling_strike_hit"))
 	s.tick_busy(0.05)
@@ -51,6 +55,8 @@ func _test_power_impact() -> void:
 	expect("at the strike every enemy in reach is hit and stunned", near.all(func(e: Enemy) -> bool: return e.health < e.max_health and e.stun_time > 0.0))
 	expect("and thrown back from the hero", near.all(func(e: Enemy) -> bool: return e.knock.length() > 0.5))
 	expect("the power is spent at the strike", powers.reload_remaining.has("whirling_strike") and not powers.ready("whirling_strike"))
+	expect("impact triggers exactly one hotkey release highlight", activation_events == ["whirling_strike"])
+	player.power_activated.disconnect(record_activation)
 	expect("the impact cue plays with the hit", Sfx.played_log.has("whirling_strike_hit"))
 	powers.gain(powers.required("whirling_strike"))
 

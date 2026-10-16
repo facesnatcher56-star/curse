@@ -4,8 +4,8 @@ extends Control
 ## Unspent skill points show a pulsing plus over the portrait; clicking it asks for that member's skill tree (`skills_requested`).
 const PowerVisual := preload("res://game/ui/power_button_visual.gd")
 signal skills_requested(member_id: String)
-const BADGE_CENTRE := Vector2(12, 11)   # over the portrait's top-left corner, clear of the face, the vitals and the level medal
-const BADGE_RADIUS := 9.0
+const BADGE_CENTRE := Vector2(42, 41)   # centered over the portrait image
+const BADGE_RADIUS := 21.0
 var character_name: String = "Hero"
 var member_id: String = "hero"
 var is_companion: bool = false
@@ -60,14 +60,22 @@ func set_skill_points(points: int) -> void:
 
 func _draw_badge() -> void:
 	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.005)
-	_badge.draw_circle(BADGE_CENTRE, BADGE_RADIUS + 2.0 + 3.0 * pulse, Color(UiTheme.BRONZE_LIGHT, 0.12 + 0.22 * pulse))
-	_badge.draw_circle(BADGE_CENTRE, BADGE_RADIUS, UiTheme.INK)
-	_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS, 0.0, TAU, 32, UiTheme.BRONZE_LIGHT, 1.5, true)
-	var arm: float = 4.5 + 0.8 * pulse
-	_badge.draw_line(BADGE_CENTRE + Vector2(-arm, 0), BADGE_CENTRE + Vector2(arm, 0), UiTheme.TEXT, 2.5, true)
-	_badge.draw_line(BADGE_CENTRE + Vector2(0, -arm), BADGE_CENTRE + Vector2(0, arm), UiTheme.TEXT, 2.5, true)
+	var halo_radius: float = BADGE_RADIUS + 2.0 + 2.5 * pulse
+	_badge.draw_circle(BADGE_CENTRE, halo_radius, Color("ffd34e", 0.10 + 0.16 * pulse))
+	_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS, 0.0, TAU, 48, Color("ffe16a", 0.68 + 0.32 * pulse), 2.0, true)
+	var arm: float = 16.0 + 1.5 * pulse
+	var weight: float = 8.0 + 1.0 * pulse
+	# Oversized cross fills the portrait while a dark edge preserves its shape over the face art.
+	_badge.draw_line(BADGE_CENTRE + Vector2(-arm, 0), BADGE_CENTRE + Vector2(arm, 0), Color("241707", 0.96), weight + 4.0, true)
+	_badge.draw_line(BADGE_CENTRE + Vector2(0, -arm), BADGE_CENTRE + Vector2(0, arm), Color("241707", 0.96), weight + 4.0, true)
+	_badge.draw_line(BADGE_CENTRE + Vector2(-arm, 0), BADGE_CENTRE + Vector2(arm, 0), Color("ffe16a"), weight, true)
+	_badge.draw_line(BADGE_CENTRE + Vector2(0, -arm), BADGE_CENTRE + Vector2(0, arm), Color("ffe16a"), weight, true)
 	if _badge.has_focus():   # keyboard / pad focus: a bright ring outside the plus
 		_badge.draw_arc(BADGE_CENTRE, BADGE_RADIUS + 4.0, 0.0, TAU, 40, UiTheme.TEXT, 2.0, true)
+
+func _process(_delta: float) -> void:
+	if is_instance_valid(_badge) and _badge.visible:
+		_badge.queue_redraw()
 
 func _ready() -> void:
 	theme = UiTheme.get_theme()

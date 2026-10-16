@@ -66,10 +66,12 @@ static var zoom_step: float = 0.12   # camera zoom change per wheel notch
 
 ## action -> {"type": "key"|"mouse", "code": int}. Only actions the player changed are stored here.
 static var custom_bindings: Dictionary = {}
-## Which skill is on which key (see HotbarLayout). SkillController shares `hotbar_slots` itself, so a change here is a change there.
+## One single-player bar shared by the party. Each slot also names the party member who casts it.
 static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
 static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
-const HOTBAR_LAYOUT_REV := 4
+static var hotbar_casters: Array[String] = ["hero", "cutter", "hero", "hero", "hero", "hero"]
+static var hotbar_alt_caster: String = "hero"
+const HOTBAR_LAYOUT_REV := 5
 
 static func reset_hotbar() -> void:
 	# SkillController deliberately keeps this exact Array reference. Reset its
@@ -78,13 +80,27 @@ static func reset_hotbar() -> void:
 	for i in HotbarLayout.DEFAULT_SLOTS.size():
 		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
 	hotbar_alt = HotbarLayout.DEFAULT_ALT
+	hotbar_casters.assign(["hero", "cutter", "hero", "hero", "hero", "hero"])
+	hotbar_alt_caster = "hero"
+
+static func hotbar_skill(slot: int) -> String:
+	return HotbarLayout.skill_at(hotbar_slots, hotbar_alt, slot)
+
+static func hotbar_caster(slot: int) -> String:
+	return hotbar_alt_caster if slot == HotbarLayout.ALT else String(hotbar_casters[slot])
+
+static func assign_hotbar_caster(slot: int, member_id: String) -> void:
+	if member_id == "" or (not PartyManager.current().members.has(member_id) and not ["hero", "cutter"].has(member_id)):
+		return
+	if slot == HotbarLayout.ALT:
+		hotbar_alt_caster = member_id
+	elif slot >= 0 and slot < hotbar_casters.size():
+		hotbar_casters[slot] = member_id
+	if not OS.get_cmdline_user_args().has("--selftest"):
+		save_to_disk()
 
 ## Moves a skill onto a slot (a swap with wherever it was) and saves, so the layout is kept for next time. Not saved during self-tests.
 static func assign_hotbar(slot: int, id: String) -> void:
-	var body := PartyManager.current().active_body()
-	if body != null:
-		body.skills.assign_slot(slot, id)
-		return
 	hotbar_alt = HotbarLayout.assign(hotbar_slots, hotbar_alt, slot, id)
 	if not OS.get_cmdline_user_args().has("--selftest"):
 		save_to_disk()
@@ -499,6 +515,8 @@ static func save_to_disk(path: String = "") -> void:
 	config.set_value("controller", "vibration", vibration)
 	config.set_value("hotbar", "slots", hotbar_slots.duplicate())
 	config.set_value("hotbar", "alt", hotbar_alt)
+	config.set_value("hotbar", "casters", hotbar_casters.duplicate())
+	config.set_value("hotbar", "alt_caster", hotbar_alt_caster)
 	config.set_value("hotbar", "layout_rev", HOTBAR_LAYOUT_REV)
 	for action in custom_bindings:
 		config.set_value("input", action, custom_bindings[action])
@@ -531,10 +549,21 @@ static func load_from_disk(path: String = "") -> void:
 	var saved_slots: Array = config.get_value("hotbar", "slots", [])
 	var saved_alt: String = String(config.get_value("hotbar", "alt", HotbarLayout.DEFAULT_ALT))
 	var hotbar_rev: int = int(config.get_value("hotbar", "layout_rev", 0))
-	if hotbar_rev >= HOTBAR_LAYOUT_REV and HotbarLayout.is_valid(saved_slots, saved_alt):
+	if hotbar_rev >= 4 and HotbarLayout.is_valid(saved_slots, saved_alt):
 		for i in hotbar_slots.size():
 			hotbar_slots[i] = String(saved_slots[i])
 		hotbar_alt = saved_alt
+		var saved_casters: Array = config.get_value("hotbar", "casters", [])
+		if hotbar_rev >= HOTBAR_LAYOUT_REV and saved_casters.size() == hotbar_casters.size():
+			for i in hotbar_casters.size():
+				var caster_id := String(saved_casters[i])
+				hotbar_casters[i] = caster_id if caster_id != "" else "hero"
+			var saved_alt_caster := String(config.get_value("hotbar", "alt_caster", "hero"))
+			hotbar_alt_caster = saved_alt_caster if saved_alt_caster != "" else "hero"
+		else:
+			for i in hotbar_casters.size():
+				hotbar_casters[i] = "cutter" if hotbar_slots[i] == "take_aim" else "hero"
+			hotbar_alt_caster = "cutter" if hotbar_alt == "take_aim" else "hero"
 	else:
 		reset_hotbar()
 	custom_pad_bindings.clear()

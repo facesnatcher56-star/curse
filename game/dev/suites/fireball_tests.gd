@@ -132,6 +132,7 @@ func _test_fireball_cancel() -> void:
 	player.stats.mana = player.stats.max_mana
 	player.stats.cooldowns["fireball"] = 0.0
 	player.skills.clear_aim()
+	GameSettings.assign_hotbar_caster(1, "hero")   # the shared bar routes slot 2 to Cutter by default
 	player.skills.hotbar[1] = "fireball"   # loadout selection can still place the retained skill
 	expect("the fireball cooldown is at least five seconds", float(SkillDb.all()["fireball"]["cd"]) >= 5.0)
 	# Cancel while aiming with right-click.

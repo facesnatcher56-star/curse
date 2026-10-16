@@ -1,0 +1,10 @@
+{
+  "source": "Meshy text-to-image",
+  "task_id": "01a1419b-1bb7-70be-bcc4-92e9f0e003f6",
+  "model": "nano-banana-2",
+  "credits_consumed": 6,
+  "aspect_ratio": "1:1",
+  "remove_background": true,
+  "palette": "bright champagne gold and ivory with turquoise-teal runes and amber center",
+  "prompt": "Bright high-contrast ornate circular level-up sigil, champagne gold and ivory engraved lines, turquoise-teal rune accents, vivid amber central diamond, visible at elevated third-person distance, transparent background, no character, no floor plane, no text, no shards, no dark muddy colors."
+}

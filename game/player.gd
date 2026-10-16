@@ -1,5 +1,6 @@
 class_name Player
 extends Actor
+signal power_activated(member_id: String, power_id: String)
 ## Click-to-move action RPG hero. Control scheme follows the Zombasite manual:
 ##  - Left click ground: move (hold to keep moving). Left click enemy: walk up and attack, hold to keep attacking.
 ##  - Number keys: use the hotbar skill on the enemy nearest the cursor. Hold to repeat.
@@ -340,9 +341,9 @@ func _physics_process(delta: float) -> void:
 	if skills.aiming_id != "" and (movement.rolling or stun_time > 0.0):
 		skills.clear_aim()
 	skills.check_cancel()
-	if skills.take_aim_targeting and bow == null: skills.cancel_take_aim_targeting()
-	skills.update_aim(cursor)
 	skills.handle_hotkeys(cursor)
+	if _confirm_party_take_aim(cursor):
+		return
 	if movement.rolling:
 		movement.tick_roll(delta)
 		return
@@ -619,12 +620,7 @@ func _read_input(cursor: Vector3) -> void:
 	if not Input.is_action_pressed("click"):
 		_ui_click = false
 	if Input.is_action_just_pressed("click") and not _ui_click:
-		if skills.take_aim_targeting:
-			var hit_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor) as Enemy)
-			if hit_enemy == null:
-				hit_enemy = enemy_near(cursor, 3.5) as Enemy
-			if hit_enemy != null and not hit_enemy.dead:
-				skills.confirm_take_aim(hit_enemy)
+		if _confirm_party_take_aim(cursor):
 			return
 		var hover: Actor = _hover_pick(cursor)
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
@@ -685,35 +681,26 @@ func _read_input(cursor: Vector3) -> void:
 					attack_prop = null
 					click_mode = 0
 
-	for i in skills.hotbar.size():
-		var action: String = "skill_%d" % (i + 1)
-		var slot_id: String = skills.hotbar[i]
-		if slot_id == "" or slot_id == "brutal_attack" or slot_id == "take_aim" or PowerController.LIVE.has(slot_id):
-			continue   # (powers go off from SkillController.handle_hotkeys)
-		if SkillDb.all()[skills.hotbar[i]].get("aimed", false):
-			skills.handle_aimed_key(action, skills.hotbar[i], cursor)
-		elif Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
-			skills.queue_skill(skills.hotbar[i], cursor)
-	# The right mouse button carries whichever skill is on it (the attack by default), and drives it the way a numbered slot would.
-	var alt_id: String = skills.right_click_skill
-	var alt_def: Dictionary = SkillDb.all()[alt_id]
-	if bool(alt_def.get("aimed", false)):
-		skills.handle_aimed_key("alt_skill", alt_id, cursor)
-	elif alt_id == "brutal_attack":
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			skills.activate_brutal_attack()
-	elif alt_id == "take_aim":
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			skills.activate_take_aim()
-	elif PowerController.LIVE.has(alt_id):
-		if Input.is_action_just_pressed("alt_skill") and not skills.swallow_alt:
-			powers.activate(alt_id, cursor)
-	elif Input.is_action_pressed("alt_skill") and not skills.swallow_alt:
-		if Input.is_action_just_pressed("alt_skill") and alt_id != "basic":
-			skills.interrupt_for(alt_id, cursor)   # a skill on the right button cancels the swing in progress, like a numbered key
-		skills.queue_skill(alt_id, cursor)
 	if not Input.is_action_pressed("alt_skill"):
 		skills.swallow_alt = false
+
+func _confirm_party_take_aim(cursor: Vector3) -> bool:
+	if Input.is_action_just_pressed("click"):
+		_ui_click = _ui_click or mouse_over_ui()
+	elif not Input.is_action_pressed("click"):
+		_ui_click = false
+	if not Input.is_action_just_pressed("click") or _ui_click:
+		return false
+	for body in PartyManager.current().bodies.values():
+		if not is_instance_valid(body) or not body.skills.take_aim_targeting:
+			continue
+		var hit_enemy: Enemy = (hover_target as Enemy) if (hover_target is Enemy and not hover_target.dead) else (_hover_pick(cursor) as Enemy)
+		if hit_enemy == null:
+			hit_enemy = enemy_near(cursor, 3.5) as Enemy
+		if hit_enemy != null and not hit_enemy.dead:
+			body.skills.confirm_take_aim(hit_enemy)
+		return true
+	return false
 
 ## Walks to the item the hero was sent for and takes it as soon as it is in reach; the use key takes the nearest one in reach too, which
 ## is how a controller (or the keyboard) picks things up.
@@ -832,6 +819,8 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.refresh()
 	if dead:
 		return
+	Fx.character_level_up(self, _new_level)
+	Sfx.sample(self, "leap_land", -12.0, 0.75)
 	health = max_health
 	stats.mana = stats.max_mana
 	stats.cooldowns.clear()

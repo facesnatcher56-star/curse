@@ -7,9 +7,11 @@ extends RefCounted
 var hud: Hud
 var open_slot: int = HotbarLayout.NONE   # the slot it is open for (HotbarLayout.NONE: closed)
 var _picker_anchor: Rect2 = Rect2()
+var pending_skill_id: String = ""
 const PICKER_CELL := 62.0
 const PICKER_GAP := 8.0
 const PICKER_PAD := 12.0
+const CASTER_CELL := Vector2(116.0, 34.0)
 
 func is_open() -> bool:
 	return open_slot != HotbarLayout.NONE
@@ -20,6 +22,7 @@ func open(slot: int, anchor: Rect2) -> void:
 
 func close() -> void:
 	open_slot = HotbarLayout.NONE
+	pending_skill_id = ""
 
 ## The slot number a hotbar slot's action stands for: 0.. for skill_1.., HotbarLayout.ALT for the mouse button, NONE for the dodge.
 static func slot_of_action(action: String) -> int:
@@ -41,7 +44,7 @@ func slot_at(point: Vector2) -> Dictionary:
 func panel_rect(size_px: Vector2) -> Rect2:
 	var count: int = HotbarLayout.ASSIGNABLE.size()
 	var width: float = PICKER_PAD * 2.0 + PICKER_CELL * count + PICKER_GAP * (count - 1)
-	var height: float = PICKER_PAD * 2.0 + PICKER_CELL + 30.0
+	var height: float = PICKER_PAD * 2.0 + PICKER_CELL + 30.0 + (46.0 if pending_skill_id != "" else 0.0)
 	var x: float = clampf(_picker_anchor.get_center().x - width * 0.5, 8.0, maxf(size_px.x - width - 8.0, 8.0))
 	return Rect2(x, _picker_anchor.position.y - height - 16.0, width, height)
 
@@ -54,6 +57,21 @@ func cells(size_px: Vector2) -> Array[Dictionary]:
 			"id": HotbarLayout.ASSIGNABLE[i]})
 	return cells
 
+func caster_cells(size_px: Vector2) -> Array[Dictionary]:
+	var panel: Rect2 = panel_rect(size_px)
+	var ids: Array = PartyManager.current().bodies.keys()
+	var gap := 8.0
+	var total := ids.size() * CASTER_CELL.x + maxi(ids.size() - 1, 0) * gap
+	var x := panel.get_center().x - total * 0.5
+	var y := panel.position.y + PICKER_PAD + 30.0 + PICKER_CELL + 9.0
+	var result: Array[Dictionary] = []
+	for i in ids.size():
+		var body := PartyManager.current().bodies.get(ids[i]) as Player
+		if not is_instance_valid(body): continue
+		var label := body.display_name if body.display_name != "" else String(ids[i]).capitalize()
+		result.append({"id": String(ids[i]), "label": label, "rect": Rect2(Vector2(x + i * (CASTER_CELL.x + gap), y), CASTER_CELL)})
+	return result
+
 ## A left click on a hotbar slot opens the picker; with it open, a click on a skill chooses it, on another slot moves the picker there,
 ## anywhere else (or the right button) closes it. Returns true when the click was used.
 func handle_click(click: InputEventMouseButton) -> bool:
@@ -62,10 +80,19 @@ func handle_click(click: InputEventMouseButton) -> bool:
 		if click.button_index != MOUSE_BUTTON_LEFT:
 			close()
 			return true
+		if pending_skill_id != "":
+			for caster in caster_cells(size_px):
+				if (caster["rect"] as Rect2).has_point(click.position):
+					hud.player.skills.assign_slot(open_slot, pending_skill_id)
+					GameSettings.assign_hotbar_caster(open_slot, String(caster["id"]))
+					close()
+					return true
+			close()
+			return true
 		for cell in cells(size_px):
 			if (cell["rect"] as Rect2).has_point(click.position):
-				hud.player.skills.assign_slot(open_slot, String(cell["id"]))
-				close()
+				pending_skill_id = String(cell["id"])
+				hud.queue_redraw()
 				return true
 		var other: Dictionary = slot_at(click.position)
 		if not other.is_empty() and int(other["slot"]) != open_slot:
@@ -86,6 +113,8 @@ func draw(font: Font, size_px: Vector2) -> void:
 	UiTheme.draw_panel(hud, panel, 0.95)
 	var here: String = HotbarLayout.skill_at(hud.player.skills.hotbar, hud.player.skills.right_click_skill, open_slot)
 	var title: String = "Put on %s" % (GameSettings.short_binding_text("alt_skill") if open_slot == HotbarLayout.ALT else GameSettings.short_binding_text("skill_%d" % (open_slot + 1)))
+	if pending_skill_id != "":
+		title = "Choose who uses %s" % String(SkillDb.all()[pending_skill_id]["name"])
 	var hovered_id: String = ""
 	for cell in cells(size_px):
 		if (cell["rect"] as Rect2).has_point(mouse):
@@ -104,7 +133,7 @@ func draw(font: Font, size_px: Vector2) -> void:
 		else:
 			hud.draw_string(font, rect.position + Vector2(2, PICKER_CELL * 0.5 + 4), String(SkillDb.all()[id]["name"]), HORIZONTAL_ALIGNMENT_CENTER, PICKER_CELL - 4, 11, Color(1, 1, 1))
 		var border: Color = Color(0.32, 0.30, 0.26)
-		if id == here:
+		if id == pending_skill_id or (pending_skill_id == "" and id == here):
 			border = UiTheme.ACCENT
 		elif id == hovered_id:
 			border = Color(1.0, 0.95, 0.8)
@@ -118,3 +147,9 @@ func draw(font: Font, size_px: Vector2) -> void:
 			tag = GameSettings.short_binding_text("skill_%d" % (where + 1))
 		if tag != "":
 			UiTheme.text(hud, font, rect.position + Vector2(5, 15), tag, 13, Color(1, 0.95, 0.7))
+	if pending_skill_id != "":
+		for caster in caster_cells(size_px):
+			var rect: Rect2 = caster["rect"]
+			hud.draw_rect(rect, UiTheme.INK)
+			hud.draw_rect(rect, UiTheme.ACCENT, false, 1.5)
+			UiTheme.text(hud, font, rect.position + Vector2(4, 22), String(caster["label"]), 14, UiTheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8)

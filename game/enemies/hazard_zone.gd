@@ -96,4 +96,4 @@ func _physics_process(delta: float) -> void:
 		var result: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": amount, "quiet": true, "source": source,
 			"type": Combat.DamageType.FIRE, "secondary": true}
 		hero.receive(result, global_position)
-		Fx.text_at(hero, hero.global_position + Vector3(randf_range(-0.3, 0.3), 2.0, 0), str(int(round(amount))), Color(0.55, 0.9, 0.25), 32)
+		Fx.damage_tick(hero, amount, Color(0.55, 0.9, 0.25))
