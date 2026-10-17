@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bdkiepihuubkw"
-valid=false
+path.s3tc="res://.godot/imported/rigged_Image_1.jpg-9bc0530505b68babd33fd20ab22fd31b.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "74f39c377e1e7899abffb6c6fb868b05"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/ghoul/rigged_Image_1.jpg"
+dest_files=["res://.godot/imported/rigged_Image_1.jpg-9bc0530505b68babd33fd20ab22fd31b.s3tc.ctex"]
 
 [params]
 

@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://g5uelrpytira"
-valid=false
+path.s3tc="res://.godot/imported/model_0.jpg-a80c2a80df786c899c0e4ad3e5cef176.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "7382f91896b47fefba08e59be09a44f2"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/brazier/model_0.jpg"
+dest_files=["res://.godot/imported/model_0.jpg-a80c2a80df786c899c0e4ad3e5cef176.s3tc.ctex"]
 
 [params]
 

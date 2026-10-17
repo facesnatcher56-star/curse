@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cae3108wceusl"
-valid=false
+path="res://.godot/imported/model.glb-19c0413eed126f7761e4e67deaabb044.scn"
 
 [deps]
 
 source_file="res://assets/models/items/leather_boots/model.glb"
+dest_files=["res://.godot/imported/model.glb-19c0413eed126f7761e4e67deaabb044.scn"]
 
 [params]
 

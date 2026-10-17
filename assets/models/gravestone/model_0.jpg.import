@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dovg1lpmpm3r8"
-valid=false
+path.s3tc="res://.godot/imported/model_0.jpg-d2f5f9d6efea28edf13756d5eafc86de.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "fce05c3882bbdfca290379da6c92e0d4"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/gravestone/model_0.jpg"
+dest_files=["res://.godot/imported/model_0.jpg-d2f5f9d6efea28edf13756d5eafc86de.s3tc.ctex"]
 
 [params]
 

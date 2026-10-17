@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dot007wrtuvjv"
-valid=false
+path="res://.godot/imported/model.glb-6d1a03c88f80fd32572b55bc3439d899.scn"
 
 [deps]
 
 source_file="res://assets/models/items/buckler/model.glb"
+dest_files=["res://.godot/imported/model.glb-6d1a03c88f80fd32572b55bc3439d899.scn"]
 
 [params]
 

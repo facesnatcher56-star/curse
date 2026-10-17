@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://tbt56qpmf32u"
-valid=false
+path="res://.godot/imported/model.glb-4acbe4ba672902efe7a6314c38b73833.scn"
 
 [deps]
 
 source_file="res://assets/models/town/chapel/model.glb"
+dest_files=["res://.godot/imported/model.glb-4acbe4ba672902efe7a6314c38b73833.scn"]
 
 [params]
 

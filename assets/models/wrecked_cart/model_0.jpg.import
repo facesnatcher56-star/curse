@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://o4v4vqnby8kx"
-valid=false
+path.s3tc="res://.godot/imported/model_0.jpg-377f667e0efa0601662ee14733daef96.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "1049d1ede662f626f80b72d97f995c7b"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/wrecked_cart/model_0.jpg"
+dest_files=["res://.godot/imported/model_0.jpg-377f667e0efa0601662ee14733daef96.s3tc.ctex"]
 
 [params]
 

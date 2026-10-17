@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dm1bno101km1j"
-valid=false
+path.s3tc="res://.godot/imported/model_1.jpg-788e74e845cf0f38c6a49c402347e099.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "07c5caaea3e573c6d394787528de1e05"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/ruined_pillar/model_1.jpg"
+dest_files=["res://.godot/imported/model_1.jpg-788e74e845cf0f38c6a49c402347e099.s3tc.ctex"]
 
 [params]
 

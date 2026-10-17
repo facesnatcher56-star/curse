@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://pq6bcobjna3w"
-valid=false
+path="res://.godot/imported/melee_rank_crest.glb-beb59a54b1d30e5d1c47938cc112af1c.scn"
 
 [deps]
 
 source_file="res://assets/fx/melee_rank_crest.glb"
+dest_files=["res://.godot/imported/melee_rank_crest.glb-beb59a54b1d30e5d1c47938cc112af1c.scn"]
 
 [params]
 

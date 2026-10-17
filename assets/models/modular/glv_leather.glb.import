@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c05gc1o6baps6"
-valid=false
+path="res://.godot/imported/glv_leather.glb-9ea1a932fd964ff404d810cce6e3b627.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/glv_leather.glb"
+dest_files=["res://.godot/imported/glv_leather.glb-9ea1a932fd964ff404d810cce6e3b627.scn"]
 
 [params]
 

@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dtv5jspewt48g"
-valid=false
+path="res://.godot/imported/shd_kite.glb-3fe2518e6d4ea91550b4a38f7fdd7ebd.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/shd_kite.glb"
+dest_files=["res://.godot/imported/shd_kite.glb-3fe2518e6d4ea91550b4a38f7fdd7ebd.scn"]
 
 [params]
 

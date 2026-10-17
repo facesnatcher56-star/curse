@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cncatvq4utxbh"
-valid=false
+path.s3tc="res://.godot/imported/rigged_Image_0.jpg-d28d3a4a51a3e3b43d9774362fa14eac.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "7034b646af12a8144622b73e03dbdaa7"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/spitter/rigged_Image_0.jpg"
+dest_files=["res://.godot/imported/rigged_Image_0.jpg-d28d3a4a51a3e3b43d9774362fa14eac.s3tc.ctex"]
 
 [params]
 

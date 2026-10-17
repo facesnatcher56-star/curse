@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cksimg6n6ds4h"
-valid=false
+path="res://.godot/imported/rigged.glb-d18f272d4bc934973f6ef159b9ed7853.scn"
 
 [deps]
 
 source_file="res://assets/models/npc_keeper/rigged.glb"
+dest_files=["res://.godot/imported/rigged.glb-d18f272d4bc934973f6ef159b9ed7853.scn"]
 
 [params]
 

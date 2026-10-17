@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://lo2t0ccyi4mw"
-valid=false
+path="res://.godot/imported/model.glb-bc82007d1cfa28efbf89c0096cd21c67.scn"
 
 [deps]
 
 source_file="res://assets/models/healthstone/model.glb"
+dest_files=["res://.godot/imported/model.glb-bc82007d1cfa28efbf89c0096cd21c67.scn"]
 
 [params]
 

@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://kcaj6yq7gjco"
-valid=false
+path="res://.godot/imported/body_skin.glb-589e9635ef2ebcd652d2c30af8499f7e.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/body_skin.glb"
+dest_files=["res://.godot/imported/body_skin.glb-589e9635ef2ebcd652d2c30af8499f7e.scn"]
 
 [params]
 

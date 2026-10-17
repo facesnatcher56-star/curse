@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://b6ue0us6cedgp"
-valid=false
+path="res://.godot/imported/model.glb-a90c04660d8d8f8b10806c56206e0c60.scn"
 
 [deps]
 
 source_file="res://assets/models/brazier/model.glb"
+dest_files=["res://.godot/imported/model.glb-a90c04660d8d8f8b10806c56206e0c60.scn"]
 
 [params]
 

@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dmbixg2e6j3xt"
-valid=false
+path="res://.godot/imported/hlm_hood.glb-43e114ce49ac3f6c7eed12879c9543df.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/hlm_hood.glb"
+dest_files=["res://.godot/imported/hlm_hood.glb-43e114ce49ac3f6c7eed12879c9543df.scn"]
 
 [params]
 

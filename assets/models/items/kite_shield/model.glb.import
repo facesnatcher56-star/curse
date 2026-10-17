@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cs4sinhxcea2t"
-valid=false
+path="res://.godot/imported/model.glb-5fffe57e366bbdf171e6ac2a0de5228b.scn"
 
 [deps]
 
 source_file="res://assets/models/items/kite_shield/model.glb"
+dest_files=["res://.godot/imported/model.glb-5fffe57e366bbdf171e6ac2a0de5228b.scn"]
 
 [params]
 

@@ -3,7 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://o2bbpijb51ul"
-valid=false
+path="res://.godot/imported/model_1.jpg-2fa6f37b3eaea0d0a601d8c9ab433592.ctex"
+metadata={
+"vram_texture": false
+}
 generator_parameters={
 "md5": "26fc54f0f0de1840bea323d2caf2612c"
 }
@@ -11,6 +14,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/bulletin_board/model_1.jpg"
+dest_files=["res://.godot/imported/model_1.jpg-2fa6f37b3eaea0d0a601d8c9ab433592.ctex"]
 
 [params]
 

@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://5w1u7ybuu4sv"
-valid=false
+path="res://.godot/imported/fist_r.glb-6d5f7200d79b6421f5b875308b756edb.scn"
 
 [deps]
 
 source_file="res://assets/models/knight2/fist_r.glb"
+dest_files=["res://.godot/imported/fist_r.glb-6d5f7200d79b6421f5b875308b756edb.scn"]
 
 [params]
 

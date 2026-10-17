@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://582vgw557hs3"
-valid=false
+path="res://.godot/imported/model.glb-ef5d2ae10d90949e6bf07b132b7e6315.scn"
 
 [deps]
 
 source_file="res://assets/models/items/longsword/model.glb"
+dest_files=["res://.godot/imported/model.glb-ef5d2ae10d90949e6bf07b132b7e6315.scn"]
 
 [params]
 

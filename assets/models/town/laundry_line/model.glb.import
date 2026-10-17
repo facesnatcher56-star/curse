@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://da23qk26isohq"
-valid=false
+path="res://.godot/imported/model.glb-ac74e50d9c136e258d4ba4eda3e64137.scn"
 
 [deps]
 
 source_file="res://assets/models/town/laundry_line/model.glb"
+dest_files=["res://.godot/imported/model.glb-ac74e50d9c136e258d4ba4eda3e64137.scn"]
 
 [params]
 

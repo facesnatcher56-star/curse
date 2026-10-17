@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://5lu6kywrx5jf"
-valid=false
+path="res://.godot/imported/clt_gambeson.glb-5a400b327086f02e08cf06bfa880fbd4.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/clt_gambeson.glb"
+dest_files=["res://.godot/imported/clt_gambeson.glb-5a400b327086f02e08cf06bfa880fbd4.scn"]
 
 [params]
 

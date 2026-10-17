@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b7g450ckdjrna"
-valid=false
+path.s3tc="res://.godot/imported/model_2.jpg-3dac5ac109dbf66779d48d4fe82d8eeb.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "0d5fcb732937b438448e8677a567be4e"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/ruined_wall/model_2.jpg"
+dest_files=["res://.godot/imported/model_2.jpg-3dac5ac109dbf66779d48d4fe82d8eeb.s3tc.ctex"]
 
 [params]
 

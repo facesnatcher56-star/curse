@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c2n326ulvim4b"
-valid=false
+path="res://.godot/imported/model.glb-2fa9993c1032ac5c9199a24cad5cd111.scn"
 
 [deps]
 
 source_file="res://assets/models/town/water_trough/model.glb"
+dest_files=["res://.godot/imported/model.glb-2fa9993c1032ac5c9199a24cad5cd111.scn"]
 
 [params]
 

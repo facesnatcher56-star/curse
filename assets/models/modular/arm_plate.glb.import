@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c85gveuk3pbub"
-valid=false
+path="res://.godot/imported/arm_plate.glb-b07e65ac3c365e490f219faa02af3bc9.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/arm_plate.glb"
+dest_files=["res://.godot/imported/arm_plate.glb-b07e65ac3c365e490f219faa02af3bc9.scn"]
 
 [params]
 

@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://ho7rsns72u1"
-valid=false
+path="res://.godot/imported/model.glb-f5a04c1600fd81addb0e001ee74cdc15.scn"
 
 [deps]
 
 source_file="res://assets/models/crypt/cottage_ruin/model.glb"
+dest_files=["res://.godot/imported/model.glb-f5a04c1600fd81addb0e001ee74cdc15.scn"]
 
 [params]
 

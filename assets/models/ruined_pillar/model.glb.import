@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://xrahk25tfd7w"
-valid=false
+path="res://.godot/imported/model.glb-e15279b6783d66de00193f4b0ca509e0.scn"
 
 [deps]
 
 source_file="res://assets/models/ruined_pillar/model.glb"
+dest_files=["res://.godot/imported/model.glb-e15279b6783d66de00193f4b0ca509e0.scn"]
 
 [params]
 

@@ -3,7 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://csd1w5o86wdor"
-valid=false
+path="res://.godot/imported/model_2.jpg-54c105978b3b693f0ab8fcf0a784e428.ctex"
+metadata={
+"vram_texture": false
+}
 generator_parameters={
 "md5": "e2b8d15291fc0f91a2d7472e3035600b"
 }
@@ -11,6 +14,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/town_gate/model_2.jpg"
+dest_files=["res://.godot/imported/model_2.jpg-54c105978b3b693f0ab8fcf0a784e428.ctex"]
 
 [params]
 

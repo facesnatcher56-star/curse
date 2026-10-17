@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dc5ssy4yp3ljw"
-valid=false
+path="res://.godot/imported/robe_mage.glb-3c426e897b87e96c4e578b8f84bebf29.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/robe_mage.glb"
+dest_files=["res://.godot/imported/robe_mage.glb-3c426e897b87e96c4e578b8f84bebf29.scn"]
 
 [params]
 

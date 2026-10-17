@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dtrglnpw08jc2"
-valid=false
+path="res://.godot/imported/hlm_great.glb-fb8a3383cf89de8758e3edf4d230479a.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/hlm_great.glb"
+dest_files=["res://.godot/imported/hlm_great.glb-fb8a3383cf89de8758e3edf4d230479a.scn"]
 
 [params]
 

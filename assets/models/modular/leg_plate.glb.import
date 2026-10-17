@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bj88edkqq28xo"
-valid=false
+path="res://.godot/imported/leg_plate.glb-bdd5c68c9d048cad59b512b3934454bf.scn"
 
 [deps]
 
 source_file="res://assets/models/modular/leg_plate.glb"
+dest_files=["res://.godot/imported/leg_plate.glb-bdd5c68c9d048cad59b512b3934454bf.scn"]
 
 [params]
 

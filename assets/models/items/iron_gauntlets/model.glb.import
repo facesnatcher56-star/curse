@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://py6wi43w0yac"
-valid=false
+path="res://.godot/imported/model.glb-468562ee1d48a75d5e8c06e5b6e8f21f.scn"
 
 [deps]
 
 source_file="res://assets/models/items/iron_gauntlets/model.glb"
+dest_files=["res://.godot/imported/model.glb-468562ee1d48a75d5e8c06e5b6e8f21f.scn"]
 
 [params]
 

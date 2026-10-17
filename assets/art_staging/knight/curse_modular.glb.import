@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://d6d75q6mgi3w"
-valid=false
+path="res://.godot/imported/curse_modular.glb-1fa0e02b2114cfb181606ac3c166ac17.scn"
 
 [deps]
 
 source_file="res://assets/art_staging/knight/curse_modular.glb"
+dest_files=["res://.godot/imported/curse_modular.glb-1fa0e02b2114cfb181606ac3c166ac17.scn"]
 
 [params]
 

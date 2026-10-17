@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ia8g6t72da0i"
-valid=false
+path.s3tc="res://.godot/imported/model_1.jpg-c5c6a8fa71630c74adaa8a80993c262b.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "7e27ac9f26157d0afb571f814d62403c"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/lamp_post/model_1.jpg"
+dest_files=["res://.godot/imported/model_1.jpg-c5c6a8fa71630c74adaa8a80993c262b.s3tc.ctex"]
 
 [params]
 

@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://it4xolqnghph"
-valid=false
+path.s3tc="res://.godot/imported/rigged_Image_0.jpg-4515e054dacbadcecc32600e7c741fde.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "c04be9f6d2ed91b32ebe27cf76ebb9e4"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/hero/rigged_Image_0.jpg"
+dest_files=["res://.godot/imported/rigged_Image_0.jpg-4515e054dacbadcecc32600e7c741fde.s3tc.ctex"]
 
 [params]
 

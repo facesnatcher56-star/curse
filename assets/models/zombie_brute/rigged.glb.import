@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://58l48oty6ryd"
-valid=false
+path="res://.godot/imported/rigged.glb-4571d80251b6a78f4fe12a33d36b9f09.scn"
 
 [deps]
 
 source_file="res://assets/models/zombie_brute/rigged.glb"
+dest_files=["res://.godot/imported/rigged.glb-4571d80251b6a78f4fe12a33d36b9f09.scn"]
 
 [params]
 

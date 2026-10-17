@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dcvpp14xm0orh"
-valid=false
+path="res://.godot/imported/model.glb-93c746d6bfec24c4d48e88f8f0861ee1.scn"
 
 [deps]
 
 source_file="res://assets/models/archer/quiver/model.glb"
+dest_files=["res://.godot/imported/model.glb-93c746d6bfec24c4d48e88f8f0861ee1.scn"]
 
 [params]
 

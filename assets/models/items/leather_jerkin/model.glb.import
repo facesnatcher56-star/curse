@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dfnh6vsam4su2"
-valid=false
+path="res://.godot/imported/model.glb-976bb00147c37c259bce95cfce3f5a18.scn"
 
 [deps]
 
 source_file="res://assets/models/items/leather_jerkin/model.glb"
+dest_files=["res://.godot/imported/model.glb-976bb00147c37c259bce95cfce3f5a18.scn"]
 
 [params]
 

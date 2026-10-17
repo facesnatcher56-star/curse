@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c7l6g4ai5d10s"
-valid=false
+path="res://.godot/imported/model.glb-6efd9675ff291406e7bda31884cd2511.scn"
 
 [deps]
 
 source_file="res://assets/models/town/drying_rack/model.glb"
+dest_files=["res://.godot/imported/model.glb-6efd9675ff291406e7bda31884cd2511.scn"]
 
 [params]
 

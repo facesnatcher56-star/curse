@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cnynlooxd6fm"
-valid=false
+path="res://.godot/imported/model.glb-414904f5e89caef806d9ed094cd35387.scn"
 
 [deps]
 
 source_file="res://assets/models/town/crate_stack/model.glb"
+dest_files=["res://.godot/imported/model.glb-414904f5e89caef806d9ed094cd35387.scn"]
 
 [params]
 

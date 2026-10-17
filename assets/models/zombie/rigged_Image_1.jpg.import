@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cbwkqhpj3rso8"
-valid=false
+path.s3tc="res://.godot/imported/rigged_Image_1.jpg-190a2997ef4f2b737826f2828818e023.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "fd46b990397650efdbc5eccc3d384ef8"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/zombie/rigged_Image_1.jpg"
+dest_files=["res://.godot/imported/rigged_Image_1.jpg-190a2997ef4f2b737826f2828818e023.s3tc.ctex"]
 
 [params]
 

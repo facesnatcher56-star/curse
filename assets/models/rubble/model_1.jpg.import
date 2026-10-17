@@ -3,7 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bbikil1urd6l7"
-valid=false
+path.s3tc="res://.godot/imported/model_1.jpg-d8609d34ac099e6011867b8c8e9abe51.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
 generator_parameters={
 "md5": "cade11bb29573546592e034337d653ff"
 }
@@ -11,6 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/rubble/model_1.jpg"
+dest_files=["res://.godot/imported/model_1.jpg-d8609d34ac099e6011867b8c8e9abe51.s3tc.ctex"]
 
 [params]
 

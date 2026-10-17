@@ -4,11 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cebyw3w2qje1d"
-valid=false
+path="res://.godot/imported/model.glb-5d3777469fe4a44d322000d8914182b3.scn"
 
 [deps]
 
 source_file="res://assets/models/items/iron_greaves/model.glb"
+dest_files=["res://.godot/imported/model.glb-5d3777469fe4a44d322000d8914182b3.scn"]
 
 [params]
 
