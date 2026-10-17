@@ -29,7 +29,7 @@ func _test_crimson_fx() -> void:
 	SkillFx.brutal_impact(player, at, Vector3.RIGHT, 3)
 	var count := get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).size()
 	SkillFx.brutal_impact(player, at, Vector3.RIGHT, 3)
-	expect("a landed hit creates one Meshy rupture and rejects duplicate reports", count == 6 and get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).size() == count)
+	expect("a landed hit makes no flying shards and rejects duplicate reports", count == 0 and get_tree().get_nodes_in_group(BrutalCrimsonFx.GROUP).size() == count)
 	var wakes := get_tree().get_nodes_in_group(BrutalBloodWake.GROUP)
 	expect("one landed ultimate creates one blood wake despite duplicate impact reports", wakes.size() == 1)
 	var mist := wakes[0].get_node("DirectionalRedMist") as CPUParticles3D

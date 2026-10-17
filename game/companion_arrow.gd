@@ -16,6 +16,7 @@ var damage: float = 16.0
 var take_aim: bool = false
 var age: float = 0.0
 var struck: Actor
+var _trail: TakeAimTrail
 
 static func fire(parent: Node, archer: Actor, from: Vector3, toward: Vector3, hit_damage: float,
 		empowered: bool = false) -> CompanionArrow:
@@ -37,7 +38,7 @@ func _ready() -> void:
 	var bounds: AABB = CharacterModel._bounds_of(model)
 	model.position.y -= bounds.end.y
 	if take_aim:
-		SkillFx.take_aim_trail(self)
+		_trail = SkillFx.take_aim_trail(self, bounds.size.y)
 	_orient()
 
 func _physics_process(delta: float) -> void:
@@ -78,9 +79,10 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 		1.6 if take_aim else 0.9, false, not take_aim)
 	result["skill_id"] = "take_aim" if take_aim else "companion_arrow"
 	result["origin"] = origin.duplicate(true)
-	if take_aim and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
-		SkillFx.take_aim_hit(self, enemy.global_position, velocity.normalized())
 	enemy.receive(result, from)
+	# After the blow resolves: the finish (a gibbing kill) gets the stronger payoff, anything short of it the ordinary one.
+	if take_aim and result["outcome"] not in [Combat.Outcome.MISS, Combat.Outcome.BLOCK]:
+		SkillFx.take_aim_hit(self, global_position, velocity.normalized(), enemy.dead)
 	if is_instance_valid(shooter) and shooter is ArcherCompanion:
 		(shooter as ArcherCompanion).last_hit_target = enemy
 	struck = enemy
@@ -99,11 +101,8 @@ func _hit_prop(collider: Object) -> void:
 
 func _stick(body: Actor) -> void:
 	set_physics_process(false)
-	for child in get_children():
-		if child is CPUParticles3D:
-			(child as CPUParticles3D).emitting = false
-		if child.name == "TakeAimCore":
-			(child as Node3D).visible = false
+	if is_instance_valid(_trail):
+		_trail.settle()
 	if body != null and is_instance_valid(body) and not body.dead:
 		reparent(body, true)
 	var timer := get_tree().create_timer(STICK_TIME)

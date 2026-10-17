@@ -14,7 +14,19 @@ const PARTS: Array = [
 	["box", Vector3(0.07, 0.05, 0.06), 6],       # meat
 ]
 
-static func explode(actor: Actor, mode: String, from_pos: Vector3) -> void:
+## The pieces of a restrained burst (Take Aim): the limbs fly, the torso and head are blown to mist (TakeAimFx), plus small gore.
+## [mesh kind, size (x, y, z) in metres (or a fraction of body height when the fifth entry is true), count, colour (alpha 0: skin)].
+const RESTRAINED_PARTS: Array = [
+	["capsule", Vector3(0.06, 0.28, 0.06), 2, Color(0, 0, 0, 0), true],     # arms: sent flying (the torso and head become mist instead)
+	["capsule", Vector3(0.075, 0.32, 0.075), 2, Color(0, 0, 0, 0), true],   # legs
+	["box", Vector3(0.05, 0.035, 0.045), 4, Color(0.42, 0.05, 0.05)],       # flesh
+	["box", Vector3(0.085, 0.05, 0.07), 2, Color(0.30, 0.025, 0.03)],       # larger gobbets
+	["capsule", Vector3(0.012, 0.085, 0.012), 2, Color(0.80, 0.76, 0.66)],  # bone splinters
+	["sphere", Vector3(0.03, 0.03, 0.03), 2, Color(0.16, 0.012, 0.02)],     # clots
+]
+
+## `restrained`: only small gore thrown a short way, trailing blood, and no blast of its own (Take Aim supplies it).
+static func explode(actor: Actor, mode: String, from_pos: Vector3, restrained: bool = false) -> void:
 	var burning: bool = mode == "fire"
 	var scene: Node = actor.get_tree().current_scene
 	var centre: Vector3 = actor.global_position + Vector3(0, actor.body_height * 0.55, 0)
@@ -23,21 +35,34 @@ static func explode(actor: Actor, mode: String, from_pos: Vector3) -> void:
 	away = away.normalized() if away.length() > 0.05 else Vector3.ZERO
 	var skin: Color = actor._gib_color()
 	var live: Array[Node] = actor.get_tree().get_nodes_in_group("gibs")
-	for part in PARTS:
+	for part in (RESTRAINED_PARTS if restrained else PARTS):
 		for i in int(part[2]):
 			if live.size() > MAX_LIVE:
 				live.pop_front().queue_free()
 			var chunk := GibChunk.new()
 			chunk.burning = burning
-			chunk.setup(String(part[0]), (part[1] as Vector3) * actor.body_height, skin)
+			chunk.trail = restrained
+			if restrained:
+				var by_height: bool = part.size() > 4 and bool(part[4])
+				chunk.exact_color = part[3]
+				chunk.setup(String(part[0]), (part[1] as Vector3) * (actor.body_height if by_height else randf_range(0.8, 1.3)), skin)
+			else:
+				chunk.setup(String(part[0]), (part[1] as Vector3) * actor.body_height, skin)
 			scene.add_child(chunk)
 			chunk.global_position = centre + Vector3(randf_range(-0.2, 0.2), randf_range(-0.2, 0.3), randf_range(-0.2, 0.2))
 			var spread: Vector3 = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)).normalized()
-			var horizontal: Vector3 = (spread + away * 0.9).normalized() * randf_range(3.5, 9.5)
-			chunk.velocity = horizontal + Vector3(0, randf_range(4.5, 10.5), 0)
+			if restrained:
+				# Sprayed the way the arrow was travelling: a narrow cone along the shot, low and fast, falling short.
+				var cone: Vector3 = (away + spread * randf_range(0.0, 0.28)).normalized() if away != Vector3.ZERO else spread
+				chunk.velocity = cone * randf_range(1.6, 4.2) + Vector3(0, randf_range(1.0, 2.4), 0)
+			else:
+				var horizontal: Vector3 = (spread + away * 0.9).normalized() * randf_range(3.5, 9.5)
+				chunk.velocity = horizontal + Vector3(0, randf_range(4.5, 10.5), 0)
 			chunk.spin = Vector3(randf_range(-9, 9), randf_range(-9, 9), randf_range(-9, 9))
 	# The blast itself.
 	var blood: Color = Color(0.5, 0.04, 0.03)
+	if restrained:
+		return   # Take Aim's own impact supplies the spray, mist, shake and pool (TakeAimFx)
 	Fx.burst(actor, centre, Vector3.UP, blood, 60, 9.0, 0.035)
 	Fx.burst(actor, centre, away + Vector3.UP * 0.5, blood.darkened(0.2), 40, 12.0, 0.03)
 	Fx.blood_decal(actor, actor.global_position, 2.4, blood.darkened(0.4))

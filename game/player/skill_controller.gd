@@ -665,7 +665,7 @@ func tick_busy(delta: float) -> void:
 			p.visual.rotation.x = -0.14 * heft * sin(clampf(u / hf, 0.0, 1.0) * PI * 0.5)
 		else:
 			p.visual.rotation.x = lerpf(0.2 * heft, 0.0, clampf((u - hf) / (1.0 - hf) * 1.5, 0.0, 1.0))
-	p.model.scrub(CharacterModel.remap(busy_t / duration, hit_fraction(skill),
+	p.model.scrub(CharacterModel.remap(_swing_warp(skill, busy_t / duration), hit_fraction(skill),
 		float(skill["start"]), float(skill["strike"]), float(skill["end"])))
 	if busy_t >= duration:
 		busy = false
@@ -745,8 +745,27 @@ func _lunge(max_distance: float) -> void:
 	# knock decays at 22 m/s^2, so an impulse of v covers v^2 / 44 metres.
 	p.knock += to_aim.normalized() * sqrt(44.0 * travel)
 
+## Where in the move the blade lands, as a fraction of its time. A skill with "swing_from" (the share of the pre-strike clip that is
+## wind-up) and "swing_slow" (> 1: the downswing after it plays that much slower) spends more of its time reaching the strike.
 static func hit_fraction(skill: Dictionary) -> float:
-	return (float(skill["strike"]) - float(skill["start"])) / (float(skill["end"]) - float(skill["start"]))
+	var pre: float = float(skill["strike"]) - float(skill["start"])
+	var post: float = float(skill["end"]) - float(skill["strike"])
+	var windup: float = float(skill.get("swing_from", 1.0))
+	pre *= windup + float(skill.get("swing_slow", 1.0)) * (1.0 - windup)
+	return pre / (pre + post)
+
+## The clip position (as a normalized time) for the time `u` through the move: the wind-up keeps its pace and the downswing to the
+## strike is stretched by "swing_slow". Anything without it plays straight through.
+static func _swing_warp(skill: Dictionary, u: float) -> float:
+	var slow: float = float(skill.get("swing_slow", 1.0))
+	var hf: float = hit_fraction(skill)
+	if slow == 1.0 or u >= hf:
+		return u
+	var windup: float = float(skill.get("swing_from", 1.0))
+	var wind_share: float = windup / (windup + slow * (1.0 - windup))   # the wind-up's share of the real time before the strike
+	var v: float = u / hf
+	var clip_share: float = v / wind_share * windup if v < wind_share else windup + (v - wind_share) / (1.0 - wind_share) * (1.0 - windup)
+	return clip_share * hf
 
 ## The enemy a directed Power Strike lands on: the nearest one to the point the blow lands on (a stride out toward the cursor), if any is
 ## in reach. Chosen when the blade comes down, not when the key is pressed.

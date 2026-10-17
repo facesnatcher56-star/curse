@@ -5,6 +5,8 @@ const BOW_MODEL := "res://assets/models/archer/bow/model.glb"
 const QUIVER_MODEL := "res://assets/models/archer/quiver/model.glb"
 const ARROW_MODEL := "res://assets/models/archer/arrow/model.glb"
 var p: Player
+## The empowered shot's draw: one long gathering of focus, then the release (the ordinary draw is 0.62 s).
+const TAKE_AIM_DRAW := 1.9
 var _draw: float = 0.0
 var _release: float = 0.0
 var _recovery: float = 1.05
@@ -20,7 +22,7 @@ var _skeleton: Skeleton3D
 var _pose_bones: Dictionary = {}
 var _bow_scale: float
 var _arrow_rest: Transform3D
-var aura: BrutalAttackFx
+var aura: TakeAimFx
 ## What the current shot is for: an Actor, or a breakable prop (a nest) the controlled archer was ordered to shoot.
 var _target: Actor
 var _prop: Destructible
@@ -90,9 +92,9 @@ func disarm() -> void:
 func arm() -> void:
 	if not p.stats.can_use("take_aim") or armed: return
 	armed = true
-	aura = BrutalAttackFx.new()
+	aura = TakeAimFx.new()
 	p.add_child(aura)
-	aura.setup(p.model, false)
+	aura.setup(self)
 
 func start(target: Actor) -> void:
 	if not is_instance_valid(target) or target.dead:
@@ -124,7 +126,7 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	p.skills.busy_def = {"kind": "ranged", "charged": false}
 	p.skills.busy_t = 0.0
 	p.skills.busy_hit_done = false
-	p.skills.busy_time = (0.92 if armed else 0.62) / p.stats.attack_speed()
+	p.skills.busy_time = (TAKE_AIM_DRAW if armed else 0.62) / p.stats.attack_speed()
 	_recovery = (1.05 + randf_range(0.0, 0.22)) / p.stats.attack_speed()
 	p.movement.has_goal = false
 	p.combat_timer = 5.0
@@ -132,7 +134,6 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	p.model.loop("idle_alert")
 	_draw = 0.0
 	if armed:
-		SkillFx.take_aim_charge(_bow_holder)
 		Sfx.power(p, "take_aim_charge")
 
 ## Where a shot at an Actor (its chest) or a prop (its centre) is aimed.
@@ -182,6 +183,7 @@ func loose() -> void:
 	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 * p.stats.power_damage_mult() if armed else 1.0
 	CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
 	if armed:
+		TakeAimFx.launch(p, from, aim - from, _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)))
 		Sfx.power(p, "take_aim_fire")
 		reload_required = p.stats.power_recharge_damage(PowerDb.get_def("take_aim").recharge, "ranged")
 		reload_remaining = reload_required
@@ -502,10 +504,21 @@ func _aim_chain(chain: Array[String], hand_name: String, target_world: Vector3, 
 			var local_delta: Quaternion = Quaternion(parent_basis.inverse() * world_delta * parent_basis)
 			_skeleton.set_bone_pose_rotation(bone, local_delta * _skeleton.get_bone_pose_rotation(bone))
 
+## Layers a rotation over the animated pose of a bone. Idempotent: when the animation has not rewritten the bone since the last layer
+## (a long hold, or called twice in a frame) the layer is applied to the animated pose it was first applied to, not stacked on itself.
+var _layer_base: Dictionary = {}
+var _layer_out: Dictionary = {}
+
 func _pose(name: String, euler: Vector3, weight: float) -> void:
 	var index: int = int(_pose_bones.get(name, -1))
 	if index < 0:
 		return
 	var base: Quaternion = _skeleton.get_bone_pose_rotation(index)
+	if _layer_out.has(name) and base.is_equal_approx(_layer_out[name]):
+		base = _layer_base[name]   # still our own output: the animation has not refreshed this bone
+	else:
+		_layer_base[name] = base
 	var layer := Quaternion.from_euler(euler)
-	_skeleton.set_bone_pose_rotation(index, base * Quaternion.IDENTITY.slerp(layer, weight))
+	var result: Quaternion = base * Quaternion.IDENTITY.slerp(layer, weight)
+	_layer_out[name] = result
+	_skeleton.set_bone_pose_rotation(index, result)
