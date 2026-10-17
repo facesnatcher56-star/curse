@@ -395,15 +395,32 @@ func _test_road_density() -> void:
 	var graveyard: int = int(segments["graveyard"])
 	var wood: int = int(segments["wood"])
 	var courtyard: int = int(segments["courtyard"])
-	expect("the opening stretch stays manageable (%d bodies)" % intro, intro >= 8 and intro <= 10)
-	expect("the graveyard stretch is 40%% to 100%% busier than before, not a swarm (%d)" % graveyard, graveyard >= 14 and graveyard <= 20)
-	expect("the wooded choke is at least half again as busy as before (%d)" % wood, wood >= 12 and wood <= 16)
-	expect("the courtyard is at least half again as busy as before (%d)" % courtyard, courtyard >= 12 and courtyard <= 16)
-	expect("the forecourt keeps its own two bodies (%d)" % int(segments["forecourt"]), int(segments["forecourt"]) == 2)
+	expect("the opening stretch is about half again as busy as the old 10 bodies (%d)" % intro, intro >= 14 and intro <= 20)
+	expect("the graveyard stretch is denser, not a swarm (%d)" % graveyard, graveyard >= 18 and graveyard <= RoadEncounterRoster.SEGMENT_CAP)
+	expect("the wooded choke is denser than before (%d)" % wood, wood >= 18 and wood <= 26)
+	expect("the courtyard is denser than before (%d)" % courtyard, courtyard >= 24 and courtyard <= 34)
 	expect("no stretch holds more bodies than the per-segment cap (%d)" % RoadEncounterRoster.SEGMENT_CAP,
-		graveyard <= RoadEncounterRoster.SEGMENT_CAP and wood <= RoadEncounterRoster.SEGMENT_CAP and courtyard <= RoadEncounterRoster.SEGMENT_CAP)
-	expect("the road holds no more than %d bodies in all" % RoadEncounterRoster.TOTAL_CAP, enemies.size() <= RoadEncounterRoster.TOTAL_CAP)
-	expect("no group is larger than four bodies", groups.values().all(func(n): return int(n) <= 4))
+		intro <= RoadEncounterRoster.SEGMENT_CAP and graveyard <= RoadEncounterRoster.SEGMENT_CAP and wood <= RoadEncounterRoster.SEGMENT_CAP and courtyard <= RoadEncounterRoster.SEGMENT_CAP)
+	expect("the road cap is 100", RoadEncounterRoster.TOTAL_CAP == 100)
+	expect("the road holds more than the old 61 bodies but no more than %d in all (%d)" % [RoadEncounterRoster.TOTAL_CAP, enemies.size()],
+		enemies.size() > 61 * 1.5 and enemies.size() <= RoadEncounterRoster.TOTAL_CAP)
+	expect("every pack holds %d to %d bodies" % [RoadEncounterRoster.PACK_MIN, RoadEncounterRoster.PACK_MAX],
+		groups.values().all(func(n): return int(n) >= RoadEncounterRoster.PACK_MIN and int(n) <= RoadEncounterRoster.PACK_MAX))
+	var elite_packs: int = 0
+	for beat in RoadEncounterRoster.BEATS:
+		elite_packs += 1 if (beat[4] as Array).any(func(k): return k == "brute" or k == "warden") else 0
+	expect("about one pack in five is an elite pack (%d of %d)" % [elite_packs, RoadEncounterRoster.BEATS.size()],
+		float(elite_packs) / RoadEncounterRoster.BEATS.size() >= 0.15 and float(elite_packs) / RoadEncounterRoster.BEATS.size() <= 0.25)
+	var pack_z: Array[float] = []
+	for beat in RoadEncounterRoster.BEATS:
+		pack_z.append(float(beat[1]))
+	pack_z.sort()
+	var widest: float = 0.0
+	for i in pack_z.size() - 1:
+		widest = maxf(widest, pack_z[i + 1] - pack_z[i])
+	expect("no more than %.0f s of walking between road packs (widest gap %.0f m)" % [RoadEncounterRoster.MAX_WALK_SECONDS_BETWEEN_PACKS, widest],
+		widest / RoadEncounterRoster.HERO_RUN_SPEED <= RoadEncounterRoster.MAX_WALK_SECONDS_BETWEEN_PACKS)
+	expect("the first pack is in sight of the start (%.0f m)" % (CryptRoad.START.z - pack_z[pack_z.size() - 1]), CryptRoad.START.z - pack_z[pack_z.size() - 1] <= 20.0)
 	var overlapping: int = 0
 	for i in positions.size():
 		for j in range(i + 1, positions.size()):
