@@ -2,7 +2,7 @@
 
 **Task**: Task 3A — One-Handed Weapon Asset Expansion  
 **Branch**: `agents/gemini-weapon-assets`  
-**Reference Alignment**: Curse Dark-Fantasy Art Direction (`docs/ART_DIRECTION.md`), Equipment Audit (`docs/EQUIPMENT_EXPANSION_PLAN.md`), DS2 Baseline Combat Specifications (`docs/COMBAT_REFERENCE.md`)  
+**Reference Alignment**: Equipment Audit (`docs/EQUIPMENT_EXPANSION_PLAN.md`), DS2 Baseline Combat Specifications (`docs/COMBAT_REFERENCE.md`)  
 **Pipeline**: Blender 5.1 Procedural Asset Generator (`tools/blender/make_items.py`) & Godot 4.8-dev2 Import System  
 
 ---
@@ -17,7 +17,7 @@ Task 3A delivers production-ready 3D models (`model.glb`) and corresponding tran
 3. **Club** (`club`)
 4. **Dagger** (`dagger`)
 
-All models and icons adhere strictly to Curse's gritty, weathered dark-fantasy aesthetic, use procedural vertex-colored PBR shading without auxiliary texture dependencies, and are fully aligned with the character rig's right-hand attachment mechanics.
+All models and icons use procedural vertex-colored PBR shading without auxiliary texture dependencies, and are fully aligned with the character rig's right-hand attachment mechanics.
 
 ---
 

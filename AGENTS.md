@@ -18,7 +18,7 @@ contrast so the subject reads and pops against its actual gameplay surroundings.
 value and color separation, a strong silhouette, and controlled highlights; avoid muddy,
 washed-out, or low-contrast results that blend into the player, ground, or background. Judge
 the effect in its real gameplay context, not just on an isolated preview, and keep the contrast
-coherent with the established art direction.
+coherent with what the owner has asked for (the art direction itself is not decided yet; see `docs/ART_DIRECTION.md`).
 
 Standing owner instruction, including future tasks: whenever uncertainty remains, ask the
 owner before implementing the uncertain part. Do not guess. This applies to all agents.
