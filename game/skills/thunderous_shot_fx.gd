@@ -17,8 +17,8 @@ const BLUE := Color(0.16, 0.40, 1.0)
 const DEEP := Color(0.04, 0.10, 0.42)
 const WHITE := Color(0.90, 0.95, 1.0)
 const VIOLET := Color(0.42, 0.34, 1.0)   # the faint edge of a real discharge
-const FLIGHT_SPEED := 150.0   # metres per second the bolt "travels": too fast to follow, but the passes down the line stay in order
-const BEAM_LIFE := 0.42
+const FLIGHT_SPEED := 95.0    # metres per second the bolt travels as seen: the length of the bow's reach in under two tenths of a second, fast but readable
+const BEAM_LIFE := 0.5
 const REACH := 17.0   # the bow's reach: how far the bolt goes, and how far the power hits
 const WIDTH := 0.9    # how far off the line an enemy can stand and still be on it
 const STRIKE_LIFE := 0.26
@@ -336,7 +336,7 @@ static func _jag(a: Vector3, b: Vector3, segments: int, amplitude: float, jit: A
 	return pts
 
 ## Appends a camera-facing tapered strip through `pts` to the strip arrays (a degenerate pair keeps strips apart).
-static func _ribbon(rv: PackedVector3Array, rc: PackedColorArray, pts: Array[Vector3], view: Vector3, width: float, c0: Color, c1: Color, alpha: float) -> void:
+static func _ribbon(rv: PackedVector3Array, rc: PackedColorArray, pts: Array[Vector3], view: Vector3, width: float, c0: Color, c1: Color, alpha: float, ramp: bool = false) -> void:
 	var n: int = pts.size()
 	if n < 2 or alpha <= 0.0:
 		return
@@ -347,7 +347,7 @@ static func _ribbon(rv: PackedVector3Array, rc: PackedColorArray, pts: Array[Vec
 		var to_cam: Vector3 = (view - pts[k]).normalized()
 		var side: Vector3 = dir.cross(to_cam).normalized()
 		var u: float = float(k) / (n - 1)
-		var taper: float = sin(u * PI) * 0.85 + 0.15
+		var taper: float = pow(u, 1.3) if ramp else sin(u * PI) * 0.85 + 0.15
 		var col: Color = c0.lerp(c1, u)
 		col.a = alpha * taper
 		verts.append(pts[k] + side * width * taper)
@@ -571,7 +571,6 @@ static func _path_debris(from: Node, muzzle: Vector3, dir: Vector3, length: floa
 		var at := Vector3(muzzle.x + dir.x * d, 0.05, muzzle.z + dir.z * d)
 		from.get_tree().create_timer(d / FLIGHT_SPEED).timeout.connect(func() -> void:
 			if is_instance_valid(from) and from.is_inside_tree():
-				SkillFx.dust(from, at, 0.7, 6, Color(0.5, 0.55, 0.66, 0.3), 0.8, 0.7)
 				Fx.burst(from, at, Vector3.UP, Color(0.62, 0.66, 0.74), 5, 3.5, 0.022))
 		d += 3.0
 
@@ -624,19 +623,27 @@ static func stun_marker(enemy: Enemy, seconds: float) -> void:
 	enemy.add_child(marker)
 	marker.setup(enemy, seconds)
 
-## The bolt itself: a white-hot core in a blue glow with a crackle of small jagged branches, laid down in a tenth of a second and
-## gone in under half a second.
+## The bolt itself: an arrow made of lightning. The real arrow flies down the line inside a blue sheath with small arcs crawling over it,
+## a jagged strand trails behind it (thick and bright at the arrow, thinning into the dark), and forks flick off the trail and strike the
+## floor as it passes. What it has crossed stays faintly alight for a moment, and lights come up down the line as the arrow reaches them.
 class Beam extends Node3D:
+	const ARROW_MODEL := "res://assets/models/archer/arrow/model.glb"
+	const TRAIL := 9.0       # metres of strand behind the arrow
+	const FORK_LIFE := 0.18
+	const ARROW_SCALE := 1.6   # the arrow is drawn larger than life so it reads from the camera
 	var a: Vector3
 	var b: Vector3
 	var _age: float = 0.0
 	var _mesh := ImmediateMesh.new()
 	var _head: MeshInstance3D
+	var _arrow: Node3D
+	var _arrow_overlays: Array[ShaderMaterial] = []
 	var _rng := RandomNumberGenerator.new()
 	var _jit: Array = []
 	var _roll: float = 0.0
 	var _lights: Array[OmniLight3D] = []
 	var _light_at: Array[float] = []
+	var _forks: Array[Dictionary] = []
 
 	func setup(from_point: Vector3, to_point: Vector3) -> void:
 		a = from_point
@@ -651,10 +658,21 @@ class Beam extends Node3D:
 		strip.material_override = TakeAimFx._line_material()
 		strip.top_level = true
 		add_child(strip)
-		_head = TakeAimFx._glint_quad(0.5)
+		_head = TakeAimFx._glint_quad(0.6)
 		add_child(_head)
-		# Lights spaced down the line come up as the bolt reaches them and die away behind it, with a flicker.
-		var count: int = clampi(int(a.distance_to(b) / 5.0), 3, 7)
+		_make_arrow()
+		var length: float = a.distance_to(b)
+		# Forks that will strike the floor beside the trail, about every two metres down the line.
+		var d: float = 1.5
+		while d < length - 0.5:
+			var side: Vector3 = Vector3(_rng.randf_range(-1, 1), 0.0, _rng.randf_range(-1, 1)).normalized() * _rng.randf_range(0.5, 1.2)
+			var jit: Array = []
+			for k in 6:
+				jit.append(Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), 0))
+			_forks.append({"t": d / length, "side": side, "jit": jit, "born": -1.0})
+			d += _rng.randf_range(1.6, 2.6)
+		# Lights spaced down the line come up as the arrow reaches them and die away behind it, with a flicker.
+		var count: int = clampi(int(length / 5.0), 3, 7)
 		for i in count:
 			var light := OmniLight3D.new()
 			light.light_color = Color(0.55, 0.72, 1.0)
@@ -664,6 +682,25 @@ class Beam extends Node3D:
 			add_child(light)
 			_lights.append(light)
 			_light_at.append((float(i) + 0.5) / count)
+
+	## The real arrow, in a blue sheath: a rim of light over the whole shaft and a white-hot head.
+	func _make_arrow() -> void:
+		var scene := load(ARROW_MODEL) as PackedScene
+		if scene == null:
+			return
+		_arrow = Node3D.new()
+		_arrow.top_level = true
+		add_child(_arrow)
+		var model: Node3D = scene.instantiate()
+		LootDrop._use_vertex_colours(model)
+		_arrow.add_child(model)
+		var bounds: AABB = CharacterModel._bounds_of(model)
+		model.position.y -= bounds.end.y   # the tip is the arrow's origin
+		for mesh in model.find_children("*", "MeshInstance3D", true, false):
+			var mat := ShaderMaterial.new()
+			mat.shader = TakeAimFx._overlay()
+			(mesh as MeshInstance3D).material_overlay = mat
+			_arrow_overlays.append(mat)
 
 	func _process(delta: float) -> void:
 		_age += delta
@@ -675,29 +712,74 @@ class Beam extends Node3D:
 			return
 		var view: Vector3 = camera.global_position
 		var length: float = a.distance_to(b)
+		var dir: Vector3 = (b - a).normalized()
 		var reach: float = clampf(_age * ThunderousShotFx.FLIGHT_SPEED / maxf(length, 0.01), 0.0, 1.0)
 		var fade: float = 1.0 - _age / ThunderousShotFx.BEAM_LIFE
-		var tip: Vector3 = a.lerp(b, reach)
+		var head: Vector3 = a.lerp(b, reach)
 		_roll -= delta
 		if _roll <= 0.0:
 			_roll = 0.03
 			_jit.clear()
-			for i in 12:
+			for i in 24:
 				_jit.append(Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), 0))
 		var rv := PackedVector3Array()
 		var rc := PackedColorArray()
-		var straight: Array[Vector3] = [a, a.lerp(tip, 0.5), tip]
-		ThunderousShotFx._ribbon(rv, rc, straight, view, 0.20 * fade * fade + 0.03, ThunderousShotFx.BLUE, ThunderousShotFx.BLUE, 0.30 * fade)
-		ThunderousShotFx._ribbon(rv, rc, straight, view, 0.05 * fade + 0.010, ThunderousShotFx.WHITE, ThunderousShotFx.WHITE, 0.95 * fade)
-		# Crackle: short jagged branches strung along the line, redrawn as it flickers.
-		var segments: int = maxi(int(length * reach / 1.1), 2)
-		var crackle: Array[Vector3] = ThunderousShotFx._jag(a, tip, segments * 2, 0.16, _jit)
-		ThunderousShotFx._ribbon(rv, rc, crackle, view, 0.012, ThunderousShotFx.BLUE, ThunderousShotFx.WHITE, 0.7 * fade * fade)
-		for i in 3:
-			var at: Vector3 = a.lerp(tip, _rng.randf_range(0.05, 0.95))
-			var off: Vector3 = Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.4, 1), _rng.randf_range(-1, 1)).normalized() * _rng.randf_range(0.25, 0.6)
-			var branch: Array[Vector3] = ThunderousShotFx._jag(at, at + off, 4, 0.07, _jit)
-			ThunderousShotFx._ribbon(rv, rc, branch, view, 0.006, ThunderousShotFx.BLUE, ThunderousShotFx.WHITE, 0.6 * fade * fade)
+		var in_flight: bool = reach < 1.0
+		# The arrow itself, drawn larger than life, with the sheath brightest at its head.
+		if _arrow != null:
+			_arrow.visible = in_flight
+			_arrow.global_position = head
+			_arrow.global_basis = Basis(Quaternion(Vector3.UP, dir)).scaled(Vector3.ONE * ARROW_SCALE)
+			for mat in _arrow_overlays:
+				mat.set_shader_parameter("tint", ThunderousShotFx.BLUE.lerp(ThunderousShotFx.WHITE, 0.4))
+				mat.set_shader_parameter("tip", head)
+				mat.set_shader_parameter("tip_glow", 2.2)
+				mat.set_shader_parameter("rim", 1.2)
+				mat.set_shader_parameter("sweep", -1.0)
+		# The trail: three jagged strands from the dark behind up to the arrow, thin at the tail and bright at the head.
+		var trail_len: float = minf(head.distance_to(a), TRAIL)
+		if trail_len > 0.3:
+			var tail: Vector3 = head - dir * trail_len
+			var segments: int = maxi(int(trail_len / 0.5), 3)
+			for strand in 3:
+				var offset: int = strand * 7
+				var shifted: Array = _jit.slice(offset) + _jit.slice(0, offset)
+				var pts: Array[Vector3] = ThunderousShotFx._jag(tail, head, segments, 0.34 if strand > 0 else 0.15, shifted)
+				var live: float = 1.0 if in_flight else fade
+				ThunderousShotFx._ribbon(rv, rc, pts, view, 0.05 if strand == 0 else 0.03, ThunderousShotFx.DEEP, ThunderousShotFx.BLUE, 0.4 * live, true)
+				ThunderousShotFx._ribbon(rv, rc, pts, view, 0.013 if strand == 0 else 0.007, ThunderousShotFx.BLUE, ThunderousShotFx.WHITE, 0.95 * live, true)
+		# Where it has already been stays faintly alight, flickering, and dies away behind it.
+		if head.distance_to(a) > 1.0:
+			var after: Array[Vector3] = ThunderousShotFx._jag(a, head, maxi(int(head.distance_to(a) / 0.7), 3), 0.2, _jit)
+			ThunderousShotFx._ribbon(rv, rc, after, view, 0.016, ThunderousShotFx.BLUE, ThunderousShotFx.BLUE, 0.45 * fade * fade)
+		# Small arcs crawling over the arrow's own shaft.
+		if in_flight:
+			var side: Vector3 = dir.cross(Vector3.UP).normalized()
+			for i in 3:
+				var back: float = _rng.randf_range(0.15, 1.0)
+				var start: Vector3 = head - dir * back + side * _rng.randf_range(-0.12, 0.12) + Vector3.UP * _rng.randf_range(-0.1, 0.12)
+				var stop: Vector3 = start - dir * _rng.randf_range(0.25, 0.5) + side * _rng.randf_range(-0.2, 0.2) + Vector3.UP * _rng.randf_range(-0.2, 0.2)
+				var arc: Array[Vector3] = ThunderousShotFx._jag(start, stop, 4, 0.06, _jit)
+				ThunderousShotFx._ribbon(rv, rc, arc, view, 0.007, ThunderousShotFx.WHITE, ThunderousShotFx.BLUE, 0.9)
+		# Forks: as the arrow passes a mark, a bolt flicks from the trail down to the floor beside it, with a spark spray and a flash.
+		for fork in _forks:
+			var at: Vector3 = a.lerp(b, float(fork["t"]))
+			if float(fork["born"]) < 0.0:
+				if reach >= float(fork["t"]):
+					fork["born"] = _age
+					var ground: Vector3 = Vector3(at.x, 0.05, at.z) + (fork["side"] as Vector3)
+					Fx.burst(self, ground, Vector3.UP, ThunderousShotFx.WHITE, 8, 5.0, 0.011, true)
+					Fx.burst(self, ground, Vector3.UP, ThunderousShotFx.BLUE, 6, 3.0, 0.01, true)
+					ThunderousShotFx._lamp(self, ground + Vector3(0, 0.4, 0), 3.0, 5.0, 0.15)
+				continue
+			var life: float = 1.0 - (_age - float(fork["born"])) / FORK_LIFE
+			if life <= 0.0:
+				continue
+			var from_trail: Vector3 = at + Vector3(0, 1.1, 0)
+			var to_ground: Vector3 = Vector3(at.x, 0.05, at.z) + (fork["side"] as Vector3)
+			var bolt: Array[Vector3] = ThunderousShotFx._jag(from_trail, to_ground, 7, 0.22, fork["jit"])
+			ThunderousShotFx._ribbon(rv, rc, bolt, view, 0.035 * life, ThunderousShotFx.VIOLET, ThunderousShotFx.BLUE, 0.4 * life)
+			ThunderousShotFx._ribbon(rv, rc, bolt, view, 0.008, ThunderousShotFx.BLUE, ThunderousShotFx.WHITE, 1.0 * life)
 		_mesh.clear_surfaces()
 		if rv.size() >= 4:
 			_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
@@ -706,12 +788,14 @@ class Beam extends Node3D:
 				_mesh.surface_add_vertex(rv[i])
 			_mesh.surface_end()
 		for i in _lights.size():
-			var at: float = _light_at[i]
-			var lit: float = clampf((reach - at) * 6.0 + 1.0, 0.0, 1.0) if reach >= at else 0.0   # arrives with the head
-			_lights[i].global_position = a.lerp(b, at) + Vector3(0, 0.6, 0)
+			var at_t: float = _light_at[i]
+			var lit: float = clampf((reach - at_t) * 6.0 + 1.0, 0.0, 1.0) if reach >= at_t else 0.0   # arrives with the arrow
+			_lights[i].global_position = a.lerp(b, at_t) + Vector3(0, 0.6, 0)
 			_lights[i].light_energy = 4.5 * lit * fade * fade * _rng.randf_range(0.65, 1.0)
-		_head.global_position = tip
-		(((_head.mesh as QuadMesh).material) as StandardMaterial3D).albedo_color = Color(0.85, 0.93, 1.0, 0.95 * (1.0 - reach) if reach < 1.0 else 0.0)
+		# A white-hot flare at the arrow's head while it flies.
+		_head.global_position = head
+		(_head.mesh as QuadMesh).size = Vector2(0.7, 0.7)
+		((_head.mesh as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.85, 0.93, 1.0, 0.9 if in_flight else 0.0)
 
 ## A stunned enemy's crackle: a few small bolts jumping between points around the head and shoulders, redrawn about twenty times a second.
 class Stun extends Node3D:
