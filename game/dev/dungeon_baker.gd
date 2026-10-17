@@ -381,6 +381,7 @@ func pack_scene(path: String, before: Array) -> int:
 		nav.remove_child(child)
 		var target: Node3D = holders[kind]
 		target.add_child(child)
+		child.name = _readable_name(child, kind, int(counts.get(kind, 0)))
 		_own(child, root)
 		counts[kind] = int(counts.get(kind, 0)) + 1
 	var rock := _merged_rock()
@@ -390,6 +391,7 @@ func pack_scene(path: String, before: Array) -> int:
 		if child is Chest:
 			remove_child(child)
 			(holders["Chests"] as Node3D).add_child(child)
+			child.name = "Chest_%d" % ((holders["Chests"] as Node3D).get_child_count())
 			child.owner = root   # only the chest itself: its lid and model are built again when it is ready
 			counts["Chests"] = int(counts.get("Chests", 0)) + 1
 	for g in GROUPS:
@@ -415,6 +417,23 @@ func pack_scene(path: String, before: Array) -> int:
 	error = ResourceSaver.save(packed, path)
 	print("DUNGEON_BAKE %s: %s, %d enemy groups, %d rock boxes (error %d)" % [path, str(counts), GROUPS.size(), rock.get_child_count(), error])
 	return error
+
+
+## A name a person can read in the scene tree: floor tiles by where they lie, props by what they are, the rest by kind and number.
+func _readable_name(node: Node3D, category: String, index: int) -> String:
+	match category:
+		"Floor":
+			return "Tile_%d_%d" % [int(round(node.position.x)), int(round(node.position.z))]
+		"Walls":
+			return "Wall_%03d" % index
+		"Pillars":
+			return "Pillar_%02d" % index
+		"Torches":
+			return "Torch_%02d" % index
+		"Props":
+			var kind: String = String(node.get_meta("prop_kind", "prop"))
+			return "%s_%03d" % [kind.capitalize(), index]
+	return "%s_%03d" % [category, index]
 
 
 ## Makes `node` and what it is made of belong to the scene, except what an instanced model brings with it (that stays inside the model).
