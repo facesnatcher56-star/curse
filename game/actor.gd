@@ -151,6 +151,7 @@ var visual: Node3D
 var model: CharacterModel
 var _saved_speed: float = 1.0
 var highlighted: bool = false  # lit up as a target (e.g. inside an aimed spell's blast)
+var highlight_override: StandardMaterial3D   # a power's own outline colour while highlighted (Thunderous Shot's blue); cleared when it goes out
 var _flash: float = 0.0
 var _flash_mat: StandardMaterial3D
 
@@ -327,6 +328,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		elif String(result.get("skill_id", "")) in GIBBING_POWERS \
 				or (not calm and outcome == Combat.Outcome.CRITICAL):
 			_pending_gib = "gore"
+		_gib_restrained = String(result.get("skill_id", "")) in ["take_aim", "brutal_attack"]
 		_gib_from = source_pos
 	_tally_damage(source, String(result.get("skill_id", "")), damage, result.get("origin", {}))
 	result["damage"] = minf(damage, maxf(health, 0.0))   # Recharge/leech count actual life removed, not overkill.
@@ -498,13 +500,15 @@ func set_highlighted(on: bool) -> void:
 	if on == highlighted or model == null:
 		return
 	highlighted = on
+	if not on:
+		highlight_override = null
 	_refresh_overlay()
 
 ## The hit flash always wins; otherwise show the highlight glow, otherwise nothing.
 func _refresh_overlay() -> void:
 	if _flash > 0.0 or model == null:
 		return
-	model.set_overlay(get_highlight_material() if highlighted else null)
+	model.set_overlay((highlight_override if highlight_override != null else get_highlight_material()) if highlighted else null)
 
 ## Speed multiplier from slows (1.0 when not slowed).
 func speed_factor() -> float:
@@ -808,6 +812,7 @@ func _apply_damage(amount: float) -> void:
 
 ## How a killing blow bursts the body: "" (it just falls), "gore" or "fire". Set by receive() just before the lethal damage.
 var _pending_gib: String = ""
+var _gib_restrained: bool = false   # Take Aim and Brutal Attack: limbs and small gore thrown a short way along the blow (see Gibs.explode)
 var _last_hit_from: Vector3 = Vector3.ZERO   # where the latest blow came from, and when: a death is thrown away from it
 var _last_hit_ms: int = -100000
 var _gib_from: Vector3 = Vector3.ZERO
@@ -836,7 +841,7 @@ func _die() -> void:
 		_frost = null
 	model.set_overlay(null)
 	if _pending_gib != "":
-		Gibs.explode(self, _pending_gib, _gib_from)
+		Gibs.explode(self, _pending_gib, _gib_from, _gib_restrained)
 		visual.visible = false   # nothing left to lie there
 		if is_ragdolled():
 			ragdoll.stay_down()
@@ -846,7 +851,10 @@ func _die() -> void:
 		model.once("death", 0.0, 1.0, 0.1)   # the hero keeps the death animation
 	else:
 		_collapse_as_ragdoll()
-	Fx.blood_decal(self, global_position, 1.3, _blood_color().darkened(0.5))
+	if _gib_restrained and _pending_gib != "":
+		pass   # Take Aim: nothing is left lying on the floor
+	else:
+		Fx.blood_decal(self, global_position, 1.3, _blood_color().darkened(0.5))
 	for shape in find_children("*", "CollisionShape3D", false, false):
 		(shape as CollisionShape3D).set_deferred("disabled", true)
 	_on_death()

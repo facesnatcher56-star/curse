@@ -8,12 +8,15 @@ const GRAVITY := 22.0
 var velocity: Vector3 = Vector3.ZERO
 var spin: Vector3 = Vector3.ZERO
 var burning: bool = false
+var exact_color := Color(0, 0, 0, 0)   # a set colour (alpha > 0) replaces the skin-and-blood mix
+var trail: bool = false   # leaves blood behind as it flies and slides
 
 var _mesh: MeshInstance3D
 var _age: float = 0.0
 var _resting: bool = false
 var _flames: CPUParticles3D
 var _burn_time: float = 0.0
+var _drips: CPUParticles3D
 
 func setup(kind: String, size: Vector3, skin: Color) -> void:
 	_mesh = MeshInstance3D.new()
@@ -39,13 +42,34 @@ func setup(kind: String, size: Vector3, skin: Color) -> void:
 		mat.emission = Color(1.0, 0.35, 0.06)
 		mat.emission_energy_multiplier = 1.6
 	else:
-		mat.albedo_color = skin.lerp(Color(0.5, 0.04, 0.03), randf_range(0.35, 0.7))
+		mat.albedo_color = exact_color if exact_color.a > 0.0 else skin.lerp(Color(0.5, 0.04, 0.03), randf_range(0.35, 0.7))
 	mat.roughness = 0.85
 	_mesh.material_override = mat
 	add_child(_mesh)
 
 func _ready() -> void:
 	add_to_group("gibs")
+	if trail:
+		_drips = CPUParticles3D.new()
+		_drips.amount = 6
+		_drips.lifetime = 0.45
+		_drips.local_coords = false
+		_drips.direction = Vector3.DOWN
+		_drips.spread = 25.0
+		_drips.initial_velocity_min = 0.1
+		_drips.initial_velocity_max = 0.8
+		_drips.gravity = Vector3(0, -9.0, 0)
+		var drop := SphereMesh.new()
+		drop.radius = 0.02
+		drop.height = 0.04
+		drop.radial_segments = 4
+		drop.rings = 2
+		var drop_mat := StandardMaterial3D.new()
+		drop_mat.albedo_color = Color(0.32, 0.012, 0.022)
+		drop_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		drop.material = drop_mat
+		_drips.mesh = drop
+		add_child(_drips)
 	if burning:
 		_burn_time = randf_range(4.0, 6.0)
 		_flames = CPUParticles3D.new()
@@ -98,6 +122,8 @@ func _physics_process(delta: float) -> void:
 			queue_free()
 		return
 	if _resting:
+		if _drips != null:
+			_drips.emitting = false
 		return
 	velocity.y -= GRAVITY * delta
 	global_position += velocity * delta
@@ -109,7 +135,8 @@ func _physics_process(delta: float) -> void:
 			velocity.x *= 0.62
 			velocity.z *= 0.62
 			spin *= 0.6
-			Fx.blood_decal(self, global_position, randf_range(0.3, 0.55), Color(0.3, 0.02, 0.02))
+			if not trail:   # Take Aim's pieces leave no droplets on the floor
+				Fx.blood_decal(self, global_position, randf_range(0.3, 0.55), Color(0.3, 0.02, 0.02))
 		else:
 			velocity.y = 0.0
 			velocity.x *= pow(0.02, delta)

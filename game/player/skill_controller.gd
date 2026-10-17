@@ -54,6 +54,7 @@ var _aim_root: Node3D
 var _aim_sphere_mat: StandardMaterial3D
 var _aim_line: MeshInstance3D
 var _highlighted: Array[Actor] = []
+var _thunder_aim: ThunderousAimFx
 ## A basic swing can always be abandoned by clicking away; heavier melee skills only once the blow has landed.
 func swing_cancellable_by_move() -> bool:
 	# Ground movement always supersedes the actor-side action. A launched projectile
@@ -324,6 +325,14 @@ func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 	if Input.is_action_pressed(action):
 		if aim_blocked == action:
 			return   # cancelled while this key was held: nothing happens until it is released
+		if id == "thunderous_shot" and aiming_id != id:
+			var why: String = p.powers.blocker(id)
+			if why != "":
+				if Input.is_action_just_pressed(action):
+					p._say(why)   # not open, not a bow, or still recharging: no casting area, nothing to aim
+				return
+			if p.skills.busy or p.dead:
+				return
 		aiming_id = id
 		aiming_action = action
 		p.movement.has_goal = false
@@ -334,6 +343,10 @@ func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 
 func _release_aim(cursor: Vector3) -> void:
 	var id: String = aiming_id
+	if id == "thunderous_shot":
+		clear_aim()
+		p.powers.activate(id, cursor)   # draws the shot; the bolt, its damage and the stun come at the release of the draw
+		return
 	var point: Vector3 = aim_point_for(id, cursor)
 	if not p.stats.can_use(id):
 		clear_aim()
@@ -357,6 +370,8 @@ func clear_aim(keep_orb: bool = false) -> void:
 		_aim_root.visible = false
 	if _aim_line != null:
 		_aim_line.visible = false
+	if _thunder_aim != null:
+		_thunder_aim.visible = false
 
 ## The cursor point on the ground, pulled in to the skill's range if it is too far.
 func aim_point_for(id: String, cursor: Vector3) -> Vector3:
@@ -371,6 +386,9 @@ func aim_point_for(id: String, cursor: Vector3) -> Vector3:
 ## and every enemy inside the blast lit up.
 func update_aim(cursor: Vector3) -> void:
 	if aiming_id == "":
+		return
+	if aiming_id == "thunderous_shot":
+		_update_thunder_aim(cursor)
 		return
 	aim_point = aim_point_for(aiming_id, cursor)
 	if bool(SkillDb.all()[aiming_id].get("charged", false)) and not busy:
@@ -409,6 +427,32 @@ func update_aim(cursor: Vector3) -> void:
 	for e in now_hit:
 		e.set_highlighted(true)
 	_highlighted = now_hit
+
+## Thunderous Shot's casting area: the line the bolt will take, how far it goes, and a blue outline and ring on everyone it will go through.
+func _update_thunder_aim(cursor: Vector3) -> void:
+	if _thunder_aim == null:
+		_thunder_aim = ThunderousAimFx.new()
+		p.add_child(_thunder_aim)
+	var target: Vector3 = p.powers.thunderous_aim_point(cursor)
+	var flat: Vector3 = Vector3(target.x - p.global_position.x, 0.0, target.z - p.global_position.z)
+	if flat.length() < 0.05:
+		flat = Vector3(p.visual.global_basis.z.x, 0.0, p.visual.global_basis.z.z)   # on top of himself: along the way he faces
+	var dir: Vector3 = flat.normalized()
+	var muzzle: Vector3 = p.global_position + Vector3(0, 1.4, 0) + dir * 0.6
+	var line: Dictionary = p.powers.thunderous_line(muzzle, dir)
+	var hits: Array[Enemy] = []
+	for victim in line["victims"]:
+		hits.append(victim["enemy"])
+	var now_hit: Array[Actor] = []
+	for e in hits:
+		e.highlight_override = ThunderousAimFx.highlight_material()
+		e.set_highlighted(true)
+		now_hit.append(e)
+	for e in _highlighted:
+		if is_instance_valid(e) and not (e in now_hit):
+			e.set_highlighted(false)
+	_highlighted = now_hit
+	_thunder_aim.show_line(p.global_position, dir, float(line["length"]), ThunderousShotFx.WIDTH * 2.0, hits)
 
 func _ensure_orb(size: float) -> void:
 	if fire_orb == null or not is_instance_valid(fire_orb):
@@ -665,7 +709,7 @@ func tick_busy(delta: float) -> void:
 			p.visual.rotation.x = -0.14 * heft * sin(clampf(u / hf, 0.0, 1.0) * PI * 0.5)
 		else:
 			p.visual.rotation.x = lerpf(0.2 * heft, 0.0, clampf((u - hf) / (1.0 - hf) * 1.5, 0.0, 1.0))
-	p.model.scrub(CharacterModel.remap(busy_t / duration, hit_fraction(skill),
+	p.model.scrub(CharacterModel.remap(_swing_warp(skill, busy_t / duration), hit_fraction(skill),
 		float(skill["start"]), float(skill["strike"]), float(skill["end"])))
 	if busy_t >= duration:
 		busy = false
@@ -745,8 +789,27 @@ func _lunge(max_distance: float) -> void:
 	# knock decays at 22 m/s^2, so an impulse of v covers v^2 / 44 metres.
 	p.knock += to_aim.normalized() * sqrt(44.0 * travel)
 
+## Where in the move the blade lands, as a fraction of its time. A skill with "swing_from" (the share of the pre-strike clip that is
+## wind-up) and "swing_slow" (> 1: the downswing after it plays that much slower) spends more of its time reaching the strike.
 static func hit_fraction(skill: Dictionary) -> float:
-	return (float(skill["strike"]) - float(skill["start"])) / (float(skill["end"]) - float(skill["start"]))
+	var pre: float = float(skill["strike"]) - float(skill["start"])
+	var post: float = float(skill["end"]) - float(skill["strike"])
+	var windup: float = float(skill.get("swing_from", 1.0))
+	pre *= windup + float(skill.get("swing_slow", 1.0)) * (1.0 - windup)
+	return pre / (pre + post)
+
+## The clip position (as a normalized time) for the time `u` through the move: the wind-up keeps its pace and the downswing to the
+## strike is stretched by "swing_slow". Anything without it plays straight through.
+static func _swing_warp(skill: Dictionary, u: float) -> float:
+	var slow: float = float(skill.get("swing_slow", 1.0))
+	var hf: float = hit_fraction(skill)
+	if slow == 1.0 or u >= hf:
+		return u
+	var windup: float = float(skill.get("swing_from", 1.0))
+	var wind_share: float = windup / (windup + slow * (1.0 - windup))   # the wind-up's share of the real time before the strike
+	var v: float = u / hf
+	var clip_share: float = v / wind_share * windup if v < wind_share else windup + (v - wind_share) / (1.0 - wind_share) * (1.0 - windup)
+	return clip_share * hf
 
 ## The enemy a directed Power Strike lands on: the nearest one to the point the blow lands on (a stride out toward the cursor), if any is
 ## in reach. Chosen when the blade comes down, not when the key is pressed.

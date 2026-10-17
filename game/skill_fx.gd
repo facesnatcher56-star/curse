@@ -160,8 +160,8 @@ static func debris(from: Node, pos: Vector3, amount: int, speed: float) -> void:
 static func brutal_impact(from: Node, point: Vector3, direction: Vector3, rank: int = 1) -> void:
 	BrutalAttackFx.impact(from, point, direction, rank)
 
-## efct_take_aim_charge: white motes converge on the bow hand over ~0.4 s.
-## The separate orange body pre-launch aura lasts until the stored shot is spent.
+## efct_take_aim_charge: pale silver-green motes converge on the bow over ~0.4 s as the empowered shot is drawn.
+## The weapon-centred Hunter's Focus (TakeAimFx) lasts until the stored shot is spent.
 static func take_aim_charge(bow: Node3D) -> void:
 	var gather := CPUParticles3D.new()
 	gather.name = "TakeAimCharge"
@@ -171,77 +171,25 @@ static func take_aim_charge(bow: Node3D) -> void:
 	gather.lifetime = 0.4
 	gather.local_coords = true
 	gather.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	gather.emission_sphere_radius = 1.3
-	gather.radial_accel_min = -20.0
-	gather.radial_accel_max = -20.0
+	gather.emission_sphere_radius = 0.75
+	gather.radial_accel_min = -12.0
+	gather.radial_accel_max = -12.0
 	gather.initial_velocity_min = 0.0
 	gather.initial_velocity_max = 0.0
 	gather.gravity = Vector3.ZERO
-	gather.mesh = BrutalAttackFx._soft_quad(Vector2(0.045, 0.045), Color.WHITE)
+	gather.mesh = BrutalAttackFx._soft_quad(Vector2(0.03, 0.03), Color.WHITE)
 	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.96, 0.8, 0.0))
-	ramp.add_point(0.2, Color(1.0, 0.96, 0.8, 0.65))
-	ramp.set_color(1, Color(1.0, 0.96, 0.8, 0.0))
+	ramp.set_color(0, Color(0.6, 1.0, 0.8, 0.0))
+	ramp.add_point(0.2, Color(0.78, 1.0, 0.88, 0.7))
+	ramp.set_color(1, Color(0.1, 0.6, 0.3, 0.0))
 	gather.color_ramp = ramp
 	bow.add_child(gather)
 	gather.scale = Vector3.ONE / maxf(bow.global_basis.get_scale().x, 0.001)
 	gather.finished.connect(gather.queue_free)
-	Fx.light_flash(bow, bow.global_position, Color(1.0, 0.96, 0.78), 1.1, 0.4)
 
-## The empowered arrow keeps a narrow dirty-white wake. It is intentionally much thinner than a spell projectile.
-static func take_aim_trail(arrow: Node3D) -> void:
-	# A narrow, warm pressure streak reads at gameplay zoom without becoming a fireball.
-	var core := MeshInstance3D.new()
-	core.name = "TakeAimCore"
-	var streak := CylinderMesh.new()
-	streak.top_radius = 0.018
-	streak.bottom_radius = 0.002
-	streak.height = 1.4
-	streak.radial_segments = 8
-	var core_mat := StandardMaterial3D.new()
-	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	core_mat.albedo_color = Color(0.95, 0.72, 0.38)
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(1.0, 0.56, 0.18)
-	core_mat.emission_energy_multiplier = 1.8
-	streak.material = core_mat
-	core.mesh = streak
-	core.position.y = -0.7
-	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	arrow.add_child(core)
-	var trail := CPUParticles3D.new()
-	trail.amount = 28
-	trail.lifetime = 0.12
-	trail.randomness = 0.25
-	trail.local_coords = false
-	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	trail.emission_sphere_radius = 0.025
-	trail.direction = Vector3.ZERO
-	trail.spread = 8.0
-	trail.initial_velocity_min = 0.0
-	trail.initial_velocity_max = 0.12
-	trail.gravity = Vector3(0, -0.25, 0)
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.065, 0.20)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = Fx.soft_texture()
-	quad.material = mat
-	trail.mesh = quad
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.95, 0.80, 0.55, 0.72))
-	ramp.add_point(0.45, Color(0.72, 0.52, 0.28, 0.34))
-	ramp.set_color(1, Color(0.18, 0.12, 0.08, 0.0))
-	trail.color_ramp = ramp
-	arrow.add_child(trail)
+## The empowered arrow keeps a thin silver-green cut through the air (see TakeAimTrail); `shaft_length` is the arrow's length.
+static func take_aim_trail(arrow: Node3D, shaft_length: float = 0.6) -> TakeAimTrail:
+	return TakeAimTrail.attach(arrow, shaft_length)
 
-static func take_aim_hit(from: Node, point: Vector3, direction: Vector3) -> void:
-	var dir := direction.normalized() if direction.length_squared() > 0.01 else Vector3.FORWARD
-	Fx.light_flash(from, point + Vector3(0, 0.65, 0), Color(0.90, 0.63, 0.28), 2.2, 0.10)
-	Fx.burst(from, point + Vector3(0, 0.65, 0), dir, Color(0.88, 0.67, 0.38), 18, 8.5, 0.022, true)
-	Fx.burst(from, point + Vector3(0, 0.55, 0), dir, Color(0.22, 0.15, 0.10), 10, 5.0, 0.035)
-	Fx.shake(from, 0.14)
+static func take_aim_hit(from: Node, point: Vector3, direction: Vector3, lethal: bool = false) -> void:
+	TakeAimFx.impact(from, point, direction, lethal)

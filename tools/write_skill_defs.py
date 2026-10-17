@@ -30,7 +30,7 @@ SKILLS = {
                      extra={"charged": True, "gather": 0.72, "release_clip": "throw", "release_start": 0.55,
                             "release_speed": 1.5, "release_after": 0.3}),
     "brutal_attack": dict(display_name="Brutal Attack", mana=0.0, cooldown=0.0, time=0.0, kind="buff", range=0.0, mult=15.0,
-                         description="Gather a faint orange heat haze along your silhouette. The next basic melee hit deals 1500% weapon damage and gibs its victim if lethal. Missing, being dodged or being blocked does not spend it. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.", extra={"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.5, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": True}}),
+                         description="Gather a faint orange heat haze along your silhouette. The next basic melee hit deals 1500% weapon damage and gibs its victim if lethal. Missing, being dodged or being blocked does not spend it. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.", extra={"attack_animation": {"clip": "power", "start": 0.78, "strike": 1.23, "end": 1.72, "time": 1.56, "swing_from": 0.65, "swing_slow": 1.25, "weight": 2.15, "lunge": 0.85, "range": 2.5, "brutal_animation": True}}),
     "take_aim": dict(display_name="Take Aim", mana=0.0, cooldown=0.0, time=0.0, kind="buff", range=0.0, mult=15.0,
                      description="Order Cutter to gather his focus. His next arrow deals 1500% weapon damage and gibs its victim if lethal. Recharges from damage dealt by your active party, using Dungeon Siege II's 21-seconds-of-combat formula.", extra={}),
     # Dungeon Siege II powers (PowerController; their numbers are PowerDef's, by rank): no mana, no cooldown, recharged by damage dealt.
@@ -50,6 +50,8 @@ SKILLS = {
                         description="Fire erupts around you, burning every enemy near and setting them alight. Grows with Combat Magic and Searing Flames. A DS2 Combat Magic power."),
     "detonation": dict(display_name="Detonation", kind="power", range=0.0,
                        description="A great blast of fire at the cursor throws enemies back and sets them alight. Grows with Combat Magic and Searing Flames. A DS2 Combat Magic power (Ignite)."),
+    "thunderous_shot": dict(display_name="Thunderous Shot", kind="power", range=0.0, aimed=True,
+                            description="Hold the key to aim: a lit line shows where the bolt will go and outlines every enemy it will go through. Let go to draw back and loose a thunderous bolt that flies faster than the eye can follow, punching through all of them and stunning them for several seconds. Needs a bow. A DS2 Ranged power (Biting Arrow)."),
     "potion": dict(display_name="Potion", mana=0.0, cooldown=1.0, time=0.0, kind="potion", range=0.0, mult=0.0,
                    description="Drink a health potion to restore 60 health. Does nothing at full health."),
     "dodge": dict(display_name="Dodge", mana=0.0, cooldown=0.7, time=0.55, kind="dodge", range=0.0, mult=0.0,

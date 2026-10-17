@@ -534,7 +534,7 @@ func _refresh_overlay() -> void:
 	if _tele_hold > 0.0 and _tele_mat != null:
 		model.set_overlay(_tele_mat)
 		return
-	model.set_overlay(get_highlight_material() if highlighted else null)
+	model.set_overlay((highlight_override if highlight_override != null else get_highlight_material()) if highlighted else null)
 
 ## A big monster (orange on the map and the target bar, and a sure healing drop): a boss, or DS2's strong or miniboss tier.
 func is_big() -> bool:
