@@ -269,7 +269,9 @@ func _draw() -> void:
 			var pos := Vector2(screen.x - bar_w * 0.5, screen.y - 8.0)
 			var enemy_color := Color(0.8, 0.15, 0.12) if Ds2TargetBanner.status_of(enemy).is_empty() else Ds2TargetBanner.status_color(enemy)
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(0, 0, 0, 0.85 * alpha))
+			_draw_chip(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 9)), Color(enemy_color, alpha))
+			_draw_hit_pulse(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
 			# The monster's level, small, at the bar's left end (DS2 shows it with the name; here it is always readable over the body).
 			var level_text: String = str(enemy.level)
@@ -289,7 +291,9 @@ func _draw() -> void:
 			var party_w: float = 72.0
 			var party_pos := Vector2(foot_screen.x - party_w * 0.5, foot_screen.y + 6.0)
 			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(0, 0, 0, 0.85 * fade))
+			_draw_chip(party_pos, party_w, 8.0, body, fade)
 			draw_rect(Rect2(party_pos, Vector2(party_w * clampf(body.health / body.max_health, 0.0, 1.0), 8)), Color(0.78, 0.14, 0.12, fade))
+			_draw_hit_pulse(party_pos, party_w, 8.0, body, fade)
 			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(1, 1, 1, 0.4 * fade), false, 1.0)
 			var mana_pos := party_pos + Vector2(0, 9)
 			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(0, 0, 0, 0.85 * fade))
@@ -583,6 +587,31 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
 	draw_arc(medal_pos, 7.0, 0.0, TAU, 20, Color(0.55, 0.42, 0.24, 0.8), 1.0)
 	draw_circle(medal_pos, 3.5, Color(0.88, 0.70, 0.40, 0.95))
+
+## The life a body just lost, trailing behind its bar's fill and draining away (see Actor.chip_health).
+func _draw_chip(pos: Vector2, width: float, height: float, body: Actor, alpha: float) -> void:
+	var from_x: float = width * clampf(body.health / maxf(body.max_health, 1.0), 0.0, 1.0)
+	var to_x: float = width * clampf(body.chip_health / maxf(body.max_health, 1.0), 0.0, 1.0)
+	if to_x > from_x + 0.5:
+		draw_rect(Rect2(pos + Vector2(from_x, 0.0), Vector2(to_x - from_x, height)), Color(0.98, 0.62, 0.3, 0.9 * alpha))
+
+## The flash that confirms a blow: warm white for a hit, gold for a critical, steel blue for a block, a pale grey for a dodge or miss,
+## stronger for a heavier blow.
+func _draw_hit_pulse(pos: Vector2, width: float, height: float, body: Actor, alpha: float) -> void:
+	if body.hit_pulse <= 0.0:
+		return
+	var tint := Color(1.0, 0.95, 0.85)
+	match body.hit_pulse_outcome:
+		Combat.Outcome.CRITICAL: tint = Color(1.0, 0.82, 0.3)
+		Combat.Outcome.BLOCK: tint = Color(0.55, 0.7, 0.95)
+		Combat.Outcome.MISS: tint = Color(0.75, 0.78, 0.8)
+	var strength: float = clampf(0.55 + 0.45 * body.hit_pulse_weight, 0.6, 1.3)
+	var pulse: float = body.hit_pulse * strength
+	var grow: float = 2.0 * pulse
+	var rect := Rect2(pos - Vector2(grow, grow), Vector2(width + grow * 2.0, height + grow * 2.0))
+	if body.hit_pulse_outcome != Combat.Outcome.MISS:
+		draw_rect(rect, Color(tint, clampf(0.55 * pulse, 0.0, 0.8) * alpha))
+	draw_rect(rect, Color(tint, clampf(pulse, 0.0, 1.0) * alpha), false, 1.5)
 
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)

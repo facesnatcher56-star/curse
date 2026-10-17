@@ -62,6 +62,8 @@ func _test_auto_attack() -> void:
 	dummy.max_health = 5000.0
 	dummy.health = 5000.0
 	await get_tree().physics_frame
+	var was_pad: bool = Gamepad.active
+	Gamepad.active = true   # the real pointer must not matter (it may be over the HUD): this check is about the held click, not the mouse
 	# 1. Hold the click on the target: approach and repeat; letting go ends the engagement (no auto-attack).
 	player.attack_target = dummy
 	player.click_mode = 1
@@ -106,9 +108,11 @@ func _test_auto_attack() -> void:
 	expect("no swinging resumes after a skill", not swings_after_skill)
 	print("  auto-attack: one click -> swings=", swings, " (expected repeated), idle after cancellation=", idle_after, ", idle with enemy near: busy=", busy_during_idle,
 		" turned ", snappedf(rad_to_deg(yaw_drift), 0.1), " deg, skill clears attack order=", cleared_by_skill, ", resumed swinging after skill=", swings_after_skill)
+	Gamepad.active = was_pad
 	dummy.queue_free()
 	await get_tree().process_frame
 	await _test_held_click_keeps_target()
+	await _test_hit_bar_feedback()
 
 ## Holding the click on an enemy keeps attacking that enemy while the button stays down, wherever the pointer goes (another enemy,
 ## empty ground); only letting go (or its death) ends it.
@@ -148,6 +152,43 @@ func _test_held_click_keeps_target() -> void:
 	for e in [first, second]:
 		e.queue_free()
 	player.skills.cancel_action()
+	await get_tree().physics_frame
+
+## A landed blow pulses the target's bar (by outcome and weight) and leaves a trail that drains; healing leaves none; a block shows the bar.
+func _test_hit_bar_feedback() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var target: Enemy = _spawn_enemy(Vector3(2.0, 0.0, 0.0))
+	target.aggro_range = 0.0
+	target.max_health = 1000.0
+	target.health = 1000.0
+	target.dodge_chance = 0.0
+	target.block_chance = 0.0
+	await get_tree().physics_frame
+	var result: Dictionary = Combat.resolve(player, target, 200.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	target.receive(result, player.global_position)
+	expect("a landed blow pulses the target's bar and leaves a trail behind the new life", target.hit_pulse > 0.9 and target.chip_health > target.health + 100.0)
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_bar_feedback.png")
+	for i in 30:
+		await get_tree().physics_frame
+	expect("the pulse is over within a fraction of a second", is_zero_approx(target.hit_pulse))
+	expect("the trail holds, then drains toward the real life", target.chip_health < 1000.0 and target.chip_health >= target.health)
+	for i in 120:
+		await get_tree().physics_frame
+	expect("and it has caught up", is_equal_approx(target.chip_health, target.health))
+	var before: float = target.health
+	target.health = minf(target.max_health, before + 100.0)
+	await get_tree().physics_frame
+	expect("healing leaves no trail", is_equal_approx(target.chip_health, target.health))
+	target.bar_timer = 0.0
+	target.receive({"outcome": Combat.Outcome.BLOCK, "damage": 0.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, player.global_position)
+	expect("a blocked blow pulses the bar blue-side and shows it", target.hit_pulse > 0.9 and target.hit_pulse_outcome == Combat.Outcome.BLOCK and target.bar_timer > 1.0)
+	target.queue_free()
 	await get_tree().physics_frame
 
 ## A plain ground click abandons an unlanded swing or its recovery and starts locomotion immediately.

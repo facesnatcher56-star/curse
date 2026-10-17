@@ -114,6 +114,16 @@ var display_name: String = "Hero"
 var body_height: float = 1.8
 var knock_resist: float = 0.0  # 0..1, fraction of knockback ignored
 var stun_resist: float = 0.0   # 0..1, fraction of stun time ignored
+## Bar feedback for the small bars over bodies (see Hud): `chip_health` is the life the bar still shows trailing behind the real one after a
+## blow (held a moment, then it drains, longer for a heavy blow); `hit_pulse` is 1 the instant a blow lands and fades fast, tinted by what
+## happened (`hit_pulse_outcome`), its strength following the blow's weight, so a hit is confirmed on the bar and its size is readable.
+const CHIP_DRAIN_PER_SECOND := 0.7    # of max life per second, once the hold is over
+const HIT_PULSE_SECONDS := 0.2
+var chip_health: float = -1.0
+var chip_hold: float = 0.0
+var hit_pulse: float = 0.0
+var hit_pulse_outcome: int = 0
+var hit_pulse_weight: float = 1.0
 var bar_timer: float = 0.0     # >0 while a floating health bar should be shown (set when hurt)
 var flinch_chance: float = 0.0
 const SMALL_STUN_RESIST := 0.2   # monsters with no more stun resistance than this flinch from every blow
@@ -167,6 +177,7 @@ func _build_model(folder: String, clips: Array[String], height: float, radius: f
 
 ## Returns true while frozen by a hit-pause; callers should skip their own logic for that frame.
 func _actor_tick(delta: float) -> bool:
+	_tick_bar_feedback(delta)
 	if hitpause > 0.0:
 		hitpause -= delta
 		if hitpause <= 0.0:
@@ -227,6 +238,22 @@ func flat_distance_to(other: Node3D) -> float:
 const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "whirling_strike", "staggering_blow", "opening"]
 const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "whirling_strike", "staggering_blow", "flame_nexus", "detonation", "fireball"]
 
+func _tick_bar_feedback(delta: float) -> void:
+	if chip_health < 0.0 or health >= chip_health:
+		chip_health = health   # healing (and the first frame) never leaves a trail
+	elif chip_hold > 0.0:
+		chip_hold -= delta
+	else:
+		chip_health = maxf(health, chip_health - max_health * CHIP_DRAIN_PER_SECOND * delta)
+	hit_pulse = maxf(hit_pulse - delta / HIT_PULSE_SECONDS, 0.0)
+
+## A blow has landed or been turned aside: pulse the bar (tinted by `outcome`, sized by `weight`) and keep it on show for a moment.
+func _confirm_hit_on_bar(outcome: int, weight: float) -> void:
+	hit_pulse = 1.0
+	hit_pulse_outcome = outcome
+	hit_pulse_weight = weight
+	bar_timer = maxf(bar_timer, 1.4)
+
 ## Apply a resolved attack (see Combat.resolve) to this actor.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if dead:
@@ -257,6 +284,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if damage <= 0.0 and outcome >= Combat.Outcome.HIT:
 		return
 	var weight: float = result.get("weight", 1.0)
+	_confirm_hit_on_bar(outcome, weight)
 	var source: Actor = result.get("source")
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
 	# A "calm" hit (the Earthshatter shockwave striking a whole crowd at once) skips the per-enemy blood, numbers, flashes, shake and
@@ -761,6 +789,10 @@ func _popup_tint() -> Color:
 func _apply_damage(amount: float) -> void:
 	if dead:
 		return
+	if amount > 0.0:
+		if chip_health < 0.0 or chip_health < health:
+			chip_health = health   # the trail starts from the life the blow found
+		chip_hold = 0.28 + 0.14 * hit_pulse_weight   # a heavy blow's loss lingers a little longer
 	health -= amount
 	if health <= 0.0:
 		health = 0.0
