@@ -22,7 +22,7 @@ PhantomCameraManager="*res://addons/phantom_camera/scripts/managers/phantom_came
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/proton_scatter/plugin.cfg", "res://addons/phantom_camera/plugin.cfg")
+enabled=PackedStringArray("res://addons/proton_scatter/plugin.cfg", "res://addons/phantom_camera/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [display]
 
