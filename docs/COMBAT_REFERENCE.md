@@ -260,3 +260,21 @@ shield of 35% of its life that must break first), Summoner (two trivial zombies 
 (a 3 m blast after a 1.3 s telegraph, 1.8 x its average blow to the hero). Trivial and level-one openers never carry one. Its drop is a
 magic item or better, a rare 30% of the time, on top of the ordinary roll. Every number is a provisional tunable awaiting owner review.
 Checks: `--only=champions`; look: `-- --championshot`.
+
+## Curse pacing: pack density (departs from DS2, owner 2026-10-17, issue #60)
+
+A deliberate owner departure from DS2's sparse opening (about 0.07 monsters per map node, see `docs/ds2-opening-monsters.md`): fewer idle
+gaps, bigger fights. Which monsters appear is unchanged; only pack size, count and spacing moved. Every number is a named constant.
+
+| Rule | Value | Where |
+|---|---|---|
+| Regular pack size | 4 to 8 bodies | `RoadEncounterRoster.PACK_MIN/PACK_MAX`, `DungeonMonsterGenerator.PACK_MIN/PACK_MAX` |
+| Elite packs | about 1 pack in 5 carries a brute or warden (road: 4 of 22 beats; dungeon: `ELITE_CHANCE` from hall_3 on) | `RoadEncounterRoster.BEATS`, `DungeonMonsterGenerator.ELITE_*` |
+| Champions | unchanged, 12 % of packs (`Champion.PACK_CHANCE`); trivial openers never carry one | `champion.gd` |
+| Crypt Road | 22 pack beats plus the two nest guards, 61 -> 100 bodies; cap `TOTAL_CAP` 64 -> 100 | `road_encounter_roster.gd` |
+| Walking gap | at most about 9 s (`MAX_WALK_SECONDS_BETWEEN_PACKS`) at the hero's 4.5 m/s run with no pack in view | roster and `TestDungeon.longest_gap` |
+| Test dungeon | packs every `PATH_PACK_SPACING` (26 m) along `TestDungeon.CRITICAL_PATH`, plus side-space packs; 85 -> 130 enemies | `dungeon_monster_generator.gd`, `dungeon_level.tscn` |
+| First pack | in sight on spawn: the road's first beat is 13 m from the start, the dungeon's 9 m along the path | `FIRST_PACK_DISTANCE` |
+
+Enemy level still follows the hero's XP and never exceeds it. Checks: `--only=roaddensity`, `--only=dungeonscene`; measurements:
+`-- --dungeon` with `game/dev/pack_pacing_probe.gd`.
