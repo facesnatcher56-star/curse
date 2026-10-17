@@ -692,7 +692,7 @@ func tick_busy(delta: float) -> void:
 	if not busy_hit_done and busy_t >= hit_at:
 		busy_hit_done = true
 		_apply_skill(skill)
-		_lunge(float(skill["lunge"]))
+		_lunge(0.0 if busy_skill == "basic" else float(skill["lunge"]))   # the basic swing plants the feet: the hero never steps forward with it
 		_strike_fx(skill)
 	if busy_hit_done and busy_skill == "basic":   # the weapon decides how quickly the blade comes back (a falchion fast, a greatsword slowly)
 		busy_t += delta * (float(p.stats.weapon_profile("recovery", 1.0)) - 1.0)

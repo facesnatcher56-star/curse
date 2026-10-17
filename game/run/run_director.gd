@@ -346,6 +346,7 @@ func hero_returned() -> void:
 
 func _process(delta: float) -> void:
 	_sleep_far_monsters(delta)
+	XpShare.flush()   # hit-by-hit XP: whole points that have built up since last frame
 	if world_mode:
 		TownState.flush_progression()   # ordinary kills' XP reaches the disk within a few seconds
 		if player != null and PartyManager.current().living().is_empty() and not _fell:
@@ -387,18 +388,20 @@ func _report_to_quests(actor: Actor, bonuses: Dictionary = {}) -> int:
 ## (HeroProgression.monster_xp) plus a named monster's bounty, times the level gap to the hero. Cutter is a party member: while he is
 ## alive the kill is shared with DS2's group bonus (each gets 90%), his share going to his own level. The hero's share is divided over
 ## his class skills by the damage each did (Actor.hero_damage). Only a death the hero is credited with (Actor.hero_credited), of an
-## enemy worth XP (`xp_eligible`: no renewable summons), pays anything. CURSE CHOICE (owner): paid on the kill, not hit by hit as DS2 does.
+## enemy worth XP (`xp_eligible`: no renewable summons), pays anything. The monster's own XP is paid hit by hit (XpShare, as DS2 does); this pays only a named monster's bounty.
 ## Ordinary kills are saved lazily (TownState.add_hero_xp); a named monster's bounty is saved at once.
 func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 	var enemy := actor as Enemy
 	if enemy == null or enemy.def == null or not enemy.xp_eligible or not enemy.hero_credited():
 		return
-	var kill: int = HeroProgression.monster_xp(enemy.level, enemy.def.tier)
+	var kill: int = 0   # the monster's own XP was paid hit by hit (XpShare); only a named monster's bounty is paid at its death
+	if bounty_xp <= 0:
+		return
 	var party := PartyManager.current()
 	var recipients := party.living()
 	for body in recipients:
 		var member_id := body.member_id
-		var gap := HeroProgression.level_gap_mult(body.character.level, enemy.level)
+		var gap := HeroProgression.level_gap_mult(HeroProgression.gap_level(body.character.level), enemy.level)
 		var total := int(round(float(kill + bounty_xp) * gap))
 		var share := HeroProgression.party_share(total, recipients.size())
 		TownState.add_member_xp(member_id, share, bounty_xp > 0, enemy.member_damage.get(member_id, {}))
@@ -469,9 +472,13 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 		var pickup := HealthOrb.new()
 		pickup.is_potion = kind == "health"
 		pickup.is_mana = kind == "mana"
-		pickup.gold_amount = int(loot.gold) if kind == "gold" else 0
+		pickup.gold_amount = gold_for_drop(int(loot.gold)) if kind == "gold" else 0
 		get_tree().current_scene.add_child(pickup)
 		pickup.global_position = enemy.global_position
+
+## The gold a drop holds in the connected world: a running world event (a blood moon) multiplies it.
+func gold_for_drop(base: int) -> int:
+	return int(round(float(base) * (Quests.world_mult("gold_mult") if world_mode else 1.0)))
 
 func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)

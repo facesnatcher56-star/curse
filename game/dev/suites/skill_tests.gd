@@ -92,18 +92,22 @@ func _test_hotbar() -> void:
 	GameSettings.reset_hotbar()
 	var skills: SkillController = player.skills
 	expect("the hero's hotbar is the settings' layout", is_same(skills.hotbar, GameSettings.hotbar_slots) and skills.right_click_skill == "basic")
+	# The picker offers only learned powers: open Repulse (Dodge 4, Survival 3) and Take Aim (Critical Shot 1) for the hero for this check.
+	var hero_ranks: Dictionary = PartyManager.current().member("hero").passive_ranks
+	var ranks_before: Dictionary = hero_ranks.duplicate()
+	hero_ranks["dodge"] = 4
+	hero_ranks["survival"] = 3
+	hero_ranks["critical_shot"] = 1
 	# The real click path: open the picker on slot 2, choose Repulse.
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var size_px: Vector2 = hud.get_viewport_rect().size
 	var second: Dictionary = {}
-	var mouse_slot: Dictionary = {}
 	for hit in hud._slot_hits:
 		if hit["action"] == "skill_2":
 			second = {"slot": 1, "rect": hit["rect"]}
-		if hit["action"] == "alt_skill":
-			mouse_slot = {"slot": HotbarLayout.ALT, "rect": hit["rect"]}
-	expect("the hotbar slots are known to the HUD", not second.is_empty() and not mouse_slot.is_empty())
+	expect("the hotbar slots are known to the HUD, and the right-click skill and dodge have none of their own",
+		not second.is_empty() and hud._slot_hits.all(func(h: Dictionary) -> bool: return h["action"] != "alt_skill" and h["action"] != "dodge"))
 	var press := func(at: Vector2, button: int = MOUSE_BUTTON_LEFT) -> bool:
 		var e := InputEventMouseButton.new()
 		e.button_index = button
@@ -122,20 +126,7 @@ func _test_hotbar() -> void:
 		if cell["id"] == "hero": press.call((cell["rect"] as Rect2).get_center())
 	expect("choosing Repulse puts it on the empty key 2", skills.hotbar[1] == "repulse" and not hud.picker.is_open()
 		and GameSettings.hotbar_caster(1) == "hero" and HotbarLayout.is_valid(skills.hotbar, skills.right_click_skill))
-	# The mouse button, and closing without choosing.
-	await get_tree().process_frame
-	press.call((mouse_slot["rect"] as Rect2).get_center())
-	expect("the mouse button's slot opens a picker too", hud.picker.is_open() and hud.picker.open_slot == HotbarLayout.ALT)
-	press.call(Vector2(5, 5), MOUSE_BUTTON_RIGHT)
-	expect("a right click closes it with nothing changed", not hud.picker.is_open() and skills.right_click_skill == "basic")
-	press.call((mouse_slot["rect"] as Rect2).get_center())
 	expect("the dedicated potion is absent from the skill picker", not HotbarLayout.ASSIGNABLE.has("potion"))
-	hud.picker.close() # An open picker consumes an outside click to close; test the dodge from the normal closed state.
-	var dodge_rect: Rect2 = Rect2()
-	for hit in hud._slot_hits:
-		if hit["action"] == "dodge":
-			dodge_rect = hit["rect"]
-	expect("the dodge slot cannot be changed", not press.call(dodge_rect.get_center()) and not hud.picker.is_open())
 	# Take Aim can be assigned from the bench, shows in the picker, and commands Cutter.
 	press.call((second["rect"] as Rect2).get_center())
 	var take_aim_at: Vector2 = Vector2.ZERO
@@ -163,6 +154,8 @@ func _test_hotbar() -> void:
 		cutter.skills.cancel_take_aim_targeting()
 		cutter.character.passive_ranks = saved_ranks
 	GameSettings.reset_hotbar()
+	hero_ranks.clear()
+	hero_ranks.merge(ranks_before)
 
 ## Drive cancellation synchronously so regeneration and input timing cannot mask a spend or refund.
 func _test_action_queue() -> void:

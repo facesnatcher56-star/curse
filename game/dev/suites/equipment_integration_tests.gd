@@ -440,7 +440,7 @@ func _integration_combat() -> void:
 	var health_before := target.health
 	await _integration_click(destination)
 	expect("a ground click then cancels the swing before its hit and clears every lock", not hero.skills.busy and hero.skills.busy_skill == ""
-		and hero.skills.busy_target == null and hero.attack_target == null and not hero._attack_engaged and target.health == health_before)
+		and hero.skills.busy_target == null and hero.attack_target == null and target.health == health_before)
 	expect("the hero is moving, not stuck in recovery", hero.movement.has_goal and ["walk", "run"].has(hero.model.current))
 	expect("the mid-swing equip survived the cancel", stats.equipment.has(Items.Slot.WEAPON) and is_equal_approx(hero.added_ice, ice5.value))
 	# Unequipping while moving keeps the movement order and drops the element.

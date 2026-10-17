@@ -407,9 +407,7 @@ func spawn_encounters(for_director: RunDirector) -> void:
 
 func _on_nest_destroyed(prop: Destructible) -> void:
 	nests_destroyed += 1
-	var nest_xp: int = HeroProgression.nest_xp(WorldThreat.monster_level(threat_at(prop.global_position)))
-	TownState.add_party_reward_xp(nest_xp)   # a prop breaks once; quest completion does not repay this reward
-	HeroProgression.log_xp("nest %d of %d: %d" % [nests_destroyed, total_nests, nest_xp])
+	# DS2: a nest pays its children's XP; here they claw out below and pay it themselves when they are killed.
 	nest_destroyed.emit(nests_destroyed, total_nests)
 	if director == null:
 		return

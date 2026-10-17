@@ -191,7 +191,7 @@ func _add_progression(parent: Control) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
-	level_label = ItemTile._label("Level %d" % hero.character.level, 20, UiTheme.BRONZE_LIGHT.lightened(0.3))
+	level_label = ItemTile._label("Level %d" % HeroProgression.display_level(hero.character.level), 20, UiTheme.BRONZE_LIGHT.lightened(0.3))
 	row.add_child(level_label)
 	xp_label = ItemTile._label(HeroProgression.progress_text(xp), 15, UiTheme.TEXT_DIM)
 	xp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -231,7 +231,7 @@ func _on_member_xp_changed(member_id: String, old_xp: int, new_xp: int) -> void:
 func _on_xp_changed(_old_xp: int, new_xp: int) -> void:
 	if level_label == null:
 		return
-	level_label.text = "Level %d" % HeroProgression.level_for_xp(new_xp)
+	level_label.text = "Level %d" % HeroProgression.display_level(HeroProgression.level_for_xp(new_xp))
 	xp_label.text = HeroProgression.progress_text(new_xp)
 	xp_bar.queue_redraw()
 	classes_label.text = classes_text(hero.member_id)

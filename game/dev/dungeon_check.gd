@@ -25,7 +25,7 @@ const TARGETS := {
 	"treasure_vault": Vector3(13, 0, -116),
 	"alcove_h5e": Vector3(37, 0, -96),
 }
-## The enemies the dungeon places (the groups in TestDungeon.GROUPS) and its chests (CHEST_SPOTS).
+## The enemies the dungeon places (the DungeonEnemyGroup markers in the level scene) and its chests (the Chests in the level scene).
 const EXPECT_ENEMIES := 85
 const EXPECT_CHESTS := 5
 const ENTRY_LEVELS := [1, 5, 10]
@@ -96,5 +96,5 @@ func _process(_delta: float) -> bool:
 func _print_projection(entry: int) -> void:
 	print("DUNGEON_PROJECTION entry level %d (xp %d)" % [entry, HeroProgression.xp_for_level(entry)])
 	print("DUNGEON_PROJECTION   area          enemy_lvl  xp_in_area  xp_total  hero_lvl_after")
-	for row in TestDungeon.project(HeroProgression.xp_for_level(entry)):
+	for row in TestDungeon.project(HeroProgression.xp_for_level(entry), (_main.location as TestDungeon).groups):
 		print("DUNGEON_PROJECTION   %-13s %9d %11d %9d %15d" % [row["area"], row["level"], row["xp"], row["xp_total"], row["hero_level"]])

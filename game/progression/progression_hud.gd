@@ -70,7 +70,7 @@ func _process(delta: float) -> void:
 
 ## The strip's text: "LV 7" and "420 / 650" (or "MAX" at the cap).
 static func level_text() -> String:
-	return "LV %d" % TownState.hero_level
+	return "LV %d" % HeroProgression.display_level(TownState.hero_level)
 
 static func xp_text() -> String:
 	return "MAX" if HeroProgression.is_max_level(TownState.hero_xp) else "%d / %d" % [HeroProgression.xp_into_level(TownState.hero_xp), HeroProgression.xp_span_of_level(TownState.hero_xp)]
@@ -119,6 +119,6 @@ func _draw_strip(size_px: Vector2, font: Font) -> void:
 	draw_circle(badge, 17.0, Color(0.05, 0.047, 0.055))
 	draw_arc(badge, 16.0, 0.0, TAU, 40, UiTheme.BRONZE_LIGHT.darkened(0.2), 2.0)
 	draw_arc(badge, 12.5, 0.0, TAU, 32, UiTheme.BRONZE.darkened(0.3), 1.0)
-	var level_number: String = str(TownState.hero_level)
+	var level_number: String = str(HeroProgression.display_level(TownState.hero_level))
 	UiTheme.text(self, UiTheme.heading_font(), badge + Vector2(-20.0, 6.0), level_number, 17, UiTheme.BRONZE_LIGHT.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, 40.0)
 

@@ -783,7 +783,7 @@ static func _level_up_notification(parent: Node3D, height: float, new_level: int
 	if new_level > 0:
 		var level_label := Label3D.new()
 		level_label.name = "LevelUpWorldLevel"
-		level_label.text = "LEVEL %d" % new_level
+		level_label.text = "LEVEL %d" % HeroProgression.display_level(new_level)
 		level_label.font_size = 36
 		level_label.pixel_size = 0.004
 		level_label.outline_size = 8

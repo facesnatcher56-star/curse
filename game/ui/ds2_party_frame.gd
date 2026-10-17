@@ -68,7 +68,7 @@ func _update_card(card: Control, body: Player) -> void:
 		body.stats.ult_fraction(power_id), preload("res://game/ui/power_button_visual.gd").armed(body, power_id),
 		not body.dead and body.stats.can_use(power_id))
 	card.tooltip_text = "%s — Level %d\n%s\n%s\nSelect this party member%s" % [
-		body.display_name, body.character.level, HeroProgression.progress_text(body.character.xp),
+		body.display_name, HeroProgression.display_level(body.character.level), HeroProgression.progress_text(body.character.xp),
 		"Fallen" if body.dead else ("Active" if body.is_controlled() else "Companion"),
 		"\n%d skill point%s to spend%s" % [card.skill_points, "" if card.skill_points == 1 else "s", " (click the +)" if card._badge.visible else ""] if card.skill_points > 0 else ""]
 	card.queue_redraw()

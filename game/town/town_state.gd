@@ -838,6 +838,7 @@ static func from_dict(data: Dictionary) -> void:
 		mod["days_left"] = int(mod.get("days_left", 1))
 		if mod.has("monster"):
 			mod["monster"] = int(mod["monster"])
+	Quests.drop_world_events()   # world events are switched off for now (Quests.WORLD_EVENTS_ENABLED)
 	quest_clock = data.get("quest_clock", {"quest": 120.0, "matter": 90.0})
 	quest_history = data.get("quest_history", [])
 	monsters = []

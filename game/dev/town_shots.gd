@@ -74,7 +74,7 @@ func run(args: PackedStringArray) -> void:
 			town._refresh_reward_marker()
 		if arg == "--quests":   # developer tool: put some quests and matters up, to see the tracker and the panels
 			TownState.jobs_done = 2
-			for id in ["ghoul_cull", "brute_bounty", "lost_satchel", "fever", "light_fingers", "blood_moon"]:
+			for id in ["ghoul_cull", "brute_bounty", "lost_satchel", "fever", "light_fingers"]:
 				Quests.post(id)
 			town.populate_quests()
 			town._refresh_reward_marker()

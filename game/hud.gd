@@ -35,6 +35,8 @@ func select_member(body: Player) -> void:
 var banner_text: String = ""
 var banner_time: float = 0.0
 ## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
+## Seconds over which a party member's small bars fade once they are unhurt and out of combat (see the bars drawn under them).
+const PARTY_BAR_FADE := 2.0
 const METAL_WARMTH := Color(1.32, 1.04, 0.80, 1.0)
 var health_orb: Control
 var _busts: Array[TextureRect] = []
@@ -213,7 +215,7 @@ func _draw() -> void:
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
 	var slot: float = hotbar_slot_size(size_px)
-	var slot_count: int = GameSettings.hotbar_slot_count() + 2
+	var slot_count: int = GameSettings.hotbar_slot_count()   # only the numbered slots, one per party member (the right-click skill and the dodge have no slot of their own)
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var bar_height: float = slot + 28.0
@@ -228,9 +230,6 @@ func _draw() -> void:
 	for i in GameSettings.hotbar_slot_count():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font, GameSettings.hotbar_caster(i))
-	var extra: int = GameSettings.hotbar_slot_count()
-	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font, GameSettings.hotbar_alt_caster)
-	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
 	if use_ds2_ui:
 		for gap in range(slot_count - 1):
@@ -270,12 +269,36 @@ func _draw() -> void:
 			var pos := Vector2(screen.x - bar_w * 0.5, screen.y - 8.0)
 			var enemy_color := Color(0.8, 0.15, 0.12) if Ds2TargetBanner.status_of(enemy).is_empty() else Ds2TargetBanner.status_color(enemy)
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(0, 0, 0, 0.85 * alpha))
+			_draw_chip(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 9)), Color(enemy_color, alpha))
+			_draw_hit_pulse(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
 			# The monster's level, small, at the bar's left end (DS2 shows it with the name; here it is always readable over the body).
 			var level_text: String = str(enemy.level)
 			var level_size := maxi(15, ceili(13.0 / maxf(float(get_window().size.x) / size_px.x, 0.01)))
 			UiTheme.text(self, font, pos + Vector2(-font.get_string_size(level_text, HORIZONTAL_ALIGNMENT_LEFT, -1, level_size).x - 5.0, 10.0), level_text, level_size, Color(Ds2TargetBanner.status_color(enemy), alpha))
+
+		# Small life and mana bars under each living party member while they are hurt or in combat; they fade a couple of seconds after.
+		for body in PartyManager.current().living():
+			var hurt: bool = body.health < body.max_health - 0.01
+			var fade: float = 1.0 if hurt else clampf(body.combat_timer / PARTY_BAR_FADE, 0.0, 1.0)
+			if fade <= 0.0:
+				continue
+			var feet: Vector3 = body.get_global_transform_interpolated().origin + Vector3(0, -0.05, 0)
+			if camera.is_position_behind(feet):
+				continue
+			var foot_screen: Vector2 = camera.unproject_position(feet)
+			var party_w: float = 72.0
+			var party_pos := Vector2(foot_screen.x - party_w * 0.5, foot_screen.y + 6.0)
+			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(0, 0, 0, 0.85 * fade))
+			_draw_chip(party_pos, party_w, 8.0, body, fade)
+			draw_rect(Rect2(party_pos, Vector2(party_w * clampf(body.health / body.max_health, 0.0, 1.0), 8)), Color(0.78, 0.14, 0.12, fade))
+			_draw_hit_pulse(party_pos, party_w, 8.0, body, fade)
+			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(1, 1, 1, 0.4 * fade), false, 1.0)
+			var mana_pos := party_pos + Vector2(0, 9)
+			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(0, 0, 0, 0.85 * fade))
+			draw_rect(Rect2(mana_pos, Vector2(party_w * clampf(body.stats.mana / maxf(body.stats.max_mana, 1.0), 0.0, 1.0), 5)), Color(0.2, 0.4, 0.95, fade))
+			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(1, 1, 1, 0.35 * fade), false, 1.0)
 
 		# Objectives that must be destroyed (the nests) always carry a bar, even before the first hit.
 		for node in get_tree().get_nodes_in_group("nests"):
@@ -465,7 +488,7 @@ func covers(point: Vector2) -> bool:
 ## The hotbar tray's screen rectangle.
 func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
-	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
+	var count: int = GameSettings.hotbar_slot_count() if player != null else 6
 	var total: float = slot * count + 8.0 * (count - 1)
 	if use_ds2_ui:
 		var bar_height: float = slot + 28.0
@@ -484,7 +507,7 @@ static func minimap_rect(screen: Vector2, ds2: bool = false) -> Rect2:
 	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
-	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
+	var count: int = GameSettings.hotbar_slot_count() if player != null else 6
 	var available: float = screen.x - orb_rect(screen, false).end.x * 2.0 - 52.0
 	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
 
@@ -564,6 +587,31 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
 	draw_arc(medal_pos, 7.0, 0.0, TAU, 20, Color(0.55, 0.42, 0.24, 0.8), 1.0)
 	draw_circle(medal_pos, 3.5, Color(0.88, 0.70, 0.40, 0.95))
+
+## The life a body just lost, trailing behind its bar's fill and draining away (see Actor.chip_health).
+func _draw_chip(pos: Vector2, width: float, height: float, body: Actor, alpha: float) -> void:
+	var from_x: float = width * clampf(body.health / maxf(body.max_health, 1.0), 0.0, 1.0)
+	var to_x: float = width * clampf(body.chip_health / maxf(body.max_health, 1.0), 0.0, 1.0)
+	if to_x > from_x + 0.5:
+		draw_rect(Rect2(pos + Vector2(from_x, 0.0), Vector2(to_x - from_x, height)), Color(0.98, 0.62, 0.3, 0.9 * alpha))
+
+## The flash that confirms a blow: warm white for a hit, gold for a critical, steel blue for a block, a pale grey for a dodge or miss,
+## stronger for a heavier blow.
+func _draw_hit_pulse(pos: Vector2, width: float, height: float, body: Actor, alpha: float) -> void:
+	if body.hit_pulse <= 0.0:
+		return
+	var tint := Color(1.0, 0.95, 0.85)
+	match body.hit_pulse_outcome:
+		Combat.Outcome.CRITICAL: tint = Color(1.0, 0.82, 0.3)
+		Combat.Outcome.BLOCK: tint = Color(0.55, 0.7, 0.95)
+		Combat.Outcome.MISS: tint = Color(0.75, 0.78, 0.8)
+	var strength: float = clampf(0.55 + 0.45 * body.hit_pulse_weight, 0.6, 1.3)
+	var pulse: float = body.hit_pulse * strength
+	var grow: float = 2.0 * pulse
+	var rect := Rect2(pos - Vector2(grow, grow), Vector2(width + grow * 2.0, height + grow * 2.0))
+	if body.hit_pulse_outcome != Combat.Outcome.MISS:
+		draw_rect(rect, Color(tint, clampf(0.55 * pulse, 0.0, 0.8) * alpha))
+	draw_rect(rect, Color(tint, clampf(pulse, 0.0, 1.0) * alpha), false, 1.5)
 
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)

@@ -569,7 +569,7 @@ func _test_skill_tree() -> void:
 	var saved: Dictionary = JSON.parse_string(JSON.stringify(TownState.to_dict()))
 	TownState.reset()
 	TownState.from_dict(TownState.migrate(saved))
-	expect("ranks survive a save", TownState.passive_rank("fortitude") == 20 and TownState.passive_rank("barricade") == 1)
+	expect("ranks survive a save (Barricade is the free starting rank plus the one bought)", TownState.passive_rank("fortitude") == 20 and TownState.passive_rank("barricade") == 2)
 	expect("a version 8 save starts with nothing bought", (TownState.migrate({"save_version": 8})["passive_ranks"] as Dictionary).is_empty())
 	# Stances.
 	var great: Dictionary = Items.build(ItemDb.get_def("greatsword"), 6, Items.Rarity.NORMAL)

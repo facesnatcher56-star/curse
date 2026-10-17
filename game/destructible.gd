@@ -58,6 +58,25 @@ func configure(owner_arena: Arena, name_of_prop: String, visual: Node3D, body: S
 	if name_of_prop == "nest":
 		add_to_group("nests")
 
+## A prop that stands ready-made in a level scene (see TestDungeon): its visual, body and light are children already, and the scene keeps
+## what Arena._place would have passed to configure() as node metadata (`prop_kind`, `prop_height`, `obstacle_radius`). Call it once the
+## node is in the tree.
+func adopt(owner_arena: Arena) -> void:
+	var visual: Node3D = null
+	var body: StaticBody3D = null
+	var light: Light3D = null
+	for child in get_children():
+		if child is StaticBody3D:
+			body = child
+		elif child is Light3D:
+			light = child
+		elif child is Node3D and not child is NavigationObstacle3D and visual == null:
+			visual = child
+	var footprint: float = float(get_meta("obstacle_radius", 0.5))
+	var entry: Dictionary = {"position": global_position, "radius": footprint}
+	owner_arena.obstacles.append(entry)
+	configure(owner_arena, String(get_meta("prop_kind")), visual, body, light, entry, footprint, float(get_meta("prop_height", 1.0)))
+
 func _is_kind(only_kind: String) -> bool:
 	if only_kind == "" or only_kind == prop_name:
 		return true

@@ -94,6 +94,7 @@ func _tally_damage(source: Actor, skill_id: String, amount: float, origin: Dicti
 		member_damage[member_id][id] = float(member_damage[member_id].get(id, 0.0)) + dealt
 		if member_id == "hero": hero_damage[id] = float(hero_damage.get(id, 0.0)) + dealt
 		elif member_id == "cutter": cutter_damage += dealt
+		if self is Enemy: XpShare.pay_hit(self as Enemy, member_id, id, dealt)
 
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS
@@ -113,6 +114,16 @@ var display_name: String = "Hero"
 var body_height: float = 1.8
 var knock_resist: float = 0.0  # 0..1, fraction of knockback ignored
 var stun_resist: float = 0.0   # 0..1, fraction of stun time ignored
+## Bar feedback for the small bars over bodies (see Hud): `chip_health` is the life the bar still shows trailing behind the real one after a
+## blow (held a moment, then it drains, longer for a heavy blow); `hit_pulse` is 1 the instant a blow lands and fades fast, tinted by what
+## happened (`hit_pulse_outcome`), its strength following the blow's weight, so a hit is confirmed on the bar and its size is readable.
+const CHIP_DRAIN_PER_SECOND := 0.7    # of max life per second, once the hold is over
+const HIT_PULSE_SECONDS := 0.2
+var chip_health: float = -1.0
+var chip_hold: float = 0.0
+var hit_pulse: float = 0.0
+var hit_pulse_outcome: int = 0
+var hit_pulse_weight: float = 1.0
 var bar_timer: float = 0.0     # >0 while a floating health bar should be shown (set when hurt)
 var flinch_chance: float = 0.0
 const SMALL_STUN_RESIST := 0.2   # monsters with no more stun resistance than this flinch from every blow
@@ -167,6 +178,7 @@ func _build_model(folder: String, clips: Array[String], height: float, radius: f
 
 ## Returns true while frozen by a hit-pause; callers should skip their own logic for that frame.
 func _actor_tick(delta: float) -> bool:
+	_tick_bar_feedback(delta)
 	if hitpause > 0.0:
 		hitpause -= delta
 		if hitpause <= 0.0:
@@ -227,6 +239,22 @@ func flat_distance_to(other: Node3D) -> float:
 const SWORD_SKILLS: Array[String] = ["basic", "brutal_attack", "whirling_strike", "staggering_blow", "opening"]
 const GIBBING_POWERS: Array[String] = ["brutal_attack", "take_aim", "whirling_strike", "staggering_blow", "flame_nexus", "detonation", "fireball"]
 
+func _tick_bar_feedback(delta: float) -> void:
+	if chip_health < 0.0 or health >= chip_health:
+		chip_health = health   # healing (and the first frame) never leaves a trail
+	elif chip_hold > 0.0:
+		chip_hold -= delta
+	else:
+		chip_health = maxf(health, chip_health - max_health * CHIP_DRAIN_PER_SECOND * delta)
+	hit_pulse = maxf(hit_pulse - delta / HIT_PULSE_SECONDS, 0.0)
+
+## A blow has landed or been turned aside: pulse the bar (tinted by `outcome`, sized by `weight`) and keep it on show for a moment.
+func _confirm_hit_on_bar(outcome: int, weight: float) -> void:
+	hit_pulse = 1.0
+	hit_pulse_outcome = outcome
+	hit_pulse_weight = weight
+	bar_timer = maxf(bar_timer, 1.4)
+
 ## Apply a resolved attack (see Combat.resolve) to this actor.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if dead:
@@ -257,7 +285,12 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if damage <= 0.0 and outcome >= Combat.Outcome.HIT:
 		return
 	var weight: float = result.get("weight", 1.0)
+	_confirm_hit_on_bar(outcome, weight)
 	var source: Actor = result.get("source")
+	# A plain sword blow from the party (the basic attack) has a small impact on an enemy and never interrupts it: no stun, no flinch,
+	# no shove, no freeze. Its small visual reaction (flash, squash, a light recoil) stays; powers and procs still stagger on purpose.
+	var plain_blow: bool = not is_in_group("player") and source is Player and String(result.get("skill_id", "")) == "basic"
+
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
 	# A "calm" hit (the Earthshatter shockwave striking a whole crowd at once) skips the per-enemy blood, numbers, flashes, shake and
 	# hit-pause: ten of those at the same instant would bury the move in noise.
@@ -275,7 +308,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	if outcome == Combat.Outcome.BLOCK:
 		Fx.burst(self, chest, away + Vector3.UP * 0.5, Color(1.0, 0.85, 0.5), 10, 6.0, 0.03, true)
-		knock += away * 1.5 * weight
+		if not plain_blow:
+			knock += away * 1.5 * weight
 		_on_avoided(outcome)
 		return
 
@@ -324,7 +358,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		_flash = 1.0
 		model.set_overlay(_flash_mat)
 		_squash(away, 0.08 * weight + (0.1 if big else 0.0))
-		flinch_serial += 1
+		if not plain_blow:
+			flinch_serial += 1
 		if not is_in_group("player") and not is_ragdolled() and model != null:   # the body takes the blow: chest tips away, shoulders turn, head follows
 			var scale_up: float = 1.5 if outcome == Combat.Outcome.CRITICAL else 1.0
 			model.react(away, BodyRecoil.peak_for(weight, scale_up, knock_resist))
@@ -339,7 +374,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var pause: float = 0.06 * weight + (0.045 if big else 0.0)
 	# The hero is never frozen by being hit: a crowd landing blows would otherwise stutter every skill to a halt.
 	if not calm:
-		if not killed and not is_in_group("player"):
+		if not killed and not is_in_group("player") and not plain_blow:
 			add_hitpause(pause)
 		if source != null and source != self:
 			source.add_hitpause(pause)
@@ -362,14 +397,16 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	match outcome:
 		Combat.Outcome.CRITICAL:
 			push = 5.5
-			if not hero:
+			if not hero and not plain_blow:
 				stun_time = maxf(stun_time, 0.3 * (1.0 - stun_resist))
 		_:
 			# Ordinary blows only flinch enemies. The hero keeps swinging, casting and moving through them.
 			# Every blow interrupts a small monster (the owner: they surround you anyway, so it costs nothing); big ones only sometimes.
-			if not hero and (weight >= 1.5 or randf() < flinch_chance or stun_resist <= SMALL_STUN_RESIST):
+			if not hero and not plain_blow and (weight >= 1.5 or randf() < flinch_chance or stun_resist <= SMALL_STUN_RESIST):
 				stun_time = maxf(stun_time, maxf(0.25 * weight, MIN_FLINCH) * (1.0 - stun_resist))
 	var shove: float = push * weight * (1.0 - knock_resist)
+	if plain_blow:
+		shove = 0.0   # a plain sword blow lands without shoving the enemy along the ground (powers still do)
 	if hero:
 		shove *= 0.2 if is_acting() else 0.5   # mid-skill the hero is planted
 	knock += away * shove
@@ -764,6 +801,10 @@ func _popup_tint() -> Color:
 func _apply_damage(amount: float) -> void:
 	if dead:
 		return
+	if amount > 0.0:
+		if chip_health < 0.0 or chip_health < health:
+			chip_health = health   # the trail starts from the life the blow found
+		chip_hold = 0.28 + 0.14 * hit_pulse_weight   # a heavy blow's loss lingers a little longer
 	health -= amount
 	if health <= 0.0:
 		health = 0.0

@@ -48,7 +48,7 @@ func _test_basic_single_target_physics() -> void:
 	player.set_physics_process(true)
 	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"), false)
 
-## One explicit engagement repeats, retargets actual attackers, and obeys cancellation.
+## A held click repeats basic attacks, releasing it stops them, and cancellation is obeyed.
 func _test_auto_attack() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
@@ -62,9 +62,12 @@ func _test_auto_attack() -> void:
 	dummy.max_health = 5000.0
 	dummy.health = 5000.0
 	await get_tree().physics_frame
-	# 1. Order an attack with the mouse NOT held: approach and repeat.
+	var was_pad: bool = Gamepad.active
+	Gamepad.active = true   # the real pointer must not matter (it may be over the HUD): this check is about the held click, not the mouse
+	# 1. Hold the click on the target: approach and repeat; letting go ends the engagement (no auto-attack).
 	player.attack_target = dummy
 	player.click_mode = 1
+	Input.action_press("click")
 	var swings: int = 0
 	var was_busy: bool = false
 	var facing_turns: float = 0.0
@@ -76,6 +79,10 @@ func _test_auto_attack() -> void:
 			swings += 1
 		was_busy = player.skills.busy
 	var retained_order: bool = player.attack_target == dummy
+	Input.action_release("click")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var released_clears: bool = player.attack_target == null and player.click_mode == 0
 	player.attack_target = null
 	player.skills.cancel_action()
 	player.movement.has_goal = false
@@ -93,38 +100,96 @@ func _test_auto_attack() -> void:
 	var cleared_by_skill: bool = player.attack_target == null
 	await get_tree().create_timer(2.0).timeout
 	var swings_after_skill: bool = player.skills.busy and player.skills.busy_skill == "basic"
-	expect("one click repeats basic attacks without holding input", swings >= 2 and retained_order)
+	expect("holding the click on a target repeats basic attacks", swings >= 2 and retained_order)
+	expect("letting go of the click ends the engagement (no auto-attack)", released_clears)
 	expect("explicit cancellation clears engagement", idle_after)
 	expect("hero does not swing or turn with no input", not busy_during_idle and absf(yaw_drift) < 0.02)
 	expect("a skill clears the attack order", cleared_by_skill)
 	expect("no swinging resumes after a skill", not swings_after_skill)
-	# Actual enemy targeting, not proximity or the globally selected member, controls continuation.
-	dummy.set_physics_process(false)
-	dummy.target = null
-	var attacker: Enemy = _spawn_enemy(player.global_position + Vector3(4, 0, 0))
-	attacker.target = player
-	attacker.wake()
-	attacker.set_physics_process(false)
-	var other: Enemy = _spawn_enemy(player.global_position + Vector3(2, 0, 0))
-	other.target = player
-	other.wake()
-	other.set_physics_process(false)
-	expect("continuation chooses nearest actual attacker", player._nearest_attacker() == other)
-	other.target = null
-	expect("nearer enemies attacking someone else are excluded", player._nearest_attacker() == attacker)
-	player.attack_target = dummy
-	dummy.dead = true
-	player._act(0.0, Vector3.ZERO)
-	expect("dead target automatically hands off to attacker", player.attack_target == attacker)
-	player.attack_target = null
-	player.skills.cancel_action()
-	player.movement.has_goal = false
-	attacker.queue_free()
-	other.queue_free()
 	print("  auto-attack: one click -> swings=", swings, " (expected repeated), idle after cancellation=", idle_after, ", idle with enemy near: busy=", busy_during_idle,
 		" turned ", snappedf(rad_to_deg(yaw_drift), 0.1), " deg, skill clears attack order=", cleared_by_skill, ", resumed swinging after skill=", swings_after_skill)
+	Gamepad.active = was_pad
 	dummy.queue_free()
 	await get_tree().process_frame
+	await _test_held_click_keeps_target()
+	await _test_hit_bar_feedback()
+
+## Holding the click on an enemy keeps attacking that enemy while the button stays down, wherever the pointer goes (another enemy,
+## empty ground); only letting go (or its death) ends it.
+func _test_held_click_keeps_target() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var was_pad: bool = Gamepad.active
+	Gamepad.active = true   # deterministic cursor_override targeting in the headless self-test
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var first: Enemy = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
+	var second: Enemy = _spawn_enemy(Vector3(-3.0, 0.0, 4.0))
+	for e in [first, second]:
+		e.aggro_range = 0.0
+		e.max_health = 5000.0
+		e.health = 5000.0
+	await get_tree().physics_frame
+	player.cursor_override = first.global_position
+	Input.action_press("click")
+	for i in 4:
+		await get_tree().physics_frame
+	expect("pressing on an enemy targets it", player.attack_target == first)
+	player.cursor_override = second.global_position   # the pointer slides onto another enemy, button still down
+	for i in 6:
+		await get_tree().physics_frame
+	expect("held on the first, the pointer over another enemy does not switch the target", player.attack_target == first)
+	player.cursor_override = Vector3(0.0, 0.0, -8.0)   # and then onto empty ground
+	for i in 6:
+		await get_tree().physics_frame
+	expect("held on the first, the pointer over empty ground keeps attacking it and does not walk off", player.attack_target == first and not player.movement.has_goal)
+	Input.action_release("click")
+	for i in 3:
+		await get_tree().physics_frame
+	expect("letting go ends it", player.attack_target == null)
+	Gamepad.active = was_pad
+	for e in [first, second]:
+		e.queue_free()
+	player.skills.cancel_action()
+	await get_tree().physics_frame
+
+## A landed blow pulses the target's bar (by outcome and weight) and leaves a trail that drains; healing leaves none; a block shows the bar.
+func _test_hit_bar_feedback() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var target: Enemy = _spawn_enemy(Vector3(2.0, 0.0, 0.0))
+	target.aggro_range = 0.0
+	target.max_health = 1000.0
+	target.health = 1000.0
+	target.dodge_chance = 0.0
+	target.block_chance = 0.0
+	await get_tree().physics_frame
+	var result: Dictionary = Combat.resolve(player, target, 200.0, Combat.DamageType.PHYSICAL, false, 1.0)
+	target.receive(result, player.global_position)
+	expect("a landed blow pulses the target's bar and leaves a trail behind the new life", target.hit_pulse > 0.9 and target.chip_health > target.health + 100.0)
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_bar_feedback.png")
+	for i in 30:
+		await get_tree().physics_frame
+	expect("the pulse is over within a fraction of a second", is_zero_approx(target.hit_pulse))
+	expect("the trail holds, then drains toward the real life", target.chip_health < 1000.0 and target.chip_health >= target.health)
+	for i in 120:
+		await get_tree().physics_frame
+	expect("and it has caught up", is_equal_approx(target.chip_health, target.health))
+	var before: float = target.health
+	target.health = minf(target.max_health, before + 100.0)
+	await get_tree().physics_frame
+	expect("healing leaves no trail", is_equal_approx(target.chip_health, target.health))
+	target.bar_timer = 0.0
+	target.receive({"outcome": Combat.Outcome.BLOCK, "damage": 0.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, player.global_position)
+	expect("a blocked blow pulses the bar blue-side and shows it", target.hit_pulse > 0.9 and target.hit_pulse_outcome == Combat.Outcome.BLOCK and target.bar_timer > 1.0)
+	target.queue_free()
+	await get_tree().physics_frame
 
 ## A plain ground click abandons an unlanded swing or its recovery and starts locomotion immediately.
 func _test_move_priority() -> void:
@@ -156,7 +221,7 @@ func _test_move_priority() -> void:
 	await _click_ground(destination)
 	var before_hit_cancelled: bool = not player.skills.busy and player.skills.busy_skill == "" \
 		and player.skills.busy_def.is_empty() and player.skills.busy_target == null and not player.skills.busy_hit_done \
-		and is_zero_approx(player.skills.busy_t) and not player._attack_engaged and player.attack_target == null \
+		and is_zero_approx(player.skills.busy_t) and player.attack_target == null \
 		and player.skills.queued_skill == "" and player.skills.queued_target == null
 	expect("ground click cancels a melee wind-up before damage and clears the old target/queue", before_hit_cancelled and target.health == health_before)
 	expect("ground click transitions directly into movement animation", ["walk", "run"].has(player.model.current)
@@ -164,7 +229,7 @@ func _test_move_priority() -> void:
 	expect("cancelled melee trail and pose locks are cleared", not player._trail.active and is_zero_approx(player.visual.rotation.x))
 	for i in 8:
 		await get_tree().physics_frame
-	expect("cancelled auto-attack does not reacquire the previous target", player.attack_target == null and not player._attack_engaged
+	expect("cancelled auto-attack does not reacquire the previous target", player.attack_target == null
 		and not player.skills.busy)
 
 	# A legitimately applied hit survives cancellation during the visible recovery window.
@@ -243,8 +308,7 @@ func _test_move_priority() -> void:
 	Input.action_press("stand_still")
 	await _click_ground(destination)
 	Input.action_release("stand_still")
-	expect("Ctrl plus ground click preserves the current attack", player.skills.busy and player.attack_target == target
-		and not player.movement.has_goal)
+	expect("Ctrl plus ground click keeps the swing going and does not move (releasing the click ends the engagement)", player.skills.busy and not player.movement.has_goal)
 	player.skills.cancel_action()
 	player.attack_target = null
 
@@ -958,19 +1022,26 @@ func _test_body_recoil() -> void:
 	expect("and the zombie has thighs to step with", target.model._thighs.size() == 2 and target.model._thighs[0] > 0 and target.model._thighs[1] > 0)
 	await get_tree().create_timer(1.8).timeout
 	expect("and it recovers", not target.model.reaction.active())
-	# Every blow interrupts a small monster, even a light one, and a blow while it is still reeling restarts the reaction.
+	# A plain sword blow (the basic attack) never interrupts, stuns, shoves or freezes an enemy; a power's blow still staggers a small one.
 	target.stun_time = 0.0
 	var light_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 0.5, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
-	var every_time: bool = true
+	var never_stuns: bool = true
+	var serial: int = target.flinch_serial
+	var knock_before: Vector3 = target.knock
+	for i in 4:
+		target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
+		never_stuns = never_stuns and is_zero_approx(target.stun_time) and target.hitpause <= 0.0
+	expect("a plain blow never stuns or freezes a small monster", never_stuns and target.flinch_serial == serial)
+	expect("and does not shove it along the ground", target.knock.is_equal_approx(knock_before))
+	var power_blow: Dictionary = light_blow.duplicate()
+	power_blow["skill_id"] = "whirling_strike"
+	var power_every_time: bool = true
 	for i in 4:
 		target.stun_time = 0.0
-		target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
-		every_time = every_time and target.stun_time >= 0.1
-	expect("a light blow interrupts a small monster every time", every_time)
-	var serial: int = target.flinch_serial
-	target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
-	expect("each blow counts, so the hit pose can restart", target.flinch_serial == serial + 1)
+		target.receive(power_blow, target.global_position + Vector3(0, 0, 3.0))
+		power_every_time = power_every_time and target.stun_time >= 0.1
+	expect("a power's blow still interrupts a small monster", power_every_time)
 	target.health = 1.0
 	var lethal_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 1.0, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}

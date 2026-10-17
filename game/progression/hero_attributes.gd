@@ -29,8 +29,9 @@ const SKILL_CLASS := {
 	"fireball": "combat", "burn": "combat",
 }
 
-## Class skill level from its XP. A class skill uses the character table one step behind (CURSE CHOICE: DS2's conversion is engine-side):
-## it is 0 untrained and 1 at the XP that makes character level 2, so a pure fighter at character level 30 has Melee 29.
+## Class skill level from its XP: DS2 reads it straight off the same table as character level, counting from 0 (confirmed in the real game:
+## a fresh hero is Level 0 with every class skill 0, and a pure fighter shows character level 3 and Melee 3 together). Curse numbers the
+## character from 1, so its level is always one above DS2's while the class skill equals it: Melee 0 untrained, 1 at the XP of character level 2.
 static func class_level(xp: int) -> int:
 	return HeroProgression.level_for_xp(xp) - 1
 

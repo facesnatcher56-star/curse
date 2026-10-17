@@ -1,6 +1,6 @@
 class_name MeleeBehavior
 extends EnemyBehavior
-## The shambler: closes in, waits its turn (only a few enemies may swing at once; the rest circle), then throws either a
+## The shambler: closes in, waits its turn (only a few enemies may swing at once; the rest stand and wait), then throws either a
 ## quick swipe or, now and then, a slow telegraphed heavy blow with a lunge and greater physical weight (not bonus damage).
 
 var _t: float = 0.0
@@ -30,7 +30,7 @@ func tick(delta: float, dist: float) -> void:
 	if dist > e.attack_range * 0.9 and (can_swing or dist > e.ring + 0.5):
 		e.advance_on_target(delta, dist)
 	else:
-		e.circle_target(dist)
+		e.hold_ground()   # it waits where it stands, facing the hero; it moves only to chase
 
 func _begin() -> void:
 	_active = true

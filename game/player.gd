@@ -23,11 +23,7 @@ var combat_timer: float = 0.0
 var message: String = ""
 var message_time: float = 0.0
 var hurt_flash: float = 0.0
-var _attack_engaged: bool = false
-var attack_target: Actor:
-	set(value):
-		attack_target = value
-		_attack_engaged = is_instance_valid(value)
+var attack_target: Actor
 var chest_target: Chest   # a treasure chest the hero was sent to open (click it): walks up and opens it once in reach
 var pickup_target: LootDrop   # an item the hero was sent to take (click it, or its name): nothing is picked up by walking over it
 var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
@@ -328,6 +324,13 @@ func _physics_process(delta: float) -> void:
 		if input_locked:
 			if skills.busy: skills.tick_busy(delta)
 			return
+	if Input.is_action_just_released("click"):
+		# No auto-attack: the hero fights only while the click is held on the target. Letting go ends the engagement, even
+		# mid-swing (the swing finishes, nothing follows it; a skill's own queued target is not affected).
+		attack_target = null
+		attack_prop = null
+		if click_mode != 4:
+			click_mode = 0
 	if move_click:
 		if stun_time > 0.0 or knockdown.active():
 			move_with(Vector3.ZERO)
@@ -671,9 +674,8 @@ func _read_input(cursor: Vector3) -> void:
 				movement.has_goal = true
 			1:
 				if not is_instance_valid(attack_target) or attack_target.dead:
-					attack_target = _nearest_attacker() if _attack_engaged else null
-					if attack_target == null:
-						click_mode = 0
+					attack_target = null   # the target fell: no hand-off to another enemy, the held click goes back to moving
+					click_mode = 0
 			2:
 				attack_target = enemy_near(cursor, 10.0)
 			3:
@@ -919,9 +921,6 @@ func _read_interrupt_move_click(cursor: Vector3) -> bool:
 # --- Acting ------------------------------------------------------------------
 
 func _act(delta: float, cursor: Vector3) -> void:
-	if _attack_engaged and (not is_instance_valid(attack_target) or attack_target.dead):
-		attack_target = _nearest_attacker()
-		movement.has_goal = false
 	update_melee_stance(attack_target if is_instance_valid(attack_target) and not attack_target.dead else null)
 	var ctrl: bool = Input.is_action_pressed("stand_still")
 	if attack_prop != null:
@@ -989,21 +988,6 @@ func _act(delta: float, cursor: Vector3) -> void:
 		move_with(Vector3.ZERO)
 		return
 	movement.move(delta)
-
-## Continue an explicit engagement only against enemies attacking this member.
-## Target identity belongs to the body, never whichever member is selected globally.
-func _nearest_attacker() -> Enemy:
-	var nearest: Enemy = null
-	var nearest_distance: float = INF
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var enemy := node as Enemy
-		if enemy == null or enemy.dead or not enemy.is_aggro() or enemy.target != self:
-			continue
-		var distance: float = flat_distance_to(enemy)
-		if distance < nearest_distance:
-			nearest = enemy
-			nearest_distance = distance
-	return nearest
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	var outcome: int = result.get("outcome", 0)
