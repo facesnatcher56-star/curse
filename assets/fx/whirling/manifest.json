@@ -1,0 +1,12 @@
+{
+  "ground_sigil": {
+    "task_id": "01a14b0e-ee2f-7494-9900-9a8debf2c2c7",
+    "prompt": "Top-down circular war sigil seen from directly above, filling the whole square image edge to edge: a heavy outer ring of worn dark steel with eight swept curved blade-shaped spokes spiralling in one direction, engraved rune notches, a smaller inner ring, glowing molten ember-orange inlay in the grooves, scratched and soot-stained metal, strong contrast, symmetrical, transparent background, no character, no floor, no text. gritty dark fantasy game art, one recognizable subject, readable composition, clear material identity (worn steel, leather, bone, cloth), muted palette of charcoal, burgundy, brown, bone and moss with restrained ember accents, dark atmospheric background with fog, strong value contrast, clear at small sizes. no photorealism, no text, no border, no frame, no cute, no cartoon, no pristine, no shiny new, no glossy plastic, no neon, no rainbow colours, no pastel, no clutter",
+    "aspect_ratio": "1:1"
+  },
+  "crescent_wind": {
+    "task_id": "01a14b0f-5091-7198-9368-5b519adde6a7",
+    "prompt": "A single sweeping crescent slash of cutting wind and dust, long tapered horizontal arc like a blade-shaped gust, pale ash-white and steel-grey core fading to transparent smoky streaks, a few ember sparks along the edge, side view, wide image, transparent background, no character, no hand, no weapon, no text. gritty dark fantasy game art, one recognizable subject, readable composition, clear material identity (worn steel, leather, bone, cloth), muted palette of charcoal, burgundy, brown, bone and moss with restrained ember accents, dark atmospheric background with fog, strong value contrast, clear at small sizes. no photorealism, no text, no border, no frame, no cute, no cartoon, no pristine, no shiny new, no glossy plastic, no neon, no rainbow colours, no pastel, no clutter",
+    "aspect_ratio": "16:9"
+  }
+}

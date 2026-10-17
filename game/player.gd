@@ -16,7 +16,7 @@ const GRIPS: Array[Basis] = [Basis(), Basis(Vector3(0, 0, 1), -PI / 2), Basis(Ve
 	Basis(Vector3(1, 0, 0), PI / 2), Basis(Vector3(1, 0, 0), -PI / 2), Basis(Vector3(1, 0, 0), PI)]
 # Middle of the right fist in the hand bone's space (rig units are cm; the bone origin is the wrist).
 const HAND_GRIP_POINT := Vector3(-0.8, 15.0, 0.5)
-const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "block", "death", "leap", "stomp", "yank", "jump", "earthshatter", "atk_slash_r", "atk_slash_l", "atk_slash", "atk_thrust", "atk_finisher", "atk2_slash_r", "atk2_slash_l", "atk2_slash", "atk2_thrust", "atk2_finisher", "idle_rest", "wthrow", "wthrow_release", "wthrow_catch"]
+const CLIPS: Array[String] = ["idle_alert", "walk", "run", "charge", "throw", "charge_run", "kick", "slash", "slash_l", "slash_r", "thrust", "combo_end", "power", "cast", "roll", "hit", "block", "death", "leap", "stomp", "yank", "jump", "earthshatter", "atk_slash_r", "atk_slash_l", "atk_slash", "atk_thrust", "atk_finisher", "atk2_slash_r", "atk2_slash_l", "atk2_slash", "atk2_thrust", "atk2_finisher", "atk_spin", "atk2_spin", "idle_rest", "wthrow", "wthrow_release", "wthrow_catch"]
 
 # State the hero itself owns (everything else lives in a component).
 var combat_timer: float = 0.0
