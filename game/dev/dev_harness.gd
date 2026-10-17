@@ -19,6 +19,7 @@ const SUITES := [
 	preload("res://game/dev/suites/opening_tests.gd"),
 	preload("res://game/dev/suites/power_damage_tests.gd"),
 	preload("res://game/dev/suites/power_impact_tests.gd"),
+	preload("res://game/dev/suites/whirling_strike_fx_tests.gd"),
 	preload("res://game/dev/suites/theme_tests.gd"),
 	preload("res://game/dev/suites/ui_texture_tests.gd"),
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
@@ -91,7 +92,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -132,6 +133,8 @@ func run_from_args() -> bool:
 		_run("_brutal_crimson_capture")
 	elif OS.get_cmdline_user_args().has("--thunderouscapture"):
 		_run("_thunderous_capture")
+	elif OS.get_cmdline_user_args().has("--whirlingcapture"):
+		_run("_whirling_capture")
 	elif OS.get_cmdline_user_args().has("--takeaimlethal"):
 		_run("_take_aim_lethal_capture")
 	elif OS.get_cmdline_user_args().has("--takeaimcapture"):
@@ -233,6 +236,7 @@ const ONLY_TESTS := {
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
+"whirlingfx": "_test_whirling_strike_fx",
 "archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",

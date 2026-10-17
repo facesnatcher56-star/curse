@@ -20,7 +20,7 @@ const FIRE_POWER_BURN := 0.1
 ## wind-up cut short (death, a knockdown, a move, a dodge, another skill) does none of them and is not spent. Curse's own clips for now
 ## (knight2 library); the free library clips replace them when the owner approves the source.
 const CASTS := {
-	"whirling_strike": {"clip": "slash_r", "start": 0.0, "strike": 0.9, "end": 1.5, "time": 0.9},
+	"whirling_strike": {"clip": "atk_spin", "start": 0.0, "strike": 0.9, "end": 1.5, "time": 0.9, "weight": 2.2},
 	"war_cry": {"clip": "cast", "start": 0.0, "strike": 0.9, "end": 1.4, "time": 1.2, "face": true},
 }
 ## Staggering Blow's armed blow: the overhead swing that releases it on impact (the same blow path as a basic attack, with its own clip).
@@ -196,8 +196,7 @@ func _whirling_strike() -> void:
 		_strike(e, p.stats.weapon_damage(1.0), "whirling_strike", 2.0, p.global_position, mult)
 		if is_instance_valid(e) and not e.dead:
 			_stagger(e, stun, WHIRL_KNOCK, p.global_position)
-	Fx.sector(p, p.global_position, Vector3.FORWARD, 75.0, radius, Color(0.85, 0.8, 0.7), 0.32, TAU * 0.8, 0.45)
-	Fx.burst(p, p.global_position + Vector3(0, 0.3, 0), Vector3.UP, Color(0.45, 0.4, 0.33), 18, 4.0, 0.05)
+			WhirlingStrikeFx.hit(p, e, p.global_position)   # the arc, ring and dust come from the cast's own WhirlingStrikeFx
 	Destructible.blast(p.get_tree(), p.global_position, radius, 40.0, Vector3.ZERO, 1.2, Destructible.HERO)
 	if not hit.is_empty():
 		Sfx.power(p, "whirling_strike_hit")

@@ -165,6 +165,7 @@ func cancel_action() -> void:
 	busy_aim = Vector3.ZERO
 	_release_started = false
 	_mana_spent = 0.0
+	end_whirl(true)
 	if p._trail != null:
 		p._trail.active = false
 	if p.visual != null:
@@ -189,6 +190,7 @@ func reset() -> void:
 	if p.model != null:
 		p.model.weapon_aim = null
 		p.model.leg_raise = 0.0
+	end_whirl(true)
 	if p._trail != null:
 		p._trail.active = false
 	busy = false
@@ -584,6 +586,14 @@ func start_skill(id: String, target: Actor, aim: Variant = null) -> void:
 		Fx.ring(p, p.global_position, 1.8, Color(1.0, 0.55, 0.15))
 		Fx.light_flash(p, p.global_position + Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 2.0, 0.3)
 
+## Whirling Strike's presentation while it is cast (WhirlingStrikeFx); a cast cut short frees it at once, a finished one lets it fade.
+var whirl_fx: WhirlingStrikeFx
+
+func end_whirl(immediate: bool) -> void:
+	if is_instance_valid(whirl_fx):
+		whirl_fx.finish(immediate)
+	whirl_fx = null
+
 ## A power's wind-up (PowerController.CASTS). It is the busy action, so every cancel path (a move, a dodge, a potion, a knockdown, another
 ## skill) reaches it. The power's damage, stun, cost and recharge happen at the strike frame (tick_busy -> PowerController.impact); a
 ## wind-up cut short before then does none of them and is not spent.
@@ -605,8 +615,14 @@ func start_power_cast(id: String, aim: Vector3, cast: Dictionary) -> void:
 	if bool(cast.get("face", false)):
 		p.face(aim)
 	_release_started = false
-	p.model.manual(String(cast["clip"]))
-	p.model.scrub(float(cast["start"]))
+	var both_hands: Dictionary = p.stats.weapon_profile("two_hand_clips", {})   # a two-hander turns with both hands on the grip
+	if both_hands.has(cast["clip"]):
+		busy_def.merge(both_hands[cast["clip"]], true)
+	p.model.manual(String(busy_def["clip"]))
+	p.model.scrub(float(busy_def["start"]))
+	end_whirl(true)
+	if id == "whirling_strike":
+		whirl_fx = WhirlingStrikeFx.start(p, p.powers.value(id, "radius"))
 
 ## An Opening's execution (Openings.STYLES): one melee blow on the marked enemy, timed by the weapon's speed. It is never cancelled by
 ## the enemy moving (the mark is what the hero is committed to), and it grants the hero a short invulnerability.
@@ -724,10 +740,15 @@ func _tick_power_cast(skill: Dictionary, delta: float) -> void:
 	if not busy_hit_done and busy_t >= duration * hf:
 		busy_hit_done = true
 		p.powers.impact(busy_skill, busy_aim)
+	if skill.has("weight"):   # coil back while the power gathers, throw the weight forward through its impact, as a heavy melee blow does
+		var heft: float = clampf(float(skill["weight"]), 0.8, 2.25)
+		var u: float = clampf(busy_t / duration, 0.0, 1.0)
+		p.visual.rotation.x = -0.14 * heft * sin(clampf(u / hf, 0.0, 1.0) * PI * 0.5) if u < hf 			else lerpf(0.2 * heft, 0.0, clampf((u - hf) / (1.0 - hf) * 1.5, 0.0, 1.0))
 	p.model.scrub(CharacterModel.remap(clampf(busy_t / duration, 0.0, 1.0), hf,
 		float(skill["start"]), float(skill["strike"]), float(skill["end"])))
 	if busy_t >= duration:
 		busy = false
+		p.visual.rotation.x = 0.0
 
 ## Two-phase cast: arms rise and the orb swells (gather), then both hands drive forward and it is thrown.
 func _tick_charged(skill: Dictionary) -> void:

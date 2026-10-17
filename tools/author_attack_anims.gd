@@ -120,6 +120,11 @@ func _init() -> void:
 			lib.remove_animation(name)
 		lib.add_animation(name, _author_throw(lib.get_animation("idle_alert"), name))
 		print(name, ": ", snappedf(lib.get_animation(name).length, 0.01), " s")
+	for name in SPIN_CLIPS:
+		if lib.has_animation(name):
+			lib.remove_animation(name)
+		lib.add_animation(name, _author_spin(lib.get_animation("idle_alert"), bool(SPIN_CLIPS[name])))
+		print(name, ": ", snappedf(lib.get_animation(name).length, 0.01), " s, strike at ", SPIN_STRIKE)
 	if lib.has_animation("idle_rest"):
 		lib.remove_animation("idle_rest")
 	lib.add_animation("idle_rest", _author_rest(lib.get_animation("idle_alert")))
@@ -273,8 +278,13 @@ func _two_hand_arms(out_rots: Array[Quaternion], rots: Array[Quaternion], hips: 
 	var chest: Quaternion = _chest_frame(gr)
 	var centre: Vector3 = ((gp[left_arm] as Vector3) + (gp[right_arm] as Vector3)) * 0.5
 	var grip: Array = _grip_at(keys, phase)
-	var grip_pos: Vector3 = centre + chest * (grip[0] as Vector3)
-	var blade: Vector3 = chest * (grip[1] as Vector3)
+	_two_hand_at(out_rots, rots, gr, gp, centre, chest, grip[0], grip[1])
+
+## Both hands on the grip at `grip_local` (chest frame, from the middle of the shoulders), the blade pointing `blade_local`.
+func _two_hand_at(out_rots: Array[Quaternion], rots: Array[Quaternion], gr: Array, gp: Array, centre: Vector3, chest: Quaternion,
+		grip_local: Vector3, blade_local: Vector3) -> void:
+	var grip_pos: Vector3 = centre + chest * grip_local
+	var blade: Vector3 = chest * blade_local
 	var left_point: Vector3 = grip_pos - blade * HAND_SPACING
 	_solve_arm("Right", out_rots, rots, gr, gp, grip_pos, blade, ELBOW_HINT_R, true)
 	_solve_arm("Left", out_rots, rots, gr, gp, left_point, blade, ELBOW_HINT_L, false)
@@ -479,9 +489,13 @@ func _body_for_pose(rots: Array[Quaternion], pose: Dictionary) -> Array[Quaterni
 	for bone in SPINE_SHARE:
 		var share: float = SPINE_SHARE[bone]
 		delta[bone] = Quaternion(Vector3.UP, spine_yaw * share) * Quaternion(Vector3.RIGHT, lean * share)
-	delta["Head"] = Quaternion(Vector3.UP, -(hips_yaw + spine_yaw) * 0.45) * Quaternion(Vector3.RIGHT, -lean * 0.4)
+	var head_hold: float = float(pose.get("head", 0.45))
+	delta["Head"] = Quaternion(Vector3.UP, -(hips_yaw + spine_yaw) * head_hold) * Quaternion(Vector3.RIGHT, -lean * 0.4)
+	# `follow` 1: the legs turn with the hips (a spin on the feet); 0: they keep their place (a coil).
+	var follow: float = float(pose.get("follow", 0.0))
+	var leg_undo: Quaternion = Quaternion(Vector3.BACK, -roll) * Quaternion(Vector3.UP, -hips_yaw * (1.0 - follow))
 	for side_name in ["Left", "Right"]:
-		delta[side_name + "UpLeg"] = (delta["Hips"] as Quaternion).inverse() * Quaternion(Vector3.RIGHT, -bend.x)
+		delta[side_name + "UpLeg"] = leg_undo * Quaternion(Vector3.RIGHT, -bend.x)
 		delta[side_name + "Leg"] = Quaternion(Vector3.RIGHT, bend.x + bend.y)
 		delta[side_name + "Foot"] = Quaternion(Vector3.RIGHT, -bend.y)
 	var gr: Array[Quaternion] = []
@@ -507,6 +521,9 @@ func _arms_for_pose(out_rots: Array[Quaternion], rots: Array[Quaternion], hips: 
 	var centre: Vector3 = ((gp[left_arm] as Vector3) + (gp[right_arm] as Vector3)) * 0.5
 	var before: Array[Quaternion] = out_rots.duplicate()
 	var blade: Vector3 = chest * (pose["blade"] as Vector3).normalized()
+	if bool(pose.get("two", false)):
+		_two_hand_at(out_rots, rots, gr, gp, centre, chest, pose["grip"], (pose["blade"] as Vector3).normalized())
+		return
 	_solve_arm("Right", out_rots, rots, gr, gp, centre + chest * (pose["grip"] as Vector3), blade, ELBOW_HINT_R, true)
 	var lw: float = float(pose["lw"])
 	if lw > 0.001:
@@ -515,3 +532,94 @@ func _arms_for_pose(out_rots: Array[Quaternion], rots: Array[Quaternion], hips: 
 		for bone in ["LeftArm", "LeftForeArm", "LeftHand"]:
 			var idx: int = _sk.find_bone(bone)
 			out_rots[idx] = before[idx].slerp(solved[idx], lw)
+
+# --- Whirling Strike: a full turn on the spot with the weapon held out ----------------------------------------------------------------
+## atk_spin (one hand, the off hand pulled in so a shield stays clear of the body) and atk2_spin (both hands on the grip). Both are 1.5 s
+## with the impact at SPIN_STRIKE, the contract PowerController.CASTS["whirling_strike"] and the two-hander profiles keep. The body coils
+## away, turns SPIN_TURN degrees hips first (feet pivoting) with the blade out at arm length, then settles back to the guard.
+const SPIN_CLIPS := {"atk_spin": false, "atk2_spin": true}
+const SPIN_LENGTH := 1.5
+const SPIN_STRIKE := 0.9
+const SPIN_FROM := 0.4      # the coil is complete, the turn starts
+const SPIN_TO := 1.15       # the turn is complete
+const SPIN_COIL := -70.0    # degrees: how far the hips wind away before the turn
+const SPIN_TURN := 430.0    # the hips go round once and carry on a little: the body overshoots, then catches itself
+const SPIN_OFF := Vector3(30, -2, 14)   # the off hand flung out for balance (a shield swings wide with it)
+const SPIN_GUARD := {"sy": 0.0, "lean": 0.0, "roll": 0.0, "drop": 0.0, "hop": 0.0, "grip": Vector3(-8, -20, 28), "blade": Vector3(-0.15, 0.85, 0.5)}
+## Non-turning parts of the pose over the clip: [time, pose]. hy and follow are set from the turn itself. `hop` lifts the whole body off the
+## ground with the knees tucked (the spin leaps, then the strike is the landing); `drop` sinks the hips onto bent knees.
+const SPIN_KEYS_ONE := [
+	[0.0, SPIN_GUARD],
+	[0.2, {"sy": -30.0, "lean": -10.0, "roll": 6.0, "drop": -12.0, "hop": 0.0, "grip": Vector3(-30, 6, -6), "blade": Vector3(-0.3, 0.25, -0.92)}],
+	[0.4, {"sy": -60.0, "lean": -18.0, "roll": 9.0, "drop": -20.0, "hop": 0.0, "grip": Vector3(-26, 14, -20), "blade": Vector3(-0.3, 0.4, -0.86)}],
+	[0.6, {"sy": -8.0, "lean": 12.0, "roll": -6.0, "drop": -10.0, "hop": 16.0, "grip": Vector3(-44, 0, 14), "blade": Vector3(-0.92, 0.05, 0.38)}],
+	[0.76, {"sy": 8.0, "lean": 22.0, "roll": -16.0, "drop": -14.0, "hop": 32.0, "grip": Vector3(-48, -4, 20), "blade": Vector3(-0.9, -0.1, 0.43)}],
+	[0.9, {"sy": 16.0, "lean": 28.0, "roll": -6.0, "drop": -24.0, "hop": 0.0, "grip": Vector3(-38, -22, 28), "blade": Vector3(-0.8, -0.4, 0.45)}],
+	[1.2, {"sy": 6.0, "lean": 22.0, "roll": -4.0, "drop": -20.0, "hop": 0.0, "grip": Vector3(-30, -30, 30), "blade": Vector3(-0.6, -0.5, 0.62)}],
+	[1.5, SPIN_GUARD],
+]
+const SPIN_KEYS_TWO := [
+	[0.0, SPIN_GUARD],
+	[0.2, {"sy": -34.0, "lean": -12.0, "roll": 6.0, "drop": -14.0, "hop": 0.0, "grip": Vector3(-22, 8, -8), "blade": Vector3(-0.35, 0.35, -0.87)}],
+	[0.4, {"sy": -64.0, "lean": -20.0, "roll": 9.0, "drop": -22.0, "hop": 0.0, "grip": Vector3(-20, 16, -22), "blade": Vector3(-0.35, 0.5, -0.8)}],
+	[0.6, {"sy": -8.0, "lean": 12.0, "roll": -6.0, "drop": -11.0, "hop": 14.0, "grip": Vector3(-26, -4, 18), "blade": Vector3(-0.93, 0.05, 0.36)}],
+	[0.76, {"sy": 8.0, "lean": 22.0, "roll": -16.0, "drop": -15.0, "hop": 28.0, "grip": Vector3(-28, -6, 24), "blade": Vector3(-0.9, -0.05, 0.43)}],
+	[0.9, {"sy": 16.0, "lean": 30.0, "roll": -6.0, "drop": -26.0, "hop": 0.0, "grip": Vector3(-18, -26, 34), "blade": Vector3(-0.6, -0.5, 0.62)}],
+	[1.2, {"sy": 6.0, "lean": 24.0, "roll": -4.0, "drop": -22.0, "hop": 0.0, "grip": Vector3(-14, -30, 34), "blade": Vector3(-0.5, -0.6, 0.62)}],
+	[1.5, SPIN_GUARD],
+]
+
+func _smooth(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+## The hips' turn in degrees at clip time t: wind away, one revolution (fast in the middle), then ease out to the guard.
+func _spin_yaw(t: float) -> float:
+	if t <= SPIN_FROM:
+		return SPIN_COIL * _smooth(t / SPIN_FROM)
+	if t <= SPIN_TO:
+		return SPIN_COIL + SPIN_TURN * _smooth((t - SPIN_FROM) / (SPIN_TO - SPIN_FROM))
+	return lerpf(SPIN_COIL + SPIN_TURN, 360.0, _smooth((t - SPIN_TO) / (SPIN_LENGTH - SPIN_TO)))
+
+func _author_spin(idle: Animation, two_hands: bool) -> Animation:
+	var keys: Array = SPIN_KEYS_TWO if two_hands else SPIN_KEYS_ONE
+	var out := Animation.new()
+	out.length = SPIN_LENGTH
+	out.loop_mode = Animation.LOOP_NONE
+	var rot_tracks: Array[int] = []
+	for i in _names.size():
+		var tr: int = out.add_track(Animation.TYPE_ROTATION_3D)
+		out.track_set_path(tr, NodePath(TRACK + _names[i]))
+		rot_tracks.append(tr)
+	var hips_track: int = out.add_track(Animation.TYPE_POSITION_3D)
+	out.track_set_path(hips_track, NodePath(TRACK + "Hips"))
+	var frames: int = int(ceil(SPIN_LENGTH * FPS))
+	for f in frames + 1:
+		var t: float = minf(float(f) / FPS, SPIN_LENGTH)
+		var pose: Dictionary = _pose_at(keys, t).duplicate()
+		pose["hy"] = _spin_yaw(t)
+		pose["follow"] = _smooth((t - SPIN_FROM) / 0.15)
+		pose["head"] = 0.0
+		pose["two"] = two_hands
+		pose["left"] = SPIN_OFF
+		pose["lw"] = 0.0 if two_hands else 1.0
+		var rots: Array[Quaternion] = []
+		for i in _names.size():
+			rots.append(_local_rot(idle, i, 1.0))
+		var hips: Vector3 = _hips_pos(idle, 1.0)
+		var out_rots: Array[Quaternion] = _body_for_pose(rots, pose)
+		hips.y += float(pose["drop"]) + float(pose["hop"])
+		if float(pose["hop"]) > 0.0:   # off the ground the knees tuck up under the body
+			var tuck: Vector2 = _leg_bend(float(pose["hop"]) * 0.8)
+			for side_name in ["Left", "Right"]:
+				var up: int = _sk.find_bone(side_name + "UpLeg")
+				var knee: int = _sk.find_bone(side_name + "Leg")
+				var foot: int = _sk.find_bone(side_name + "Foot")
+				out_rots[up] = Quaternion(Vector3.RIGHT, -tuck.x) * out_rots[up]
+				out_rots[knee] = Quaternion(Vector3.RIGHT, tuck.x + tuck.y) * out_rots[knee]
+				out_rots[foot] = Quaternion(Vector3.RIGHT, -tuck.y) * out_rots[foot]
+		_arms_for_pose(out_rots, rots, hips, pose)
+		for i in _names.size():
+			out.rotation_track_insert_key(rot_tracks[i], t, out_rots[i])
+		out.position_track_insert_key(hips_track, t, Vector3(HIPS_X, hips.y, HIPS_Z))
+	return out

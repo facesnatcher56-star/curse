@@ -21,6 +21,12 @@ profile = {
 "opening": "impale",
 "two_handed": true,
 "two_hand_clips": {
+"atk_spin": {
+"clip": "atk2_spin",
+"start": 0.0,
+"strike": 0.9,
+"end": 1.5
+},
 "atk_slash_r": {
 "clip": "atk2_slash_r",
 "start": 0.0,

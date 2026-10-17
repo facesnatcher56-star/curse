@@ -79,6 +79,16 @@ Anything that sends a prompt to a generator must go through one of them. Short f
 Avoid in prompts: photorealism, extremely detailed high-poly models, excessively realistic textures, cube-like characters,
 cartoon or chibi proportions, cute, pristine, shiny new, glossy, shiny plastic, neon, rainbow, saturated, pastel.
 
+## Class palettes (power effects)
+
+A class is recognisable from its effects before its ability name is read.
+
+- **Warrior: rage forged into steel.** Blackened iron, blood crimson, ember orange and hot steel (`game/skills/warrior_palette.gd`).
+  Brutal, barely controlled: superheated engravings that build from dull crimson to molten orange, short jagged afterimages, hard
+  directional sparks and dark-red accents on contact, embers tearing off the weapon. Never gold, holy or elegant-magic. Whirling
+  Strike is the reference (`game/skills/whirling_strike_fx.gd`); Brutal Attack's crimson already follows it.
+- **Ranger: emerald accents** (Take Aim, Thunderous Shot keep theirs).
+
 ## Sound
 
 Impacts are heavy and gritty: crunch, thud, scrape, wet and dry. Real recordings over thin synthesised bleeps; nothing cartoonish
