@@ -10,14 +10,26 @@ const MAX_LEVEL := 100
 const DS2_SAMPLES := {1: 0, 2: 300, 5: 4000, 10: 34200, 20: 196000, 30: 663000, 40: 1990000, 50: 5740000, 60: 16400000,
 	70: 46700000, 80: 133000000, 90: 377000000, 100: 1070000000}
 
+## CURSE PACING (departs from DS2, owner 2026-10-17, docs/COMBAT_REFERENCE.md "Curse pacing"): the first levels come quicker. The XP needed
+## for levels 2 to EARLY_LEVELS is DS2's multiplied by EARLY_XP_SCALE; every later level is DS2's own number. Retune from
+## `XpEstimator` (game/dev/xp_estimator.gd), which says when a fresh party reaches each of these on the road.
+const EARLY_XP_SCALE := 0.5
+const EARLY_LEVELS := 5
+
 static var _table: PackedInt64Array = PackedInt64Array()
 static var _legacy_table: PackedInt64Array = PackedInt64Array()
 
 ## Total lifetime XP needed to BE each level, level 1 first (index 0).
 static func table() -> PackedInt64Array:
 	if _table.is_empty():
-		_table = PackedInt64Array(JSON.parse_string(FileAccess.get_file_as_string("res://data/reference/ds2_xp.json")))
+		_table = ds2_table()
+		for level in range(2, EARLY_LEVELS + 1):
+			_table[level - 1] = int(round(float(_table[level - 1]) * EARLY_XP_SCALE))
 	return _table
+
+## DS2's own extracted table, untouched (data/reference/ds2_xp.json).
+static func ds2_table() -> PackedInt64Array:
+	return PackedInt64Array(JSON.parse_string(FileAccess.get_file_as_string("res://data/reference/ds2_xp.json")))
 
 static func legacy_table() -> PackedInt64Array:
 	if _legacy_table.is_empty():

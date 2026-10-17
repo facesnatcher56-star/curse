@@ -128,6 +128,37 @@ func _melee_rank_capture(case_name: String) -> void:
 	print("MELEE_CAPTURE_DONE case=", case_name, " frames=222 fps=60 size=", get_viewport().size)
 	get_tree().quit(0)
 
+## Curse pacing (departs from DS2): levels 2 to 5 come quicker, every later level is DS2's own number, and a fresh party reaches Level 5
+## before the courtyard of the road, whether the road ends up 1x, 1.5x or 2x as dense as the authored roster (XpEstimator).
+func _test_early_levels() -> void:
+	var ds2: PackedInt64Array = HeroProgression.ds2_table()
+	var table: PackedInt64Array = HeroProgression.table()
+	var early_ok: bool = true
+	for level in range(2, HeroProgression.EARLY_LEVELS + 1):
+		early_ok = early_ok and table[level - 1] == int(round(float(ds2[level - 1]) * HeroProgression.EARLY_XP_SCALE))
+	expect("levels 2 to 5 take %d%% of DS2's XP (150 / 450 / 1000 / 2000)" % int(HeroProgression.EARLY_XP_SCALE * 100.0), early_ok
+		and HeroProgression.EARLY_LEVELS == 5 and HeroProgression.xp_for_level(2) == 150 and HeroProgression.xp_for_level(3) == 450
+		and HeroProgression.xp_for_level(4) == 1000 and HeroProgression.xp_for_level(5) == 2000)
+	var later_ok: bool = true
+	for level in range(HeroProgression.EARLY_LEVELS + 1, HeroProgression.MAX_LEVEL + 1):
+		later_ok = later_ok and table[level - 1] == ds2[level - 1]
+	expect("level 6 to the cap are DS2's own numbers, unchanged", later_ok and table.size() == HeroProgression.MAX_LEVEL
+		and HeroProgression.max_xp() == 1070785566 and HeroProgression.xp_for_level(6) == 7600)
+	expect("the levels land exactly on the new points", HeroProgression.level_for_xp(149) == 1 and HeroProgression.level_for_xp(150) == 2
+		and HeroProgression.level_for_xp(1999) == 4 and HeroProgression.level_for_xp(2000) == 5 and HeroProgression.level_for_xp(7599) == 5)
+	var all_reach: bool = true
+	var summary: String = ""
+	for density in [1.0, 1.5, 2.0]:   # 1.0 is reported only: Lane P2 makes the road at least 1.5x
+		var run: Dictionary = XpEstimator.run(density)
+		var lvl5: Dictionary = run["levels"].get(5, {})
+		all_reach = all_reach and not lvl5.is_empty() and (density < 1.5 or float(lvl5["z"]) > XpEstimator.OPENING_ROAD_END_Z)
+		summary += " %.1fx: L5 at %ds, z %d, %d bodies;" % [density, int(lvl5.get("seconds", -1)), int(lvl5.get("z", 0)), int(lvl5.get("bodies", 0))]
+	print("  early levels estimate:", summary)
+	expect("a fresh party reaches Level 5 before the courtyard (z %d) at 1.5x and 2x density" % int(XpEstimator.OPENING_ROAD_END_Z), all_reach)
+	var run_dense: Dictionary = XpEstimator.run(XpEstimator.DENSITY)
+	expect("the estimator's road is the authored roster scaled by its density, in road order",
+		XpEstimator.bodies(1.0).size() == 61 and XpEstimator.bodies(1.5).size() > 61 and int(run_dense["level"]) >= 5)
+
 ## The hero's permanent level: the curve, awarding XP (several levels at once, the cap), saving, loading, repairing and migrating, and
 ## how the character screen and the HUD show it.
 func _test_progression() -> void:
@@ -142,11 +173,11 @@ func _test_progression() -> void:
 		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
 	expect("every level needs more total XP than the one before", rising)
 	# DS2's real experience_table (formulas.gas), by 1-based stored level: the table index is DS2's own level.
-	var real_points := {1: 0, 2: 300, 3: 900, 5: 4000, 10: 34200, 20: 196372, 30: 662568, 40: 1986295, 50: 5744912, 100: 1070785566}
+	var real_points := {1: 0, 6: 7600, 10: 34200, 20: 196372, 30: 662568, 40: 1986295, 50: 5744912, 100: 1070785566}
 	var samples_ok: bool = true
 	for level in real_points:
 		samples_ok = samples_ok and HeroProgression.xp_for_level(int(level)) == int(real_points[level])
-	expect("every checked point of DS2's real experience table is exact (L2 300, L10 34,200, L30 662,568, the cap 1,070,785,566)", samples_ok
+	expect("every checked point of DS2's real experience table is exact (L6 7,600, L10 34,200, L30 662,568, the cap 1,070,785,566)", samples_ok
 		and HeroProgression.max_xp() == 1070785566)
 	TownState.add_hero_xp(l2 - 1)
 	expect("one XP short of level 2 is still level 1", TownState.hero_level == 1 and TownState.hero_xp == l2 - 1)
@@ -240,7 +271,7 @@ func _test_progression() -> void:
 	await get_tree().process_frame
 	town.combat_hud._open_character()
 	var view: Control = town.combat_hud.character_panel
-	expect("a fresh character screen reads Level 1 and 0 / 300 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 300 XP")
+	expect("a fresh character screen reads Level 1 and 0 / %d XP" % HeroProgression.xp_for_level(2), view.level_label.text == "Level 1" and view.xp_label.text == "0 / %d XP" % HeroProgression.xp_for_level(2))
 	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
 	expect("a level-up keeps the HUD free of a duplicate screen-space plate", town.combat_hud.level_toast_text.is_empty() and town.combat_hud.level_toast_time == 0.0)
 	town.combat_hud._open_character()
