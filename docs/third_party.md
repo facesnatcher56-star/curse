@@ -117,9 +117,7 @@ CC0 art packs under `assets/third_party/<pack>/`, each with its licence file. Al
 `game/dev/third_party_sample.tscn` (run it to see the kits, ProtonScatter included). Credits: `assets/third_party/CREDITS.md` (new: the repo had only audio and font credit files, so this is the art one).
 Total added: about 13 MB of assets, plus the 3 MB meshlib. No pack came near the 300 MB limit, so each is included whole except where noted.
 
-**Art direction fit:** the structure and prop shapes are chunky faceted low-poly and read well from the 3/4 camera, but the
-KayKit/Quaternius palettes are brighter and cleaner (blue-grey stone, orange barrels, red banners) than `docs/ART_DIRECTION.md`
-(muted, worn, grimy). Treat them as blockout and set dressing; a dark grade, grime/wear material pass or recolour is a later task.
+**Style:** the art direction is not decided yet, so the packs are not held to a style. For reference, they are chunky faceted low-poly with a bright, clean palette (blue-grey stone, orange barrels, red banners); a grade or recolour is possible later.
 
 | Pack | Version | Source | Licence | Folder | Used for |
 |---|---|---|---|---|---|
@@ -127,9 +125,9 @@ KayKit/Quaternius palettes are brighter and cleaner (blue-grey stone, orange bar
 | Quaternius Modular Dungeons Pack | as published (unversioned) | https://quaternius.com/packs/modulardungeon.html, `.glb` copies from https://github.com/trebeljahr/quaternius-showcase | CC0 1.0 (`LICENSE.txt`, per the mirror's LICENSES.md) | `assets/third_party/quaternius_modular_dungeon_1/` | 48 pieces: arches, columns, traps, statue, torch, chests, props |
 | Quaternius Modular Dungeon Pack (medieval dungeon) | as published (unversioned) | https://quaternius.com/packs/medievaldungeon.html, `.glb` copies from the same mirror | CC0 1.0 (`LICENSE.txt`) | `assets/third_party/quaternius_modular_dungeon_2/` | 41 pieces: modular stone wall/floor/column, rocks, bones, candles, potions, books |
 
-Left out on purpose: KayKit bright banner colours (blue, green, white, yellow and the pattern variants; the brown and red
+Left out (bright or cute look, before the style question was opened): KayKit bright banner colours (blue, green, white, yellow and the pattern variants; the brown and red
 ones are kept), KayKit's `.fbx`/`.obj`/`.mtl` duplicates of the same models, Quaternius medieval village and RPG packs
-(bright, cartoon look), KayKit Halloween Bits (cute). The Quaternius `.glb` files come from a community CC0 mirror because
+, KayKit Halloween Bits (cute). The Quaternius `.glb` files come from a community CC0 mirror because
 quaternius.com serves the packs only through a Google Drive/itch download; re-download from the official URL if you want the originals.
 
 Notes:
