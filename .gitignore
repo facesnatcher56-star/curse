@@ -11,3 +11,6 @@ __pycache__/
 *.pyc
 /.dev_output/
 /ds2_source/
+
+# Exported builds
+/build/
