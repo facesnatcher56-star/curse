@@ -1,0 +1,4 @@
+Quaternius "Modular Dungeons Pack" - https://quaternius.com/packs/modulardungeon.html
+Licence: CC0 1.0 Universal (public domain) - https://creativecommons.org/publicdomain/zero/1.0/
+Obtained as .glb from the CC0 mirror https://github.com/trebeljahr/quaternius-showcase (LICENSES.md lists this pack as CC0-1.0).
+No attribution required; credit: Quaternius.
