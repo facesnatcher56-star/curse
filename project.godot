@@ -18,10 +18,11 @@ config/icon="res://icon.svg"
 [autoload]
 
 InputWatcher="*res://game/input_watcher.gd"
+PhantomCameraManager="*res://addons/phantom_camera/scripts/managers/phantom_camera_manager.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/proton_scatter/plugin.cfg")
+enabled=PackedStringArray("res://addons/proton_scatter/plugin.cfg", "res://addons/phantom_camera/plugin.cfg")
 
 [display]
 
