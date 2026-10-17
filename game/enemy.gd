@@ -62,7 +62,7 @@ var _was_stunned: bool = false
 var _orbit_dir: float = 1.0
 var _orbit_flip: float = 2.0
 
-# Crowd behaviour: only a few enemies may swing at once (attack tokens); the rest circle and wait their turn.
+# Crowd behaviour: only a few enemies may swing at once (attack tokens); the rest stand and wait their turn.
 static var max_tokens: int = 2
 static var _token_holders: Dictionary = {}   # instance id -> [weight, expiry (ms)]
 
@@ -378,7 +378,16 @@ func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:
 	face(target.global_position, 0.25)
 	model.loop(locomotion_clip(), locomotion_rate(pace() * speed_mult))
 
-## Waiting for a turn: shuffle around the target at a respectful distance instead of standing in a stack.
+## Waiting for a turn (its swing is cooling down, or another enemy holds the attack slot): it stands where it is, facing the target. It only
+## moves to chase (advance_on_target); it does not orbit. A light push apart keeps a crowd from standing inside each other.
+func hold_ground() -> void:
+	face(target.global_position, 0.25)
+	var dt: float = get_physics_process_delta_time()
+	var drift: Vector3 = separation() * pace() * 0.5
+	move_with(drift if Nav.clearance(self, global_position, global_position + drift * dt) else Vector3.ZERO)
+	model.loop("idle_alert" if has_clip("idle_alert") else "idle")
+
+## The old waiting move: shuffle around the target at a respectful distance. No behaviour uses it now (see hold_ground).
 func circle_target(dist: float, hold: float = -1.0, pace_mult: float = 0.55) -> void:
 	if hold < 0.0:
 		hold = ring

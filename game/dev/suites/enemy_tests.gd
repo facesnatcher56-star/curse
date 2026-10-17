@@ -61,6 +61,20 @@ func _test_enemies() -> void:
 	expect("acid leaves a puddle", zones >= 1)
 	expect("spitter keeps its distance", min_gap > 4.0)
 	print("  spitter: globs=", globs_seen, " puddles seen=", zones, " closest approach=", snappedf(min_gap, 0.1), " m")
+	# An enemy waiting its turn (swing cooling down) in reach of the hero stands its ground: it does not orbit.
+	var waiter: Enemy = _spawn_enemy(player.global_position + Vector3(2.2, 0, 0))
+	waiter.aggro_range = 40.0
+	waiter.max_health = 5000.0
+	waiter.health = 5000.0
+	await get_tree().create_timer(0.6).timeout
+	(waiter.behavior as MeleeBehavior)._cool = 6.0
+	var waiter_start: Vector3 = waiter.global_position
+	var waiter_far: float = 0.0
+	for i in 90:
+		await get_tree().physics_frame
+		waiter_far = maxf(waiter_far, waiter.global_position.distance_to(waiter_start))
+	expect("an enemy waiting for its turn stands still instead of circling the hero (moved %.2f m)" % waiter_far, waiter_far < 0.6)
+	waiter.queue_free()
 	# The hero walks up to it: it does not run away (no kiting), so a melee hero can always reach it.
 	while spitter.behavior.is_attacking():
 		await get_tree().physics_frame

@@ -57,11 +57,11 @@ func tick(delta: float, dist: float) -> void:
 		return
 	var keep_min: float = float(e.def.param("keep_min", 6.5))
 	var keep_max: float = float(e.def.param("keep_max", 11.0))
-	# No kiting: it never backs away from the hero, it only stops approaching and circles where it is.
+	# No kiting and no circling: it never backs away from the hero, it only stops approaching and stands its ground.
 	if dist > keep_max:
 		e.walk_to(e.target.global_position, delta, 0.9, true)
 	else:
-		e.circle_target(dist, minf((keep_min + keep_max) * 0.5, dist), 0.6)
+		e.hold_ground()
 
 ## Zombies this priest may still raise. A fight against a priest has to be able to end, so the total is finite.
 func summons_left() -> int:
