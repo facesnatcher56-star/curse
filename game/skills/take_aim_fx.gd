@@ -465,17 +465,21 @@ static func impact(from: Node, point: Vector3, direction: Vector3, lethal: bool)
 	Fx.burst(from, point, dir, SILVER, int(20.0 * big), 11.0 * big, 0.013, true)
 	Fx.burst(from, point, dir, EMERALD, int(12.0 * big), 6.5, 0.011, true)
 	_shock(from, point, 2.6 * big, 0.30, 0.05 * big)
+	# Weak reference: a freed `from` must not be captured by the timer's lambda (Godot errors on a freed capture before the body runs).
+	var from_ref: WeakRef = weakref(from)
 	from.get_tree().create_timer(0.07).timeout.connect(func() -> void:
-		if is_instance_valid(from) and from.is_inside_tree():
-			_shock(from, point, 1.6 * big, 0.26, 0.04 * big))
+		var f := from_ref.get_ref() as Node
+		if f != null and f.is_inside_tree():
+			_shock(f, point, 1.6 * big, 0.26, 0.04 * big))
 	_flash_line(from, point - dir * 1.4, dir, 2.4 * big, 0.10)
 	if lethal:
 		_streaks(from, point, dir, 18)
 		_gore(from, point, dir)
 		Fx.shake(from, 0.22)
 		from.get_tree().create_timer(0.07).timeout.connect(func() -> void:
-			if is_instance_valid(from) and from.is_inside_tree():
-				Fx.shake(from, 0.14))
+			var f := from_ref.get_ref() as Node
+			if f != null and f.is_inside_tree():
+				Fx.shake(f, 0.14))
 	else:
 		Fx.shake(from, 0.26)
 

@@ -418,15 +418,21 @@ static func release(from: Node, archer: Node3D, muzzle: Vector3, direction: Vect
 	_floor_scorch(from, muzzle, end)
 	_floor_glow(from, muzzle, end)
 	_path_debris(from, muzzle, dir, length)
+	# Weak references: an enemy or `from` freed before the bolt arrives must not be captured by a timer's lambda (Godot errors on a freed
+	# capture before the body runs).
+	var from_ref: WeakRef = weakref(from)
 	for victim in victims:
-		var enemy: Enemy = victim["enemy"]
+		var enemy_ref: WeakRef = weakref(victim["enemy"])
 		var delay: float = float(victim["along"]) / FLIGHT_SPEED
 		from.get_tree().create_timer(delay).timeout.connect(func() -> void:
-			if is_instance_valid(enemy) and enemy.is_inside_tree():
-				_pass_through(from, enemy, dir, stun_seconds))
+			var f := from_ref.get_ref() as Node
+			var enemy := enemy_ref.get_ref() as Enemy
+			if f != null and enemy != null and enemy.is_inside_tree():
+				_pass_through(f, enemy, dir, stun_seconds))
 	from.get_tree().create_timer(length / FLIGHT_SPEED).timeout.connect(func() -> void:
-		if is_instance_valid(from) and from.is_inside_tree():
-			_end_of_line(from, end, dir))
+		var f := from_ref.get_ref() as Node
+		if f != null and f.is_inside_tree():
+			_end_of_line(f, end, dir))
 
 ## Where the arrow is loosed: a flat shock ring on the ground, a flash, a thin horizontal flare, dust blown back, and the camera takes it.
 static func _muzzle(from: Node, archer: Node3D, muzzle: Vector3, dir: Vector3) -> void:
@@ -595,11 +601,13 @@ static func _pass_through(from: Node, enemy: Enemy, dir: Vector3, stun_seconds: 
 ## Dust and chips thrown up along the floor under the line, in step with the bolt.
 static func _path_debris(from: Node, muzzle: Vector3, dir: Vector3, length: float) -> void:
 	var d: float = 2.5
+	var from_ref: WeakRef = weakref(from)   # see release(): no freed node captured by a timer's lambda
 	while d < length:
 		var at := Vector3(muzzle.x + dir.x * d, 0.05, muzzle.z + dir.z * d)
 		from.get_tree().create_timer(d / FLIGHT_SPEED).timeout.connect(func() -> void:
-			if is_instance_valid(from) and from.is_inside_tree():
-				Fx.burst(from, at, Vector3.UP, Color(0.62, 0.66, 0.74), 5, 3.5, 0.022))
+			var f := from_ref.get_ref() as Node
+			if f != null and f.is_inside_tree():
+				Fx.burst(f, at, Vector3.UP, Color(0.62, 0.66, 0.74), 5, 3.5, 0.022))
 		d += 3.0
 
 ## A thin scorch left on the floor under the whole line, fading over a few seconds.
