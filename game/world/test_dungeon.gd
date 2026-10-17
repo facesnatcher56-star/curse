@@ -32,6 +32,14 @@ const GROUP_ROAM := 4.0
 const AREAS: Array[String] = ["entry", "corridor_1", "hall_1", "corridor_2", "hall_2", "corridor_3", "hall_3", "corridor_4", "hall_4",
 		"corridor_5", "hall_5"]
 
+## The way through the dungeon, door to door, as the hero walks it (x, z): the pack generator spaces packs along it and the pacing tests walk it.
+const CRITICAL_PATH: Array[Vector2] = [Vector2(0, 104), Vector2(9, 96), Vector2(9, 64), Vector2(-25, 64), Vector2(-25, 31), Vector2(25, 31),
+		Vector2(25, -6), Vector2(-29, -6), Vector2(-29, -52), Vector2(21, -52), Vector2(21, -99), Vector2(0, -99)]
+## Curse pacing: the longest walk (m) along CRITICAL_PATH with no pack in view, from the shared walking-gap budget and the hero's run speed.
+## A pack counts as "in view" within PACK_VIEW_RANGE metres of the hero.
+const PACK_VIEW_RANGE := 14.0
+const MAX_WALK_GAP := RoadEncounterRoster.MAX_WALK_SECONDS_BETWEEN_PACKS * RoadEncounterRoster.HERO_RUN_SPEED
+
 ## DS2 tier of each kind as spawned here (the same tier its XP and life use: see Enemy.tier_override).
 const KIND_TIER := {"zombie": "trivial", "ghoul": "weak", "rock_thrower": "weak", "brute": "strong", "warden": "miniboss"}
 
@@ -155,6 +163,47 @@ func spawn_encounters(for_director: RunDirector) -> void:
 		var feed: Vector2 = group["feed"]
 		_enemy_group_id += 1
 		_group(_enemy_group_id, String(group["mode"]), members, home, float(group["roam"]), feed if feed != Vector2.INF else Vector2.ZERO, patrol)
+
+
+# --- The critical path -------------------------------------------------------------------------------------------------------------
+
+## The length of CRITICAL_PATH (m).
+static func path_length() -> float:
+	var length: float = 0.0
+	for i in CRITICAL_PATH.size() - 1:
+		length += CRITICAL_PATH[i].distance_to(CRITICAL_PATH[i + 1])
+	return length
+
+
+## The point `distance` metres along CRITICAL_PATH from the start (clamped to its ends).
+static func path_point(distance: float) -> Vector2:
+	var left: float = maxf(distance, 0.0)
+	for i in CRITICAL_PATH.size() - 1:
+		var leg: float = CRITICAL_PATH[i].distance_to(CRITICAL_PATH[i + 1])
+		if left <= leg:
+			return CRITICAL_PATH[i].lerp(CRITICAL_PATH[i + 1], left / maxf(leg, 0.001))
+		left -= leg
+	return CRITICAL_PATH[CRITICAL_PATH.size() - 1]
+
+
+## The longest stretch (m) of CRITICAL_PATH walked with no pack home within PACK_VIEW_RANGE, for packs standing at `homes` (x, z), sampled
+## every metre from the start. Zero when a pack is in view the whole way.
+static func longest_gap(homes: Array) -> float:
+	var worst: float = 0.0
+	var run: float = 0.0
+	var total: float = path_length()
+	var s: float = 0.0
+	while s <= total:
+		var here: Vector2 = path_point(s)
+		var seen: bool = false
+		for home in homes:
+			if here.distance_to(home) <= PACK_VIEW_RANGE:
+				seen = true
+				break
+		run = 0.0 if seen else run + 1.0
+		worst = maxf(worst, run)
+		s += 1.0
+	return worst
 
 
 # --- What the hero is projected to meet ------------------------------------------------------------------------------------------------

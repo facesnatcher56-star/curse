@@ -22392,7 +22392,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.4813351, 0, -0.87653667, 0, 1, 0, 0.87653667, 0, -0.4813351, 9.812592, 0, 103.772446)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -22534,7 +22534,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.99503714, 0, 0.099504195, 0, 1, 0, -0.099504195, 0, -0.99503714, 2.6905746, 0, 96.923134)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -22653,7 +22653,7 @@ avoidance_enabled = false
 transform = Transform3D(0.33916363, 0, 0.9407274, 0, 1, 0, -0.9407274, 0, 0.33916363, -21.424732, 0, 62.97682)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -22749,7 +22749,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.58635026, 0, -0.81005764, 0, 1, 0, 0.81005764, 0, -0.58635026, -16.555817, 0, 60.122875)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23121,7 +23121,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.36791602, 0, 0.92985904, 0, 1, 0, -0.92985904, 0, -0.36791602, 8.908192, 0, 30.681347)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23217,7 +23217,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.9073254, 0, 0.42042905, 0, 1, 0, -0.42042905, 0, -0.9073254, 20.015263, 0, 36.180237)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23359,7 +23359,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.2200969, 0, -0.975478, 0, 1, 0, 0.975478, 0, -0.2200969, -1.6893349, 0, 35.545532)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23432,7 +23432,7 @@ avoidance_enabled = false
 transform = Transform3D(0.8488398, 0, 0.5286501, 0, 1, 0, -0.5286501, 0, 0.8488398, -5.6121826, 0, 25.696655)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23712,7 +23712,7 @@ avoidance_enabled = false
 transform = Transform3D(0.9977727, 0, -0.066706024, 0, 1, 0, 0.066706024, 0, 0.9977727, -27.258879, 0, 37.60272)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23785,7 +23785,7 @@ avoidance_enabled = false
 transform = Transform3D(0.3589841, 0, 0.93334365, 0, 1, 0, -0.93334365, 0, 0.3589841, 20.32954, 0, 29.142345)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -23996,7 +23996,7 @@ avoidance_enabled = false
 transform = Transform3D(0.9999346, 0, -0.011435085, 0, 1, 0, 0.011435085, 0, 0.9999346, 15.478382, 0, -11.34694)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24092,7 +24092,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.5509497, 0, -0.83453846, 0, 1, 0, 0.83453846, 0, -0.5509497, -25.159721, 0, -13.0178385)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24211,7 +24211,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.71549886, 0, 0.6986139, 0, 1, 0, -0.6986139, 0, -0.71549886, 9.508671, 0, -4.2432013)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24376,7 +24376,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.45348287, 0, -0.891265, 0, 1, 0, 0.891265, 0, -0.45348287, -27.740221, 0, -4.2274942)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24472,7 +24472,7 @@ avoidance_enabled = false
 transform = Transform3D(0.988781, 0, 0.14937277, 0, 1, 0, -0.14937277, 0, 0.988781, -22.989466, 0, -6.274995)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24614,7 +24614,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.32734808, 0, 0.94490385, 0, 1, 0, -0.94490385, 0, -0.32734808, 11.560394, 0, -10.303421)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24710,7 +24710,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.41677588, 0, 0.9090093, 0, 1, 0, -0.9090093, 0, -0.41677588, -20.512184, 0, -3.087533)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -24944,7 +24944,7 @@ avoidance_enabled = false
 transform = Transform3D(0.9911139, 0, -0.13301583, 0, 1, 0, 0.13301583, 0, 0.9911139, 22.37191, 0, -42.505127)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -25017,7 +25017,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.61728644, 0, -0.78673846, 0, 1, 0, 0.78673846, 0, -0.61728644, -14.519131, 0, -54.16304)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -25090,7 +25090,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.073129565, 0, 0.99732244, 0, 1, 0, -0.99732244, 0, -0.073129565, -29.95789, 0, -53.34114)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -25347,7 +25347,7 @@ avoidance_enabled = false
 transform = Transform3D(0.060257163, 0, -0.9981829, 0, 1, 0, 0.9981829, 0, 0.060257163, 19.633358, 0, -45.131714)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -25765,7 +25765,7 @@ avoidance_enabled = false
 transform = Transform3D(0.81444806, 0, 0.5802365, 0, 1, 0, -0.5802365, 0, 0.81444806, -12.109964, 0, -92.683)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -25861,7 +25861,7 @@ avoidance_enabled = false
 transform = Transform3D(0.8302739, 0, 0.5573555, 0, 1, 0, -0.5573555, 0, 0.8302739, -20.196095, 0, -107.60973)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26026,7 +26026,7 @@ avoidance_enabled = false
 transform = Transform3D(0.40170953, 0, 0.91576713, 0, 1, 0, -0.91576713, 0, 0.40170953, -1.5454311, 0, -102.26059)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26099,7 +26099,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.48736656, 0, -0.8731975, 0, 1, 0, 0.8731975, 0, -0.48736656, -8.233658, 0, -93.65609)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26172,7 +26172,7 @@ avoidance_enabled = false
 transform = Transform3D(0.36488074, 0, 0.93105423, 0, 1, 0, -0.93105423, 0, 0.36488074, -21.28482, 0, -103.47729)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26291,7 +26291,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.54693013, 0, -0.83717823, 0, 1, 0, 0.83717823, 0, -0.54693013, 7.379059, 0, -94.77437)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26571,7 +26571,7 @@ avoidance_enabled = false
 transform = Transform3D(0.54208076, 0, -0.84032637, 0, 1, 0, 0.84032637, 0, 0.54208076, -27.354082, 0, -104.10695)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26644,7 +26644,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.19259676, 0, 0.981278, 0, 1, 0, -0.981278, 0, -0.19259676, -9.484552, 0, -96.01369)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26740,7 +26740,7 @@ avoidance_enabled = false
 transform = Transform3D(0.57208604, 0, 0.8201936, 0, 1, 0, -0.8201936, 0, 0.57208604, -31.44632, 0, -89.69708)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26905,7 +26905,7 @@ avoidance_enabled = false
 transform = Transform3D(0.9148047, 0, -0.4038965, 0, 1, 0, 0.4038965, 0, 0.9148047, -15.7186165, 0, 74.32382)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -26978,7 +26978,7 @@ avoidance_enabled = false
 transform = Transform3D(0.99521965, 0, -0.09766181, 0, 1, 0, 0.09766181, 0, 0.99521965, -20.663153, 0, 77.85138)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27051,7 +27051,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.024005955, 0, -0.9997118, 0, 1, 0, 0.9997118, 0, -0.024005955, 31.822445, 0, 63.397396)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27147,7 +27147,7 @@ avoidance_enabled = false
 transform = Transform3D(0.96596867, 0, -0.258659, 0, 1, 0, 0.258659, 0, 0.96596867, 8.0947, 0, 49.68243)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27266,7 +27266,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.51206577, 0, -0.8589462, 0, 1, 0, 0.8589462, 0, -0.51206577, -39.944145, 0, 27.6204)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27523,7 +27523,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.9459868, 0, -0.32420522, 0, 1, 0, 0.32420522, 0, -0.9459868, 33.490257, 0, -9.085319)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27596,7 +27596,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.81141675, 0, -0.584468, 0, 1, 0, 0.584468, 0, -0.81141675, 34.433205, 0, -6.6639557)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27669,7 +27669,7 @@ avoidance_enabled = false
 transform = Transform3D(0.5881565, 0, -0.8087471, 0, 1, 0, 0.8087471, 0, 0.5881565, -42.965637, 0, -51.825993)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27765,7 +27765,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.07928528, 0, -0.996852, 0, 1, 0, 0.996852, 0, -0.07928528, -13.9586735, 0, -32.064007)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -27838,7 +27838,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.8156314, 0, 0.57857186, 0, 1, 0, -0.57857186, 0, -0.8156314, -9.214018, 0, -34.766525)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -28072,7 +28072,7 @@ avoidance_enabled = false
 transform = Transform3D(-0.2759943, 0, 0.9611593, 0, 1, 0, -0.9611593, 0, -0.2759943, -20.553448, 0, -79.73178)
 script = ExtResource("5_vhhny")
 metadata/category = "Props"
-metadata/obstacle_radius = 0.45658321688437853
+metadata/obstacle_radius = 0.4565832168843786
 metadata/prop_kind = "crate"
 metadata/prop_height = 0.9
 
@@ -28863,249 +28863,208 @@ script = ExtResource("11_jkwrr")
 
 [node name="EnemyGroups" type="Node3D" parent="." unique_id=1477693771]
 
-[node name="Group01_area0" type="Marker3D" parent="EnemyGroups" unique_id=947197161]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 93)
+[node name="Group01_area10" type="Marker3D" parent="EnemyGroups" unique_id=42167003]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -99)
 script = ExtResource("12_ujx06")
-kinds = [["zombie", 2]]
+kinds = [["warden", 1], ["zombie", 2], ["rock_thrower", 1], ["ghoul", 1]]
+area = 10
+spread = 2.4
 
-[node name="Group02_area0" type="Marker3D" parent="EnemyGroups" unique_id=1680853682]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 98)
+[node name="Group02_area0" type="Marker3D" parent="EnemyGroups" unique_id=1333103616]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.526555, 0, 98.55114)
 script = ExtResource("12_ujx06")
-kinds = [["zombie", 1]]
+kinds = [["zombie", 4]]
+spread = 2.1
 
-[node name="Group03_area0" type="Marker3D" parent="EnemyGroups" unique_id=462840969]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 94)
+[node name="Group03_area1" type="Marker3D" parent="EnemyGroups" unique_id=761021058]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 73.041595)
 script = ExtResource("12_ujx06")
-kinds = [["zombie", 2]]
-
-[node name="Group04_area0" type="Marker3D" parent="EnemyGroups" unique_id=1818164664]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.5, 0, 103)
-script = ExtResource("12_ujx06")
-kinds = [["ghoul", 1]]
-
-[node name="Group05_area0" type="Marker3D" parent="EnemyGroups" unique_id=624034046]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, 87)
-script = ExtResource("12_ujx06")
-kinds = [["zombie", 1]]
-
-[node name="Group06_area1" type="Marker3D" parent="EnemyGroups" unique_id=86182338]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 82)
-script = ExtResource("12_ujx06")
+kinds = [["zombie", 3], ["ghoul", 1]]
 area = 1
-kinds = [["ghoul", 1], ["zombie", 1]]
+spread = 2.1
 
-[node name="Group07_area1" type="Marker3D" parent="EnemyGroups" unique_id=1384141299]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 83)
+[node name="Group04_area2" type="Marker3D" parent="EnemyGroups" unique_id=2012958262]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.9584064, 0, 64)
 script = ExtResource("12_ujx06")
-area = 1
-kinds = [["zombie", 1]]
-
-[node name="Group08_area2" type="Marker3D" parent="EnemyGroups" unique_id=1570897116]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 64)
-script = ExtResource("12_ujx06")
+kinds = [["zombie", 5], ["rock_thrower", 1]]
 area = 2
-behaviour = 1
-kinds = [["zombie", 2], ["ghoul", 1]]
+spread = 2.6999999999999997
 
-[node name="Group09_area2" type="Marker3D" parent="EnemyGroups" unique_id=186738849]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 64)
+[node name="Group05_area3" type="Marker3D" parent="EnemyGroups" unique_id=118635302]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 55.041595)
 script = ExtResource("12_ujx06")
-area = 2
-behaviour = 1
-kinds = [["rock_thrower", 1], ["zombie", 2]]
-
-[node name="Group10_area2" type="Marker3D" parent="EnemyGroups" unique_id=748733225]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 0, 63)
-script = ExtResource("12_ujx06")
-area = 2
-kinds = [["rock_thrower", 1]]
-
-[node name="Group11_area2" type="Marker3D" parent="EnemyGroups" unique_id=1870046257]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 50)
-script = ExtResource("12_ujx06")
-area = 2
-kinds = [["zombie", 2], ["ghoul", 1]]
-
-[node name="Group12_area2" type="Marker3D" parent="EnemyGroups" unique_id=313134196]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, 77)
-script = ExtResource("12_ujx06")
-area = 2
-kinds = [["zombie", 2]]
-
-[node name="Group13_area3" type="Marker3D" parent="EnemyGroups" unique_id=154729882]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 48)
-script = ExtResource("12_ujx06")
+kinds = [["zombie", 6]]
 area = 3
-kinds = [["zombie", 2]]
+spread = 2.6999999999999997
 
-[node name="Group14_area4" type="Marker3D" parent="EnemyGroups" unique_id=1738467535]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 32)
+[node name="Group06_area4" type="Marker3D" parent="EnemyGroups" unique_id=1914473196]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23.041595, 0, 31)
 script = ExtResource("12_ujx06")
+kinds = [["zombie", 2], ["ghoul", 3], ["rock_thrower", 1]]
+area = 4
+spread = 2.6999999999999997
+
+[node name="Group07_area4" type="Marker3D" parent="EnemyGroups" unique_id=1935711402]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9584045, 0, 31)
+script = ExtResource("12_ujx06")
+kinds = [["ghoul", 2], ["rock_thrower", 3], ["zombie", 2]]
+area = 4
+spread = 3.0
+
+[node name="Group08_area4" type="Marker3D" parent="EnemyGroups" unique_id=1335096381]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 27.041595)
+script = ExtResource("12_ujx06")
+kinds = [["ghoul", 3], ["zombie", 3], ["rock_thrower", 1]]
 area = 4
 behaviour = 1
-kinds = [["zombie", 2], ["rock_thrower", 1]]
+spread = 3.0
 
-[node name="Group15_area4" type="Marker3D" parent="EnemyGroups" unique_id=806152180]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 30)
+[node name="Group09_area6" type="Marker3D" parent="EnemyGroups" unique_id=560669183]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 1.0415936)
 script = ExtResource("12_ujx06")
-area = 4
-behaviour = 1
-kinds = [["ghoul", 2], ["zombie", 1]]
-
-[node name="Group16_area4" type="Marker3D" parent="EnemyGroups" unique_id=303443252]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, 33)
-script = ExtResource("12_ujx06")
-area = 4
-kinds = [["zombie", 2]]
-
-[node name="Group17_area4" type="Marker3D" parent="EnemyGroups" unique_id=324515325]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39, 0, 30)
-script = ExtResource("12_ujx06")
-area = 4
-kinds = [["rock_thrower", 1]]
-
-[node name="Group18_area4" type="Marker3D" parent="EnemyGroups" unique_id=741018901]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 17)
-script = ExtResource("12_ujx06")
-area = 4
-kinds = [["ghoul", 1]]
-
-[node name="Group19_area5" type="Marker3D" parent="EnemyGroups" unique_id=31829722]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 13)
-script = ExtResource("12_ujx06")
-area = 5
-kinds = [["zombie", 1], ["ghoul", 1]]
-
-[node name="Group20_area6" type="Marker3D" parent="EnemyGroups" unique_id=722803108]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -4)
-script = ExtResource("12_ujx06")
+kinds = [["zombie", 3], ["rock_thrower", 1], ["brute", 1]]
 area = 6
 behaviour = 1
-kinds = [["zombie", 2], ["ghoul", 1]]
+spread = 2.4
 
-[node name="Group21_area6" type="Marker3D" parent="EnemyGroups" unique_id=1346367407]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -4)
+[node name="Group10_area6" type="Marker3D" parent="EnemyGroups" unique_id=1955396777]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.0415955, 0, -6)
 script = ExtResource("12_ujx06")
+kinds = [["zombie", 3], ["rock_thrower", 1], ["ghoul", 1]]
 area = 6
 behaviour = 1
-kinds = [["zombie", 2], ["rock_thrower", 1]]
+spread = 2.4
 
-[node name="Group22_area6" type="Marker3D" parent="EnemyGroups" unique_id=1162396428]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -20)
+[node name="Group11_area6" type="Marker3D" parent="EnemyGroups" unique_id=1490370273]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.958405, 0, -6)
 script = ExtResource("12_ujx06")
+kinds = [["zombie", 6], ["ghoul", 1]]
 area = 6
-kinds = [["zombie", 1]]
+behaviour = 1
+spread = 3.0
 
-[node name="Group23_area6" type="Marker3D" parent="EnemyGroups" unique_id=2040582055]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 8)
+[node name="Group12_area7" type="Marker3D" parent="EnemyGroups" unique_id=1659477858]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29, 0, -22.958405)
 script = ExtResource("12_ujx06")
-area = 6
-kinds = [["zombie", 2], ["ghoul", 1]]
-
-[node name="Group24_area6" type="Marker3D" parent="EnemyGroups" unique_id=1460587647]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, -6)
-script = ExtResource("12_ujx06")
-area = 6
-kinds = [["zombie", 2]]
-
-[node name="Group25_area7" type="Marker3D" parent="EnemyGroups" unique_id=586334615]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29, 0, -28)
-script = ExtResource("12_ujx06")
+kinds = [["rock_thrower", 3], ["zombie", 3]]
 area = 7
-kinds = [["rock_thrower", 1], ["zombie", 1]]
+spread = 2.6999999999999997
 
-[node name="Group26_area8" type="Marker3D" parent="EnemyGroups" unique_id=2129082108]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -52)
+[node name="Group13_area8" type="Marker3D" parent="EnemyGroups" unique_id=308616294]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29.148489, 0, -48.704456)
 script = ExtResource("12_ujx06")
+kinds = [["zombie", 2], ["ghoul", 1], ["rock_thrower", 1]]
+area = 8
+spread = 2.1
+
+[node name="Group14_area8" type="Marker3D" parent="EnemyGroups" unique_id=1397942951]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.8517876, 0, -53.26147)
+script = ExtResource("12_ujx06")
+kinds = [["ghoul", 2], ["zombie", 2]]
+area = 8
+spread = 2.1
+
+[node name="Group15_area8" type="Marker3D" parent="EnemyGroups" unique_id=1328573220]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.956175, 0, -51.390247)
+script = ExtResource("12_ujx06")
+kinds = [["zombie", 3], ["ghoul", 1]]
 area = 8
 behaviour = 1
-kinds = [["zombie", 2], ["ghoul", 1]]
+spread = 2.1
 
-[node name="Group27_area8" type="Marker3D" parent="EnemyGroups" unique_id=596434799]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -52)
+[node name="Group16_area9" type="Marker3D" parent="EnemyGroups" unique_id=1191357316]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, -76.958405)
 script = ExtResource("12_ujx06")
-area = 8
-behaviour = 1
-kinds = [["brute", 1], ["zombie", 2]]
-
-[node name="Group28_area8" type="Marker3D" parent="EnemyGroups" unique_id=465190012]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -46)
-script = ExtResource("12_ujx06")
-area = 8
-kinds = [["ghoul", 2]]
-
-[node name="Group29_area8" type="Marker3D" parent="EnemyGroups" unique_id=1641689904]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44, 0, -54)
-script = ExtResource("12_ujx06")
-area = 8
-kinds = [["zombie", 1]]
-
-[node name="Group30_area8" type="Marker3D" parent="EnemyGroups" unique_id=368595784]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, -68)
-script = ExtResource("12_ujx06")
-area = 8
-kinds = [["ghoul", 2]]
-
-[node name="Group31_area8" type="Marker3D" parent="EnemyGroups" unique_id=1700456355]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, -35)
-script = ExtResource("12_ujx06")
-area = 8
-kinds = [["zombie", 2], ["rock_thrower", 1]]
-
-[node name="Group32_area8" type="Marker3D" parent="EnemyGroups" unique_id=2083932142]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0, -53)
-script = ExtResource("12_ujx06")
-area = 8
-kinds = [["rock_thrower", 1]]
-
-[node name="Group33_area9" type="Marker3D" parent="EnemyGroups" unique_id=133501687]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, -76)
-script = ExtResource("12_ujx06")
+kinds = [["ghoul", 5], ["zombie", 2]]
 area = 9
-kinds = [["zombie", 1], ["ghoul", 1]]
+spread = 3.0
 
-[node name="Group34_area10" type="Marker3D" parent="EnemyGroups" unique_id=1669960532]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -100)
+[node name="Group17_area10" type="Marker3D" parent="EnemyGroups" unique_id=291037089]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.843966, 0, -97.54095)
 script = ExtResource("12_ujx06")
+kinds = [["ghoul", 3], ["zombie", 1]]
 area = 10
-behaviour = 1
-kinds = [["warden", 1], ["brute", 1], ["rock_thrower", 2]]
+spread = 2.1
 
-[node name="Group35_area10" type="Marker3D" parent="EnemyGroups" unique_id=828544858]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -96)
+[node name="Group18_area0" type="Marker3D" parent="EnemyGroups" unique_id=216087131]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.139679, 0, 96.56472)
 script = ExtResource("12_ujx06")
-area = 10
-kinds = [["brute", 1], ["ghoul", 2]]
+kinds = [["zombie", 4], ["ghoul", 1]]
+spread = 2.4
 
-[node name="Group36_area10" type="Marker3D" parent="EnemyGroups" unique_id=1808854418]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -96)
+[node name="Group19_area2" type="Marker3D" parent="EnemyGroups" unique_id=962232158]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.6102257, 0, 52.564865)
 script = ExtResource("12_ujx06")
-area = 10
-kinds = [["rock_thrower", 2], ["zombie", 2]]
+kinds = [["zombie", 3], ["ghoul", 1]]
+area = 2
+spread = 2.1
 
-[node name="Group37_area10" type="Marker3D" parent="EnemyGroups" unique_id=1756815600]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37, 0, -100)
+[node name="Group20_area2" type="Marker3D" parent="EnemyGroups" unique_id=1893660344]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.552383, 0, 76.016815)
 script = ExtResource("12_ujx06")
-area = 10
-kinds = [["zombie", 1]]
+kinds = [["zombie", 5]]
+area = 2
+spread = 2.4
 
-[node name="Group38_area10" type="Marker3D" parent="EnemyGroups" unique_id=968834955]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37, 0, -96)
+[node name="Group21_area4" type="Marker3D" parent="EnemyGroups" unique_id=356705387]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25.141193, 0, 19.604425)
 script = ExtResource("12_ujx06")
-area = 10
-kinds = [["ghoul", 1]]
+kinds = [["ghoul", 2], ["zombie", 1], ["rock_thrower", 1]]
+area = 4
+spread = 2.1
 
-[node name="Group39_area10" type="Marker3D" parent="EnemyGroups" unique_id=906740892]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -112)
+[node name="Group22_area6" type="Marker3D" parent="EnemyGroups" unique_id=1412475327]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.190273, 0, -3.9648178)
 script = ExtResource("12_ujx06")
-area = 10
-kinds = [["zombie", 2]]
+kinds = [["zombie", 4]]
+area = 6
+spread = 2.1
 
-[node name="Group40_area10" type="Marker3D" parent="EnemyGroups" unique_id=1054883119]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -83)
+[node name="Group23_area6" type="Marker3D" parent="EnemyGroups" unique_id=1309663626]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.3507247, 0, -18.899376)
 script = ExtResource("12_ujx06")
+kinds = [["zombie", 6]]
+area = 6
+spread = 2.6999999999999997
+
+[node name="Group24_area8" type="Marker3D" parent="EnemyGroups" unique_id=1383563604]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.097996, 0, -36.32178)
+script = ExtResource("12_ujx06")
+kinds = [["rock_thrower", 2], ["ghoul", 2], ["zombie", 1]]
+area = 8
+spread = 2.4
+
+[node name="Group25_area10" type="Marker3D" parent="EnemyGroups" unique_id=1327875098]
+editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.221348, 0, -81.1766)
+script = ExtResource("12_ujx06")
+kinds = [["zombie", 3], ["ghoul", 1], ["rock_thrower", 1], ["brute", 1]]
 area = 10
-kinds = [["ghoul", 2], ["zombie", 1]]
+spread = 2.6999999999999997
 
 [node name="PlayerStart" type="Marker3D" parent="." unique_id=2074431987]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 104)

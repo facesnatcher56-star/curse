@@ -26,7 +26,7 @@ const TARGETS := {
 	"alcove_h5e": Vector3(37, 0, -96),
 }
 ## The enemies the dungeon places (the DungeonEnemyGroup markers in the level scene) and its chests (the Chests in the level scene).
-const EXPECT_ENEMIES := 85
+const EXPECT_ENEMIES := 128
 const EXPECT_CHESTS := 5
 const ENTRY_LEVELS := [1, 5, 10]
 

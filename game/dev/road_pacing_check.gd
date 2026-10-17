@@ -44,9 +44,9 @@ func run() -> void:
 		if not groups.has(enemy.group_id): groups[enemy.group_id] = []
 		groups[enemy.group_id].append(enemy)
 		check("no legacy hazard enemies %d" % enemy.group_id, enemy.variant in ["zombie", "rock_thrower"])
-	check("14 deliberately separated groups", groups.size() == 14)
+	check("at least 14 deliberately separated packs", groups.size() >= 14)
 	for id in groups:
-		check("group %d has at most four bodies" % id, groups[id].size() <= 4)
+		check("group %d is a 4-8 body pack" % id, groups[id].size() >= RoadEncounterRoster.PACK_MIN and groups[id].size() <= RoadEncounterRoster.PACK_MAX)
 		for enemy: Enemy in groups[id]:
 			if id <= 3: check("opening HP < 8, damage max <= 6.5", enemy.max_health < 8 and enemy.damage_max <= 6.5)
 	# Real attack controllers and enemy physics: no direct receive(), stat buffs or purchased powers.

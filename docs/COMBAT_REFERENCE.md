@@ -276,8 +276,8 @@ branch, *pending* is set by another Lane P helper and is recorded here as specif
 | Kill refill | Each party kill adds **10 %** charge to every power; a champion kill **25 %** | Killing packs keeps the powers coming | pending (P1) |
 | Opening refill | A landed Opening execution adds **25 %** to all of that hero's powers (replaces the old power refund) | One rule, not two | pending (P1) |
 | Carry-over | Charge carries between fights; **no out-of-combat top-up** | Saving a power for the next fight is a real choice | pending (P1) |
-| Pack size | Packs of **4 to 8**; about **+50 %** bodies per road group; no stretch with more than **8 to 10 s** of walking without a pack in view; first fight within about 10 s of spawn | Less walking, more fighting | pending (P2) |
-| Monster cap | `RoadEncounterRoster.TOTAL_CAP` 64 to **100** | Room for the denser road | pending (P2) |
+| Pack size | Packs of **4 to 8**; about **+50 %** bodies per road group; no stretch with more than **8 to 10 s** of walking without a pack in view; first fight within about 10 s of spawn | Less walking, more fighting | done (P2, details below) |
+| Monster cap | `RoadEncounterRoster.TOTAL_CAP` 64 to **100** | Room for the denser road | done (P2) |
 | Early levels | **Level 5 by the end of the opening road** (the intro, graveyard and wooded stretches, before the courtyard, z above -40). XP for levels 2 to 5 is DS2's x **`HeroProgression.EARLY_XP_SCALE` 0.5** (150 / 450 / 1000 / 2000 total XP; DS2: 300 / 900 / 2000 / 4000). Level 6 and above are DS2's own numbers | Progress is felt in the first minutes; the long-term curve stays DS2's | done |
 
 **How the early-level constant was chosen.** `XpEstimator` (`game/dev/xp_estimator.gd`) walks the real `RoadEncounterRoster` rows in road order
@@ -286,3 +286,21 @@ final group sizes were not in this branch, it scales each row's bodies by `XpEst
 2x (P2 makes the road at least 1.5x; at today's 1x Level 5 arrives in the courtyard, z -68). Retune: change `EARLY_XP_SCALE` (or `EARLY_LEVELS`) and rerun
 `--only=earlylevels`, which prints when Level 5 arrives. Class skill levels read the same table, so Melee/Ranged 1 to 4 also come at the
 scaled points. Checks: `--only=earlylevels`, `--only=progression`, `--only=classskills`.
+
+### Curse pacing: pack density (departs from DS2, owner 2026-10-17, issue #60)
+
+A deliberate owner departure from DS2's sparse opening (about 0.07 monsters per map node, see `docs/ds2-opening-monsters.md`): fewer idle
+gaps, bigger fights. Which monsters appear is unchanged; only pack size, count and spacing moved. Every number is a named constant.
+
+| Rule | Value | Where |
+|---|---|---|
+| Regular pack size | 4 to 8 bodies | `RoadEncounterRoster.PACK_MIN/PACK_MAX`, `DungeonMonsterGenerator.PACK_MIN/PACK_MAX` |
+| Elite packs | about 1 pack in 5 carries a brute or warden (road: 4 of 22 beats; dungeon: `ELITE_CHANCE` from hall_3 on) | `RoadEncounterRoster.BEATS`, `DungeonMonsterGenerator.ELITE_*` |
+| Champions | unchanged, 12 % of packs (`Champion.PACK_CHANCE`); trivial openers never carry one | `champion.gd` |
+| Crypt Road | 22 pack beats plus the two nest guards, 61 -> 100 bodies; cap `TOTAL_CAP` 64 -> 100 | `road_encounter_roster.gd` |
+| Walking gap | at most about 9 s (`MAX_WALK_SECONDS_BETWEEN_PACKS`) at the hero's 4.5 m/s run with no pack in view | roster and `TestDungeon.longest_gap` |
+| Test dungeon | packs every `PATH_PACK_SPACING` (26 m) along `TestDungeon.CRITICAL_PATH`, plus side-space packs; 85 -> 130 enemies | `dungeon_monster_generator.gd`, `dungeon_level.tscn` |
+| First pack | in sight on spawn: the road's first beat is 13 m from the start, the dungeon's 9 m along the path | `FIRST_PACK_DISTANCE` |
+
+Enemy level still follows the hero's XP and never exceeds it. Checks: `--only=roaddensity`, `--only=dungeonscene`; measurements:
+`-- --dungeon` with `game/dev/pack_pacing_probe.gd`.

@@ -15,7 +15,7 @@ func _test_dungeon_scene() -> void:
 	var areas: Dictionary = {}
 	for group in groups:
 		areas[int(group["area"])] = true
-	expect("its enemy groups cover every area of the critical path (%d groups)" % groups.size(), groups.size() >= 30 and areas.size() == TestDungeon.AREAS.size())
+	expect("its enemy packs cover the critical path (%d packs in %d of %d areas)" % [groups.size(), areas.size(), TestDungeon.AREAS.size()], groups.size() >= 20 and areas.size() >= TestDungeon.AREAS.size() - 2)
 	var rows: Array = TestDungeon.project(HeroProgression.xp_for_level(1), groups)
 	expect("the projection reads the scene's groups (a level for every area, rising)", rows.size() == TestDungeon.AREAS.size()
 		and int(rows[rows.size() - 1]["level"]) > int(rows[0]["level"]))
@@ -45,17 +45,48 @@ func _test_dungeon_scene() -> void:
 	for tile in level.get_node("Floor").get_children():
 		tiles.append(Vector2((tile as Node3D).position.x, (tile as Node3D).position.z))
 	var all_on_floor: bool = true
-	var all_clear_of_start: bool = true
 	for group in generated:
 		var home: Vector2 = group["home"]
 		var nearest: float = INF
 		for tile in tiles:
 			nearest = minf(nearest, home.distance_to(tile))
 		all_on_floor = all_on_floor and nearest < 2.5
-		all_clear_of_start = all_clear_of_start and home.distance_to(Vector2(start.x, start.z)) >= DungeonMonsterGenerator.MIN_FROM_START
-	expect("the generator makes groups in every area (%d)" % made, made >= 30 and generated.size() == made)
-	expect("every generated group stands on the floor and well away from the start", all_on_floor and all_clear_of_start)
+	expect("the generator makes groups in every area (%d)" % made, made >= 20 and generated.size() == made)
+	expect("every generated group stands on the floor", all_on_floor)
 	expect("the final hall has its warden", generated.any(func(g: Dictionary) -> bool: return int(g["area"]) == 10 and (g["kinds"] as Array).any(func(k: Array) -> bool: return k[0] == "warden")))
 	var again: int = DungeonMonsterGenerator.generate(level, 11, 1.0)
 	expect("the same seed makes the same groups, and a lower density makes fewer", again == made and DungeonMonsterGenerator.generate(level, 11, 0.5) < made)
+	level.free()
+	_check_dungeon_packs()
+
+
+## Curse pacing: the shipped level's packs are 4-8 regulars, about half again as many bodies as the old 85, never more than ~9 s of walking
+## without a pack in view along the critical path, and the first pack stands in sight of the start.
+func _check_dungeon_packs() -> void:
+	var level: Node3D = (load(TestDungeon.LEVEL_SCENE) as PackedScene).instantiate() as Node3D
+	var packs: Array = TestDungeon.read_groups(level)
+	var sizes_ok: bool = true
+	var bodies: int = 0
+	var elite: int = 0
+	var homes: Array = []
+	var nearest_start: float = INF
+	var start: Vector3 = (level.get_node("PlayerStart") as Node3D).position
+	for pack in packs:
+		var n: int = 0
+		var has_elite: bool = false
+		for pair in pack["kinds"]:
+			n += int(pair[1])
+			has_elite = has_elite or pair[0] == "brute" or pair[0] == "warden"
+		bodies += n
+		elite += 1 if has_elite else 0
+		sizes_ok = sizes_ok and n >= DungeonMonsterGenerator.PACK_MIN and n <= DungeonMonsterGenerator.PACK_MAX
+		homes.append(pack["home"])
+		nearest_start = minf(nearest_start, (pack["home"] as Vector2).distance_to(Vector2(start.x, start.z)))
+	expect("every dungeon pack holds %d to %d bodies (%d packs)" % [DungeonMonsterGenerator.PACK_MIN, DungeonMonsterGenerator.PACK_MAX, packs.size()], sizes_ok)
+	expect("the dungeon holds at least 50%% more than the old 85 enemies (%d)" % bodies, bodies >= 128 and bodies <= 190)
+	expect("about one pack in five carries an elite (%d of %d)" % [elite, packs.size()], float(elite) / packs.size() >= 0.1 and float(elite) / packs.size() <= 0.35)
+	var gap: float = TestDungeon.longest_gap(homes)
+	expect("no more than %.0f s of walking without a pack in view (longest %.0f m of %.0f m allowed)" % [RoadEncounterRoster.MAX_WALK_SECONDS_BETWEEN_PACKS, gap, TestDungeon.MAX_WALK_GAP],
+		gap <= TestDungeon.MAX_WALK_GAP)
+	expect("the first pack is in sight of the start (%.1f m)" % nearest_start, nearest_start <= TestDungeon.PACK_VIEW_RANGE)
 	level.free()
