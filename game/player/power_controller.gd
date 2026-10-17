@@ -5,7 +5,7 @@ extends RefCounted
 ## no mana, has no cooldown and recharges from damage dealt (DS2's formula, PowerDef.recharge seconds of combat); its numbers are its rank's.
 ## Powers never crit. Brutal Attack keeps its own path (SkillController), Take Aim is Cutter's.
 
-const LIVE: Array[String] = ["whirling_strike", "staggering_blow", "war_cry", "provoke", "repulse", "silence", "flame_nexus", "detonation"]
+const LIVE: Array[String] = ["whirling_strike", "staggering_blow", "war_cry", "provoke", "repulse", "silence", "flame_nexus", "detonation", "thunderous_shot"]
 ## How far a targeted power (Silence, Detonation) reaches, and War Cry's cone (DS2 gives a cone; Curse's length and width).
 const CAST_RANGE := 14.0
 const WAR_CRY_LENGTH := 8.0
@@ -94,7 +94,7 @@ func blocker(id: String) -> String:
 	if PowerDb.hero_rank(id, p.member_id) <= 0:
 		return "%s is not open yet" % def.display_name
 	if not stance_ok(def.stance):
-		return "%s needs %s" % [def.display_name, {"shield": "a shield", "two_handed": "a two-handed weapon", "melee": "a melee weapon"}.get(def.stance, def.stance)]
+		return "%s needs %s" % [def.display_name, {"shield": "a shield", "two_handed": "a two-handed weapon", "melee": "a melee weapon", "bow": "a bow"}.get(def.stance, def.stance)]
 	if float(reload_remaining.get(id, 0.0)) > 0.0:
 		return "%s is %d%% charged" % [def.display_name, int(fraction(id) * 100.0)]
 	return ""
@@ -111,6 +111,8 @@ func stance_ok(stance: String) -> bool:
 			return weapon != null and not p.stats.is_ranged() and PlayerStats._two_handed(weapon)
 		"shield":
 			return p.stats.equipment.has(Items.Slot.SHIELD)
+		"bow":
+			return weapon != null and p.stats.is_ranged()
 		"any":
 			return true
 	return false
@@ -140,6 +142,12 @@ func activate(id: String, cursor: Vector3) -> bool:
 		immediate_target = p.hover_target
 	p.skills.cancel_action()   # Powers interrupt an ordinary attack instead of queuing.
 	p.skills.clear_queue()
+	if id == "thunderous_shot":
+		# Cutter draws the shot (BowAttack, one long draw); the bolt, its damage and the stun happen at the release (thunderous_release).
+		var aim_at: Vector3 = Vector3(cursor.x, p.global_position.y + 1.2, cursor.z)
+		if is_instance_valid(immediate_target) and not immediate_target.dead:
+			aim_at = immediate_target.global_position + Vector3(0, immediate_target.body_height * 0.62, 0)
+		return p.bow != null and p.bow.start_thunderous(aim_at)
 	if CASTS.has(id):
 		# The wind-up starts now; the effect lands at its impact (impact()), and only then is the power spent.
 		p.skills.start_power_cast(id, cursor, CASTS[id])
@@ -197,6 +205,47 @@ func _whirling_strike() -> void:
 	if not hit.is_empty():
 		Sfx.power(p, "whirling_strike_hit")
 	_impact_feel(hit.size())
+
+## Thunderous Shot's release (BowAttack.loose): one bolt along `direction` from the arrowhead, as far as the bow reaches or the first wall,
+## through every enemy on the line. Each takes the power's share of the bow's damage (it cannot miss and never crits) and is stunned for the
+## rank's time. Kills are ordinary deaths: this power does not gib. Returns how many it hit.
+func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
+	var dir: Vector3 = direction.normalized()
+	var query := PhysicsRayQueryParameters3D.create(muzzle, muzzle + dir * ThunderousShotFx.REACH, Actor.LAYER_WORLD)
+	var wall: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(query)
+	var length: float = muzzle.distance_to(wall["position"]) if not wall.is_empty() else ThunderousShotFx.REACH
+	var mult: float = value("thunderous_shot", "damage_pct") / 100.0 * p.stats.power_damage_mult()
+	var stun: float = value("thunderous_shot", "stun")
+	var base: Vector2 = p.stats.ranged_range()
+	var victims: Array[Dictionary] = []
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead:
+			continue
+		var chest: Vector3 = e.global_position + Vector3(0, e.body_height * 0.6, 0)
+		var along: float = (chest - muzzle).dot(dir)
+		if along > 0.0 and along < length and (chest - (muzzle + dir * along)).length() < ThunderousShotFx.WIDTH:
+			victims.append({"enemy": e, "along": along})
+	victims.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["along"]) < float(b["along"]))
+	if not victims.is_empty():
+		p.openings.on_power_use()   # one Opening roll for the whole shot, not per enemy
+	for victim in victims:
+		var e: Enemy = victim["enemy"]
+		if p is ArcherCompanion:
+			e.credit_hero()   # Cutter serves the hero: his kills count as the hero's
+		var result: Dictionary = Combat.resolve(p, e, randf_range(base.x, base.y), Combat.DamageType.RANGED, false, 2.0, false, false, mult)
+		result["skill_id"] = "thunderous_shot"
+		e.receive(result, muzzle)
+		if is_instance_valid(e) and not e.dead:
+			_stagger(e, stun, 0.0, muzzle)
+	_impact_feel(victims.size())
+	_spend("thunderous_shot")
+	p.power_activated.emit(p.member_id, "thunderous_shot")
+	return victims.size()
+
+## The stun, in seconds, Thunderous Shot leaves at this member's rank (for its visuals).
+func thunderous_stun() -> float:
+	return value("thunderous_shot", "stun")
 
 ## Staggering Blow, released by the blow that landed on `target`: a shockwave from it stuns everything around and deals the power's damage.
 func release_staggering(target: Actor) -> void:

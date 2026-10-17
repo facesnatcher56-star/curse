@@ -148,3 +148,63 @@ func _take_aim_lethal_capture() -> void:
 		get_viewport().get_texture().get_image().save_jpg(out.path_join("frame_%04d.jpg" % frame), 0.95)
 	print("TAKE_AIM_LETHAL dead=", foe.dead, " gibs=", get_tree().get_nodes_in_group("gibs").size(), " armed=", archer.bow.armed)
 	get_tree().quit()
+
+## Thunderous Shot's visuals only (the power is not built): a long draw and a bolt through three enemies in a row, framed wide.
+func _thunderous_capture() -> void:
+	TownState.persist = false
+	TownState.reset()
+	for enemy in get_tree().get_nodes_in_group("enemies"): enemy.queue_free()
+	await get_tree().process_frame
+	var archer: ArcherCompanion = game.companion
+	_prepare_archer(archer)
+	var lane: Vector3 = await _own_lane(30.0, 8.0)
+	archer.testing_disabled = false
+	player.global_position = lane + Vector3(-6.0, 0.0, 3.0)
+	player.reset_physics_interpolation()
+	archer.global_position = lane
+	archer.reset_physics_interpolation()
+	archer.stats.refresh()
+	var pivot := Node3D.new()
+	game.add_child(pivot)
+	rig.target = pivot
+	var close := OS.get_cmdline_user_args().has("--close")
+	var real := OS.get_cmdline_user_args().has("--power")   # the real power through the hotbar path, with real damage and stun
+	if real:
+		TownState.add_member_xp("cutter", HeroProgression.xp_for_level(11), false, {"ranged": 1.0})
+		TownState.buy_passives({"critical_shot": 1}, "cutter")
+		TownState.buy_passives({"biting_arrow": 1}, "cutter")
+		archer.stats.refresh()
+		GameSettings.hotbar_slots[2] = "thunderous_shot"
+		GameSettings.hotbar_casters[2] = "cutter"
+	pivot.global_position = lane + Vector3(7.0, 0.0, 0.0)
+	rig.set_zoom_now(0.6 if close else 1.25)
+	await get_tree().create_timer(1.0).timeout
+	var out := ProjectSettings.globalize_path("res://.dev_output/thunder_frames" + ("_close" if close else ""))
+	DirAccess.make_dir_recursive_absolute(out)
+	var first := _victim(lane + Vector3(8.0, 0.0, 0.0), 100000.0)
+	var second := _victim(lane + Vector3(11.5, 0.0, 0.0), 100000.0)
+	var last := _victim(lane + Vector3(15.0, 0.0, 0.0), 1.0 if real else 100000.0)   # one life: dies of the real shot
+	var aside := _victim(lane + Vector3(19.0, 0.0, 6.0), 100000.0)   # off the line: untouched
+	if real:
+		# Let them run their own logic (idle, aggro 0) so the game's own stun shows: they stop, flinch and the daze stars circle.
+		for foe in [first, second, last, aside]:
+			foe.set_physics_process(true)
+	if not real:
+		archer.bow.thunder_visual = true
+	for frame in 560:
+		match frame:
+			20:
+				if real:
+					print("THUNDEROUS_POWER activated=", archer.powers.activate("thunderous_shot", first.global_position))
+				else:
+					archer.bow.start(first)
+		pivot.global_position = lane + Vector3(7.0, 0.0, 0.0)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_jpg(out.path_join("frame_%04d.jpg" % frame), 0.95)
+	var stunned := 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if node.find_children("ThunderousStun", "Node3D", false, false).size() > 0: stunned += 1
+	print("THUNDEROUS_STUN first_stun=", snappedf(first.stun_time, 0.01), " second_stun=", snappedf(second.stun_time, 0.01), " aside_stun=", snappedf(aside.stun_time, 0.01))
+	print("THUNDEROUS_CAPTURE stunned_markers=", stunned, " shots=", archer.bow.shots, " real=", real, " last_dead=", last.dead if is_instance_valid(last) else "gone", " ready=", archer.powers.ready("thunderous_shot"), " charge=", snappedf(archer.powers.fraction("thunderous_shot"), 0.01))
+	get_tree().quit()
