@@ -9,6 +9,8 @@ var _hp_fill: ColorRect
 var _name_label: Label
 var _health_label: Label
 var _level_label: Label
+var _tag_label: Label
+var _elite_frame: Panel
 var _fade: float = 0.0
 var _tracked_target_id: int = 0
 var _displayed_hp_ratio: float = -1.0
@@ -32,7 +34,24 @@ static func status_of(target: Actor) -> String:
 		if target.def.tier == "strong": return "STRONG"
 	return ""
 
+## The tag line under an elite's or champion's name ("SUMMONING CHAMPION", "STRONG"); empty for a regular monster.
+static func tag_of(target: Actor) -> String:
+	var enemy := target as Enemy
+	if enemy != null and enemy.champion != null:
+		return "%s CHAMPION" % String(enemy.champion.affix.title).to_upper()
+	return status_of(target)
+
+## The name as the banner shows it: a champion's affix title moves to the tag, so the name is its plain one.
+static func name_of(target: Actor) -> String:
+	var enemy := target as Enemy
+	if enemy != null and enemy.champion != null and not enemy.champion.base_name.is_empty():
+		return enemy.champion.base_name
+	return target.display_name
+
 static func status_color(target: Actor) -> Color:
+	var enemy := target as Enemy
+	if enemy != null and enemy.champion != null:
+		return enemy.champion.affix.color
 	match status_of(target):
 		"BOSS": return Color(1.0, 0.48, 0.32)
 		"UNIQUE", "MINIBOSS": return Color(1.0, 0.8, 0.35)
@@ -67,6 +86,19 @@ func _ready() -> void:
 	_banner_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_banner_rect)
 
+	# Champions and elites get a thin frame in their colour over the plaque (hidden for regular monsters).
+	_elite_frame = Panel.new()
+	var rim := StyleBoxFlat.new()
+	rim.bg_color = Color(0, 0, 0, 0)
+	rim.set_border_width_all(2)
+	rim.set_corner_radius_all(3)
+	rim.border_color = Color.WHITE
+	_elite_frame.add_theme_stylebox_override("panel", rim)
+	_elite_frame.size = size
+	_elite_frame.visible = false
+	_elite_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_elite_frame)
+
 	# Delayed damage trail sits behind the immediate health fill.
 	_damage_trail = ColorRect.new()
 	_damage_trail.color = Color(1.0, 0.42, 0.24, 0.82)
@@ -94,6 +126,18 @@ func _ready() -> void:
 	_name_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.78))
 	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_name_label)
+
+	# The affix / tier tag, a small line under the name (champions and elites only).
+	_tag_label = Label.new()
+	_tag_label.position = Vector2(24, 22)
+	_tag_label.size = Vector2(432, 14)
+	_tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tag_label.add_theme_font_size_override("font_size", 12)
+	_tag_label.add_theme_font_override("font", UiTheme.heading_font())
+	_tag_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_tag_label.add_theme_constant_override("outline_size", 3)
+	_tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_tag_label)
 
 	# Health Numbers Label
 	_health_label = Label.new()
@@ -143,10 +187,18 @@ func update_target(target: Actor, delta: float) -> void:
 			_trail_hp_ratio = -1.0
 			_trail_hold = 0.0
 			_hit_flash = 0.0
-		var status := status_of(target)
-		_name_label.text = target.display_name.to_upper() + ("  ·  " + status if not status.is_empty() else "")
+		var tag := tag_of(target)
+		var tinted := not tag.is_empty()
+		_name_label.text = name_of(target).to_upper()
+		_tag_label.text = tag
+		_tag_label.add_theme_color_override("font_color", status_color(target).lightened(0.2))
+		_elite_frame.visible = tinted
+		if tinted:
+			(_elite_frame.get_theme_stylebox("panel") as StyleBoxFlat).border_color = Color(status_color(target), 0.85)
+		_name_label.position.y = 1.0 if tinted else 5.0
+		_name_label.size.y = 22.0 if tinted else 28.0
 		var name_font := _name_label.get_theme_font("font")
-		var name_size := 20
+		var name_size := 18 if tinted else 20
 		while name_size > 16 and name_font.get_string_size(_name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, name_size).x > _name_label.size.x:
 			name_size -= 1
 		_name_label.add_theme_font_size_override("font_size", name_size)
@@ -177,9 +229,9 @@ func update_target(target: Actor, delta: float) -> void:
 		_level_label.text = "LV %d" % target.level
 		
 		_name_label.add_theme_color_override("font_color", status_color(target))
-		var base_fill := Color(0.65, 0.12, 0.1, 0.95) if status.is_empty() else Color(status_color(target).darkened(0.55), 0.95)
+		var base_fill := Color(0.65, 0.12, 0.1, 0.95) if not tinted else Color(status_color(target).darkened(0.55), 0.95)
 		_hp_fill.color = base_fill.lerp(Color(1.0, 0.9, 0.72, 1.0), _hit_flash / HIT_FLASH_SECONDS)
-		_damage_trail.color = Color(0.95, 0.43, 0.26, 0.82) if status.is_empty() else Color(status_color(target).lightened(0.12), 0.8)
+		_damage_trail.color = Color(0.95, 0.43, 0.26, 0.82) if not tinted else Color(status_color(target).lightened(0.12), 0.8)
 		# Both decorative layers ignore mouse input, so world clicks pass through the banner.
 	else:
 		if target != null and is_instance_valid(target) and target.dead:
@@ -190,6 +242,8 @@ func update_target(target: Actor, delta: float) -> void:
 			_hp_fill.size.x = 0.0
 			_damage_trail.size.x = 0.0
 			_name_label.text = ""
+			_tag_label.text = ""
+			_elite_frame.visible = false
 			_health_label.text = ""
 			_level_label.text = ""
 		_tracked_target_id = 0

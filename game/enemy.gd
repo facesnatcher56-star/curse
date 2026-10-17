@@ -246,6 +246,30 @@ func _filter_incoming(result: Dictionary) -> Dictionary:
 func is_aggro() -> bool:
 	return _aggro
 
+## Beyond this far from every living hero, an awake enemy has lost the fight; after DISENGAGE_SECONDS of it a summoner is ready to summon again.
+const DISENGAGE_RANGE := 40.0
+const DISENGAGE_SECONDS := 6.0
+var _lost_hero_time: float = 0.0
+
+## True once the fight is over for this enemy (no living hero within DISENGAGE_RANGE for DISENGAGE_SECONDS). Call it every frame while awake.
+func fight_over(delta: float) -> bool:
+	var near: bool = false
+	for member in PartyManager.current().living():
+		if flat_distance_to(member) <= DISENGAGE_RANGE:
+			near = true
+			break
+	_lost_hero_time = 0.0 if near else _lost_hero_time + delta
+	return _lost_hero_time >= DISENGAGE_SECONDS
+
+## A summoner died: its summons go with it. A short death, and nothing is paid (no XP, no loot).
+func dismiss_summon() -> void:
+	if dead:
+		return
+	xp_eligible = false
+	set_meta("loot_generated", true)
+	health = 0.0
+	_die()
+
 func wake() -> void:
 	if _aggro:
 		return

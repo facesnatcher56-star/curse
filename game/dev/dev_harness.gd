@@ -114,6 +114,8 @@ func run_from_args() -> bool:
 		_run("_enemy_shot")
 	elif OS.get_cmdline_user_args().has("--championshot"):
 		_run("_champion_shot")
+	elif OS.get_cmdline_user_args().has("--summonshot"):
+		_run("_summoner_shots")
 	elif OS.get_cmdline_user_args().has("--enemyfight"):
 		_run("_enemy_fight")
 	elif OS.get_cmdline_user_args().has("--archershot"):

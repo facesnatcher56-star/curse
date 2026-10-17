@@ -255,8 +255,8 @@ targeted powers (14 m) are Curse's (DS2's file gives only dummy radii); Cutter b
 
 Dungeon Siege II's installed data has no champion affix system, so this is a labelled Curse departure, not a DS2 rule. A pack may carry one
 champion (`game/enemies/champion.gd`, `Champion.PACK_CHANCE`, 12% per pack): tougher (life x2.5, average blow x1.25), named after its
-affix, marked by a coloured light and a name over its head, and given ONE affix from `Champion.AFFIXES`: Fast (speed x1.5), Shielded (a
-shield of 35% of its life that must break first), Summoner (two trivial zombies every 10 s, up to four alive, paying no XP) or Volatile
+affix, marked by a coloured light (its name and affix tag are shown in the top target banner, in the affix colour, not over its head), and given ONE affix from `Champion.AFFIXES`: Fast (speed x1.5), Shielded (a
+shield of 35% of its life that must break first), Summoner (summons two trivial zombies ONCE per fight, paying no XP; they die with it, and it summons again only after the hero has left for good, as does the Plague Priest) or Volatile
 (a 3 m blast after a 1.3 s telegraph, 1.8 x its average blow to the hero). Trivial and level-one openers never carry one. Its drop is a
 magic item or better, a rare 30% of the time, on top of the ordinary roll. Every number is a provisional tunable awaiting owner review.
 Checks: `--only=champions`; look: `-- --championshot`.
