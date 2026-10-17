@@ -48,7 +48,7 @@ func _test_basic_single_target_physics() -> void:
 	player.set_physics_process(true)
 	player.stats.equip(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 1, "Longsword"), false)
 
-## One explicit engagement repeats, retargets actual attackers, and obeys cancellation.
+## A held click repeats basic attacks, releasing it stops them, and cancellation is obeyed.
 func _test_auto_attack() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
@@ -62,9 +62,10 @@ func _test_auto_attack() -> void:
 	dummy.max_health = 5000.0
 	dummy.health = 5000.0
 	await get_tree().physics_frame
-	# 1. Order an attack with the mouse NOT held: approach and repeat.
+	# 1. Hold the click on the target: approach and repeat; letting go ends the engagement (no auto-attack).
 	player.attack_target = dummy
 	player.click_mode = 1
+	Input.action_press("click")
 	var swings: int = 0
 	var was_busy: bool = false
 	var facing_turns: float = 0.0
@@ -76,6 +77,10 @@ func _test_auto_attack() -> void:
 			swings += 1
 		was_busy = player.skills.busy
 	var retained_order: bool = player.attack_target == dummy
+	Input.action_release("click")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var released_clears: bool = player.attack_target == null and player.click_mode == 0
 	player.attack_target = null
 	player.skills.cancel_action()
 	player.movement.has_goal = false
@@ -93,34 +98,12 @@ func _test_auto_attack() -> void:
 	var cleared_by_skill: bool = player.attack_target == null
 	await get_tree().create_timer(2.0).timeout
 	var swings_after_skill: bool = player.skills.busy and player.skills.busy_skill == "basic"
-	expect("one click repeats basic attacks without holding input", swings >= 2 and retained_order)
+	expect("holding the click on a target repeats basic attacks", swings >= 2 and retained_order)
+	expect("letting go of the click ends the engagement (no auto-attack)", released_clears)
 	expect("explicit cancellation clears engagement", idle_after)
 	expect("hero does not swing or turn with no input", not busy_during_idle and absf(yaw_drift) < 0.02)
 	expect("a skill clears the attack order", cleared_by_skill)
 	expect("no swinging resumes after a skill", not swings_after_skill)
-	# Actual enemy targeting, not proximity or the globally selected member, controls continuation.
-	dummy.set_physics_process(false)
-	dummy.target = null
-	var attacker: Enemy = _spawn_enemy(player.global_position + Vector3(4, 0, 0))
-	attacker.target = player
-	attacker.wake()
-	attacker.set_physics_process(false)
-	var other: Enemy = _spawn_enemy(player.global_position + Vector3(2, 0, 0))
-	other.target = player
-	other.wake()
-	other.set_physics_process(false)
-	expect("continuation chooses nearest actual attacker", player._nearest_attacker() == other)
-	other.target = null
-	expect("nearer enemies attacking someone else are excluded", player._nearest_attacker() == attacker)
-	player.attack_target = dummy
-	dummy.dead = true
-	player._act(0.0, Vector3.ZERO)
-	expect("dead target automatically hands off to attacker", player.attack_target == attacker)
-	player.attack_target = null
-	player.skills.cancel_action()
-	player.movement.has_goal = false
-	attacker.queue_free()
-	other.queue_free()
 	print("  auto-attack: one click -> swings=", swings, " (expected repeated), idle after cancellation=", idle_after, ", idle with enemy near: busy=", busy_during_idle,
 		" turned ", snappedf(rad_to_deg(yaw_drift), 0.1), " deg, skill clears attack order=", cleared_by_skill, ", resumed swinging after skill=", swings_after_skill)
 	dummy.queue_free()
@@ -156,7 +139,7 @@ func _test_move_priority() -> void:
 	await _click_ground(destination)
 	var before_hit_cancelled: bool = not player.skills.busy and player.skills.busy_skill == "" \
 		and player.skills.busy_def.is_empty() and player.skills.busy_target == null and not player.skills.busy_hit_done \
-		and is_zero_approx(player.skills.busy_t) and not player._attack_engaged and player.attack_target == null \
+		and is_zero_approx(player.skills.busy_t) and player.attack_target == null \
 		and player.skills.queued_skill == "" and player.skills.queued_target == null
 	expect("ground click cancels a melee wind-up before damage and clears the old target/queue", before_hit_cancelled and target.health == health_before)
 	expect("ground click transitions directly into movement animation", ["walk", "run"].has(player.model.current)
@@ -164,7 +147,7 @@ func _test_move_priority() -> void:
 	expect("cancelled melee trail and pose locks are cleared", not player._trail.active and is_zero_approx(player.visual.rotation.x))
 	for i in 8:
 		await get_tree().physics_frame
-	expect("cancelled auto-attack does not reacquire the previous target", player.attack_target == null and not player._attack_engaged
+	expect("cancelled auto-attack does not reacquire the previous target", player.attack_target == null
 		and not player.skills.busy)
 
 	# A legitimately applied hit survives cancellation during the visible recovery window.
@@ -243,8 +226,7 @@ func _test_move_priority() -> void:
 	Input.action_press("stand_still")
 	await _click_ground(destination)
 	Input.action_release("stand_still")
-	expect("Ctrl plus ground click preserves the current attack", player.skills.busy and player.attack_target == target
-		and not player.movement.has_goal)
+	expect("Ctrl plus ground click keeps the swing going and does not move (releasing the click ends the engagement)", player.skills.busy and not player.movement.has_goal)
 	player.skills.cancel_action()
 	player.attack_target = null
 
