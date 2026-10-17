@@ -2,7 +2,7 @@
 
 The owner's ornate fantasy UI reference is the presentation target: tarnished carved gold,
 dark recessed controls, aged parchment for the specialty chart, and live icon-driven content.
-The game remains grounded and weathered, as required by ART_DIRECTION.md.
+The overall art direction is not decided yet (see ART_DIRECTION.md); the UI rules below still apply.
 
 ## Assets and implementation
 

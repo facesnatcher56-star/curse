@@ -3,7 +3,7 @@
 **Task**: Task 3B — Two-Handed Weapon Asset Expansion  
 **Branch**: `agents/gemini-twohand-assets`  
 **Starting Commit**: `7790add25400e817de4e0d456b50eb4024774cff`  
-**Reference Alignment**: Curse Dark-Fantasy Art Direction (`docs/ART_DIRECTION.md`), Equipment Audit (`docs/EQUIPMENT_EXPANSION_PLAN.md`), DS2 Baseline Combat Specifications (`docs/COMBAT_REFERENCE.md`)  
+**Reference Alignment**: Equipment Audit (`docs/EQUIPMENT_EXPANSION_PLAN.md`), DS2 Baseline Combat Specifications (`docs/COMBAT_REFERENCE.md`)  
 **Pipeline**: Blender 5.1 Procedural Asset Generator (`tools/blender/make_items.py`) & Godot 4.8-dev2 Import System  
 
 ---
