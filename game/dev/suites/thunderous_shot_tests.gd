@@ -89,7 +89,7 @@ func _test_thunderous_shot() -> void:
 	expect("it is spent at the release and recharges from damage dealt", not archer.powers.ready("thunderous_shot")
 		and archer.powers.fraction("thunderous_shot") < 1.0)
 	expect("the draw state is cleared", not archer.bow.thunder_power and not archer.bow.thunder_visual and archer.bow.thunder_fx == null)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(1.2).timeout   # the lightning lingers for a second after the release
 	expect("the bolt's visuals clean up", get_tree().get_nodes_in_group(ThunderousShotFx.GROUP).is_empty())
 
 	# Nothing to spend while it recharges.
