@@ -76,9 +76,10 @@ func damage_bonus() -> float:
 func drop_bonus() -> float:
 	return PassiveDb.get_def("opening").extra_value("drop", maxi(rank(), 1))
 
-## Power charge restored by an execution, in percent of each power's recharge.
+## Power charge restored by an execution, in percent of each power's bar: the one flat Curse rule (PlayerStats.OPENING_REFILL), not the
+## DS2 passive's rank-scaled "charge" value, so the refund is never counted twice.
 func charge_refund() -> float:
-	return PassiveDb.get_def("opening").extra_value("charge", maxi(rank(), 1))
+	return PlayerStats.OPENING_REFILL * 100.0
 
 ## The execution for the hero's wielded weapon (a melee-triggered Opening). Empty when there is none. A shield never overrides it: only a
 ## mark made by a successful block (mark_kind "block") plays the shield bash, see style_for_kind.

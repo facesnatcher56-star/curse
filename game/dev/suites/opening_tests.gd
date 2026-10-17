@@ -49,10 +49,10 @@ func _test_opening() -> void:
 		and _near(def.extra_value("damage", 20), 120.0, 0.01) and _near(def.extra_value("drop", 20), 60.0, 0.01)
 		and _near(def.extra_value("charge", 20), 25.0, 0.01))
 	var detail_20: String = def.describe_detail(20) if def != null else ""
-	expect("the tooltip at rank 20 shows the damage, drop and charge values",
-		detail_20.contains("+120% damage") and detail_20.contains("+60% item drop chance") and detail_20.contains("restores 25% power charge"))
-	expect("the tooltip at rank 1 shows the first values (+20% damage, +10% drop, 5% charge)", def != null
-		and def.describe_detail(1).contains("+20% damage") and def.describe_detail(1).contains("+10% item drop chance") and def.describe_detail(1).contains("restores 5% power charge"))
+	expect("the tooltip at rank 20 shows the damage and drop values, and the flat 25% charge refill",
+		detail_20.contains("+120% damage") and detail_20.contains("+60% item drop chance") and detail_20.contains("refills 25% of every power's charge"))
+	expect("the tooltip at rank 1 shows the first values (+20% damage, +10% drop) and the same flat 25% charge refill (Lane P)", def != null
+		and def.describe_detail(1).contains("+20% damage") and def.describe_detail(1).contains("+10% item drop chance") and def.describe_detail(1).contains("refills 25% of every power's charge"))
 	expect("a DS2 passive has no description block (only Opening does)", PassiveDb.get_def("rebuke") != null and PassiveDb.get_def("rebuke").describe_detail(5) == "")
 
 	# --- Rank 0: nothing happens --------------------------------------------------------------------------------------------------------------

@@ -57,7 +57,7 @@ func _init(player: Player) -> void:
 
 func required(id: String) -> float:
 	var def: PowerDef = PowerDb.get_def(id)
-	return p.stats.power_recharge_damage(def.recharge, def.tree) if def != null else 0.0
+	return p.stats.power_recharge_damage(PowerDb.charge_seconds(id), def.tree) if def != null else 0.0
 
 func fraction(id: String) -> float:
 	var left: float = float(reload_remaining.get(id, 0.0))

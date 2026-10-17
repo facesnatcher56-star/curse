@@ -58,6 +58,7 @@ const SUITES := [
 	preload("res://game/dev/suites/archer_stance_tests.gd"),
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
+	preload("res://game/dev/suites/power_charge_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
 	preload("res://game/dev/suites/portrait_plus_tests.gd"),
 ]
@@ -92,7 +93,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--startbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -125,6 +126,8 @@ func run_from_args() -> bool:
 		_run("_level_up_capture", [_user_arg_value("--levelupcapture=")])
 	elif _user_arg_value("--meleecapture=") != "":
 		_run("_melee_rank_capture", [_user_arg_value("--meleecapture=")])
+	elif OS.get_cmdline_user_args().has("--startbarcapture"):
+		_run("_start_bar_capture")
 	elif OS.get_cmdline_user_args().has("--powerbarcapture"):
 		_run("_powerbar_capture")
 	elif OS.get_cmdline_user_args().has("--damagecapture"):
@@ -204,7 +207,7 @@ const ONLY_TESTS := {
 "rangedmods": "_test_ranged_modifiers",
 "elements": "_test_elements",
 "dodgeblock": "_test_dodge_block", "opening": "_test_opening", "startingkit": "_test_starting_kit",
-"powerdamage": "_test_power_damage",
+"powerdamage": "_test_power_damage", "powercharge": "_test_power_charge",
 "navigation": "_test_navigation",
 "theme": "_test_ornate_theme",
 "uitexture": "_test_ui_texture",
@@ -288,6 +291,7 @@ func _run_selftest() -> void:
 	await _run("_test_settings")
 	await _run("_test_zoom")
 	await _run("_test_portrait_plus")   # early: the archer suites later free the Cutter body this check needs
+	await _run("_test_power_charge")   # early, with the Cutter body still in the party (the archer suites free it)
 	await _run("_test_hotkeys")
 	await _run("_test_navigation")
 	await _run("_test_roll_shove")

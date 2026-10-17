@@ -45,7 +45,7 @@ func _test_thunderous_shot() -> void:
 	# Gates: the passive, then the bow.
 	expect("Thunderous Shot is a live power, on the hotbar picker and with a skill entry", PowerController.LIVE.has("thunderous_shot")
 		and HotbarLayout.ASSIGNABLE.has("thunderous_shot") and SkillDb.all().has("thunderous_shot"))
-	expect("it is not open without Biting Arrow 1", PowerDb.hero_rank("thunderous_shot", "cutter") == 0 and not archer.powers.ready("thunderous_shot"))
+	expect("it is Cutter's starting power: open at rank 1 without Biting Arrow (Lane P), and the passive alone still opens nothing", PowerDb.hero_rank("thunderous_shot", "cutter") == 1 and PowerDb.get_def("thunderous_shot").rank_for({}) == 0)
 	TownState.add_member_xp("cutter", HeroProgression.xp_for_level(11), false, {"ranged": 1.0})
 	expect("Cutter opens it through the common purchase rule (Critical Shot, then Biting Arrow)", TownState.buy_passives({"critical_shot": 1}, "cutter") and TownState.buy_passives({"biting_arrow": 1}, "cutter"))
 	archer.stats.refresh()

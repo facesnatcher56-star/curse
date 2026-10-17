@@ -108,7 +108,7 @@ func _ranks() -> Dictionary:
 	return ranks
 
 func _add_power(parent: Control, def: PowerDef) -> void:
-	var rank := def.rank_for(_ranks())
+	var rank := PowerDb.rank_of(def, _ranks(), member_id)
 	var button := UiTheme.button("", 48)
 	button.name = "power_" + def.id
 	button.custom_minimum_size = Vector2(48, 48)
@@ -135,7 +135,7 @@ func _inspect(id: String, power: bool, button: Button) -> void:
 	if power:
 		var def := PowerDb.get_def(id)
 		var ranks := _ranks()
-		var rank := def.rank_for(ranks)
+		var rank := PowerDb.rank_of(def, ranks, member_id)
 		text = "%s  %d/3
 %s" % [_plain(def.display_name), rank, _plain(def.summary)]
 		if rank < 3:

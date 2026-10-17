@@ -1047,7 +1047,10 @@ func _on_received_hit(result: Dictionary) -> void:
 			"calm": true, "secondary": true, "skill_id": "reflect"}, global_position)
 
 func on_enemy_killed(enemy: Actor) -> void:
-	pass # Loot belongs to the dead enemy's tier, not the active member's missing health.
+	# Loot belongs to the dead enemy's tier, not the active member's missing health. A kill refills every living member's powers.
+	var share: float = PlayerStats.CHAMPION_KILL_REFILL if enemy is Enemy and (enemy as Enemy).champion != null else PlayerStats.KILL_REFILL
+	for body in PartyManager.current().living():
+		body.stats.refund_power_charge(share)
 
 ## The throw samples aim at release, after the short catch beat. Stick input wins
 ## while it is active; otherwise the controller uses current combat facing.

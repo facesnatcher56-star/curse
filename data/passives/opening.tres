@@ -22,5 +22,5 @@ extra = {
 "charge": [5, 6.05, 7.11, 8.16, 9.21, 10.26, 11.32, 12.37, 13.42, 14.47, 15.53, 16.58, 17.63, 18.68, 19.74, 20.79, 21.84, 22.89, 23.95, 25]
 }
 needs = ""
-description = "Opening, passive, melee. Every guard breaks. Every fighter falters. A true warrior sees it, and ends it. While fighting in melee, or when you block an attack with a shield, you sometimes spot a fatal flaw in an enemy's defence. Strike it within 1.5 seconds to execute a brutal finishing move suited to your weapon. Guaranteed critical hit (+%d%% damage), +%d%% item drop chance, restores %d%% power charge. Against champions: shatters their defining strength. Rank up to spot Openings more often and strike harder."
-description_values = Array[String](["damage", "drop", "charge"])
+description = "Opening, passive, melee. Every guard breaks. Every fighter falters. A true warrior sees it, and ends it. While fighting in melee, or when you block an attack with a shield, you sometimes spot a fatal flaw in an enemy's defence. Strike it within 1.5 seconds to execute a brutal finishing move suited to your weapon. Guaranteed critical hit (+%d%% damage), +%d%% item drop chance, refills 25%% of every power's charge. Against champions: shatters their defining strength. Rank up to spot Openings more often and strike harder."
+description_values = Array[String](["damage", "drop"])

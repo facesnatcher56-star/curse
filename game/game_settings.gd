@@ -69,9 +69,9 @@ static var custom_bindings: Dictionary = {}
 ## One single-player bar shared by the party. Each slot also names the party member who casts it.
 static var hotbar_slots: Array[String] = HotbarLayout.DEFAULT_SLOTS.duplicate()
 static var hotbar_alt: String = HotbarLayout.DEFAULT_ALT
-static var hotbar_casters: Array[String] = ["hero", "cutter", "hero", "hero", "hero", "hero"]
+static var hotbar_casters: Array[String] = HotbarLayout.DEFAULT_CASTERS.duplicate()
 static var hotbar_alt_caster: String = "hero"
-const HOTBAR_LAYOUT_REV := 5
+const HOTBAR_LAYOUT_REV := 6   # 6: two slots per member, the starting powers on the bar (older saved layouts are replaced)
 
 static func reset_hotbar() -> void:
 	# SkillController deliberately keeps this exact Array reference. Reset its
@@ -80,7 +80,7 @@ static func reset_hotbar() -> void:
 	for i in HotbarLayout.DEFAULT_SLOTS.size():
 		hotbar_slots[i] = HotbarLayout.DEFAULT_SLOTS[i]
 	hotbar_alt = HotbarLayout.DEFAULT_ALT
-	hotbar_casters.assign(["hero", "cutter", "hero", "hero", "hero", "hero"])
+	hotbar_casters.assign(HotbarLayout.DEFAULT_CASTERS)
 	hotbar_alt_caster = "hero"
 
 static func hotbar_skill(slot: int) -> String:
@@ -99,11 +99,11 @@ static func assign_hotbar_caster(slot: int, member_id: String) -> void:
 	if not OS.get_cmdline_user_args().has("--selftest"):
 		save_to_disk()
 
-## How many numbered hotbar slots are in use: one per party member (every slot in the self-tests, which set their own loadouts).
+## How many numbered hotbar slots are in use: HotbarLayout.SLOTS_PER_MEMBER per party member (every slot in the self-tests, which set their own loadouts).
 static func hotbar_slot_count() -> int:
 	if OS.get_cmdline_user_args().has("--selftest"):
 		return hotbar_slots.size()
-	return clampi(PartyManager.current().members.size(), 1, hotbar_slots.size())
+	return clampi(PartyManager.current().members.size() * HotbarLayout.SLOTS_PER_MEMBER, 1, hotbar_slots.size())
 
 ## Takes every skill the party has not learned off the bar (call after a rank changes, and when a game starts).
 static func prune_hotbar() -> void:
@@ -561,7 +561,7 @@ static func load_from_disk(path: String = "") -> void:
 	var saved_slots: Array = config.get_value("hotbar", "slots", [])
 	var saved_alt: String = String(config.get_value("hotbar", "alt", HotbarLayout.DEFAULT_ALT))
 	var hotbar_rev: int = int(config.get_value("hotbar", "layout_rev", 0))
-	if hotbar_rev >= 4 and HotbarLayout.is_valid(saved_slots, saved_alt):
+	if hotbar_rev >= HOTBAR_LAYOUT_REV and HotbarLayout.is_valid(saved_slots, saved_alt):
 		for i in hotbar_slots.size():
 			hotbar_slots[i] = String(saved_slots[i])
 		hotbar_alt = saved_alt

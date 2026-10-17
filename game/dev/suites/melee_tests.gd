@@ -699,8 +699,8 @@ func _test_dodge_cancels_attack() -> void:
 func _test_brutal_attack() -> void:
 	TownState.passive_ranks["critical_strike"] = 1   # (DS2: Brutal Attack opens with Critical Strike 1)
 	GameSettings.reset_hotbar()
-	expect("the default loadout contains the two party powers and the basic attack",
-		GameSettings.hotbar_slots == ["brutal_attack", "take_aim", "", "", "", ""] and GameSettings.hotbar_alt == "basic")
+	expect("the default loadout contains the four starting powers and the basic attack",
+		GameSettings.hotbar_slots == ["brutal_attack", "whirling_strike", "take_aim", "thunderous_shot", "", ""] and GameSettings.hotbar_alt == "basic")
 	var skills: SkillController = player.skills
 	skills.cancel_action()
 	player.stats.brutal_reload_remaining = 0.0

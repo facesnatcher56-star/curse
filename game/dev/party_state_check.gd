@@ -37,7 +37,7 @@ func run() -> void:
 	check("Cutter independent XP and Ranged advancement retained", cutter.xp == legacy.cutter_xp and cutter.class_xp.ranged == legacy.cutter_xp)
 	check("Cutter earned points use common rule", TownState.skill_points_left({}, "cutter") == cutter.level + 1)
 	check("starter bow obeys ordinary requirements", Items.hero_can_wear(cutter.equipment[Items.Slot.WEAPON], "cutter"))
-	check("no free Take Aim", PowerDb.hero_rank("take_aim", "cutter") == 0)
+	check("Take Aim is Cutter's starting power, not the hero's", PowerDb.hero_rank("take_aim", "cutter") == 1 and PowerDb.hero_rank("take_aim", "hero") == 0)
 	check("legacy Hero hotbar retained", hero.hotbar == GameSettings.hotbar_slots and hero.hotbar_alt == GameSettings.hotbar_alt)
 	check("Cutter hotbar independent", cutter.hotbar != hero.hotbar or cutter.hotbar == ["", "", "", "", "", ""])
 	var before := hero.xp

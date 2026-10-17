@@ -12,8 +12,8 @@ DS2 has no Opening. The passive, its trigger rules and its numbers are Curse cho
 * **Opening (melee passive, rank 1-20):** each basic melee hit that lands may mark the nearest enemy in reach (3-12 % a hit), and each melee power use rolls once for the whole use (not per enemy hit). A successful shield block
   may mark the attacker (8-30 %). One mark at a time: the mark lasts 1.5 s and a 4 s cooldown follows it. The mark is a gold ring and a cue.
   The execution starts from the basic attack on the marked enemy (click or controller attack): the weapon's own execution. Only a block-triggered mark plays the shield bash: a shield never overrides a melee-triggered execution.
-  It is a guaranteed critical that cannot be dodged or blocked, with +20-120 % damage on top, +10-60 % drop chance for that enemy, and 5-25 %
-  of each charging power's recharge given back. The hero is invulnerable for 0.5 s.
+  It is a guaranteed critical that cannot be dodged or blocked, with +20-120 % damage on top, +10-60 % drop chance for that enemy, and (Curse pacing, Lane P)
+  a flat 25 % of every one of that hero's power bars refilled (`PlayerStats.OPENING_REFILL`; replaces DS2's rank-scaled 5-25 %). The hero is invulnerable for 0.5 s.
 * **Executions (V1 reuses existing clips):** sword and falchion `atk_thrust` (stab), axe `atk_finisher` (chop), mace, club and warhammer `power`
   (crush, stuns enemies within 2.5 m for 1.5 s), dagger `atk_thrust` at a quicker pace (backstab), greatsword `atk2_thrust` (impale), any shield
   `stomp` (bash; block-triggered marks only). The Gravecutter (unique falchion) has `atk_slash_r` (grave cleave, stuns within 2.5 m for 0.6 s).

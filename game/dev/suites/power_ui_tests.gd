@@ -16,7 +16,7 @@ func _test_power_ui() -> void:
 	TownState.persist = false
 	TownState.reset()
 	expect("a fresh party is offered the basic attack but not skills nobody has learned", HotbarLayout.learned_ids().has("basic") and not HotbarLayout.learned_ids().has("detonation"))
-	expect("a skill nobody has learned is taken off the bar", HotbarLayout.drop_unlearned(["brutal_attack", "", "", "", "", ""], "brutal_attack") == "basic")
+	expect("a skill nobody has learned is taken off the bar", HotbarLayout.drop_unlearned(["detonation", "", "", "", "", ""], "detonation") == "basic")
 	TownState.dev_set_hero_level(40)
 	await _settle()
 	expect("spent, partial, ready, armed and unavailable states are distinct",
