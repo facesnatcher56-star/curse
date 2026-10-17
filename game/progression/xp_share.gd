@@ -38,7 +38,7 @@ static func pay_hit(enemy: Enemy, member_id: String, class_id: String, dealt: fl
 		return
 	var each: float = earned * float(HeroProgression.PARTY_BONUS[clampi(members.size(), 1, HeroProgression.PARTY_BONUS.size() - 1)]) / float(members.size())
 	for body in members:
-		var gap := HeroProgression.level_gap_mult(body.character.level, enemy.level)
+		var gap := HeroProgression.level_gap_mult(HeroProgression.gap_level(body.character.level), enemy.level)
 		var skill: String = class_id if body.member_id == member_id else weapon_class(body)
 		add_pending(body.member_id, skill, each * gap)
 

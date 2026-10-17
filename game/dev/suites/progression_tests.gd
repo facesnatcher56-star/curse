@@ -434,7 +434,7 @@ func _test_xp() -> void:
 	var members: int = 2 if not town.companion.dead else 1   # Cutter is a party member: he takes his share
 	var expected: Callable = func(kind: String, threat: float) -> int:
 		var level: int = WorldThreat.monster_level(threat)
-		var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, level)
+		var gap: float = HeroProgression.level_gap_mult(HeroProgression.gap_level(TownState.hero_level), level)
 		# DS2 pays hit by hit: the whole pool in one killing blow, with the party bonus split, then the gap, and only whole points kept.
 		return int(floor(HeroProgression.monster_xp_value(level, EnemyDb.get_def(kind).tier) * HeroProgression.PARTY_BONUS[members] / members * gap))
 	# A kill the hero is credited with pays; the same kill in a stronger place pays more.
@@ -553,7 +553,7 @@ func _test_xp() -> void:
 	body._apply_damage(body.max_health + 10.0)
 	await get_tree().process_frame
 	var paid: int = TownState.hero_xp - xp_before
-	var named_gap: float = HeroProgression.level_gap_mult(TownState.hero_level, named_level)
+	var named_gap: float = HeroProgression.level_gap_mult(HeroProgression.gap_level(TownState.hero_level), named_level)
 	var named_hits: float = HeroProgression.monster_xp_value(named_level, body.def.tier) * HeroProgression.PARTY_BONUS[members] / members * named_gap
 	var named_expect: int = HeroProgression.party_share(int(round(bounty * named_gap)), members) + int(floor(named_hits))
 	expect("killing a named monster pays its hits (hit by hit) and its bounty at death, gap and party applied (%d vs %d)" % [paid, named_expect],
@@ -748,7 +748,7 @@ func _test_dungeon_kill_xp() -> void:
 	pool_enemy.aggro_range = 0.0
 	XpShare.pending.clear()
 	var pool: float = HeroProgression.monster_xp_value(pool_enemy.level, pool_enemy.def.tier)
-	var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, pool_enemy.level)
+	var gap: float = HeroProgression.level_gap_mult(HeroProgression.gap_level(TownState.hero_level), pool_enemy.level)
 	var xp_start: int = TownState.hero_xp
 	var quarter: float = pool_enemy.max_health * 0.25
 	pool_enemy._tally_damage(player, "basic", quarter, player.combat_identity())

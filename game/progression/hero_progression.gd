@@ -148,6 +148,11 @@ static func monster_xp_value(level: int, tier: String = "normal") -> float:
 static func monster_xp(level: int, tier: String = "normal") -> int:
 	return maxi(int(round(monster_xp_value(level, tier))), 1)
 
+## DS2 counts character level from 0 (a fresh hero is "Level 0", the first level-up at 300 XP makes it 1); Curse shows the same hero as
+## level 1. The level gap uses DS2's number, so every caller passes its (1-based) level through here.
+static func gap_level(character_level: int) -> int:
+	return maxi(character_level - 1, 0)
+
 ## DS2's level-gap multiplier (hero level - monster level): more than 4 above, -20% a level; more than 4 below, -20% a level too
 ## (DS2 penalises both, so neither farming nor carrying pays); never under 5%.
 static func level_gap_mult(hero_level: int, monster_level: int) -> float:

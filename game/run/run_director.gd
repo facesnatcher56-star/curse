@@ -401,7 +401,7 @@ func _pay_kill_xp(actor: Actor, bounty_xp: int) -> void:
 	var recipients := party.living()
 	for body in recipients:
 		var member_id := body.member_id
-		var gap := HeroProgression.level_gap_mult(body.character.level, enemy.level)
+		var gap := HeroProgression.level_gap_mult(HeroProgression.gap_level(body.character.level), enemy.level)
 		var total := int(round(float(kill + bounty_xp) * gap))
 		var share := HeroProgression.party_share(total, recipients.size())
 		TownState.add_member_xp(member_id, share, bounty_xp > 0, enemy.member_damage.get(member_id, {}))

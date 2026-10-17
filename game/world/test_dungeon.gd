@@ -221,7 +221,7 @@ static func project(entry_xp: int) -> Array:
 				var tier: String = String(KIND_TIER[String(pair[0])])
 				for i in int(pair[1]):
 					var kill: int = HeroProgression.monster_xp(level, tier)
-					var gap: float = HeroProgression.level_gap_mult(HeroProgression.level_for_xp(xp), level)
+					var gap: float = HeroProgression.level_gap_mult(HeroProgression.gap_level(HeroProgression.level_for_xp(xp)), level)
 					var share: int = HeroProgression.party_share(int(round(float(kill) * gap)), PARTY_SIZE)
 					var before: int = xp
 					xp = mini(xp + share, HeroProgression.max_xp())

@@ -150,7 +150,8 @@ Curse choices where DS2's engine is not visible, or the owner chose differently 
   paid as whole points. Verified in the extracted scripts: DS2 pays no XP for quests (nothing in its 1,400 logic or 4,000 map scripts awards it).
   A nest pays its children's XP: here the two zombies that claw out of it pay it when killed, so breaking the nest itself pays nothing.
   Still Curse content with no DS2 source: the standing quest's 3000 XP, quest XP and a named monster's bounty (paid at its death).
-* **Class-skill table**: a class skill uses the character table one step behind (0 untrained, 1 at 300 XP), so a pure level 30 fighter
+* **Class-skill table**: confirmed against the real game (a fresh hero is Level 0, class skills 0; character level 3 and Melee 3 together): DS2 counts
+  levels from 0 and class skills use the same table. Curse numbers characters from 1, so a class skill reads 0 untrained, 1 at 300 XP, and a pure level 30 fighter
   is Melee 29 = 99 / 40 / 40, matching DS2's design note (about 100 / 40 / 40). Each class level adds its 3/1/1 weights.
 * **Experience table**: all 100 thresholds now come directly from `formulas.gas` (`data/reference/ds2_xp.json`). Save version 10
   remaps version 7-9 XP to preserve the level and fractional progress of the hero, class skills and Cutter. Older saves still follow
