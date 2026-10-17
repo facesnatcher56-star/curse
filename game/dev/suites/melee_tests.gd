@@ -108,6 +108,47 @@ func _test_auto_attack() -> void:
 		" turned ", snappedf(rad_to_deg(yaw_drift), 0.1), " deg, skill clears attack order=", cleared_by_skill, ", resumed swinging after skill=", swings_after_skill)
 	dummy.queue_free()
 	await get_tree().process_frame
+	await _test_held_click_keeps_target()
+
+## Holding the click on an enemy keeps attacking that enemy while the button stays down, wherever the pointer goes (another enemy,
+## empty ground); only letting go (or its death) ends it.
+func _test_held_click_keeps_target() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var was_pad: bool = Gamepad.active
+	Gamepad.active = true   # deterministic cursor_override targeting in the headless self-test
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var first: Enemy = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
+	var second: Enemy = _spawn_enemy(Vector3(-3.0, 0.0, 4.0))
+	for e in [first, second]:
+		e.aggro_range = 0.0
+		e.max_health = 5000.0
+		e.health = 5000.0
+	await get_tree().physics_frame
+	player.cursor_override = first.global_position
+	Input.action_press("click")
+	for i in 4:
+		await get_tree().physics_frame
+	expect("pressing on an enemy targets it", player.attack_target == first)
+	player.cursor_override = second.global_position   # the pointer slides onto another enemy, button still down
+	for i in 6:
+		await get_tree().physics_frame
+	expect("held on the first, the pointer over another enemy does not switch the target", player.attack_target == first)
+	player.cursor_override = Vector3(0.0, 0.0, -8.0)   # and then onto empty ground
+	for i in 6:
+		await get_tree().physics_frame
+	expect("held on the first, the pointer over empty ground keeps attacking it and does not walk off", player.attack_target == first and not player.movement.has_goal)
+	Input.action_release("click")
+	for i in 3:
+		await get_tree().physics_frame
+	expect("letting go ends it", player.attack_target == null)
+	Gamepad.active = was_pad
+	for e in [first, second]:
+		e.queue_free()
+	player.skills.cancel_action()
+	await get_tree().physics_frame
 
 ## A plain ground click abandons an unlanded swing or its recovery and starts locomotion immediately.
 func _test_move_priority() -> void:
