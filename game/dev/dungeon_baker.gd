@@ -400,7 +400,7 @@ func pack_scene(path: String, before: Array) -> int:
 		var home: Vector2 = group["home"]
 		marker.position = Vector3(home.x, 0.0, home.y)
 		marker.area = int(group["area"])
-		marker.behaviour = DungeonEnemyGroup.Behaviour.WANDER if String(group["mode"]) == "wander" else DungeonEnemyGroup.Behaviour.STAND
+		marker.behaviour = DungeonEnemyGroup.Behaviour.WANDER if String(group["mode"]) == "wander" else DungeonEnemyGroup.Behaviour.STAND_GUARD
 		marker.kinds = (group["kinds"] as Array).duplicate(true)
 		marker.name = "Group%02d_area%d" % [(holders["EnemyGroups"] as Node3D).get_child_count() + 1, marker.area]
 		(holders["EnemyGroups"] as Node3D).add_child(marker)

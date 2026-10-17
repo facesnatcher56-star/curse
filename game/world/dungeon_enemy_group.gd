@@ -1,53 +1,84 @@
 @tool
 class_name DungeonEnemyGroup
 extends Marker3D
-## One group of enemies in the dungeon level scene (`game/world/dungeon_level.tscn`, under `EnemyGroups`). Drag it where the group should
-## stand; the node's position is its home. Everything about the group is set here, in the editor:
+## One group of monsters in the dungeon. Move this marker to where the group should stand (the group's "home" is wherever this node sits).
+## Select it and use the Inspector on the right: every setting below has a plain explanation that shows when you hold the mouse over its name.
 ##
-##   * WHAT: `kinds` (kind and how many of each).
-##   * LEVEL: by default the level of its `area` (the level the hero is projected to be on reaching it, see TestDungeon.project); a
-##     `level_offset` makes them tougher or weaker than that; a `fixed_level` above 0 overrides it altogether.
-##   * WHERE: they scatter round the home by `spread` metres, or, if the group has child markers named `Spawn...`, they stand exactly on
-##     those (the first member on the first marker, and so on; extras scatter).
-##   * WHAT THEY DO until they notice the hero: `behaviour` stands guard, wanders about the home (`roam_radius`), or hunches over a
-##     child marker named `FeedPoint`. A wandering group follows a patrol loop if it has child markers named `Patrol...` (in order).
-##
-## Add the child markers with right-click > Add Child Node > Marker3D, and name them as above. In the editor the node draws what it holds;
-## in the game it is only read (TestDungeon.read_groups). A group is woken together: when one of them notices the hero, all of them do.
+## To give a group a patrol route, exact starting spots, or a place to feed, add child Marker3D nodes to it and NAME them like this:
+##   Patrol1, Patrol2, Patrol3 ... : a loop they walk round, in order (only for groups set to Wander).
+##   Spawn1, Spawn2 ...            : the exact spots the monsters start on (the first monster stands on Spawn1, and so on).
+##   FeedPoint                     : the spot a group set to Feed crouches over.
+## The editor draws a yellow line along a patrol loop and a line from the group to each spawn and feed spot.
 
-enum Behaviour { STAND, WANDER, FEED }
+enum Behaviour { STAND_GUARD, WANDER, FEED }
 
-## An index into TestDungeon.AREAS: 0 is the entry, 1 corridor_1, 2 hall_1, ... 10 hall_5 (the final hall).
-@export_range(0, 10) var area: int = 0:
+const AREA_NAMES := "Entry hall,Corridor 1,Hall 1,Corridor 2,Hall 2,Corridor 3,Hall 3,Corridor 4,Hall 4,Corridor 5,Hall 5 (final hall)"
+
+## The saved form of the group's contents: [["zombie", 2], ["ghoul", 1]]. You do not edit this; the number boxes below do.
+@export_storage var kinds: Array = []
+
+@export_group("Who is in the group")
+## How many zombies. The weakest, slowest monster.
+@export_custom(PROPERTY_HINT_RANGE, "0,20,1", PROPERTY_USAGE_EDITOR) var zombies: int:
+	get: return _count("zombie")
+	set(value): _set_count("zombie", value)
+## How many ghouls. Faster and tougher than a zombie.
+@export_custom(PROPERTY_HINT_RANGE, "0,20,1", PROPERTY_USAGE_EDITOR) var ghouls: int:
+	get: return _count("ghoul")
+	set(value): _set_count("ghoul", value)
+## How many rock throwers. They stay back and throw rocks at you.
+@export_custom(PROPERTY_HINT_RANGE, "0,20,1", PROPERTY_USAGE_EDITOR) var rock_throwers: int:
+	get: return _count("rock_thrower")
+	set(value): _set_count("rock_thrower", value)
+## How many brutes. Big, strong and hit hard.
+@export_custom(PROPERTY_HINT_RANGE, "0,20,1", PROPERTY_USAGE_EDITOR) var brutes: int:
+	get: return _count("brute")
+	set(value): _set_count("brute", value)
+## How many wardens. The boss-type monster. Use one at most, and only in the final hall.
+@export_custom(PROPERTY_HINT_RANGE, "0,20,1", PROPERTY_USAGE_EDITOR) var wardens: int:
+	get: return _count("warden")
+	set(value): _set_count("warden", value)
+
+@export_group("How strong they are")
+## Which part of the dungeon this group belongs to. This is what decides their level: monsters in the later parts are higher level, because
+## the game works out what level you should be by the time you get there. Moving the marker does NOT change this; change it here.
+@export_enum("Entry hall", "Corridor 1", "Hall 1", "Corridor 2", "Hall 2", "Corridor 3", "Hall 3", "Corridor 4", "Hall 4", "Corridor 5", "Hall 5 (final hall)") var area: int = 0:
 	set(value):
 		area = value
 		_refresh()
-## Added to the area's level (negative: weaker). Ignored when `fixed_level` is set.
+## Makes this group tougher or weaker than normal for its part of the dungeon. 0 is normal. +2 means two levels higher than normal,
+## -1 means one level lower. Ignored if "Fixed Level" below is set.
 @export_range(-10, 10) var level_offset: int = 0:
 	set(value):
 		level_offset = value
 		_refresh()
-## 0 follows the area's level; anything above is the level these enemies are, whatever the hero's level.
+## Leave this at 0 to use the normal level for the group's part of the dungeon. Type a number (1 to 100) to make these monsters exactly
+## that level, whatever your level is and wherever they stand.
 @export_range(0, 100) var fixed_level: int = 0:
 	set(value):
 		fixed_level = value
 		_refresh()
-@export var behaviour: Behaviour = Behaviour.STAND:
+
+@export_group("What they do before they notice you")
+## What the group does until it spots you. STAND GUARD: stays where it is. WANDER: strolls around its home (or follows the patrol route if
+## you added one). FEED: crouches over its Feed Point if you added one. Whenever one of the group notices you, the whole group comes for you.
+@export var behaviour: Behaviour = Behaviour.STAND_GUARD:
 	set(value):
 		behaviour = value
 		_refresh()
-## [kind, count] pairs, e.g. [["zombie", 2], ["ghoul", 1]]. Kinds: zombie, ghoul, rock_thrower, brute, warden.
-@export var kinds: Array = []:
-	set(value):
-		kinds = value
-		_refresh()
-## How far members scatter from the home when there are no `Spawn...` markers.
+## How far from the marker the monsters start. They are scattered at random inside this many metres. Ignored for monsters that have their
+## own Spawn marker.
 @export_range(0.0, 10.0, 0.1) var spread: float = 1.6
-## How far a wandering group strolls from its home (when it has no patrol loop).
+## For a group set to Wander without a patrol route: how far from home, in metres, it will stroll.
 @export_range(0.0, 20.0, 0.1) var roam_radius: float = 4.0
 
 var _label: Label3D
 var _lines: MeshInstance3D
+
+
+func _init() -> void:
+	editor_description = "Move this marker to where the group stands. Hold the mouse over any setting in the Inspector for a plain explanation. " \
+		+ "Patrol route: add child Marker3Ds named Patrol1, Patrol2... Exact start spots: Spawn1, Spawn2... Feeding spot: FeedPoint."
 
 
 func _ready() -> void:
@@ -60,6 +91,29 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		_draw_routes()
+
+
+func _count(kind: String) -> int:
+	for pair in kinds:
+		if pair is Array and (pair as Array).size() == 2 and String((pair as Array)[0]) == kind:
+			return int((pair as Array)[1])
+	return 0
+
+
+func _set_count(kind: String, value: int) -> void:
+	var rebuilt: Array = []
+	var done: bool = false
+	for pair in kinds:
+		if pair is Array and (pair as Array).size() == 2 and String((pair as Array)[0]) == kind:
+			if value > 0:
+				rebuilt.append([kind, value])
+			done = true
+		else:
+			rebuilt.append(pair)
+	if not done and value > 0:
+		rebuilt.append([kind, value])
+	kinds = rebuilt
+	_refresh()
 
 
 ## "" stands, "wander" strolls, "feed" hunches over its FeedPoint: what Enemy.idle_mode wants.
@@ -120,8 +174,11 @@ func _refresh() -> void:
 	for pair in kinds:
 		if pair is Array and (pair as Array).size() == 2:
 			parts.append("%s x%d" % [String((pair as Array)[0]), int((pair as Array)[1])])
-	var level_text: String = "level %d" % fixed_level if fixed_level > 0 else "area %d%s" % [area, ("%+d" % level_offset) if level_offset != 0 else ""]
-	_label.text = "%s, %s\n%s" % [level_text, Behaviour.keys()[behaviour].to_lower(), ", ".join(parts)]
+	var area_names: PackedStringArray = AREA_NAMES.split(",")
+	var area_name: String = area_names[clampi(area, 0, area_names.size() - 1)]
+	var level_text: String = "level %d" % fixed_level if fixed_level > 0 else "%s%s" % [area_name, (" %+d" % level_offset) if level_offset != 0 else ""]
+	var behaviour_text: String = ["guards", "wanders", "feeds"][behaviour]
+	_label.text = "%s - %s\n%s" % [level_text, behaviour_text, ", ".join(parts)]
 
 
 ## Lines in the editor: the patrol loop (yellow), and a spoke to each spawn point and the feed point.

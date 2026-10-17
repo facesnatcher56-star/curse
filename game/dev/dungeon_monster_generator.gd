@@ -81,7 +81,7 @@ static func generate(level_root: Node3D, rng_seed: int, density: float = 1.0) ->
 			marker.area = area
 			marker.kinds = kinds
 			var mode_roll: float = rng.randf()
-			marker.behaviour = DungeonEnemyGroup.Behaviour.WANDER if mode_roll < float(plan["wander"]) else DungeonEnemyGroup.Behaviour.STAND
+			marker.behaviour = DungeonEnemyGroup.Behaviour.WANDER if mode_roll < float(plan["wander"]) else DungeonEnemyGroup.Behaviour.STAND_GUARD
 			holder.add_child(marker)
 			marker.owner = level_root
 	return made
