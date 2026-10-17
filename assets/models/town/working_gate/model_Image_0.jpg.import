@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c3pwirgqd8eor"
-path.s3tc="res://.godot/imported/model_Image_0.jpg-577a44eac379e4201f0f58d038d93113.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "d1deef4c8d77c2d4fd989cdf35e6487b"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/town/working_gate/model_Image_0.jpg"
-dest_files=["res://.godot/imported/model_Image_0.jpg-577a44eac379e4201f0f58d038d93113.s3tc.ctex"]
 
 [params]
 

@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bqpni5pbvt2qe"
-path="res://.godot/imported/model.glb-5432bff5d79a68e89ad784c5492f57a1.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/fx/power_wave/model.glb"
-dest_files=["res://.godot/imported/model.glb-5432bff5d79a68e89ad784c5492f57a1.scn"]
 
 [params]
 

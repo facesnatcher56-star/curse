@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://d12b8vd7ni42x"
-path="res://.godot/imported/arm_mantle.glb-5f1e766061ece3fc0c525b5ba64dd67f.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/arm_mantle.glb"
-dest_files=["res://.godot/imported/arm_mantle.glb-5f1e766061ece3fc0c525b5ba64dd67f.scn"]
 
 [params]
 

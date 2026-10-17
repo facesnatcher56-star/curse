@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dk8txt1s8pqr4"
-path="res://.godot/imported/bts_plate.glb-11d64de1b8fc8d9ef2f6a7566bf1b6de.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/bts_plate.glb"
-dest_files=["res://.godot/imported/bts_plate.glb-11d64de1b8fc8d9ef2f6a7566bf1b6de.scn"]
 
 [params]
 

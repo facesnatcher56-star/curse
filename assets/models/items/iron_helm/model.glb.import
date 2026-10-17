@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cqfh7mirem1xn"
-path="res://.godot/imported/model.glb-1e2fe47d1e0631aef4a0148af3815b10.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/items/iron_helm/model.glb"
-dest_files=["res://.godot/imported/model.glb-1e2fe47d1e0631aef4a0148af3815b10.scn"]
 
 [params]
 

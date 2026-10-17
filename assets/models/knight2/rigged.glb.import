@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c6bf2dqwn7x38"
-path="res://.godot/imported/rigged.glb-007e46e10131b35c18c45ead877b9d34.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/knight2/rigged.glb"
-dest_files=["res://.godot/imported/rigged.glb-007e46e10131b35c18c45ead877b9d34.scn"]
 
 [params]
 

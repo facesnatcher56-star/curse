@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bmu1mqmaeb7ip"
-path="res://.godot/imported/tor_plate.glb-f15735bff6d7d8c8abd98665b02a9df7.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/tor_plate.glb"
-dest_files=["res://.godot/imported/tor_plate.glb-f15735bff6d7d8c8abd98665b02a9df7.scn"]
 
 [params]
 

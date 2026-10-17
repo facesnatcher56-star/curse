@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bro1rrggsae11"
-path="res://.godot/imported/model.glb-c0b95480a49ac2b2159445b64a08a519.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/items/plate_cuirass/model.glb"
-dest_files=["res://.godot/imported/model.glb-c0b95480a49ac2b2159445b64a08a519.scn"]
 
 [params]
 

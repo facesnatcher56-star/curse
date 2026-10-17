@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://b77cxkxbcwjhw"
-path="res://.godot/imported/model.glb-d360dad3d593da4e666eddf211816a20.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/dungeon/wall_large_b/model.glb"
-dest_files=["res://.godot/imported/model.glb-d360dad3d593da4e666eddf211816a20.scn"]
 
 [params]
 

@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c5gfn85dcqmh1"
-path="res://.godot/imported/model.glb-b357d28f6d65b664495d0c474092ab8c.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/town/anvil/model.glb"
-dest_files=["res://.godot/imported/model.glb-b357d28f6d65b664495d0c474092ab8c.scn"]
 
 [params]
 

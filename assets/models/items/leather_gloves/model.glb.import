@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c3ydyowxa6eul"
-path="res://.godot/imported/model.glb-1e5d4dd11ca5b6a5a5925015e51bb49e.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/items/leather_gloves/model.glb"
-dest_files=["res://.godot/imported/model.glb-1e5d4dd11ca5b6a5a5925015e51bb49e.scn"]
 
 [params]
 

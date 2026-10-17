@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://q0uvl8iuq81e"
-path="res://.godot/imported/model.glb-c41cae614d6e6072ccd1d826b79f511a.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/town/granary/model.glb"
-dest_files=["res://.godot/imported/model.glb-c41cae614d6e6072ccd1d826b79f511a.scn"]
 
 [params]
 

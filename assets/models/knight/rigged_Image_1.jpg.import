@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b5uj33fpbqjjq"
-path.s3tc="res://.godot/imported/rigged_Image_1.jpg-24ed4ce91a725545b812b0dfacb5c3f8.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "2b547561c0898ada4f4281acf102f190"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/knight/rigged_Image_1.jpg"
-dest_files=["res://.godot/imported/rigged_Image_1.jpg-24ed4ce91a725545b812b0dfacb5c3f8.s3tc.ctex"]
 
 [params]
 

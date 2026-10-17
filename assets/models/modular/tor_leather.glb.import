@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bsmud58adgy64"
-path="res://.godot/imported/tor_leather.glb-eed8c303e10d39f5db8345051a3001db.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/tor_leather.glb"
-dest_files=["res://.godot/imported/tor_leather.glb-eed8c303e10d39f5db8345051a3001db.scn"]
 
 [params]
 

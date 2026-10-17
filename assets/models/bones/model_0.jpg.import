@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bi5trtd4ps6ms"
-path.s3tc="res://.godot/imported/model_0.jpg-7627f69339bba7b36d8a3daf605fdbce.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "bed590c84069e9712de136cf74999eca"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/bones/model_0.jpg"
-dest_files=["res://.godot/imported/model_0.jpg-7627f69339bba7b36d8a3daf605fdbce.s3tc.ctex"]
 
 [params]
 

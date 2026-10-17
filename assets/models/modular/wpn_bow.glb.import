@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://kokvw48skkse"
-path="res://.godot/imported/wpn_bow.glb-a887edc722fddccfa683b20268011ca9.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/wpn_bow.glb"
-dest_files=["res://.godot/imported/wpn_bow.glb-a887edc722fddccfa683b20268011ca9.scn"]
 
 [params]
 

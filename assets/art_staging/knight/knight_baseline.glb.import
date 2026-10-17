@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://q5wm0q2xif2y"
-path="res://.godot/imported/knight_baseline.glb-0d48ab7d883893812d0b834b122d1368.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/art_staging/knight/knight_baseline.glb"
-dest_files=["res://.godot/imported/knight_baseline.glb-0d48ab7d883893812d0b834b122d1368.scn"]
 
 [params]
 

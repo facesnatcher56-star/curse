@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dhmldjm5mwthu"
-path="res://.godot/imported/model.glb-1c7861b3ad5a7f4fa5516c586b5356d8.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/crypt/road_gate/model.glb"
-dest_files=["res://.godot/imported/model.glb-1c7861b3ad5a7f4fa5516c586b5356d8.scn"]
 
 [params]
 

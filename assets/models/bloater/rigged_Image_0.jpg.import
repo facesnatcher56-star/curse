@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cwvw853dr1a67"
-path.s3tc="res://.godot/imported/rigged_Image_0.jpg-8046c0d38e18758977eb46c695215d47.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "abd0992da86b1e6734bf54e32b7be021"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/bloater/rigged_Image_0.jpg"
-dest_files=["res://.godot/imported/rigged_Image_0.jpg-8046c0d38e18758977eb46c695215d47.s3tc.ctex"]
 
 [params]
 

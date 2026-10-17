@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dbj4qisufck2t"
-path="res://.godot/imported/model.glb-15630c1136f9eb86d70c0997e632e197.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/crypt/iron_fence/model.glb"
-dest_files=["res://.godot/imported/model.glb-15630c1136f9eb86d70c0997e632e197.scn"]
 
 [params]
 

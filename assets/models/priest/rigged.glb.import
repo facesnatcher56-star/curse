@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://sty2vcdv64s8"
-path="res://.godot/imported/rigged.glb-744729269c501dfbbb0e37f6d6d24f99.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/priest/rigged.glb"
-dest_files=["res://.godot/imported/rigged.glb-744729269c501dfbbb0e37f6d6d24f99.scn"]
 
 [params]
 

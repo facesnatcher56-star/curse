@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cxk353ejvg7x"
-path.s3tc="res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "627f5488bb3387cf5993b64b96fc4bd1"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/zombie_brute/rigged_Image_1.jpg"
-dest_files=["res://.godot/imported/rigged_Image_1.jpg-06b87bf1c8930386c482e77e2626da7e.s3tc.ctex"]
 
 [params]
 

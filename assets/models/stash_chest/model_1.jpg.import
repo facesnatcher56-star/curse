@@ -3,10 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bnn5wcp0fmurk"
-path="res://.godot/imported/model_1.jpg-4cd2799ddc2afa5134ad73577d63bcac.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 generator_parameters={
 "md5": "6d1bc9ac8b69f4a6855c759f12565a99"
 }
@@ -14,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/stash_chest/model_1.jpg"
-dest_files=["res://.godot/imported/model_1.jpg-4cd2799ddc2afa5134ad73577d63bcac.ctex"]
 
 [params]
 

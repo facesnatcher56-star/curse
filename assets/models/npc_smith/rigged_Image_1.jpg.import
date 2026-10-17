@@ -3,10 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dr8xsdc32nf3y"
-path="res://.godot/imported/rigged_Image_1.jpg-54de2bf9820ac05d5b0931b1db1041bb.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 generator_parameters={
 "md5": "0af39a4ff70372005f205a3f6b8964fe"
 }
@@ -14,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/npc_smith/rigged_Image_1.jpg"
-dest_files=["res://.godot/imported/rigged_Image_1.jpg-54de2bf9820ac05d5b0931b1db1041bb.ctex"]
 
 [params]
 

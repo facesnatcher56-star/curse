@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cooxyv6k7g03k"
-path="res://.godot/imported/hlm_cap.glb-664051a8b96e2cb8a1f72a0fef55eaf7.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/hlm_cap.glb"
-dest_files=["res://.godot/imported/hlm_cap.glb-664051a8b96e2cb8a1f72a0fef55eaf7.scn"]
 
 [params]
 

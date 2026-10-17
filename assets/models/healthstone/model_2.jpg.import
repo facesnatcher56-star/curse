@@ -3,10 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b5th10r14fds3"
-path="res://.godot/imported/model_2.jpg-7b20e74f5e0355ce3f8d20ada563640b.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 generator_parameters={
 "md5": "4621b2ad5f331d8302d9541772542157"
 }
@@ -14,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/healthstone/model_2.jpg"
-dest_files=["res://.godot/imported/model_2.jpg-7b20e74f5e0355ce3f8d20ada563640b.ctex"]
 
 [params]
 

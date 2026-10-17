@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dnh1712jau2or"
-path="res://.godot/imported/model.glb-e048e03562d79d9ca3892a1f49581f58.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/dungeon/urn/model.glb"
-dest_files=["res://.godot/imported/model.glb-e048e03562d79d9ca3892a1f49581f58.scn"]
 
 [params]
 

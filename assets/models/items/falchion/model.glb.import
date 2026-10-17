@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bg8fhqxio46e4"
-path="res://.godot/imported/model.glb-35985b2ba27aed095d4a7c3a775771ef.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/items/falchion/model.glb"
-dest_files=["res://.godot/imported/model.glb-35985b2ba27aed095d4a7c3a775771ef.scn"]
 
 [params]
 

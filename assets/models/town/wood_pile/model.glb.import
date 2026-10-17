@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bhng2kfglt1id"
-path="res://.godot/imported/model.glb-efd8f4655bf24804d37ff706b94b5c98.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/town/wood_pile/model.glb"
-dest_files=["res://.godot/imported/model.glb-efd8f4655bf24804d37ff706b94b5c98.scn"]
 
 [params]
 

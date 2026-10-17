@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://do1y3y0yojg0"
-path="res://.godot/imported/model.glb-39af4d4ad483afed06f24297f0f53786.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/gravestone/model.glb"
-dest_files=["res://.godot/imported/model.glb-39af4d4ad483afed06f24297f0f53786.scn"]
 
 [params]
 

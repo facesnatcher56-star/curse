@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cvn3h83xek6ry"
-path="res://.godot/imported/hlm_kettle.glb-313a21d83662b7ed21fb3e69f760aa85.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/hlm_kettle.glb"
-dest_files=["res://.godot/imported/hlm_kettle.glb-313a21d83662b7ed21fb3e69f760aa85.scn"]
 
 [params]
 

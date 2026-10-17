@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://du2ar3yqs8k2s"
-path="res://.godot/imported/model.glb-01e5eb171170770e7db6db9468c6cc82.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/items/hammer_2h/model.glb"
-dest_files=["res://.godot/imported/model.glb-01e5eb171170770e7db6db9468c6cc82.scn"]
 
 [params]
 

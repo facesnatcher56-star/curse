@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bof52jv633f6c"
-path="res://.godot/imported/model.glb-5f8101c335366bd54edfef504e80d154.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/crypt/shrine/model.glb"
-dest_files=["res://.godot/imported/model.glb-5f8101c335366bd54edfef504e80d154.scn"]
 
 [params]
 

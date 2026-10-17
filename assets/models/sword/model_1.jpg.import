@@ -3,11 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cwj74xgyi83nq"
-path.s3tc="res://.godot/imported/model_1.jpg-eb88795257843eb22c85a1c266295102.s3tc.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
+valid=false
 generator_parameters={
 "md5": "e613459eced7112c7f459564158efa57"
 }
@@ -15,7 +11,6 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/sword/model_1.jpg"
-dest_files=["res://.godot/imported/model_1.jpg-eb88795257843eb22c85a1c266295102.s3tc.ctex"]
 
 [params]
 

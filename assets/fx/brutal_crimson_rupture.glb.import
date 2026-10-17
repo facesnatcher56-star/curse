@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://i71c2q6rpmhu"
-path="res://.godot/imported/brutal_crimson_rupture.glb-4f66b5516a11ea73b9446443ab1e1268.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/fx/brutal_crimson_rupture.glb"
-dest_files=["res://.godot/imported/brutal_crimson_rupture.glb-4f66b5516a11ea73b9446443ab1e1268.scn"]
 
 [params]
 

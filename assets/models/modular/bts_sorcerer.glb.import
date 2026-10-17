@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://b7t3gf7wt4o7t"
-path="res://.godot/imported/bts_sorcerer.glb-28e7bef7421de42f42b97291f63e6037.scn"
+valid=false
 
 [deps]
 
 source_file="res://assets/models/modular/bts_sorcerer.glb"
-dest_files=["res://.godot/imported/bts_sorcerer.glb-28e7bef7421de42f42b97291f63e6037.scn"]
 
 [params]
 
