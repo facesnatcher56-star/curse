@@ -12,6 +12,7 @@ var _cast_kind: String = "ward"
 var _ward_cd: float = 3.0
 var _summon_cd: float = 8.0
 var _summoned: Array[Enemy] = []
+var has_summoned: bool = false   # raises zombies ONCE per fight; cleared only when the hero has left (Enemy.fight_over)
 var _raised_total: int = 0   # zombies this priest has raised so far; capped by summon_budget so a fight can end
 
 func is_attacking() -> bool:
@@ -25,6 +26,10 @@ func on_interrupted() -> void:
 		e.model.loop("idle")
 
 func on_death(_blow: Dictionary) -> void:
+	for z in _summoned:
+		if is_instance_valid(z):
+			z.dismiss_summon()
+	_summoned.clear()
 	# Its wards die with it.
 	for node in e.get_tree().get_nodes_in_group("enemies"):
 		var ally := node as Actor
@@ -34,6 +39,10 @@ func on_death(_blow: Dictionary) -> void:
 func tick(delta: float, dist: float) -> void:
 	_ward_cd = maxf(_ward_cd - delta, 0.0)
 	_summon_cd = maxf(_summon_cd - delta, 0.0)
+	if has_summoned and e.fight_over(delta):
+		has_summoned = false
+		_raised_total = 0
+		_summon_cd = 8.0
 	if _state == State.CAST:
 		_tick_cast(delta)
 		return
@@ -52,7 +61,7 @@ func tick(delta: float, dist: float) -> void:
 		_begin_cast("ward")
 		return
 	_summoned = _summoned.filter(func(z) -> bool: return is_instance_valid(z) and not z.dead)   # untyped: a freed zombie must not break the call
-	if _summon_cd <= 0.0 and not silenced and summons_left() > 0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
+	if _summon_cd <= 0.0 and not has_summoned and not silenced and summons_left() > 0 and _summoned.size() < int(e.def.param("summon_max", 4)) and dist > flee:
 		_begin_cast("summon")
 		return
 	var keep_min: float = float(e.def.param("keep_min", 6.5))
@@ -116,6 +125,7 @@ func _apply_ward() -> void:
 	Fx.light_flash(e, e.global_position + Vector3(0, 1.4, 0), Color(0.55, 1.0, 0.3), 3.0, 0.3)
 
 func _summon() -> void:
+	has_summoned = true
 	_summon_cd = float(e.def.param("summon_interval", 15.0))
 	var director: Node = e.get_tree().get_first_node_in_group("director")
 	if director == null:

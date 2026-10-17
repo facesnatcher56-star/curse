@@ -170,6 +170,21 @@ func _test_enemies() -> void:
 		summoned = maxi(summoned, get_tree().get_nodes_in_group("enemies").size() - group_before)
 	expect("the priest wards its allies", warded)
 	expect("the priest raises zombies", summoned >= 1)
+	var support := priest.behavior as SupportBehavior
+	var raised_zombies: Array[Enemy] = support._summoned.duplicate()
+	expect("the priest raises zombies once per fight (exactly its one cast)", support.has_summoned and support._raised_total == 2 and raised_zombies.size() == 2)
+	for z in raised_zombies:
+		z.dismiss_summon()
+	support._summon_cd = 0.0
+	elapsed = 0.0
+	while elapsed < 4.0:
+		await get_tree().physics_frame
+		elapsed += 1.0 / 60.0
+	expect("killing the zombies does not bring a new raising", support._raised_total == 2)
+	support._summoned.clear()
+	support._summoned.assign(raised_zombies.filter(func(z: Enemy) -> bool: return false))
+	var living_zombie: Enemy = _spawn_enemy(priest.global_position + Vector3(2, 0, 2), "zombie")
+	support._summoned.append(living_zombie)
 	var kept_distance: float = priest.flat_distance_to(player)
 	expect("the priest stays well back from the hero", kept_distance > 5.0)
 	priest.receive(Combat.resolve(player, priest, 9999.0, Combat.DamageType.PHYSICAL, false, 1.0, false), player.global_position)
@@ -179,6 +194,7 @@ func _test_enemies() -> void:
 		if is_instance_valid(g) and g.ward_time > 0.0:
 			still_warded += 1
 	expect("killing the priest strips its wards", priest.dead and still_warded == 0)
+	expect("killing the priest kills its living zombies", living_zombie.dead and not living_zombie.xp_eligible)
 	print("  priest: warded allies=", warded, " zombies raised=", summoned, " distance=", snappedf(kept_distance, 0.1), " m, wards left after its death=", still_warded)
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()

@@ -65,12 +65,63 @@ func _test_champions() -> void:
 	summon.tick(summoner, 0.016)
 	expect("an awake summoner calls two adds that pay no XP", summon.adds.size() == 2
 		and summon.adds.all(func(add: Enemy) -> bool: return not add.xp_eligible))
+	var first_adds: Array = summon.adds.duplicate()
 	for i in 6:
 		summon.summon_cd = 0.0
 		summon.tick(summoner, 0.016)
-	expect("a summoner's adds stop at its cap", summon.adds.size() == int(Champion.AFFIXES.summoner.summon_max))
-	for add in summon.adds:
+	expect("a summoner summons once per fight: no second cast", summon.has_summoned and summon.adds.size() == 2)
+	for add in first_adds:
 		bodies.append(add)
+	for add in first_adds:
+		add.xp_eligible = false
+		add.health = 0.0
+		add._die()
+	summon.summon_cd = 0.0
+	summon.tick(summoner, 0.016)
+	expect("killing its adds does not bring a new cast", summon.adds.is_empty())
+	# The fight ends when the hero has gone away long enough; then it may cast once more.
+	summon.has_summoned = true
+	var party: Array[Player] = PartyManager.current().living()
+	var homes: Array[Vector3] = []
+	for member in party:
+		homes.append(member.global_position)
+		member.global_position += Vector3(Enemy.DISENGAGE_RANGE + 60.0, 0, 0)
+	summon.tick(summoner, Enemy.DISENGAGE_SECONDS + 0.5)
+	for i in party.size():
+		party[i].global_position = homes[i]
+	expect("losing the hero for good re-arms the summoner", not summon.has_summoned)
+	summon.summon_cd = 0.0
+	summon.tick(summoner, 0.016)
+	expect("a re-armed summoner casts once more", summon.adds.size() == 2)
+	var second_adds: Array = summon.adds.duplicate()
+	bodies.append_array(second_adds)
+	summoner.receive(Combat.resolve(player, summoner, 99999.0, Combat.DamageType.PHYSICAL, false, 1.0, false), player.global_position)
+	expect("killing the summoner kills its living adds, which pay nothing",
+		summoner.dead and second_adds.all(func(a: Enemy) -> bool: return a.dead and a.get_meta("loot_generated", false) and not a.xp_eligible))
+
+	# No floating title: a champion carries no Label3D, only its glow.
+	var plain_champ: Enemy = _test_body(Vector3(-20, 0, 0))
+	bodies.append(plain_champ)
+	Champion.attach(plain_champ, "summoner")
+	expect("a champion has no Label3D title over its head", plain_champ.find_children("*", "Label3D", true, false).is_empty())
+
+	# The target banner: coloured name and an affix tag for a champion; plain for a regular monster.
+	var regular: Enemy = _test_body(Vector3(-22, 0, 0))
+	bodies.append(regular)
+	expect("a champion's banner shows its plain name, affix colour and affix tag",
+		Ds2TargetBanner.name_of(plain_champ) == regular.display_name
+		and Ds2TargetBanner.status_color(plain_champ) == Champion.AFFIXES.summoner.color
+		and Ds2TargetBanner.tag_of(plain_champ) == "SUMMONING CHAMPION")
+	expect("a regular monster's banner has no tag and no recolour",
+		Ds2TargetBanner.tag_of(regular).is_empty() and Ds2TargetBanner.name_of(regular) == regular.display_name)
+	var banner := Ds2TargetBanner.new()
+	game.add_child(banner)
+	banner.update_target(plain_champ, 0.1)
+	expect("the banner node shows the tag and frame for a champion", banner._tag_label.text == "SUMMONING CHAMPION" and banner._elite_frame.visible
+		and banner._name_label.get_theme_color("font_color") == Champion.AFFIXES.summoner.color and banner._name_label.text == regular.display_name.to_upper())
+	banner.update_target(regular, 0.1)
+	expect("the banner node is plain for a regular monster", banner._tag_label.text.is_empty() and not banner._elite_frame.visible)
+	banner.queue_free()
 
 	# The exploding champion: its blast hurts the hero inside the radius and leaves one outside it alone.
 	var volatile: Enemy = _test_body(Vector3(-18, 0, 0))

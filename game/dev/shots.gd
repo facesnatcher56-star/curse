@@ -269,6 +269,71 @@ func _champion_shot() -> void:
 	print("champion shot: plain zombie, then ", ", ".join(Champion.AFFIXES.keys()))
 	get_tree().quit()
 
+## `-- --summonshot`: full screen on screen 1 at 1920x1080. A summoner champion fights the hero: one cast, then its adds die with it; the top
+## banner on the champion, then on a regular zombie. Frames in %TEMP%/curse_summon_N.png.
+func _summoner_shots() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	if DisplayServer.get_name() != "headless":
+		var screen: int = mini(1, DisplayServer.get_screen_count() - 1)
+		get_window().current_screen = screen
+		get_window().borderless = true
+		get_window().size = Vector2i(1920, 1080)
+		get_window().position = DisplayServer.screen_get_position(screen)
+	for i in 6:
+		await get_tree().process_frame
+	player.set_physics_process(true)
+	game.director.set_process(false)
+	game.director.set_physics_process(false)
+	var boss: Enemy = _spawn_enemy(player.global_position + Vector3(0, 0, -4.5), "zombie")
+	boss.aggro_range = 0.0
+	var summon: Champion = Champion.attach(boss, "summoner")
+	await get_tree().create_timer(3.0).timeout   # the "wave cleared" banner fades first
+	boss.wake()
+	summon.summon_cd = 0.0
+	player.cursor_override = boss.global_position
+	var tmp: String = OS.get_environment("TEMP")
+	await get_tree().create_timer(1.6).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(tmp + "/curse_summon_1_cast.png")
+	await get_tree().create_timer(0.3).timeout
+	for add in summon.adds:   # kill the adds: no second cast
+		add.health = 0.0
+		add._die()
+	await get_tree().create_timer(12.0).timeout
+	print("SUMMONSHOT adds after 12 s with the adds killed: ", summon.adds.size(), " has_summoned=", summon.has_summoned)
+	var second: Array = []
+	summon.has_summoned = false   # (shot only) let it cast the visible group again, to show them die with it
+	summon.summon_cd = 0.0
+	await get_tree().create_timer(1.5).timeout
+	second.append_array(summon.adds)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(tmp + "/curse_summon_2_adds.png")
+	boss.receive(Combat.resolve(player, boss, 99999.0, Combat.DamageType.PHYSICAL, false, 1.0, false), player.global_position)
+	await get_tree().create_timer(0.4).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(tmp + "/curse_summon_3_dead.png")
+	var dead_with: int = 0
+	for add in second:
+		if is_instance_valid(add) and add.dead:
+			dead_with += 1
+	print("SUMMONSHOT adds alive then ", second.size(), ", dead with the summoner ", dead_with)
+	# The banner: a champion, then a regular monster.
+	var champ: Enemy = _spawn_enemy(player.global_position + Vector3(1.5, 0, -4), "zombie")
+	champ.aggro_range = 0.0
+	Champion.attach(champ, "fast")
+	var regular: Enemy = _spawn_enemy(player.global_position + Vector3(-1.5, 0, -4), "zombie")
+	regular.aggro_range = 0.0
+	for pair in [[champ, "4_banner_champion"], [regular, "5_banner_regular"]]:
+		player.cursor_override = pair[0].global_position
+		await get_tree().create_timer(0.6).timeout
+		await RenderingServer.frame_post_draw
+		var bn: Ds2TargetBanner = hud.ds2_target_banner as Ds2TargetBanner
+		print("SUMMONSHOT banner ", pair[1], " vis=", bn.visible, " name='", bn._name_label.text, "' tag='", bn._tag_label.text, "' pos=", bn.global_position, " hover=", player.hover_target)
+		get_viewport().get_texture().get_image().save_png(tmp + "/curse_summon_%s.png" % pair[1])
+	player.cursor_override = Vector3.INF
+	get_tree().quit()
+
 ## `-- --skillshot=gibs`: a fireball detonates on low-health zombies; frames in %TEMP%/curse_gib_N.png.
 func _gib_shots() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):

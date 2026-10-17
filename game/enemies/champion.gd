@@ -36,6 +36,10 @@ var shield: float = 0.0
 var shield_max: float = 0.0
 var summon_cd: float = 0.0
 var adds: Array = []
+## A summoner calls its adds ONCE per fight; cleared only when the fight is over (the hero has left), so killing adds never brings more.
+## The enemy's name before the affix title was put in front of it; the target banner shows the title as a tag instead.
+var base_name: String = ""
+var has_summoned: bool = false
 var _bubble: MeshInstance3D = null
 
 ## Rolls one champion for a freshly spawned pack. Returns the champion's enemy, or null when this pack gets none.
@@ -65,6 +69,7 @@ static func attach(enemy: Enemy, affix_id: String) -> Champion:
 	enemy.health = enemy.max_health
 	enemy.damage_min *= DAMAGE_MULT
 	enemy.damage_max *= DAMAGE_MULT
+	c.base_name = enemy.display_name
 	enemy.display_name = "%s %s" % [c.affix.title, enemy.display_name]
 	enemy.move_speed *= float(c.affix.get("speed", 1.0))
 	if c.affix.has("shield"):
@@ -107,11 +112,16 @@ func filter_incoming(enemy: Enemy, result: Dictionary) -> Dictionary:
 func tick(enemy: Enemy, delta: float) -> void:
 	if affix_id != "summoner" or not enemy._aggro or enemy.dead:
 		return
-	summon_cd -= delta
 	adds = adds.filter(func(a) -> bool: return is_instance_valid(a) and not a.dead)
-	if summon_cd > 0.0 or adds.size() >= int(affix.get("summon_max", 4)):
+	if has_summoned:
+		if enemy.fight_over(delta):
+			has_summoned = false
+			summon_cd = float(affix.get("summon_interval", 10.0)) * 0.5
 		return
-	summon_cd = float(affix.get("summon_interval", 10.0))
+	summon_cd -= delta
+	if summon_cd > 0.0:
+		return
+	has_summoned = true
 	var director: Node = enemy.get_tree().get_first_node_in_group("director")
 	if director == null:
 		return
@@ -129,6 +139,10 @@ func tick(enemy: Enemy, delta: float) -> void:
 
 ## An exploding champion marks the ground round it and, after a delay, blows up. The hero (and anything else close) takes damage.
 func on_death(enemy: Enemy) -> void:
+	for add in adds:
+		if is_instance_valid(add):
+			add.dismiss_summon()
+	adds.clear()
 	if affix_id != "explodes":
 		return
 	var centre: Vector3 = enemy.global_position
@@ -169,24 +183,9 @@ static func _blast(source: Enemy, actor: Actor, centre: Vector3, radius: float, 
 
 # --- what it looks like ---------------------------------------------------------------------------------------------------------
 
-## A name over its head in its affix's colour, and a soft light of the same colour at its chest: visible from across the road.
+## A soft light in its affix's colour at its chest: visible from across the road. Its name is shown in the target banner, not over its head.
 func _build_marks(enemy: Enemy) -> void:
 	var color: Color = affix.color
-	var label := Label3D.new()
-	label.text = enemy.display_name
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.fixed_size = true
-	label.no_depth_test = true
-	label.shaded = false
-	label.pixel_size = 0.0007
-	label.font_size = 40
-	label.outline_size = 12
-	label.modulate = color.lightened(0.25)
-	label.outline_modulate = Color(0.04, 0.03, 0.03)
-	label.position = Vector3(0, enemy.def.height + 0.55, 0)
-	label.visibility_range_end = 60.0
-	label.set_meta("champion_mark", true)
-	enemy.add_child(label)
 	var glow := OmniLight3D.new()
 	glow.light_color = color
 	glow.light_energy = 0.7
