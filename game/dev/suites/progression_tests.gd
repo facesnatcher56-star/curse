@@ -136,7 +136,7 @@ func _test_progression() -> void:
 	var l2: int = HeroProgression.xp_for_level(2)
 	expect("a fresh hero is level 1 with 0 XP", TownState.hero_level == 1 and TownState.hero_xp == 0)
 	expect("the curve starts at 0 and has a level for each of 1..100", HeroProgression.xp_for_level(1) == 0 and HeroProgression.table().size() == HeroProgression.MAX_LEVEL
-		and HeroProgression.MAX_LEVEL == 100)
+		and HeroProgression.MAX_LEVEL == 101)
 	var rising: bool = true
 	for level in range(2, HeroProgression.MAX_LEVEL + 1):
 		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
@@ -237,14 +237,14 @@ func _test_progression() -> void:
 	await get_tree().process_frame
 	town.combat_hud._open_character()
 	var view: Control = town.combat_hud.character_panel
-	expect("a fresh character screen reads Level 1 and 0 / 300 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 300 XP")
+	expect("a fresh character screen reads DS2's Level 0 and 0 / 300 XP", view.level_label.text == "Level 0" and view.xp_label.text == "0 / 300 XP")
 	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
 	expect("a level-up keeps the HUD free of a duplicate screen-space plate", town.combat_hud.level_toast_text.is_empty() and town.combat_hud.level_toast_time == 0.0)
 	town.combat_hud._open_character()
 	view = town.combat_hud.character_panel
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 2"
+	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 1"
 		and view.xp_label.text == "30 / %d XP" % (HeroProgression.xp_for_level(3) - HeroProgression.xp_for_level(2)))
 	var close_button: Button = view.find_children("*", "Button", true, false).back()
 	var overlap: bool = false
@@ -258,7 +258,7 @@ func _test_progression() -> void:
 	town.combat_hud._open_character()
 	view = town.combat_hud.character_panel
 	await get_tree().process_frame
-	expect("at the cap the screen reads Level 100 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.MAX_LEVEL and view.xp_label.text == "MAX LEVEL")
+	expect("at the cap the screen reads DS2's Level 100 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.display_level(HeroProgression.MAX_LEVEL) and view.xp_label.text == "MAX LEVEL")
 	town.queue_free()
 	await get_tree().process_frame
 	TownState.reset()
@@ -632,10 +632,10 @@ func _test_xp() -> void:
 	var view: Control = town.combat_hud.character_panel
 	TownState.add_hero_xp(HeroProgression.xp_for_level(4) + 10)
 	expect("one large reward emits one level-up event without a duplicate HUD plate", events == [[1, 4]] and town.combat_hud.level_toast_text.is_empty())
-	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 4" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
+	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 3" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
 		and town.combat_hud.character_panel == view)
 	TownState.add_hero_xp(HeroProgression.max_xp() * 2)
-	expect("and it follows to MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.MAX_LEVEL and view.xp_label.text == "MAX LEVEL")
+	expect("and it follows to MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.display_level(HeroProgression.MAX_LEVEL) and view.xp_label.text == "MAX LEVEL")
 	var capped_events: int = events.size()
 	var at_cap: int = await kill.call("brute", 3.0, true)
 	expect("at the cap XP stops and nothing levels", at_cap == 0 and TownState.hero_level == HeroProgression.MAX_LEVEL and TownState.hero_xp == HeroProgression.max_xp() and events.size() == capped_events)

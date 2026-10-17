@@ -203,7 +203,7 @@ func update_vitals(hp_pct: float, mana_pct: float, xp_pct: float, power_charge: 
 	if _mana_fill != null: _mana_fill.size.x = clampf(mana_pct, 0, 1) * 143.0
 	if _xp_fill != null: _xp_fill.size.x = clampf(xp_pct, 0, 1) * 143.0
 	if _level != null:
-		_level.text = str(HeroProgression.level_for_xp(TownState.cutter_xp if is_companion else TownState.hero_xp))
+		_level.text = str(HeroProgression.display_level(HeroProgression.level_for_xp(TownState.cutter_xp if is_companion else TownState.hero_xp)))
 	_power_charge = clampf(power_charge, 0, 1)
 	_power_armed = power_armed
 	_power_available = power_available

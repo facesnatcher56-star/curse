@@ -4,7 +4,10 @@ extends RefCounted
 ## asks this class what level that is; the character screen asks it what to show. The one place the curve lives.
 
 ## The level cap (DS2's `Uber`, max 100). Everything that needs it reads this; nothing else spells the number out.
-const MAX_LEVEL := 100
+## The stored level cap: DS2's Uber is capped at level 100, counted from 0, so the table has 101 rows and Curse stores 1-based, 101.
+const MAX_LEVEL := 101
+## The old interpolated curve (saves of versions 7-9) stopped at 100 rows.
+const LEGACY_MAX_LEVEL := 100
 
 ## Previous interpolated curve, retained ONLY to preserve progress while migrating version 7-9 saves.
 const DS2_SAMPLES := {1: 0, 2: 300, 5: 4000, 10: 34200, 20: 196000, 30: 663000, 40: 1990000, 50: 5740000, 60: 16400000,
@@ -23,13 +26,13 @@ static func legacy_table() -> PackedInt64Array:
 	if _legacy_table.is_empty():
 		var points: Array = DS2_SAMPLES.keys()
 		points.sort()
-		_legacy_table.resize(MAX_LEVEL)
-		for level in range(1, MAX_LEVEL + 1):
+		_legacy_table.resize(LEGACY_MAX_LEVEL)
+		for level in range(1, LEGACY_MAX_LEVEL + 1):
 			if DS2_SAMPLES.has(level):
 				_legacy_table[level - 1] = int(DS2_SAMPLES[level])
 				continue
 			var below: int = 1
-			var above: int = MAX_LEVEL
+			var above: int = LEGACY_MAX_LEVEL
 			for p in points:
 				if int(p) < level:
 					below = int(p)
@@ -46,9 +49,9 @@ static func legacy_table() -> PackedInt64Array:
 static func migrate_interpolated_xp(xp: int) -> int:
 	var old: PackedInt64Array = legacy_table()
 	var index: int = 0
-	while index < MAX_LEVEL - 1 and xp >= old[index + 1]:
+	while index < LEGACY_MAX_LEVEL - 1 and xp >= old[index + 1]:
 		index += 1
-	if index == MAX_LEVEL - 1:
+	if index == LEGACY_MAX_LEVEL - 1:
 		return max_xp()
 	var fraction: float = clampf(float(xp - old[index]) / float(old[index + 1] - old[index]), 0.0, 1.0)
 	return table()[index] + int(fraction * float(table()[index + 1] - table()[index]))
@@ -113,9 +116,8 @@ static func progress_text(total_xp: int) -> String:
 	return "%d / %d XP" % [xp_into_level(total_xp), xp_span_of_level(total_xp)]
 
 # --- What the world pays in XP (DS2, section 5) ------------------------------------------------------------------------------------
-# A kill pays the monster's DS2 XP value for its level and tier, times the level-gap multiplier, split over the party (the hero and Cutter)
-# with DS2's group bonus. CURSE CHOICE (owner): it is paid when the monster dies, not hit by hit as DS2 does; the hero's share is divided
-# over his class skills by the damage each did to it.
+# Hits pay the monster's DS2 XP pool hit by hit (XpShare), times the level-gap multiplier, split over the party (the hero and Cutter)
+# with DS2's group bonus.
 
 ## DS2 monster tiers and what their XP is multiplied by.
 const TIER_XP := {"trivial": 0.42, "weak": 0.80, "normal": 1.0, "strong": 1.25, "miniboss": 3.33}
@@ -148,10 +150,14 @@ static func monster_xp_value(level: int, tier: String = "normal") -> float:
 static func monster_xp(level: int, tier: String = "normal") -> int:
 	return maxi(int(round(monster_xp_value(level, tier))), 1)
 
-## DS2 counts character level from 0 (a fresh hero is "Level 0", the first level-up at 300 XP makes it 1); Curse shows the same hero as
-## level 1. The level gap uses DS2's number, so every caller passes its (1-based) level through here.
+## DS2 counts character level from 0 (a fresh hero is "Level 0", the first level-up at 300 XP makes it 1). Curse's stored level counts
+## from 1, so everything the player reads (`display_level`) and the level gap (`gap_level`) goes through here to show DS2's number.
 static func gap_level(character_level: int) -> int:
 	return maxi(character_level - 1, 0)
+
+## The character level as the player sees it: DS2's, from 0.
+static func display_level(character_level: int) -> int:
+	return gap_level(character_level)
 
 ## DS2's level-gap multiplier (hero level - monster level): more than 4 above, -20% a level; more than 4 below, -20% a level too
 ## (DS2 penalises both, so neither farming nor carrying pays); never under 5%.
