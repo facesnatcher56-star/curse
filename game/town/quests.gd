@@ -118,12 +118,25 @@ static func post(id: String) -> Dictionary:
 static func _pick(options: Array) -> String:
 	return String(options[rng.randi() % options.size()]) if not options.is_empty() else ""
 
+## World events (fog, plague wells, raging hordes and the like) are switched off for now: none turns up by itself, and any a save was
+## carrying is dropped when it loads (`drop_world_events`). The definitions stay in data/quests so they can be switched back on.
+const WORLD_EVENTS_ENABLED := false
+
+## Ends every running world event (not a monster's plot effects, which carry the monster's uid).
+static func drop_world_events() -> void:
+	if WORLD_EVENTS_ENABLED:
+		return
+	TownState.world_mods = TownState.world_mods.filter(func(mod: Dictionary) -> bool: return mod.has("monster"))
+	TownState.quests = TownState.quests.filter(func(inst: Dictionary) -> bool: return def_of(inst).kind != "world")
+
 ## The next one to turn up, picked by weight from those that could. `kinds` limits what may be picked ("quest" or "matter"/"world").
 static func roll_new(kind_group: String) -> Dictionary:
 	var candidates: Array = []
 	var total: float = 0.0
 	for id in TownDb.sorted_ids(TownDb.quests()):
 		var def: QuestDef = TownDb.quest(id)
+		if def.kind == "world" and not WORLD_EVENTS_ENABLED:
+			continue
 		var is_quest: bool = def.kind in ["kill_group", "slay_unique", "fetch"]
 		if (kind_group == "quest") != is_quest or not eligible(def):
 			continue

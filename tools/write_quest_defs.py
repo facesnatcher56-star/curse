@@ -128,11 +128,6 @@ QUESTS = {
              "reward": {"relation": [["marlow", "cutter", -6]], "happy": {"marlow": 5, "cutter": -6}}},
             {"label": "Stay out of it", "cost": {}, "outcome": "fail", "result": "You walk past."}]),
     # --- The whole world changes ---------------------------------------------------------------------------------------------------
-    "blood_moon": dict(
-        title="The Moon Turns Red", giver="", kind="world", weight=0.8, min_jobs=1,
-        text="The moon rose red tonight. The old folk say the dead are bolder and the road pays better for it.",
-        thanks="", fail_text="",
-        reward={}, penalty={}, world_mod={"gold_mult": 2.0, "drop_mult": 1.5, "health_mult": 1.25, "days": 3}),
     "raging_hordes": dict(
         title="The Dead Are Restless", giver="", kind="world", weight=0.7, min_jobs=1,
         text="Word from the carters: the dead are thick on the road tonight, but thin and clumsy. A good time for a strong arm.",

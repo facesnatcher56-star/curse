@@ -11,7 +11,7 @@ func _test_quest_logic() -> void:
 	Quests.news.clear()
 	# The data.
 	var defs: Dictionary = TownDb.quests()
-	expect("twenty-one quests and events are defined", defs.size() == 21)
+	expect("twenty quests and events are defined (the blood moon is removed)", defs.size() == 20)
 	var sound: bool = true
 	for id in defs:
 		var def: QuestDef = defs[id]
@@ -118,13 +118,30 @@ func _test_quest_logic() -> void:
 	# A world event.
 	TownState.quests = []
 	TownState.world_mods = []
-	Quests.post("blood_moon")
-	expect("a world event changes the road", is_equal_approx(Quests.world_mult("gold_mult"), 2.0) and is_equal_approx(Quests.world_mult("drop_mult"), 1.5))
+	Quests.post("dangerous_dead")
+	expect("a world event changes the road", is_equal_approx(Quests.world_mult("gold_mult"), 1.3) and is_equal_approx(Quests.world_mult("health_mult"), 1.35))
 	Quests.on_day()
 	Quests.on_day()
 	expect("it lasts its days", Quests.world_mult("gold_mult") > 1.0)
 	Quests.on_day()
-	expect("then it ends", is_equal_approx(Quests.world_mult("gold_mult"), 1.0) and not Quests.has_live("blood_moon"))
+	expect("then it ends", is_equal_approx(Quests.world_mult("gold_mult"), 1.0) and not Quests.has_live("dangerous_dead"))
+	# World events are switched off: none is ever rolled, and a save's running ones are dropped on load.
+	var rolled_world: bool = false
+	for i in 60:
+		var rolled: Dictionary = Quests.roll_new("matter")
+		if not rolled.is_empty() and Quests.def_of(rolled).kind == "world":
+			rolled_world = true
+		TownState.quests = []
+	expect("no world event turns up by itself while they are switched off", not rolled_world)
+	TownState.quests = []
+	TownState.world_mods = []
+	Quests.post("dangerous_dead")
+	TownState.world_mods.append({"id": "altar", "monster": 7, "days_left": 2})
+	TownState.from_dict(TownState.migrate(JSON.parse_string(JSON.stringify(TownState.to_dict()))))
+	expect("a loaded save drops the running world event but keeps a monster's plot effect", is_equal_approx(Quests.world_mult("gold_mult"), 1.0)
+		and not Quests.has_live("dangerous_dead") and TownState.world_mods.size() == 1)
+	TownState.quests = []
+	TownState.world_mods = []
 	# Timers: something turns up by itself.
 	TownState.quests = []
 	TownState.jobs_done = 3
@@ -246,11 +263,11 @@ func _test_quest_world() -> void:
 	# A world event pays more.
 	TownState.quests = []
 	TownState.world_mods = []
-	Quests.post("blood_moon")
-	expect("under a blood moon the gold a drop holds is doubled (%d for 7)" % town.director.gold_for_drop(7), town.director.gold_for_drop(7) == 14)
+	Quests.post("dangerous_dead")
+	expect("under a world event with a gold bonus the gold a drop holds grows (%d for 10)" % town.director.gold_for_drop(10), town.director.gold_for_drop(10) == 13)
 	TownState.world_mods = []
-	expect("with no world event it is not", town.director.gold_for_drop(7) == 7)
-	Quests.post("blood_moon")
+	expect("with no world event it is not", town.director.gold_for_drop(10) == 10)
+	Quests.post("dangerous_dead")
 	# The HUD tracks what is running.
 	await get_tree().process_frame
 	expect("the tracker lists the world event", town.hud.side_lines.size() >= 1)
