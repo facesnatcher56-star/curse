@@ -89,6 +89,17 @@ func _adopt(holder: Node) -> void:
 		arena.obstacles.append({"position": (holder as Node3D).global_position, "radius": float(holder.get_meta("obstacle_radius"))})
 
 
+## Where a node stands in the world, worked out from its parents' transforms, so it works on a scene that is not in the tree (a global
+## position asked of such a node is an engine error).
+static func _world_origin(node: Node3D) -> Vector3:
+	var transform := Transform3D.IDENTITY
+	var walker: Node = node
+	while walker is Node3D:
+		transform = (walker as Node3D).transform * transform
+		walker = walker.get_parent()
+	return transform.origin
+
+
 ## The enemy groups a level scene holds, as rows: {area, level_offset, fixed_level, mode, home (the marker's position on the ground), kinds,
 ## spread, roam, spawns (Vector2s), patrol (Vector2s), feed (Vector2, or INF for none)}. See DungeonEnemyGroup.
 static func read_groups(level_root: Node) -> Array:
@@ -99,7 +110,7 @@ static func read_groups(level_root: Node) -> Array:
 			continue
 		var feeds: Array[Vector2] = group.marker_points("FeedPoint")
 		rows.append({"area": group.area, "level_offset": group.level_offset, "fixed_level": group.fixed_level, "mode": group.idle_mode(),
-			"home": Vector2(group.global_position.x, group.global_position.z), "kinds": group.kinds.duplicate(true),
+			"home": Vector2(_world_origin(group).x, _world_origin(group).z), "kinds": group.kinds.duplicate(true),
 			"spread": group.spread, "roam": group.roam_radius, "spawns": group.marker_points("Spawn"), "patrol": group.marker_points("Patrol"),
 			"feed": feeds[0] if not feeds.is_empty() else Vector2.INF})
 	return rows
