@@ -473,6 +473,8 @@ func _hud_shot() -> void:
 	player.set_physics_process(false)
 	player.stats.cooldowns = {"fireball": 0.3, "dodge": 0.6}
 	player.stats.mana = 9.0
+	player.health = player.max_health * 0.6   # the party member's small bars under the hero show while hurt
+	player.combat_timer = 5.0
 	await get_tree().create_timer(0.15).timeout
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_0.png")
 	player.stats.cooldowns = {"fireball": 0.0, "dodge": 0.0}

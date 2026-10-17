@@ -235,7 +235,7 @@ func _test_orb_hud() -> void:
 	for width in [960.0, 1280.0, 1920.0]:
 		var view := Vector2(width, 720)
 		var cell: float = hud.hotbar_slot_size(view)
-		var count: int = player.skills.hotbar.size() + 2
+		var count: int = player.skills.hotbar.size()
 		var tray_width: float = cell * count + 8 * (count - 1)
 		expect("skill tray clears both vessels at %d px" % width, (width - tray_width) * 0.5 - 24 >= Hud.orb_rect(view, false).end.x)
 	var first_target := Actor.new()

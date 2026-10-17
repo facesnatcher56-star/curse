@@ -35,6 +35,8 @@ func select_member(body: Player) -> void:
 var banner_text: String = ""
 var banner_time: float = 0.0
 ## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
+## Seconds over which a party member's small bars fade once they are unhurt and out of combat (see the bars drawn under them).
+const PARTY_BAR_FADE := 2.0
 const METAL_WARMTH := Color(1.32, 1.04, 0.80, 1.0)
 var health_orb: Control
 var _busts: Array[TextureRect] = []
@@ -213,7 +215,7 @@ func _draw() -> void:
 	_slot_hits.clear()
 	# Hotbar, bottom centre.
 	var slot: float = hotbar_slot_size(size_px)
-	var slot_count: int = GameSettings.hotbar_slot_count() + 2
+	var slot_count: int = GameSettings.hotbar_slot_count()   # only the numbered slots, one per party member (the right-click skill and the dodge have no slot of their own)
 	var total: float = slot * slot_count + 8 * (slot_count - 1)
 	var x0: float = (size_px.x - total) * 0.5
 	var bar_height: float = slot + 28.0
@@ -228,9 +230,6 @@ func _draw() -> void:
 	for i in GameSettings.hotbar_slot_count():
 		var id: String = player.skills.hotbar[i]
 		_slot(Vector2(x0 + i * (slot + 8), y0), slot, "skill_%d" % (i + 1), id, font, GameSettings.hotbar_caster(i))
-	var extra: int = GameSettings.hotbar_slot_count()
-	_slot(Vector2(x0 + extra * (slot + 8), y0), slot, "alt_skill", player.skills.right_click_skill, font, GameSettings.hotbar_alt_caster)
-	_slot(Vector2(x0 + (extra + 1) * (slot + 8), y0), slot, "dodge", "dodge", font)
 	# One stud in each divider gap, placed by layout (the DS2 bar's studs, #49).
 	if use_ds2_ui:
 		for gap in range(slot_count - 1):
@@ -276,6 +275,26 @@ func _draw() -> void:
 			var level_text: String = str(enemy.level)
 			var level_size := maxi(15, ceili(13.0 / maxf(float(get_window().size.x) / size_px.x, 0.01)))
 			UiTheme.text(self, font, pos + Vector2(-font.get_string_size(level_text, HORIZONTAL_ALIGNMENT_LEFT, -1, level_size).x - 5.0, 10.0), level_text, level_size, Color(Ds2TargetBanner.status_color(enemy), alpha))
+
+		# Small life and mana bars under each living party member while they are hurt or in combat; they fade a couple of seconds after.
+		for body in PartyManager.current().living():
+			var hurt: bool = body.health < body.max_health - 0.01
+			var fade: float = 1.0 if hurt else clampf(body.combat_timer / PARTY_BAR_FADE, 0.0, 1.0)
+			if fade <= 0.0:
+				continue
+			var feet: Vector3 = body.get_global_transform_interpolated().origin + Vector3(0, -0.05, 0)
+			if camera.is_position_behind(feet):
+				continue
+			var foot_screen: Vector2 = camera.unproject_position(feet)
+			var party_w: float = 72.0
+			var party_pos := Vector2(foot_screen.x - party_w * 0.5, foot_screen.y + 6.0)
+			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(0, 0, 0, 0.85 * fade))
+			draw_rect(Rect2(party_pos, Vector2(party_w * clampf(body.health / body.max_health, 0.0, 1.0), 8)), Color(0.78, 0.14, 0.12, fade))
+			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(1, 1, 1, 0.4 * fade), false, 1.0)
+			var mana_pos := party_pos + Vector2(0, 9)
+			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(0, 0, 0, 0.85 * fade))
+			draw_rect(Rect2(mana_pos, Vector2(party_w * clampf(body.stats.mana / maxf(body.stats.max_mana, 1.0), 0.0, 1.0), 5)), Color(0.2, 0.4, 0.95, fade))
+			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(1, 1, 1, 0.35 * fade), false, 1.0)
 
 		# Objectives that must be destroyed (the nests) always carry a bar, even before the first hit.
 		for node in get_tree().get_nodes_in_group("nests"):
@@ -465,7 +484,7 @@ func covers(point: Vector2) -> bool:
 ## The hotbar tray's screen rectangle.
 func hotbar_rect(size_px: Vector2) -> Rect2:
 	var slot: float = hotbar_slot_size(size_px)
-	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
+	var count: int = GameSettings.hotbar_slot_count() if player != null else 6
 	var total: float = slot * count + 8.0 * (count - 1)
 	if use_ds2_ui:
 		var bar_height: float = slot + 28.0
@@ -484,7 +503,7 @@ static func minimap_rect(screen: Vector2, ds2: bool = false) -> Rect2:
 	return Rect2(Vector2(screen.x - 246, 30), Vector2(214, 214))
 
 func hotbar_slot_size(screen: Vector2) -> float:
-	var count: int = (GameSettings.hotbar_slot_count() + 2) if player != null else 8
+	var count: int = GameSettings.hotbar_slot_count() if player != null else 6
 	var available: float = screen.x - orb_rect(screen, false).end.x * 2.0 - 52.0
 	return clampf((available - 8.0 * (count - 1)) / count, 36.0, 64.0)
 
