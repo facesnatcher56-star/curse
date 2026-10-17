@@ -51,6 +51,7 @@ const SUITES := [
 	preload("res://game/dev/suites/archer_target_tests.gd"),
 	preload("res://game/dev/suites/archer_hold_tests.gd"),
 	preload("res://game/dev/suites/archer_nest_order_tests.gd"),
+	preload("res://game/dev/suites/dungeon_scene_tests.gd"),
 	preload("res://game/dev/suites/archer_stance_tests.gd"),
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
@@ -223,7 +224,7 @@ const ONLY_TESTS := {
 "archerhold": "_test_archer_hold",
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
-"archernestorder": "_test_archer_nest_order",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus",
@@ -361,6 +362,7 @@ func _run_selftest() -> void:
 
 	# Last: the nest order replaces the arena with the real Crypt Road, so nothing that needs the arena may run after it.
 	await _run("_test_archer_nest_order")
+	await _run("_test_dungeon_scene")
 	_party_restore(party_before)
 
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]
