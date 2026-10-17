@@ -12,6 +12,33 @@ extends Node3D
 ##   ThunderousShotFx.release(scene_node, archer, muzzle, direction, stun_seconds)   # at the moment of release
 ##   ThunderousShotFx.stun_marker(enemy, seconds)                                     # on anything the bolt stuns
 
+## The air torn open behind the arrow: a refractive strip along the flight that bends what is behind it in running ripples (the screen
+## is sampled and shifted sideways, strongest on the centre line and dying to nothing at its edges and ends, so it leaves no outline).
+const WAKE_SHADER := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform vec2 perp = vec2(0.0, 1.0);   // screen direction across the strip
+uniform float strength_px = 26.0;
+uniform float fade = 1.0;
+void fragment() {
+	float across = abs(UV.x - 0.5) * 2.0;
+	float along = UV.y;                                  // 0 at the tail, 1 at the arrow
+	float mask = 1.0 - across;
+	mask *= mask;
+	mask *= smoothstep(0.0, 0.3, along) * (1.0 - smoothstep(0.93, 1.0, along)) * fade;
+	float ripple = sin(along * 44.0 - TIME * 26.0) + 0.5 * sin(along * 97.0 - TIME * 41.0 + across * 3.0);
+	vec2 offset = perp * ripple * mask * strength_px / VIEWPORT_SIZE;
+	// the bow wave's edges: two soft bright lines opening behind the head, so the cut reads even over a flat floor
+	float cone = smoothstep(0.62, 0.8, across) * (1.0 - smoothstep(0.8, 0.98, across)) * smoothstep(0.1, 0.5, along) * (1.0 - smoothstep(0.93, 1.0, along)) * fade;
+	vec3 col = textureLod(screen_tex, SCREEN_UV + offset, 0.0).rgb + vec3(ripple * mask * 0.05);   // a light haze that shimmers with the ripple
+	col = mix(col, vec3(0.85, 0.93, 1.0), cone * 0.45);
+	ALBEDO = col;
+	ALPHA = clamp(max(mask * 2.5, cone * 0.55), 0.0, 1.0);
+}
+"""
+static var _wake_shader: Shader
+
 const GROUP := "thunderous_fx"
 const BLUE := Color(0.16, 0.40, 1.0)
 const DEEP := Color(0.04, 0.10, 0.42)
@@ -639,6 +666,9 @@ class Beam extends Node3D:
 	var _head: MeshInstance3D
 	var _corona: MeshInstance3D
 	var _head_light: OmniLight3D
+	var _wake: MeshInstance3D
+	var _wake_mesh := ImmediateMesh.new()
+	var _wake_mat: ShaderMaterial
 	var _arrow: Node3D
 	var _arrow_overlays: Array[ShaderMaterial] = []
 	var _rng := RandomNumberGenerator.new()
@@ -661,6 +691,18 @@ class Beam extends Node3D:
 		strip.material_override = TakeAimFx._line_material()
 		strip.top_level = true
 		add_child(strip)
+		if ThunderousShotFx._wake_shader == null:
+			ThunderousShotFx._wake_shader = Shader.new()
+			ThunderousShotFx._wake_shader.code = ThunderousShotFx.WAKE_SHADER
+		_wake_mat = ShaderMaterial.new()
+		_wake_mat.shader = ThunderousShotFx._wake_shader
+		_wake_mat.render_priority = -10   # drawn before the glow, so the glow sits over the bent air
+		_wake = MeshInstance3D.new()
+		_wake.mesh = _wake_mesh
+		_wake.material_override = _wake_mat
+		_wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_wake.top_level = true
+		add_child(_wake)
 		_head = TakeAimFx._glint_quad(0.6)
 		add_child(_head)
 		_corona = TakeAimFx._glint_quad(2.6)
@@ -712,6 +754,37 @@ class Beam extends Node3D:
 			mat.shader = TakeAimFx._overlay()
 			(mesh as MeshInstance3D).material_overlay = mat
 			_arrow_overlays.append(mat)
+
+	## The refractive wake: a camera-facing strip from the dark behind the arrow to just ahead of it, wide behind and narrow at the head (a
+	## bow wave), bending what lies behind it in running ripples while the arrow flies and for a moment after.
+	func _update_wake(camera: Camera3D, head: Vector3, dir: Vector3, flight_time: float) -> void:
+		_wake_mesh.clear_surfaces()
+		var live: float = 1.0 if _age < flight_time else clampf(1.0 - (_age - flight_time) / 0.3, 0.0, 1.0)
+		if live <= 0.0:
+			return
+		var length: float = minf(head.distance_to(a), 9.0)
+		if length < 0.6:
+			return
+		var tail: Vector3 = head - dir * length
+		var front: Vector3 = head + dir * 0.7
+		var to_cam: Vector3 = (camera.global_position - head).normalized()
+		var side: Vector3 = dir.cross(to_cam).normalized()
+		# The screen direction across the strip, for the shader to shift the picture along.
+		var screen_a: Vector2 = camera.unproject_position(head)
+		var screen_b: Vector2 = camera.unproject_position(head + side)
+		_wake_mat.set_shader_parameter("perp", (screen_b - screen_a).normalized())
+		_wake_mat.set_shader_parameter("fade", live)
+		_wake_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		var steps: int = 14
+		for i in steps + 1:
+			var u: float = float(i) / steps
+			var point: Vector3 = tail.lerp(front, u)
+			var half: float = lerpf(0.75, 0.16, pow(u, 0.7))   # wide behind, narrow at the head
+			_wake_mesh.surface_set_uv(Vector2(0.0, u))
+			_wake_mesh.surface_add_vertex(point + side * half)
+			_wake_mesh.surface_set_uv(Vector2(1.0, u))
+			_wake_mesh.surface_add_vertex(point - side * half)
+		_wake_mesh.surface_end()
 
 	func _process(delta: float) -> void:
 		_age += delta
@@ -829,6 +902,7 @@ class Beam extends Node3D:
 				_mesh.surface_set_color(rc[i])
 				_mesh.surface_add_vertex(rv[i])
 			_mesh.surface_end()
+		_update_wake(camera, head, dir, flight_time)
 		for i in _lights.size():
 			var at_t: float = _light_at[i]
 			var lit: float = clampf((reach - at_t) * 6.0 + 1.0, 0.0, 1.0) if reach >= at_t else 0.0   # arrives with the arrow
