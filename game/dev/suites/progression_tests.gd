@@ -136,18 +136,18 @@ func _test_progression() -> void:
 	var l2: int = HeroProgression.xp_for_level(2)
 	expect("a fresh hero is level 1 with 0 XP", TownState.hero_level == 1 and TownState.hero_xp == 0)
 	expect("the curve starts at 0 and has a level for each of 1..100", HeroProgression.xp_for_level(1) == 0 and HeroProgression.table().size() == HeroProgression.MAX_LEVEL
-		and HeroProgression.MAX_LEVEL == 101)
+		and HeroProgression.MAX_LEVEL == 100)
 	var rising: bool = true
 	for level in range(2, HeroProgression.MAX_LEVEL + 1):
 		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
 	expect("every level needs more total XP than the one before", rising)
 	# DS2's real experience_table (formulas.gas), by 1-based stored level: the table index is DS2's own level.
-	var real_points := {1: 0, 2: 300, 3: 900, 5: 4000, 10: 34200, 20: 196372, 30: 662568, 40: 1986295, 50: 5744912, 100: 1070785566, 101: 1188578257}
+	var real_points := {1: 0, 2: 300, 3: 900, 5: 4000, 10: 34200, 20: 196372, 30: 662568, 40: 1986295, 50: 5744912, 100: 1070785566}
 	var samples_ok: bool = true
 	for level in real_points:
 		samples_ok = samples_ok and HeroProgression.xp_for_level(int(level)) == int(real_points[level])
-	expect("every checked point of DS2's real experience table is exact (L2 300, L10 34,200, L30 662,568, the cap 1,188,578,257)", samples_ok
-		and HeroProgression.max_xp() == 1188578257)
+	expect("every checked point of DS2's real experience table is exact (L2 300, L10 34,200, L30 662,568, the cap 1,070,785,566)", samples_ok
+		and HeroProgression.max_xp() == 1070785566)
 	TownState.add_hero_xp(l2 - 1)
 	expect("one XP short of level 2 is still level 1", TownState.hero_level == 1 and TownState.hero_xp == l2 - 1)
 	var up: Dictionary = TownState.add_hero_xp(1)
@@ -240,14 +240,14 @@ func _test_progression() -> void:
 	await get_tree().process_frame
 	town.combat_hud._open_character()
 	var view: Control = town.combat_hud.character_panel
-	expect("a fresh character screen reads DS2's Level 0 and 0 / 300 XP", view.level_label.text == "Level 0" and view.xp_label.text == "0 / 300 XP")
+	expect("a fresh character screen reads Level 1 and 0 / 300 XP", view.level_label.text == "Level 1" and view.xp_label.text == "0 / 300 XP")
 	TownState.add_hero_xp(HeroProgression.xp_for_level(2) + 30)
 	expect("a level-up keeps the HUD free of a duplicate screen-space plate", town.combat_hud.level_toast_text.is_empty() and town.combat_hud.level_toast_time == 0.0)
 	town.combat_hud._open_character()
 	view = town.combat_hud.character_panel
 	await get_tree().process_frame
 	await get_tree().process_frame
-	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 1"
+	expect("the character screen shows the new level and the progress through it", view.level_label.text == "Level 2"
 		and view.xp_label.text == "30 / %d XP" % (HeroProgression.xp_for_level(3) - HeroProgression.xp_for_level(2)))
 	var close_button: Button = view.find_children("*", "Button", true, false).back()
 	var overlap: bool = false
@@ -261,7 +261,7 @@ func _test_progression() -> void:
 	town.combat_hud._open_character()
 	view = town.combat_hud.character_panel
 	await get_tree().process_frame
-	expect("at the cap the screen reads DS2's Level 100 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.display_level(HeroProgression.MAX_LEVEL) and view.xp_label.text == "MAX LEVEL")
+	expect("at the cap the screen reads Level 100 and MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.display_level(HeroProgression.MAX_LEVEL) and view.xp_label.text == "MAX LEVEL")
 	town.queue_free()
 	await get_tree().process_frame
 	TownState.reset()
@@ -639,7 +639,7 @@ func _test_xp() -> void:
 	var view: Control = town.combat_hud.character_panel
 	TownState.add_hero_xp(HeroProgression.xp_for_level(4) + 10)
 	expect("one large reward emits one level-up event without a duplicate HUD plate", events == [[1, 4]] and town.combat_hud.level_toast_text.is_empty())
-	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 3" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
+	expect("an open character screen follows the XP without being reopened", view.level_label.text == "Level 4" and view.xp_label.text == HeroProgression.progress_text(TownState.hero_xp)
 		and town.combat_hud.character_panel == view)
 	TownState.add_hero_xp(HeroProgression.max_xp() * 2)
 	expect("and it follows to MAX LEVEL", view.level_label.text == "Level %d" % HeroProgression.display_level(HeroProgression.MAX_LEVEL) and view.xp_label.text == "MAX LEVEL")
