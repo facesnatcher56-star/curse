@@ -61,30 +61,20 @@ func _test_enemies() -> void:
 	expect("acid leaves a puddle", zones >= 1)
 	expect("spitter keeps its distance", min_gap > 4.0)
 	print("  spitter: globs=", globs_seen, " puddles seen=", zones, " closest approach=", snappedf(min_gap, 0.1), " m")
-	# The hero walks up to it: it backs off instead of standing and fighting.
-	# (A spitter in the middle of a spit stands still by design, so try again if the first attempt caught it mid-attack.)
-	var backed_away: bool = false
-	for attempt in 4:
-		while spitter.behavior.is_attacking():
-			await get_tree().physics_frame
-		player.global_position = spitter.global_position + Vector3(0, 0, 2.5)
-		player.reset_physics_interpolation()
-		var before: float = spitter.flat_distance_to(player)
-		await get_tree().create_timer(1.2).timeout
-		if spitter.flat_distance_to(player) > before + 0.8:
-			backed_away = true
-			break
-	expect("spitter backs away when the hero closes in", backed_away)
-	print("  spitter retreat: backed away = ", backed_away)
-	# Kiting tires: held at melee range, it must plant its feet for a spell instead of backing off for ever (the owner could not catch ranged monsters).
-	var rested: bool = false
-	for i in 360:
-		player.global_position = spitter.global_position + Vector3(0, 0, 2.0)
+	# The hero walks up to it: it does not run away (no kiting), so a melee hero can always reach it.
+	while spitter.behavior.is_attacking():
 		await get_tree().physics_frame
-		if spitter._kite_rest > 0.0:
-			rested = true
-			break
-	expect("a kiting monster plants its feet after running backwards for a while", rested)
+	player.global_position = spitter.global_position + Vector3(0, 0, 2.5)
+	player.reset_physics_interpolation()
+	var closest: float = spitter.flat_distance_to(player)
+	var farthest: float = closest
+	for i in 150:
+		await get_tree().physics_frame
+		var gap: float = spitter.flat_distance_to(player)
+		closest = minf(closest, gap)
+		farthest = maxf(farthest, gap)
+	expect("a spitter does not back away from a hero in melee range", farthest < 2.5 + 1.0)
+	print("  spitter no-kite: gap stayed within ", snappedf(closest, 0.1), "-", snappedf(farthest, 0.1), " m")
 	spitter.queue_free()
 	for node in get_tree().get_nodes_in_group("hazards"):
 		node.queue_free()

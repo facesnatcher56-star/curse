@@ -37,17 +37,15 @@ func tick(delta: float, dist: float) -> void:
 				e._attacking = false
 			return
 	var preferred: float = float(e.def.param("preferred", 8.0))
-	var min_dist: float = float(e.def.param("min_dist", 5.0))
 	var fire_range: float = float(e.def.param("fire_range", 13.0))
 	if _cooldown <= 0.0 and dist <= fire_range and dist >= 2.0 and e.has_line_to(e.target):
 		_begin_windup()
 		return
-	if dist < min_dist:
-		e.back_away_from(e.target.global_position, 1.25)   # kiting: gets out of reach instead of fighting
-	elif dist > preferred + 2.5:
+	# No kiting: a hero who closes in is not backed away from. It keeps its distance only by not walking in (and circles in place).
+	if dist > preferred + 2.5:
 		e.walk_to(e.target.global_position, delta, 1.0, true)
 	else:
-		e.circle_target(dist, preferred, 0.8)
+		e.circle_target(dist, minf(preferred, dist), 0.8)
 
 func _begin_windup() -> void:
 	_state = State.WINDUP

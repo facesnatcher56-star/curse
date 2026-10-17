@@ -40,7 +40,7 @@ func tick(delta: float, dist: float) -> void:
 	if super.is_attacking():
 		super.tick(delta, dist)
 		return
-	var flee: float = float(e.def.param("flee_dist", 4.5))
+	var flee: float = float(e.def.param("flee_dist", 4.5))   # (only the distance inside which it will not start a raising; it no longer runs)
 	var allies: Array[Enemy] = _allies_near(10.0)
 	if allies.is_empty() and _raised_total == 0 and _summoned.is_empty():
 		_summon_cd = 0.0
@@ -57,14 +57,11 @@ func tick(delta: float, dist: float) -> void:
 		return
 	var keep_min: float = float(e.def.param("keep_min", 6.5))
 	var keep_max: float = float(e.def.param("keep_max", 11.0))
-	if dist < flee:
-		e.back_away_from(e.target.global_position, 1.3)
-	elif dist < keep_min:
-		e.back_away_from(e.target.global_position, 0.8)
-	elif dist > keep_max:
+	# No kiting: it never backs away from the hero, it only stops approaching and circles where it is.
+	if dist > keep_max:
 		e.walk_to(e.target.global_position, delta, 0.9, true)
 	else:
-		e.circle_target(dist, (keep_min + keep_max) * 0.5, 0.6)
+		e.circle_target(dist, minf((keep_min + keep_max) * 0.5, dist), 0.6)
 
 ## Zombies this priest may still raise. A fight against a priest has to be able to end, so the total is finite.
 func summons_left() -> int:
