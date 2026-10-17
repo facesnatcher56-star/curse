@@ -1,7 +1,7 @@
 # Art asset pipeline
 
-The visual rules are in [../ART_DIRECTION.md](../ART_DIRECTION.md): Geometric Low-Poly Dark Fantasy. This page sets the
-practical rules for making models: export, rig, names, materials and budgets. Where the two disagree, ART_DIRECTION wins.
+The art direction is not decided yet (see [../ART_DIRECTION.md](../ART_DIRECTION.md)). This page sets the practical rules for
+making models: export, rig, names, materials and budgets.
 
 ## Blender export (shared settings)
 
@@ -106,7 +106,7 @@ category.
 2. Origin at the feet (or the base for props), scale in metres, transforms applied.
 3. Player equipment follows the player skeleton table above, rest pose A-pose, under one armature. Enemy rigs follow the Enemy rigs section.
 4. Names follow the conventions above; at most 4 materials and at most one atlas.
-5. Reads as a silhouette from the far zoom-out, and matches the look in ART_DIRECTION.md.
+5. Reads as a silhouette from the far zoom-out.
 
 ## Open items
 
