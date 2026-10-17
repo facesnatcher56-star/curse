@@ -1,0 +1,237 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/dev/third_party_sample.gd" id="1_rpv0a"]
+[ext_resource type="MeshLibrary" path="res://assets/third_party/kaykit_dungeon/dungeon_meshlib.tres" id="2_avfh4"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/pillar_decorated.gltf.glb" id="3_x8qdl"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/pillar.gltf.glb" id="4_hl5jv"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/torch_mounted.gltf.glb" id="5_thevq"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/table_long_decorated_A.gltf.glb" id="6_2ra24"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/chair.gltf.glb" id="7_wtglx"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/stool.gltf.glb" id="8_0luq4"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/barrel_large.gltf.glb" id="9_8768w"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/barrel_small_stack.gltf.glb" id="10_7jmh6"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/crates_stacked.gltf.glb" id="11_366ml"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/chest_gold.gltf.glb" id="12_lhmtu"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/shelf_large.gltf.glb" id="13_uokck"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/sword_shield_broken.gltf.glb" id="14_etsd5"]
+[ext_resource type="PackedScene" path="res://assets/third_party/kaykit_dungeon/models/banner_brown.gltf.glb" id="15_08g1b"]
+[ext_resource type="PackedScene" path="res://assets/third_party/quaternius_modular_dungeon_2/Candelabrum_tall.glb" id="16_eo1q3"]
+[ext_resource type="PackedScene" path="res://assets/third_party/quaternius_modular_dungeon_2/Bones.glb" id="17_48luq"]
+[ext_resource type="PackedScene" path="res://assets/third_party/quaternius_modular_dungeon_2/Column_Broken.glb" id="18_uf7l0"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/scatter.gd" id="19_y326c"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/stack/modifier_stack.gd" id="20_bjogi"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/modifiers/base_modifier.gd" id="21_ar2fg"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/modifiers/create_inside_random.gd" id="22_bq65e"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/modifiers/randomize_rotation.gd" id="23_c4ue5"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/modifiers/randomize_transforms.gd" id="24_7cwbq"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/scatter_item.gd" id="25_8agr1"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/scatter_shape.gd" id="26_3pegi"]
+[ext_resource type="Script" path="res://addons/proton_scatter/src/shapes/box_shape.gd" id="27_euxv4"]
+
+[sub_resource type="Environment" id="Environment_ufy5o"]
+background_mode = 1
+background_color = Color(0.03, 0.03, 0.04, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.32, 0.34, 0.42, 1)
+ambient_light_energy = 0.55
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.08, 0.08, 0.1, 1)
+fog_density = 0.012
+
+[sub_resource type="Resource" id="Resource_lbliq"]
+script = ExtResource("22_bq65e")
+amount = 26
+reference_frame = 1
+
+[sub_resource type="Resource" id="Resource_3ok38"]
+script = ExtResource("23_c4ue5")
+rotation = Vector3(0, 360, 0)
+reference_frame = 2
+
+[sub_resource type="Resource" id="Resource_143k6"]
+script = ExtResource("24_7cwbq")
+scale = Vector3(0.6, 0.6, 0.6)
+reference_frame = 2
+
+[sub_resource type="Resource" id="Resource_853x0"]
+script = ExtResource("20_bjogi")
+stack = Array[ExtResource("21_ar2fg")]([SubResource("Resource_lbliq"), SubResource("Resource_3ok38"), SubResource("Resource_143k6")])
+
+[sub_resource type="Resource" id="Resource_sn0vk"]
+script = ExtResource("27_euxv4")
+size = Vector3(14, 0.2, 12)
+
+[node name="ThirdPartySample" type="Node3D" unique_id=1050346633]
+script = ExtResource("1_rpv0a")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=390308423]
+environment = SubResource("Environment_ufy5o")
+
+[node name="DimMoon" type="DirectionalLight3D" parent="." unique_id=1312658724]
+transform = Transform3D(0.8660254, -0.40957603, 0.28678823, 0, 0.57357645, 0.81915206, -0.5, -0.7094065, 0.49673176, 0, 0, 0)
+light_color = Color(0.55, 0.62, 0.8, 1)
+light_energy = 0.7
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1830034255]
+transform = Transform3D(1, 0, 0, 0, 0.7431448, 0.6691306, 0, -0.6691306, 0.7431448, 10, 26, 34)
+current = true
+fov = 45.0
+
+[node name="RoomFloor" type="GridMap" parent="." unique_id=195378077]
+mesh_library = ExtResource("2_avfh4")
+cell_size = Vector3(4, 4, 4)
+cell_center_y = false
+data = {
+"cells": PackedInt32Array(0, 0, 27, 0, 1, 27, 0, 2, 27, 0, 3, 27, 0, 4, 27, 1, 0, 27, 1, 1, 27, 1, 2, 27, 1, 3, 27, 1, 4, 27, 2, 0, 27, 2, 1, 27, 2, 2, 27, 2, 3, 27, 2, 4, 27, 3, 0, 27, 3, 1, 27, 3, 2, 27, 3, 3, 27, 3, 4, 27, 4, 0, 27, 4, 1, 27, 4, 2, 27, 4, 3, 27, 4, 4, 27)
+}
+
+[node name="RoomWalls" type="GridMap" parent="." unique_id=239407475]
+mesh_library = ExtResource("2_avfh4")
+cell_size = Vector3(4, 4, 4)
+cell_center_y = false
+data = {
+"cells": PackedInt32Array(0, 0, 1048628, 0, 4, 1048628, 1, 0, 52, 1, 4, 655360, 2, 0, 66, 2, 4, 655360, 3, 0, 52, 3, 4, 655360, 4, 0, 1441844, 4, 4, 1441844, 0, 1, 1048628, 4, 1, 1441850, 0, 2, 1048642, 4, 2, 1441844, 0, 3, 1048628, 4, 3, 1441850)
+}
+
+[node name="pillar_decorated" type="Node3D" parent="." unique_id=134630144 instance=ExtResource("3_x8qdl")]
+
+[node name="@Node3D@2" type="Node3D" parent="." unique_id=1251741672 instance=ExtResource("3_x8qdl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 0)
+
+[node name="pillar" type="Node3D" parent="." unique_id=1376132790 instance=ExtResource("4_hl5jv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+
+[node name="@Node3D@3" type="Node3D" parent="." unique_id=231187844 instance=ExtResource("4_hl5jv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 20)
+
+[node name="torch_mounted" type="Node3D" parent="." unique_id=1170992816 instance=ExtResource("5_thevq")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 2.4, 0.6)
+
+[node name="TorchLight" type="OmniLight3D" parent="." unique_id=1808069729]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 3.4, 1.2)
+light_color = Color(1, 0.55, 0.22, 1)
+light_energy = 2.2
+shadow_enabled = true
+omni_range = 11.0
+
+[node name="@Node3D@4" type="Node3D" parent="." unique_id=1133980676 instance=ExtResource("5_thevq")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 2.4, 0.6)
+
+[node name="@OmniLight3D@5" type="OmniLight3D" parent="." unique_id=1381339199]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 3.4, 1.2)
+light_color = Color(1, 0.55, 0.22, 1)
+light_energy = 2.2
+shadow_enabled = true
+omni_range = 11.0
+
+[node name="@Node3D@6" type="Node3D" parent="." unique_id=554712018 instance=ExtResource("5_thevq")]
+transform = Transform3D(1.1924881e-08, 0, -1, 0, 1, 0, 1, 0, 1.1924881e-08, 0.6, 2.4, 6)
+
+[node name="@OmniLight3D@7" type="OmniLight3D" parent="." unique_id=1054395682]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 6)
+light_color = Color(1, 0.55, 0.22, 1)
+light_energy = 2.2
+shadow_enabled = true
+omni_range = 11.0
+
+[node name="@Node3D@8" type="Node3D" parent="." unique_id=454694185 instance=ExtResource("5_thevq")]
+transform = Transform3D(1.1924881e-08, 0, -1, 0, 1, 0, 1, 0, 1.1924881e-08, 0.6, 2.4, 14)
+
+[node name="@OmniLight3D@9" type="OmniLight3D" parent="." unique_id=1282789036]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 14)
+light_color = Color(1, 0.55, 0.22, 1)
+light_energy = 2.2
+shadow_enabled = true
+omni_range = 11.0
+
+[node name="@Node3D@10" type="Node3D" parent="." unique_id=1578554477 instance=ExtResource("5_thevq")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 19.4, 2.4, 10)
+
+[node name="@OmniLight3D@11" type="OmniLight3D" parent="." unique_id=1716902948]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 3.4, 10)
+light_color = Color(1, 0.55, 0.22, 1)
+light_energy = 2.2
+shadow_enabled = true
+omni_range = 11.0
+
+[node name="table_long_decorated_A" type="Node3D" parent="." unique_id=1403579700 instance=ExtResource("6_2ra24")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 8)
+
+[node name="chair" type="Node3D" parent="." unique_id=355810697 instance=ExtResource("7_wtglx")]
+transform = Transform3D(-0.9396926, 0, -0.34202015, 0, 1, 0, 0.34202015, 0, -0.9396926, 8.2, 0, 10)
+
+[node name="stool" type="Node3D" parent="." unique_id=223238563 instance=ExtResource("8_0luq4")]
+transform = Transform3D(0.76604444, 0, 0.6427876, 0, 1, 0, -0.6427876, 0, 0.76604444, 12, 0, 10.4)
+
+[node name="barrel_large" type="Node3D" parent="." unique_id=1679412400 instance=ExtResource("9_8768w")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 2.2)
+
+[node name="barrel_small_stack" type="Node3D" parent="." unique_id=1671589864 instance=ExtResource("10_7jmh6")]
+transform = Transform3D(0.9396926, 0, 0.34202012, 0, 1, 0, -0.34202012, 0, 0.9396926, 3.6, 0, 1.6)
+
+[node name="crates_stacked" type="Node3D" parent="." unique_id=348509587 instance=ExtResource("11_366ml")]
+transform = Transform3D(0.9659258, 0, -0.25881904, 0, 1, 0, 0.25881904, 0, 0.9659258, 17.5, 0, 2.5)
+
+[node name="chest_gold" type="Node3D" parent="." unique_id=73388778 instance=ExtResource("12_lhmtu")]
+transform = Transform3D(1.1924881e-08, 0, -1, 0, 1, 0, 1, 0, 1.1924881e-08, 17.6, 0, 8.5)
+
+[node name="shelf_large" type="Node3D" parent="." unique_id=1431430775 instance=ExtResource("13_uokck")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 1.4, 0, 9)
+
+[node name="sword_shield_broken" type="Node3D" parent="." unique_id=271347676 instance=ExtResource("14_etsd5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.5, 1.6, 0.52)
+
+[node name="banner_brown" type="Node3D" parent="." unique_id=1350851310 instance=ExtResource("15_08g1b")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 3.4, 0.55)
+
+[node name="Candelabrum_tall" type="Node3D" parent="." unique_id=677985985 instance=ExtResource("16_eo1q3")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 14)
+
+[node name="Bones" type="Node3D" parent="." unique_id=2030117986 instance=ExtResource("17_48luq")]
+transform = Transform3D(0.8660254, 0, 0.5, 0, 1, 0, -0.5, 0, 0.8660254, 6, 0, 15)
+
+[node name="Column_Broken" type="Node3D" parent="." unique_id=2095686318 instance=ExtResource("18_uf7l0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 6)
+
+[node name="FloorDebris" type="Node3D" parent="." unique_id=592740766]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 10)
+script = ExtResource("19_y326c")
+global_seed = 7
+modifier_stack = SubResource("Resource_853x0")
+Performance/use_chunks = true
+Performance/chunk_dimensions = Vector3(15, 15, 15)
+
+[node name="Item_rubble_half" type="Node3D" parent="FloorDebris" unique_id=316174572]
+script = ExtResource("25_8agr1")
+proportion = 40
+source_scale_multiplier = 0.35
+path = "res://assets/third_party/kaykit_dungeon/models/rubble_half.gltf.glb"
+
+[node name="Item_Rock3" type="Node3D" parent="FloorDebris" unique_id=1808788431]
+script = ExtResource("25_8agr1")
+proportion = 30
+source_scale_multiplier = 0.8
+path = "res://assets/third_party/quaternius_modular_dungeon_2/Rock3.glb"
+
+[node name="Item_Bones2" type="Node3D" parent="FloorDebris" unique_id=95620963]
+script = ExtResource("25_8agr1")
+proportion = 25
+source_scale_multiplier = 0.9
+path = "res://assets/third_party/quaternius_modular_dungeon_2/Bones2.glb"
+
+[node name="Item_candle_melted" type="Node3D" parent="FloorDebris" unique_id=111200771]
+script = ExtResource("25_8agr1")
+proportion = 20
+path = "res://assets/third_party/kaykit_dungeon/models/candle_melted.gltf.glb"
+
+[node name="Item_Rock1" type="Node3D" parent="FloorDebris" unique_id=1897423392]
+script = ExtResource("25_8agr1")
+proportion = 20
+source_scale_multiplier = 0.6
+path = "res://assets/third_party/quaternius_modular_dungeon_2/Rock1.glb"
+
+[node name="ScatterShape" type="Node3D" parent="FloorDebris" unique_id=280128502]
+script = ExtResource("26_3pegi")
+shape = SubResource("Resource_sn0vk")

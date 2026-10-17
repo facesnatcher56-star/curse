@@ -2,7 +2,7 @@ extends SceneTree
 ## Builds the GridMap MeshLibrary from the KayKit Dungeon Remastered structural pieces.
 ##   godot --headless --path . -s res://tools/build_dungeon_meshlib.gd
 ## Cell is 4 x 4 x 4 m (the kit's wall/floor module), cell_center_y off so floors sit at the cell bottom. Wall-like pieces are
-## shifted half a cell so they sit on the cell's -Z edge; rotate them in 90 degree steps to reach the other edges.
+## shifted half a cell (baked into the mesh so it rotates with the cell) so they sit on the cell's -Z edge; rotate them in 90 degree steps to reach the other edges.
 
 const DIR := "res://assets/third_party/kaykit_dungeon/models/"
 const OUT := "res://assets/third_party/kaykit_dungeon/dungeon_meshlib.tres"
@@ -24,6 +24,11 @@ func _initialize() -> void:
 	for n in names:
 		var inst: Node = (load(DIR + n + ".gltf.glb") as PackedScene).instantiate()
 		var mesh := ArrayMesh.new()
+		var shift := Vector3.ZERO
+		for p in EDGE_PREFIXES:
+			if n.begins_with(p):
+				shift = Vector3(0, 0, -2)
+				break
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			var m := mi as MeshInstance3D
 			var xf := Transform3D()
@@ -36,7 +41,7 @@ func _initialize() -> void:
 				var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 				var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
 				for i in verts.size():
-					verts[i] = xf * verts[i]
+					verts[i] = xf * verts[i] + shift
 				for i in norms.size():
 					norms[i] = (xf.basis * norms[i]).normalized()
 				arr[Mesh.ARRAY_VERTEX] = verts
@@ -50,10 +55,6 @@ func _initialize() -> void:
 		lib.create_item(id)
 		lib.set_item_name(id, n)
 		lib.set_item_mesh(id, mesh)
-		for p in EDGE_PREFIXES:
-			if n.begins_with(p):
-				lib.set_item_mesh_transform(id, Transform3D(Basis(), Vector3(0, 0, -2)))
-				break
 		lib.set_item_shapes(id, [mesh.create_convex_shape(true, true), Transform3D()])
 		id += 1
 	var err := ResourceSaver.save(lib, OUT)
