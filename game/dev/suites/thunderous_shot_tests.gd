@@ -63,6 +63,19 @@ func _test_thunderous_shot() -> void:
 	var mult: float = PowerDb.hero_value("thunderous_shot", "damage_pct", "cutter") / 100.0 * archer.stats.power_damage_mult()
 	var range: Vector2 = archer.stats.ranged_range()
 
+	# The casting area: it follows the cursor, shows how far the bolt goes, and outlines exactly the enemies the bolt will go through.
+	archer.skills.aiming_id = "thunderous_shot"
+	archer.skills.update_aim(first.global_position)
+	var area: ThunderousAimFx = archer.skills._thunder_aim
+	var outlined: Array = archer.skills._highlighted
+	expect("holding the key shows the casting area", area != null and area.visible)
+	expect("it outlines exactly the three on the line, in the power's own colour", outlined.size() == 3 and first in outlined and second in outlined and third in outlined
+		and not (aside in outlined) and not (beyond in outlined) and first.highlight_override == ThunderousAimFx.highlight_material())
+	var line: Dictionary = archer.powers.thunderous_line(archer.global_position + Vector3(0, 1.4, 0) + Vector3.RIGHT * 0.6, Vector3.RIGHT)
+	expect("the area is the line the release will use (the bow's reach, three on it)", is_equal_approx(float(line["length"]), ThunderousShotFx.REACH) and (line["victims"] as Array).size() == 3)
+	archer.skills.clear_aim()
+	expect("letting go or cancelling clears the area and the outlines", not area.visible and not first.highlighted and first.highlight_override == null)
+
 	# A draw cut short does nothing and is not spent.
 	expect("using it draws the bow", archer.powers.activate("thunderous_shot", first.global_position) and archer.skills.busy and archer.bow.thunder_power)
 	expect("the draw is the long one", is_equal_approx(archer.skills.busy_time, BowAttack.THUNDER_DRAW / archer.stats.attack_speed()))

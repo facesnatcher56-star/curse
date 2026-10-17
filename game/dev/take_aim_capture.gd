@@ -191,13 +191,32 @@ func _thunderous_capture() -> void:
 			foe.set_physics_process(true)
 	if not real:
 		archer.bow.thunder_visual = true
-	for frame in 560:
+	var aim_demo := OS.get_cmdline_user_args().has("--aim")   # hold the key: the casting area follows the cursor, then let go
+	var cursor_at := lane + Vector3(3.0, 0.0, 6.0)
+	for frame in 640:
+		if aim_demo:
+			# The real input path: the mouse is moved over the world point and the hotbar key held. The cursor starts off to the side (nothing
+			# on the line), sweeps over the line of enemies, rests on the first, and then the key is let go.
+			if frame >= 20 and frame < 230:
+				var u: float = clampf(float(frame - 20) / 150.0, 0.0, 1.0)
+				cursor_at = (lane + Vector3(3.0, 0.0, 6.0)).lerp(lane + Vector3(17.0, 0.0, 0.2), u)
+				if u > 0.85:
+					cursor_at = first.global_position
+				player.cursor_override = cursor_at   # the controlled hero's cursor: the same value the mouse would give
+				player.hover_target = first if u > 0.85 else null
+			if frame == 20:
+				Input.action_press("skill_3")
+			if frame == 230:
+				Input.action_release("skill_3")
 		match frame:
 			20:
-				if real:
+				if real and not aim_demo:
 					print("THUNDEROUS_POWER activated=", archer.powers.activate("thunderous_shot", first.global_position))
-				else:
+				elif not real:
 					archer.bow.start(first)
+			232:
+				if aim_demo:
+					print("THUNDEROUS_AIM released busy=", archer.skills.busy, " thunder_power=", archer.bow.thunder_power, " shots=", archer.bow.shots)
 		pivot.global_position = lane + Vector3(7.0, 0.0, 0.0)
 		if frame >= 100:
 			for orb in get_tree().get_nodes_in_group("orbs") + get_tree().get_nodes_in_group("loot"):

@@ -144,10 +144,7 @@ func activate(id: String, cursor: Vector3) -> bool:
 	p.skills.clear_queue()
 	if id == "thunderous_shot":
 		# Cutter draws the shot (BowAttack, one long draw); the bolt, its damage and the stun happen at the release (thunderous_release).
-		var aim_at: Vector3 = Vector3(cursor.x, p.global_position.y + 1.2, cursor.z)
-		if is_instance_valid(immediate_target) and not immediate_target.dead:
-			aim_at = immediate_target.global_position + Vector3(0, immediate_target.body_height * 0.62, 0)
-		return p.bow != null and p.bow.start_thunderous(aim_at)
+		return p.bow != null and p.bow.start_thunderous(thunderous_aim_point(cursor))
 	if CASTS.has(id):
 		# The wind-up starts now; the effect lands at its impact (impact()), and only then is the power spent.
 		p.skills.start_power_cast(id, cursor, CASTS[id])
@@ -211,22 +208,11 @@ func _whirling_strike() -> void:
 ## rank's time. Kills are ordinary deaths: this power does not gib. Returns how many it hit.
 func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 	var dir: Vector3 = direction.normalized()
-	var query := PhysicsRayQueryParameters3D.create(muzzle, muzzle + dir * ThunderousShotFx.REACH, Actor.LAYER_WORLD)
-	var wall: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(query)
-	var length: float = muzzle.distance_to(wall["position"]) if not wall.is_empty() else ThunderousShotFx.REACH
+	var line: Dictionary = thunderous_line(muzzle, dir)
+	var victims: Array[Dictionary] = line["victims"]
 	var mult: float = value("thunderous_shot", "damage_pct") / 100.0 * p.stats.power_damage_mult()
 	var stun: float = value("thunderous_shot", "stun")
 	var base: Vector2 = p.stats.ranged_range()
-	var victims: Array[Dictionary] = []
-	for node in p.get_tree().get_nodes_in_group("enemies"):
-		var e := node as Enemy
-		if e == null or e.dead:
-			continue
-		var chest: Vector3 = e.global_position + Vector3(0, e.body_height * 0.6, 0)
-		var along: float = (chest - muzzle).dot(dir)
-		if along > 0.0 and along < length and (chest - (muzzle + dir * along)).length() < ThunderousShotFx.WIDTH:
-			victims.append({"enemy": e, "along": along})
-	victims.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["along"]) < float(b["along"]))
 	if not victims.is_empty():
 		p.openings.on_power_use()   # one Opening roll for the whole shot, not per enemy
 	for victim in victims:
@@ -242,6 +228,36 @@ func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 	_spend("thunderous_shot")
 	p.power_activated.emit(p.member_id, "thunderous_shot")
 	return victims.size()
+
+## Where Thunderous Shot is aimed for a cursor: the enemy under the cursor (its chest) if there is one, else the point on the ground.
+func thunderous_aim_point(cursor: Vector3) -> Vector3:
+	var target: Actor = p.hover_target
+	if not is_instance_valid(target):
+		# A hotbar key sends the command to its member whoever is controlled: the enemy under the mouse is the controlled body's.
+		var party := PartyManager.current()
+		var driver := party.bodies.get(party.active_id) as Player
+		target = driver.hover_target if is_instance_valid(driver) else null
+	if is_instance_valid(target) and not target.dead:
+		return target.global_position + Vector3(0, target.body_height * 0.62, 0)
+	return Vector3(cursor.x, p.global_position.y + 1.2, cursor.z)
+
+## The bolt's line from `muzzle` along `dir`: how far it goes (the bow's reach, or the first wall) and the enemies on it nearest first, as
+## [{enemy, along}]. The release and the casting-area preview both read this, so the highlight is exactly who is hit.
+func thunderous_line(muzzle: Vector3, dir: Vector3) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(muzzle, muzzle + dir * ThunderousShotFx.REACH, Actor.LAYER_WORLD)
+	var wall: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(query)
+	var length: float = muzzle.distance_to(wall["position"]) if not wall.is_empty() else ThunderousShotFx.REACH
+	var victims: Array[Dictionary] = []
+	for node in p.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e == null or e.dead:
+			continue
+		var chest: Vector3 = e.global_position + Vector3(0, e.body_height * 0.6, 0)
+		var along: float = (chest - muzzle).dot(dir)
+		if along > 0.0 and along < length and (chest - (muzzle + dir * along)).length() < ThunderousShotFx.WIDTH:
+			victims.append({"enemy": e, "along": along})
+	victims.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["along"]) < float(b["along"]))
+	return {"length": length, "victims": victims}
 
 ## The stun, in seconds, Thunderous Shot leaves at this member's rank (for its visuals).
 func thunderous_stun() -> float:

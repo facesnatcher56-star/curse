@@ -140,6 +140,7 @@ var visual: Node3D
 var model: CharacterModel
 var _saved_speed: float = 1.0
 var highlighted: bool = false  # lit up as a target (e.g. inside an aimed spell's blast)
+var highlight_override: StandardMaterial3D   # a power's own outline colour while highlighted (Thunderous Shot's blue); cleared when it goes out
 var _flash: float = 0.0
 var _flash_mat: StandardMaterial3D
 
@@ -462,13 +463,15 @@ func set_highlighted(on: bool) -> void:
 	if on == highlighted or model == null:
 		return
 	highlighted = on
+	if not on:
+		highlight_override = null
 	_refresh_overlay()
 
 ## The hit flash always wins; otherwise show the highlight glow, otherwise nothing.
 func _refresh_overlay() -> void:
 	if _flash > 0.0 or model == null:
 		return
-	model.set_overlay(get_highlight_material() if highlighted else null)
+	model.set_overlay((highlight_override if highlight_override != null else get_highlight_material()) if highlighted else null)
 
 ## Speed multiplier from slows (1.0 when not slowed).
 func speed_factor() -> float:
