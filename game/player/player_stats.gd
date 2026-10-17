@@ -175,7 +175,6 @@ var bag: Array[Dictionary]:
 const BagGrid := preload("res://game/inventory_grid.gd")
 const MAX_BAG := BagGrid.WIDTH * BagGrid.HEIGHT # upper bound for 1x1 items; actual capacity is geometric
 var base_armor: float = 0.0   # DS2: a hero's armour is all his gear's
-const BRUTAL_COMBAT_SECONDS := 21.0
 var brutal_reload_required: float = 0.0
 var brutal_reload_remaining: float = 0.0
 
@@ -192,7 +191,7 @@ func power_recharge_damage(seconds_of_combat: float, tree: String = "", caster: 
 
 ## Brutal Attack is a melee power: Fierce Renewal speeds its recharge.
 func brutal_recharge_damage() -> float:
-	return power_recharge_damage(BRUTAL_COMBAT_SECONDS, "melee")
+	return power_recharge_damage(PowerDb.charge_seconds("brutal_attack"), "melee")
 
 ## Brutal Attack's weapon-damage multiplier at the hero's rank (DS2: 1500 + 25 x Melee % at rank 1, to 2000 + 60 x Melee % at rank 3).
 ## DS2 `ALTER_POWER_DAMAGE_PERCENT` (rules.skrit `DamageGoPower$`: every power's damage is multiplied by `1 + Attack.GetPowerDamageBonusPercent()`).
@@ -220,7 +219,7 @@ func ult_cost(id: String) -> float:
 	if id == "brutal_attack":
 		return brutal_reload_required if brutal_reload_required > 0.0 else brutal_recharge_damage()
 	if id == "take_aim":
-		return p.bow.reload_required if p.bow != null and p.bow.reload_required > 0.0 else power_recharge_damage(21.0, "ranged")
+		return p.bow.reload_required if p.bow != null and p.bow.reload_required > 0.0 else power_recharge_damage(PowerDb.charge_seconds("take_aim"), "ranged")
 	return 0.0
 
 func ult_fraction(id: String) -> float:
@@ -238,7 +237,13 @@ func ult_fraction(id: String) -> float:
 func gain_brutal_charge(damage: float) -> void:
 	brutal_reload_remaining = maxf(brutal_reload_remaining - maxf(damage, 0.0), 0.0)
 
-## An Opening's refund: `share` (0-1) of every charging power's recharge is given back: Brutal Attack, Take Aim and the live DS2 powers.
+## Curse pacing (departs from DS2): charge every one of a member's powers gains, as a share of its full bar, from a party kill (a champion's
+## is bigger) and from a landed Opening execution. Damage dealt fills the bars on top of these. Tune here.
+const KILL_REFILL := 0.10
+const CHAMPION_KILL_REFILL := 0.25
+const OPENING_REFILL := 0.25
+
+## A refill of `share` (0-1) of every charging power's bar: Brutal Attack, Take Aim and the live DS2 powers. A kill and an Opening use it.
 func refund_power_charge(share: float) -> void:
 	share = clampf(share, 0.0, 1.0)
 	brutal_reload_remaining = maxf(brutal_reload_remaining - brutal_reload_required * share, 0.0)

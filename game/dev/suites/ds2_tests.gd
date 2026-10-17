@@ -631,8 +631,8 @@ func _test_powers() -> void:
 	expect("every value of every rank evaluates", numbers_ok)
 	expect("the ones Curse cannot do yet say what they need", PowerDb.get_def("waves_of_force").needs == "dual wielding"
 		and PowerDb.get_def("brutal_attack").needs == "")
-	expect("no rank without its passives: Brutal Attack needs Critical Strike 1", PowerDb.hero_rank("brutal_attack") == 0
-		and not player.stats.can_use("brutal_attack"))
+	expect("the passives alone give no rank (Critical Strike 0), but Brutal Attack is a starting power: rank 1 from the start (Lane P)",
+		PowerDb.get_def("brutal_attack").rank_for({}) == 0 and PowerDb.hero_rank("brutal_attack") == 1)
 	var paths_present: bool = true
 	for id in PowerController.LIVE:
 		for rank in PowerDb.get_def(id).ranks:
@@ -655,8 +655,9 @@ func _test_powers() -> void:
 	expect("Critical Strike 8 opens rank 3: 2000 + 60 x Melee %", PowerDb.hero_rank("brutal_attack") == 3
 		and is_equal_approx(player.stats.brutal_mult(), (2000.0 + 60.0 * melee) / 100.0))
 	TownState.add_member_xp("cutter", HeroProgression.xp_for_level(11), false, {"ranged": 1.0})
-	expect("Cutter earns no free Take Aim entitlement", PowerDb.hero_rank("take_aim", "cutter") == 0)
-	expect("Cutter opens Take Aim through the common purchase rule", TownState.buy_passives({"critical_shot": 1}, "cutter"))
+	expect("Take Aim is Cutter's starting power (rank 1 with no passives), and not the hero's", PowerDb.hero_rank("take_aim", "cutter") == 1
+		and PowerDb.hero_rank("take_aim", "hero") == 0)
+	expect("Cutter's Critical Shot purchase still goes through the common purchase rule", TownState.buy_passives({"critical_shot": 1}, "cutter"))
 	expect("earned Take Aim grows with the member's Ranged level (rank 1)", is_equal_approx(PowerDb.hero_value("take_aim", "damage_pct", "cutter") / 100.0, (1500.0 + 25.0 * 10.0) / 100.0))
 	expect("Provoke's ranks need Barricade (DS2's aegis)", PowerDb.get_def("provoke").ranks[0].has("barricade"))
 	TownState.reset()
@@ -676,8 +677,8 @@ func _test_live_powers() -> void:
 	powers.reset()
 	player.global_position = Vector3(30, 0, 30)
 	player.reset_physics_interpolation()
-	expect("a power that is not open says so and does nothing", powers.blocker("whirling_strike") == "Whirling Strike is not open yet"
-		and not powers.activate("whirling_strike", player.global_position))
+	expect("a power that is not open says so and does nothing", powers.blocker("war_cry") == "War Cry is not open yet"
+		and not powers.activate("war_cry", player.global_position))
 	TownState.passive_ranks = {"critical_strike": 8, "fortitude": 8, "smite": 1, "overbear": 1, "barricade": 1, "dodge": 5, "survival": 3,
 		"devastation": 2, "searing_flames": 8, "ignite": 1}
 	player.stats.refresh()

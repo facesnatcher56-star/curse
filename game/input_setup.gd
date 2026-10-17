@@ -34,6 +34,7 @@ static func _apply_gamepad() -> void:
 	_pad_button("skill_1", JOY_BUTTON_X)
 	_pad_button("skill_2", JOY_BUTTON_Y)
 	_remove_pad_button("skill_3", JOY_BUTTON_RIGHT_SHOULDER)
+	_pad_button("skill_3", JOY_BUTTON_DPAD_RIGHT)   # Cutter's first power (slot 3 now holds one); party_switch left the d-pad for LT
 	_pad_button("use_potion", JOY_BUTTON_RIGHT_SHOULDER)
 	_pad_button("skill_4", JOY_BUTTON_LEFT_SHOULDER)
 	_pad_trigger("skill_5", JOY_AXIS_TRIGGER_RIGHT)

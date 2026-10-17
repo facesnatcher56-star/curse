@@ -7,8 +7,12 @@ extends RefCounted
 ## What can go on a slot, in the order the picker shows them.
 const ASSIGNABLE: Array[String] = ["basic", "brutal_attack", "take_aim", "fireball",
 	"whirling_strike", "staggering_blow", "war_cry", "provoke", "repulse", "silence", "flame_nexus", "detonation", "thunderous_shot"]
-# Start with the powers equipped on slots 1 and 2. Empty slots remain assignable through the picker.
-const DEFAULT_SLOTS: Array[String] = ["brutal_attack", "take_aim", "", "", "", ""]
+# A new party starts with its two powers each on the bar (PowerDb.STARTING_POWERS): the hero's on slots 1-2, Cutter's on 3-4. Empty slots
+# remain assignable through the picker.
+const DEFAULT_SLOTS: Array[String] = ["brutal_attack", "whirling_strike", "take_aim", "thunderous_shot", "", ""]
+const DEFAULT_CASTERS: Array[String] = ["hero", "hero", "cutter", "cutter", "hero", "hero"]
+## Numbered slots each party member gets on the bar. Two powers today; a capstone power later makes it three.
+const SLOTS_PER_MEMBER := 2
 const DEFAULT_ALT := "basic"
 ## The slot number of the right mouse button.
 const ALT := -1

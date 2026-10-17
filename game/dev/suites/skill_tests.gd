@@ -9,7 +9,9 @@ func _test_hotkeys() -> void:
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
 	var previous_hotbar := player.skills.hotbar.duplicate()
+	var previous_casters := GameSettings.hotbar_casters.duplicate()
 	player.skills.assign_slot(3, "fireball")
+	GameSettings.hotbar_casters[3] = "hero"   # slot 4 is Cutter's by default now (two slots per member): the hero casts this fixture
 	expect("hotkey fixture configures this character's slot", player.skills.hotbar[3] == "fireball")
 	var dummy: Enemy = _spawn_enemy(Vector3(1.8, 0, 0))
 	dummy.aggro_range = 0.0
@@ -69,6 +71,7 @@ func _test_hotkeys() -> void:
 	player.stats.cooldowns.clear()
 	player.stats.potions = 3
 	player.skills.hotbar = previous_hotbar
+	GameSettings.hotbar_casters.assign(previous_casters)
 	await get_tree().process_frame
 
 ## Skills on keys can be changed freely: the layout is always the same seven skills (a change is a swap), it is shared by the hero, the

@@ -230,7 +230,7 @@ func loose() -> void:
 	if armed and not thunder_visual:
 		TakeAimFx.launch(p, from, aim - from, _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)))
 		Sfx.power(p, "take_aim_fire")
-		reload_required = p.stats.power_recharge_damage(PowerDb.get_def("take_aim").recharge, "ranged")
+		reload_required = p.stats.power_recharge_damage(PowerDb.charge_seconds("take_aim"), "ranged")
 		reload_remaining = reload_required
 		armed = false
 		if is_instance_valid(aura): aura.queue_free()
