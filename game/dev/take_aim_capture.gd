@@ -199,6 +199,9 @@ func _thunderous_capture() -> void:
 				else:
 					archer.bow.start(first)
 		pivot.global_position = lane + Vector3(7.0, 0.0, 0.0)
+		if frame >= 100:
+			for orb in get_tree().get_nodes_in_group("orbs") + get_tree().get_nodes_in_group("loot"):
+				orb.queue_free()   # the kill's health orb and loot are the game's, not part of the effect: keep them out of the recording
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_jpg(out.path_join("frame_%04d.jpg" % frame), 0.95)
