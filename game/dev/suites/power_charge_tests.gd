@@ -128,6 +128,21 @@ func _test_power_charge() -> void:
 	expect("a level-up refills the levelling member's powers (kept from DS2)", _all_near(_fractions(hero, HERO_POWERS), 1.0)
 		and cutter.stats.ult_fraction("take_aim") < 0.001)
 
+	# Leave a normal start behind for the checks that follow: TownState.reset() emptied the worn gear.
+	_restore_start(hero, cutter)
+
+## The starting kit worn again (hero) and Cutter's short bow, every bar full.
+func _restore_start(hero: Player, cutter: ArcherCompanion) -> void:
+	for item in Items.starting_gear():
+		hero.stats.equip(item, false)
+	cutter.stats.equipment[Items.Slot.WEAPON] = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	hero.powers.reset()
+	cutter.powers.reset()
+	hero.stats.brutal_reload_remaining = 0.0
+	cutter.bow.reload_remaining = 0.0
+
 ## `-- --startbarcapture`: the HUD of a brand-new party at 1080p (windowed, screen 1): the four starting powers full, then partly charged by
 ## damage, then after a kill. Saves PNGs of the whole window to `res://.dev_output/startbar/`. Never saves the game.
 func _start_bar_capture() -> void:
@@ -138,13 +153,7 @@ func _start_bar_capture() -> void:
 	GameSettings.apply_ui_scale()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
-	for item in Items.starting_gear():
-		player.stats.equip(item, false)   # TownState.reset() empties the worn gear; a real start equips the kit
-	game.companion.stats.equipment[Items.Slot.WEAPON] = Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow")
-	player.stats.refresh()
-	game.companion.stats.refresh()
-	player.powers.reset()
-	game.companion.powers.reset()
+	_restore_start(player, game.companion)   # TownState.reset() empties the worn gear; a real start equips the kit
 	var out_dir := ProjectSettings.globalize_path("res://.dev_output/startbar")
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	await get_tree().create_timer(1.0).timeout
