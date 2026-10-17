@@ -260,3 +260,29 @@ shield of 35% of its life that must break first), Summoner (two trivial zombies 
 (a 3 m blast after a 1.3 s telegraph, 1.8 x its average blow to the hero). Trivial and level-one openers never carry one. Its drop is a
 magic item or better, a rare 30% of the time, on top of the ordinary roll. Every number is a provisional tunable awaiting owner review.
 Checks: `--only=champions`; look: `-- --championshot`.
+
+## Curse pacing (departs from DS2; owner 2026-10-17, Lane P, issue #60)
+
+The owner stepped away from strict DS2 pacing because of three things: the first ten minutes, the gaps between fights, and waiting on power
+recharges. Every number below is a named constant so a playtest can retune it. **Status** says who owns the value: *done* is in this
+branch, *pending* is set by another Lane P helper and is recorded here as specified in #60, to be checked against that helper's merged code.
+
+| Area | Value | Why | Status |
+|---|---|---|---|
+| Start level | Characters start at **Level 1** (displayed level is Curse's stored level); the XP level gap keeps DS2's 0-based number (`HeroProgression.gap_level`); enemies near the start are Level 1 | A fresh party reads as Level 1, not 0 | done (PR #61) |
+| Starting powers | Warrior: **Brutal Attack + Whirling Strike**; archer: **Take Aim + Thunderous Shot**; all learned, slotted and **fully charged** at the start | Fights are fun from the first hit | pending (P1) |
+| Hotbar | **Two slots per party member**, room for a third capstone slot | Two powers per member | pending (P1) |
+| Charge | Each power has its own charge bar, filled in combat by hits, kills and Openings. Single-target burst (Brutal Attack, Take Aim): **10 to 12 s** of combat. AoE / crowd (Whirling Strike, Thunderous Shot): **6 to 8 s** | DS2's 21 s of combat per recharge is too slow | pending (P1) |
+| Kill refill | Each party kill adds **10 %** charge to every power; a champion kill **25 %** | Killing packs keeps the powers coming | pending (P1) |
+| Opening refill | A landed Opening execution adds **25 %** to all of that hero's powers (replaces the old power refund) | One rule, not two | pending (P1) |
+| Carry-over | Charge carries between fights; **no out-of-combat top-up** | Saving a power for the next fight is a real choice | pending (P1) |
+| Pack size | Packs of **4 to 8**; about **+50 %** bodies per road group; no stretch with more than **8 to 10 s** of walking without a pack in view; first fight within about 10 s of spawn | Less walking, more fighting | pending (P2) |
+| Monster cap | `RoadEncounterRoster.TOTAL_CAP` 64 to **100** | Room for the denser road | pending (P2) |
+| Early levels | **Level 5 by the end of the opening road** (the intro, graveyard and wooded stretches, before the courtyard, z above -40). XP for levels 2 to 5 is DS2's x **`HeroProgression.EARLY_XP_SCALE` 0.5** (150 / 450 / 1000 / 2000 total XP; DS2: 300 / 900 / 2000 / 4000). Level 6 and above are DS2's own numbers | Progress is felt in the first minutes; the long-term curve stays DS2's | done |
+
+**How the early-level constant was chosen.** `XpEstimator` (`game/dev/xp_estimator.gd`) walks the real `RoadEncounterRoster` rows in road order
+with the real XP rules (tier pool, party bonus for two members, level gap), 4.5 m/s walking and an assumed 3 s of fighting per body. Because P2's
+final group sizes were not in this branch, it scales each row's bodies by `XpEstimator.DENSITY` (1.5, the +50 % target); the test asserts 1.5x and
+2x (P2 makes the road at least 1.5x; at today's 1x Level 5 arrives in the courtyard, z -68). Retune: change `EARLY_XP_SCALE` (or `EARLY_LEVELS`) and rerun
+`--only=earlylevels`, which prints when Level 5 arrives. Class skill levels read the same table, so Melee/Ranged 1 to 4 also come at the
+scaled points. Checks: `--only=earlylevels`, `--only=progression`, `--only=classskills`.

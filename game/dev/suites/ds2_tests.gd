@@ -6,7 +6,7 @@ extends DevSuite
 func _test_class_skills() -> void:
 	TownState.persist = false
 	TownState.reset()
-	expect("the extracted XP table includes exact intermediate levels", HeroProgression.xp_for_level(3) == 900 and HeroProgression.xp_for_level(4) == 2000 and HeroProgression.xp_for_level(6) == 7600)
+	expect("the extracted XP table includes exact intermediate levels", HeroProgression.xp_for_level(3) == 450 and HeroProgression.xp_for_level(4) == 1000 and HeroProgression.xp_for_level(6) == 7600)
 	var old_table: PackedInt64Array = HeroProgression.legacy_table()
 	var old_mid: int = old_table[2] + (old_table[3] - old_table[2]) / 2
 	var v9: Dictionary = TownState.migrate({"save_version": 9, "hero_xp": old_mid, "cutter_xp": old_mid, "class_xp": {"melee": old_mid, "ranged": 0}})
@@ -14,7 +14,7 @@ func _test_class_skills() -> void:
 		HeroProgression.level_for_xp(int(v9["hero_xp"])) == 3 and absf(HeroProgression.level_fraction(int(v9["hero_xp"])) - 0.5) < 0.002
 		and int(v9["hero_xp"]) == int(v9["cutter_xp"]) and int(v9["class_xp"]["melee"]) == int(v9["hero_xp"]) and int(v9["class_xp"]["ranged"]) == 0)
 	expect("a class skill is 0 untrained and 1 at the XP of character level 2", HeroAttributes.class_level(0) == 0
-		and HeroAttributes.class_level(299) == 0 and HeroAttributes.class_level(300) == 1 and HeroAttributes.class_level(HeroProgression.xp_for_level(30)) == 29)
+		and HeroAttributes.class_level(HeroProgression.xp_for_level(2) - 1) == 0 and HeroAttributes.class_level(HeroProgression.xp_for_level(2)) == 1 and HeroAttributes.class_level(HeroProgression.xp_for_level(30)) == 29)
 	var fighter: Vector3 = HeroAttributes.attributes({"melee": 29})
 	expect("a pure fighter at Melee 29 has 99 / 40 / 40 (DS2's design note: about 100 / 40 / 40 at level 30)", fighter == Vector3(99, 40, 40))
 	var life: float = HeroAttributes.max_life(fighter)
