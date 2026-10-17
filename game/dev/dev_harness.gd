@@ -145,6 +145,8 @@ func run_from_args() -> bool:
 		_run("_pause_shot")
 	elif OS.get_cmdline_user_args().has("--hudshot"):
 		_run("_hud_shot")
+	elif OS.get_cmdline_user_args().has("--barclip"):
+		_run("_bar_clip")
 	elif OS.get_cmdline_user_args().has("--smashshot"):
 		_run("_smash_shot")
 	elif OS.get_cmdline_user_args().has("--dropshot"):

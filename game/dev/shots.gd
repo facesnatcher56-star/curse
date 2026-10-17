@@ -482,6 +482,38 @@ func _hud_shot() -> void:
 	get_viewport().get_texture().get_image().save_png(OS.get_environment("TEMP") + "/curse_hud_1.png")
 	get_tree().quit()
 
+## `-- --barclip`: a short scripted fight for a video (run with `--write-movie out.avi --fixed-fps 30`): the hero holds the click on one
+## zombie, lets go, then holds on a second, so the bar chip trail and hit-confirm pulse show. Quits when it is done.
+func _bar_clip() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().physics_frame
+	var was_pad: bool = Gamepad.active
+	Gamepad.active = true   # the pointer is scripted (cursor_override), not the real mouse
+	player.global_position = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var first: Enemy = _spawn_enemy(Vector3(1.9, 0.0, 0.0))
+	var second: Enemy = _spawn_enemy(Vector3(1.9, 0.0, 2.6))
+	for e in [first, second]:
+		e.aggro_range = 0.0
+		e.max_health = 45.0   # each blow (about 5 damage at this level) takes a visible slice of the bar
+		e.health = 45.0
+		e.dodge_chance = 0.15
+		e.block_chance = 0.15
+	await get_tree().create_timer(0.8).timeout
+	player.cursor_override = first.global_position
+	Input.action_press("click")
+	await get_tree().create_timer(4.5).timeout
+	Input.action_release("click")
+	await get_tree().create_timer(0.7).timeout
+	player.cursor_override = second.global_position
+	Input.action_press("click")
+	await get_tree().create_timer(4.5).timeout
+	Input.action_release("click")
+	await get_tree().create_timer(0.8).timeout
+	Gamepad.active = was_pad
+	get_tree().quit()
+
 ## `-- --powerbarcapture`: record the reusable forged frame with three live power icon textures.
 func _powerbar_capture() -> void:
 	player.set_physics_process(false)

@@ -1022,19 +1022,26 @@ func _test_body_recoil() -> void:
 	expect("and the zombie has thighs to step with", target.model._thighs.size() == 2 and target.model._thighs[0] > 0 and target.model._thighs[1] > 0)
 	await get_tree().create_timer(1.8).timeout
 	expect("and it recovers", not target.model.reaction.active())
-	# Every blow interrupts a small monster, even a light one, and a blow while it is still reeling restarts the reaction.
+	# A plain sword blow (the basic attack) never interrupts, stuns, shoves or freezes an enemy; a power's blow still staggers a small one.
 	target.stun_time = 0.0
 	var light_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 0.5, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}
-	var every_time: bool = true
+	var never_stuns: bool = true
+	var serial: int = target.flinch_serial
+	var knock_before: Vector3 = target.knock
+	for i in 4:
+		target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
+		never_stuns = never_stuns and is_zero_approx(target.stun_time) and target.hitpause <= 0.0
+	expect("a plain blow never stuns or freezes a small monster", never_stuns and target.flinch_serial == serial)
+	expect("and does not shove it along the ground", target.knock.is_equal_approx(knock_before))
+	var power_blow: Dictionary = light_blow.duplicate()
+	power_blow["skill_id"] = "whirling_strike"
+	var power_every_time: bool = true
 	for i in 4:
 		target.stun_time = 0.0
-		target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
-		every_time = every_time and target.stun_time >= 0.1
-	expect("a light blow interrupts a small monster every time", every_time)
-	var serial: int = target.flinch_serial
-	target.receive(light_blow, target.global_position + Vector3(0, 0, 3.0))
-	expect("each blow counts, so the hit pose can restart", target.flinch_serial == serial + 1)
+		target.receive(power_blow, target.global_position + Vector3(0, 0, 3.0))
+		power_every_time = power_every_time and target.stun_time >= 0.1
+	expect("a power's blow still interrupts a small monster", power_every_time)
 	target.health = 1.0
 	var lethal_blow: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": 1.0, "weight": 1.0, "source": player,
 		"type": Combat.DamageType.PHYSICAL, "skill_id": "basic"}

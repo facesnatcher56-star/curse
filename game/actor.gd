@@ -286,6 +286,10 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var weight: float = result.get("weight", 1.0)
 	_confirm_hit_on_bar(outcome, weight)
 	var source: Actor = result.get("source")
+	# A plain sword blow from the party (the basic attack) has a small impact on an enemy and never interrupts it: no stun, no flinch,
+	# no shove, no freeze. Its small visual reaction (flash, squash, a light recoil) stays; powers and procs still stagger on purpose.
+	var plain_blow: bool = not is_in_group("player") and source is Player and String(result.get("skill_id", "")) == "basic"
+
 	var chest: Vector3 = global_position + Vector3(0, body_height * 0.65, 0)
 	# A "calm" hit (the Earthshatter shockwave striking a whole crowd at once) skips the per-enemy blood, numbers, flashes, shake and
 	# hit-pause: ten of those at the same instant would bury the move in noise.
@@ -303,7 +307,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	if outcome == Combat.Outcome.BLOCK:
 		Fx.burst(self, chest, away + Vector3.UP * 0.5, Color(1.0, 0.85, 0.5), 10, 6.0, 0.03, true)
-		knock += away * 1.5 * weight
+		if not plain_blow:
+			knock += away * 1.5 * weight
 		_on_avoided(outcome)
 		return
 
@@ -351,7 +356,8 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		_flash = 1.0
 		model.set_overlay(_flash_mat)
 		_squash(away, 0.08 * weight + (0.1 if big else 0.0))
-		flinch_serial += 1
+		if not plain_blow:
+			flinch_serial += 1
 		if not is_in_group("player") and not is_ragdolled() and model != null:   # the body takes the blow: chest tips away, shoulders turn, head follows
 			var scale_up: float = 1.5 if outcome == Combat.Outcome.CRITICAL else 1.0
 			model.react(away, BodyRecoil.peak_for(weight, scale_up, knock_resist))
@@ -366,7 +372,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	var pause: float = 0.06 * weight + (0.045 if big else 0.0)
 	# The hero is never frozen by being hit: a crowd landing blows would otherwise stutter every skill to a halt.
 	if not calm:
-		if not killed and not is_in_group("player"):
+		if not killed and not is_in_group("player") and not plain_blow:
 			add_hitpause(pause)
 		if source != null and source != self:
 			source.add_hitpause(pause)
@@ -389,14 +395,16 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	match outcome:
 		Combat.Outcome.CRITICAL:
 			push = 5.5
-			if not hero:
+			if not hero and not plain_blow:
 				stun_time = maxf(stun_time, 0.3 * (1.0 - stun_resist))
 		_:
 			# Ordinary blows only flinch enemies. The hero keeps swinging, casting and moving through them.
 			# Every blow interrupts a small monster (the owner: they surround you anyway, so it costs nothing); big ones only sometimes.
-			if not hero and (weight >= 1.5 or randf() < flinch_chance or stun_resist <= SMALL_STUN_RESIST):
+			if not hero and not plain_blow and (weight >= 1.5 or randf() < flinch_chance or stun_resist <= SMALL_STUN_RESIST):
 				stun_time = maxf(stun_time, maxf(0.25 * weight, MIN_FLINCH) * (1.0 - stun_resist))
 	var shove: float = push * weight * (1.0 - knock_resist)
+	if plain_blow:
+		shove = 0.0   # a plain sword blow lands without shoving the enemy along the ground (powers still do)
 	if hero:
 		shove *= 0.2 if is_acting() else 0.5   # mid-skill the hero is planted
 	knock += away * shove
