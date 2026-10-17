@@ -92,6 +92,12 @@ func _test_hotbar() -> void:
 	GameSettings.reset_hotbar()
 	var skills: SkillController = player.skills
 	expect("the hero's hotbar is the settings' layout", is_same(skills.hotbar, GameSettings.hotbar_slots) and skills.right_click_skill == "basic")
+	# The picker offers only learned powers: open Repulse (Dodge 4, Survival 3) and Take Aim (Critical Shot 1) for the hero for this check.
+	var hero_ranks: Dictionary = PartyManager.current().member("hero").passive_ranks
+	var ranks_before: Dictionary = hero_ranks.duplicate()
+	hero_ranks["dodge"] = 4
+	hero_ranks["survival"] = 3
+	hero_ranks["critical_shot"] = 1
 	# The real click path: open the picker on slot 2, choose Repulse.
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -148,6 +154,8 @@ func _test_hotbar() -> void:
 		cutter.skills.cancel_take_aim_targeting()
 		cutter.character.passive_ranks = saved_ranks
 	GameSettings.reset_hotbar()
+	hero_ranks.clear()
+	hero_ranks.merge(ranks_before)
 
 ## Drive cancellation synchronously so regeneration and input timing cannot mask a spend or refund.
 func _test_action_queue() -> void:

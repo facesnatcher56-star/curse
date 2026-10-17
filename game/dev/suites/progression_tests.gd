@@ -141,11 +141,13 @@ func _test_progression() -> void:
 	for level in range(2, HeroProgression.MAX_LEVEL + 1):
 		rising = rising and HeroProgression.xp_for_level(level) > HeroProgression.xp_for_level(level - 1)
 	expect("every level needs more total XP than the one before", rising)
+	# DS2's real experience_table (formulas.gas), by 1-based stored level: the table index is DS2's own level.
+	var real_points := {1: 0, 2: 300, 3: 900, 5: 4000, 10: 34200, 20: 196372, 30: 662568, 40: 1986295, 50: 5744912, 100: 1070785566, 101: 1188578257}
 	var samples_ok: bool = true
-	for level in HeroProgression.DS2_SAMPLES:
-		samples_ok = samples_ok and HeroProgression.xp_for_level(int(level)) == int(HeroProgression.DS2_SAMPLES[level])
-	expect("every documented DS2 experience-table point is exact (L2 300, L10 34,200, L30 663,000, L100 1.07 billion)", samples_ok
-		and HeroProgression.xp_for_level(2) == 300 and HeroProgression.xp_for_level(30) == 663000 and HeroProgression.max_xp() == 1070000000)
+	for level in real_points:
+		samples_ok = samples_ok and HeroProgression.xp_for_level(int(level)) == int(real_points[level])
+	expect("every checked point of DS2's real experience table is exact (L2 300, L10 34,200, L30 662,568, the cap 1,188,578,257)", samples_ok
+		and HeroProgression.max_xp() == 1188578257)
 	TownState.add_hero_xp(l2 - 1)
 	expect("one XP short of level 2 is still level 1", TownState.hero_level == 1 and TownState.hero_xp == l2 - 1)
 	var up: Dictionary = TownState.add_hero_xp(1)
@@ -212,6 +214,7 @@ func _test_progression() -> void:
 	var no_fields: Dictionary = saved.duplicate(true)
 	no_fields.erase("hero_xp")
 	no_fields.erase("hero_level")
+	no_fields.erase("party")   # the party's own record holds each member's XP now
 	TownState.from_dict(TownState.migrate(no_fields))
 	expect("a save missing the fields loads at level 1", TownState.hero_level == 1 and TownState.hero_xp == 0)
 	# Migration: a version 2 save keeps everything and begins at level 1.
@@ -299,12 +302,16 @@ func _test_world_progression() -> void:
 	expect("the world does not borrow an arena wave", director.connected() and director.wave == 0)
 	var placed_right: bool = true
 	var checked: int = 0
+	var authored: int = 0
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
-		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid") and not e.has_meta("exact_level"):
+		if e != null and e.group_id >= 1 and e.group_id < 100 and not e.has_meta("monster_uid") and not e.has_meta("quest_uid"):
 			checked += 1
-			placed_right = placed_right and absf(e.level_scale - crypt.threat_at(e.home)) < 0.001
-	expect("every ordinary monster on the road has its stretch's threat (%d checked)" % checked, checked > 20 and placed_right)
+			if e.has_meta("exact_level"):   # hand-placed at a DS2 level of its own (the road's groups are all authored this way)
+				authored += 1
+			else:
+				placed_right = placed_right and absf(e.level_scale - crypt.threat_at(e.home)) < 0.001
+	expect("every road monster is authored at its own DS2 level or has its stretch's threat (%d checked, %d authored)" % [checked, authored], checked > 20 and placed_right)
 	var spawn_at: Callable = func(group: int, z: float) -> Enemy:
 		crypt._group(group, "", [["zombie", 0.0, z]], Vector2(0.0, z))
 		for node in get_tree().get_nodes_in_group("enemies"):

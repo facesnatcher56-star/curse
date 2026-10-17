@@ -472,9 +472,13 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 		var pickup := HealthOrb.new()
 		pickup.is_potion = kind == "health"
 		pickup.is_mana = kind == "mana"
-		pickup.gold_amount = int(loot.gold) if kind == "gold" else 0
+		pickup.gold_amount = gold_for_drop(int(loot.gold)) if kind == "gold" else 0
 		get_tree().current_scene.add_child(pickup)
 		pickup.global_position = enemy.global_position
+
+## The gold a drop holds in the connected world: a running world event (a blood moon) multiplies it.
+func gold_for_drop(base: int) -> int:
+	return int(round(float(base) * (Quests.world_mult("gold_mult") if world_mode else 1.0)))
 
 func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)

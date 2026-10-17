@@ -247,12 +247,10 @@ func _test_quest_world() -> void:
 	TownState.quests = []
 	TownState.world_mods = []
 	Quests.post("blood_moon")
-	var gold: int = TownState.gold
-	var kill: Enemy = town.director.spawn_enemy(crypt.at(0, 143), "zombie", 1.0)
-	kill.aggro_range = 0.0
-	kill.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": hero, "skill_id": "x", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, hero.global_position)
-	await get_tree().create_timer(0.6).timeout
-	expect("under a blood moon a kill pays double (%d)" % (TownState.gold - gold), TownState.gold - gold == 4)
+	expect("under a blood moon the gold a drop holds is doubled (%d for 7)" % town.director.gold_for_drop(7), town.director.gold_for_drop(7) == 14)
+	TownState.world_mods = []
+	expect("with no world event it is not", town.director.gold_for_drop(7) == 7)
+	Quests.post("blood_moon")
 	# The HUD tracks what is running.
 	await get_tree().process_frame
 	expect("the tracker lists the world event", town.hud.side_lines.size() >= 1)
