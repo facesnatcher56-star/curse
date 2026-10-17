@@ -14,7 +14,7 @@ static func spawn(from: Node, contact: Vector3, direction: Vector3, rank_scale: 
 	from.get_tree().current_scene.add_child(wake)
 	wake.global_position = contact
 	var dir := direction.normalized()
-	var force := lerpf(1.0, 1.3, clampf((rank_scale - 1.0) / 0.8, 0.0, 1.0))
+	var force := lerpf(0.62, 0.8, clampf((rank_scale - 1.0) / 0.8, 0.0, 1.0))   # kept in scale with Take Aim's restrained impact
 	wake._mist(dir, force)
 	wake._arterial_spray(dir, force)
 	wake._ground_splatter(dir, force)
@@ -23,7 +23,7 @@ static func spawn(from: Node, contact: Vector3, direction: Vector3, rank_scale: 
 func _mist(dir: Vector3, force: float) -> void:
 	var mist := CPUParticles3D.new()
 	mist.name = "DirectionalRedMist"
-	mist.amount = 84
+	mist.amount = 44
 	mist.one_shot = true
 	mist.explosiveness = 0.75
 	mist.lifetime = 0.95
@@ -68,7 +68,7 @@ func _mist(dir: Vector3, force: float) -> void:
 func _arterial_spray(dir: Vector3, force: float) -> void:
 	var spray := CPUParticles3D.new()
 	spray.name = "ArterialSpray"
-	spray.amount = 48
+	spray.amount = 28
 	spray.one_shot = true
 	spray.explosiveness = 0.96
 	spray.lifetime = 0.70
@@ -111,7 +111,7 @@ func _ground_splatter(dir: Vector3, force: float) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var space := get_world_3d().direct_space_state
-	for i in 56:
+	for i in 22:
 		# The same narrow cone as the airborne arterial spray, extending behind the victim.
 		var distance := rng.randf_range(0.4, 5.5) * force
 		var along := dir.rotated(Vector3.UP, rng.randf_range(-0.16, 0.16))

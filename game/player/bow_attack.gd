@@ -5,6 +5,15 @@ const BOW_MODEL := "res://assets/models/archer/bow/model.glb"
 const QUIVER_MODEL := "res://assets/models/archer/quiver/model.glb"
 const ARROW_MODEL := "res://assets/models/archer/arrow/model.glb"
 var p: Player
+## The empowered shot's draw: one long gathering of focus, then the release (the ordinary draw is 0.62 s).
+const TAKE_AIM_DRAW := 1.9
+## Thunderous Shot's draw (visuals only for now: `thunder_visual` stands in for the power, which is not built yet).
+const THUNDER_DRAW := 1.9
+var thunder_visual: bool = false
+var thunder_power: bool = false        # the shot was started by the power itself (it deals its damage and is spent at the release)
+var _thunder_point: Vector3             # where a Thunderous Shot is aimed: a point (an enemy's chest, or the ground under the cursor)
+var _thunder_aimed: bool = false
+var thunder_fx: ThunderousShotFx
 var _draw: float = 0.0
 var _release: float = 0.0
 var _recovery: float = 1.05
@@ -20,7 +29,7 @@ var _skeleton: Skeleton3D
 var _pose_bones: Dictionary = {}
 var _bow_scale: float
 var _arrow_rest: Transform3D
-var aura: BrutalAttackFx
+var aura: TakeAimFx
 ## What the current shot is for: an Actor, or a breakable prop (a nest) the controlled archer was ordered to shoot.
 var _target: Actor
 var _prop: Destructible
@@ -90,9 +99,9 @@ func disarm() -> void:
 func arm() -> void:
 	if not p.stats.can_use("take_aim") or armed: return
 	armed = true
-	aura = BrutalAttackFx.new()
+	aura = TakeAimFx.new()
 	p.add_child(aura)
-	aura.setup(p.model, false)
+	aura.setup(self)
 
 func start(target: Actor) -> void:
 	if not is_instance_valid(target) or target.dead:
@@ -100,6 +109,27 @@ func start(target: Actor) -> void:
 	_begin(target, null)
 
 ## The controlled archer's order to break a prop (a nest) with the bow. Only hero-breakable props qualify.
+## Thunderous Shot: draw toward `point` (no enemy needs to be chosen; the bolt goes where the bow points) and loose the power at the end of
+## the draw. False when he cannot draw now (busy, dead, no bow).
+func start_thunderous(point: Vector3) -> bool:
+	if p.dead or p.skills.busy or not p.stats.is_ranged():
+		return false
+	_thunder_point = point
+	_thunder_aimed = true
+	thunder_visual = true
+	thunder_power = true
+	_begin(null, null)
+	if not p.skills.busy:
+		_clear_thunder_state()
+		return false
+	return true
+
+func _clear_thunder_state() -> void:
+	if thunder_power:
+		thunder_visual = false
+	thunder_power = false
+	_thunder_aimed = false
+
 func start_prop(prop: Destructible) -> void:
 	if prop == null or not prop.is_hero_target():
 		return
@@ -109,7 +139,7 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	var point := _shot_point(target, prop)
 	if not p.stats.is_ranged() or p.skills.busy:
 		return
-	if not Nav.sight_clear(p, p.global_position, point, prop):
+	if not _thunder_aimed and not Nav.sight_clear(p, p.global_position, point, prop):
 		refusals += 1   # a shot asked for without sight is refused here, and counted for the selftest
 		return
 	p.skills.clear_queue()
@@ -124,24 +154,32 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	p.skills.busy_def = {"kind": "ranged", "charged": false}
 	p.skills.busy_t = 0.0
 	p.skills.busy_hit_done = false
-	p.skills.busy_time = (0.92 if armed else 0.62) / p.stats.attack_speed()
+	p.skills.busy_time = (THUNDER_DRAW if thunder_visual else (TAKE_AIM_DRAW if armed else 0.62)) / p.stats.attack_speed()
 	_recovery = (1.05 + randf_range(0.0, 0.22)) / p.stats.attack_speed()
 	p.movement.has_goal = false
 	p.combat_timer = 5.0
 	p.face(point)
 	p.model.loop("idle_alert")
 	_draw = 0.0
+	if thunder_visual:
+		_clear_thunder_fx()
+		thunder_fx = ThunderousShotFx.new()
+		p.add_child(thunder_fx)
+		thunder_fx.setup(self)
 	if armed:
-		SkillFx.take_aim_charge(_bow_holder)
 		Sfx.power(p, "take_aim_charge")
 
 ## Where a shot at an Actor (its chest) or a prop (its centre) is aimed.
 func _shot_point(target: Actor, prop: Destructible) -> Vector3:
+	if _thunder_aimed:
+		return _thunder_point
 	if prop != null:
 		return prop.global_position + Vector3(0, prop.height * 0.5, 0)
 	return target.global_position + Vector3(0, target.body_height * 0.62, 0)
 
 func _target_valid() -> bool:
+	if _thunder_aimed:
+		return true
 	if _prop != null:
 		return _prop.is_hero_target()
 	return is_instance_valid(_target) and not _target.dead
@@ -154,7 +192,7 @@ func tick(delta: float) -> void:
 	if not p.skills.busy_hit_done:
 		# Sight is re-checked through the whole draw: a target that stepped behind a wall or prop is not loosed at.
 		var point := _shot_point(_target, _prop)
-		if not Nav.sight_clear(p, p.global_position, point, _prop):
+		if not _thunder_aimed and not Nav.sight_clear(p, p.global_position, point, _prop):
 			cancel()
 			return
 		p.face(point, 0.28)
@@ -176,12 +214,21 @@ func loose() -> void:
 	if _target != null:
 		aim += _target.velocity * clampf(from.distance_to(aim) / (CompanionArrow.SPEED * (2.0 if armed else 1.0)), 0, 0.45)
 	# The lead of a moving target must not put the arrow into scenery: then loose at the point that was checked clear.
-	if not Nav.sight_clear(p, p.global_position, aim, _prop):
+	if not _thunder_aimed and not Nav.sight_clear(p, p.global_position, aim, _prop):
 		aim = still
 	var damage := p.stats.ranged_range()
 	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 * p.stats.power_damage_mult() if armed else 1.0
-	CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
-	if armed:
+	if thunder_visual:
+		# The visuals first (they read who is on the line), then the power's damage and stun.
+		ThunderousShotFx.release(p, p, from, aim - from, p.powers.thunderous_stun() if thunder_power else 6.0)
+		if thunder_power:
+			p.powers.thunderous_release(from, aim - from)
+		_clear_thunder_fx()
+		_clear_thunder_state()
+	else:
+		CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
+	if armed and not thunder_visual:
+		TakeAimFx.launch(p, from, aim - from, _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)))
 		Sfx.power(p, "take_aim_fire")
 		reload_required = p.stats.power_recharge_damage(PowerDb.get_def("take_aim").recharge, "ranged")
 		reload_remaining = reload_required
@@ -193,7 +240,13 @@ func loose() -> void:
 	_draw_arrow.visible = false
 	_set_bow_string_visible(false)
 
+func _clear_thunder_fx() -> void:
+	if is_instance_valid(thunder_fx): thunder_fx.queue_free()
+	thunder_fx = null
+
 func cancel() -> void:
+	_clear_thunder_fx()
+	_clear_thunder_state()
 	_draw = 0.0
 	_release = 0.0
 	_target = null
@@ -502,10 +555,21 @@ func _aim_chain(chain: Array[String], hand_name: String, target_world: Vector3, 
 			var local_delta: Quaternion = Quaternion(parent_basis.inverse() * world_delta * parent_basis)
 			_skeleton.set_bone_pose_rotation(bone, local_delta * _skeleton.get_bone_pose_rotation(bone))
 
+## Layers a rotation over the animated pose of a bone. Idempotent: when the animation has not rewritten the bone since the last layer
+## (a long hold, or called twice in a frame) the layer is applied to the animated pose it was first applied to, not stacked on itself.
+var _layer_base: Dictionary = {}
+var _layer_out: Dictionary = {}
+
 func _pose(name: String, euler: Vector3, weight: float) -> void:
 	var index: int = int(_pose_bones.get(name, -1))
 	if index < 0:
 		return
 	var base: Quaternion = _skeleton.get_bone_pose_rotation(index)
+	if _layer_out.has(name) and base.is_equal_approx(_layer_out[name]):
+		base = _layer_base[name]   # still our own output: the animation has not refreshed this bone
+	else:
+		_layer_base[name] = base
 	var layer := Quaternion.from_euler(euler)
-	_skeleton.set_bone_pose_rotation(index, base * Quaternion.IDENTITY.slerp(layer, weight))
+	var result: Quaternion = base * Quaternion.IDENTITY.slerp(layer, weight)
+	_layer_out[name] = result
+	_skeleton.set_bone_pose_rotation(index, result)

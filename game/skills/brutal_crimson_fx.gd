@@ -178,35 +178,7 @@ static func impact(from: Node, point: Vector3, direction: Vector3, rank: int) ->
 	var contact := point + Vector3.UP * 1.0
 	var camera := from.get_viewport().get_camera_3d()
 	var facing := camera.global_basis if camera != null else Basis.IDENTITY
-	var mesh := rupture_mesh()
-	# Meshy's serrated crescents fracture outward from the actual contact point.
-	for i in 5:
-		var root := Node3D.new()
-		root.name = "CrimsonRuptureShard"
-		root.add_to_group(GROUP)
-		from.get_tree().current_scene.add_child(root)
-		root.global_position = contact
-		root.basis = facing.rotated(facing.z, float(i) * 1.27 - 0.5)
-		var shard := MeshInstance3D.new()
-		shard.mesh = mesh
-		shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var material := _blood_material(hue if i % 2 == 0 else hue.darkened(0.25))
-		shard.material_override = material
-		root.add_child(shard)
-		var bounds := mesh.get_aabb()
-		shard.position = -bounds.get_center()
-		var norm := (0.70 + float(i % 3) * 0.25) * scale_factor / maxf(bounds.size.length(), 0.01)
-		root.scale = Vector3.ONE * norm * 0.12
-		var angle := float(i) * TAU / 5.0
-		var outward := facing.x * cos(angle) + facing.y * sin(angle)
-		var tween := root.create_tween().set_parallel(true)
-		tween.tween_property(root, "scale", Vector3.ONE * norm, 0.10).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(root, "global_position", contact + outward * 1.35 * scale_factor + dir * 0.30, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tween.tween_property(root, "rotation:z", root.rotation.z + 0.5, 0.40)
-		var fade := func(value: float) -> void: material.set_shader_parameter("fade", value)
-		tween.tween_method(fade, 1.0, 0.0, 0.24).set_delay(0.14)
-		tween.chain().tween_callback(root.queue_free)
-	_impact_seam(from, contact, facing, scale_factor)
+	# No flying crescents and no contact tear: the spray, the mist and the gibs carry the blow.
 	BrutalBloodWake.spawn(from, contact, dir, scale_factor)
 	Fx.light_flash(from, contact, Color("ff284b"), 3.0, 0.14)
 	Fx.burst(from, contact, dir + Vector3.UP * 0.25, Color("650a17"), 36, 8.0 * scale_factor, 0.035)
