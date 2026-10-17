@@ -94,6 +94,7 @@ func _tally_damage(source: Actor, skill_id: String, amount: float, origin: Dicti
 		member_damage[member_id][id] = float(member_damage[member_id].get(id, 0.0)) + dealt
 		if member_id == "hero": hero_damage[id] = float(hero_damage.get(id, 0.0)) + dealt
 		elif member_id == "cutter": cutter_damage += dealt
+		if self is Enemy: XpShare.pay_hit(self as Enemy, member_id, id, dealt)
 
 func hero_credited() -> bool:
 	return Time.get_ticks_msec() - _hero_credit_ms <= CREDIT_MS

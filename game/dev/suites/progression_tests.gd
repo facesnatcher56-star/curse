@@ -435,14 +435,17 @@ func _test_xp() -> void:
 	var expected: Callable = func(kind: String, threat: float) -> int:
 		var level: int = WorldThreat.monster_level(threat)
 		var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, level)
-		return HeroProgression.party_share(int(round(HeroProgression.monster_xp(level, EnemyDb.get_def(kind).tier) * gap)), members)
+		# DS2 pays hit by hit: the whole pool in one killing blow, with the party bonus split, then the gap, and only whole points kept.
+		return int(floor(HeroProgression.monster_xp_value(level, EnemyDb.get_def(kind).tier) * HeroProgression.PARTY_BONUS[members] / members * gap))
 	# A kill the hero is credited with pays; the same kill in a stronger place pays more.
 	var kill: Callable = func(kind: String, threat: float, credited: bool) -> int:
 		var before: int = TownState.hero_xp
+		XpShare.pending.clear()
 		var e: Enemy = director.spawn_enemy(spot, kind, threat)
 		await get_tree().process_frame
 		if credited:
 			e.credit_hero()
+			e._tally_damage(hero, "basic", e.max_health + 10.0, hero.combat_identity())   # (a blow from the hero's blade)
 		e._apply_damage(e.max_health + 10.0)
 		await get_tree().process_frame
 		return TownState.hero_xp - before
@@ -461,8 +464,9 @@ func _test_xp() -> void:
 	expect("a death the hero had no hand in pays nothing", uncredited == 0)
 	var burner: Enemy = director.spawn_enemy(spot, "brute", 1.25)
 	await get_tree().process_frame
+	XpShare.pending.clear()
 	var xp_before: int = TownState.hero_xp
-	burner.apply_burn(5000.0, 2.0, true)
+	burner.apply_burn(5000.0, 2.0, true, hero, "burn")
 	burner._tick_burn(0.1)
 	await get_tree().process_frame
 	expect("a kill by fire the hero lit is theirs", burner.dead and TownState.hero_xp - xp_before == brute_near)
@@ -543,13 +547,17 @@ func _test_xp() -> void:
 	expect("a monster that has killed the hero is worth more, and so is one with a plot", HeroProgression.named_xp(named_level, 2, false) == bounty + 2 * HeroProgression.NEMESIS_PER_KILL
 		and HeroProgression.named_xp(named_level, 0, true) == bounty + HeroProgression.PLOT_BONUS_XP)
 	xp_before = TownState.hero_xp
+	XpShare.pending.clear()
 	body.credit_hero()
+	body._tally_damage(hero, "basic", body.max_health + 10.0, hero.combat_identity())
 	body._apply_damage(body.max_health + 10.0)
 	await get_tree().process_frame
 	var paid: int = TownState.hero_xp - xp_before
-	var named_total: int = HeroProgression.monster_xp(named_level, "normal") + bounty
-	expect("killing a named monster pays its kill value and its bounty, gap and party applied (%d)" % paid,
-		paid == HeroProgression.party_share(int(round(named_total * HeroProgression.level_gap_mult(TownState.hero_level, named_level))), members))
+	var named_gap: float = HeroProgression.level_gap_mult(TownState.hero_level, named_level)
+	var named_hits: float = HeroProgression.monster_xp_value(named_level, body.def.tier) * HeroProgression.PARTY_BONUS[members] / members * named_gap
+	var named_expect: int = HeroProgression.party_share(int(round(bounty * named_gap)), members) + int(floor(named_hits))
+	expect("killing a named monster pays its hits (hit by hit) and its bounty at death, gap and party applied (%d vs %d)" % [paid, named_expect],
+		absi(paid - named_expect) <= 1)
 	var again: int = director._report_to_quests(body)
 	expect("the bounty is paid once", again == 0 and TownState.hero_xp - xp_before == paid)
 	var strong: Dictionary = Monsters.rise()
@@ -565,19 +573,19 @@ func _test_xp() -> void:
 			strong_body = node
 	xp_before = TownState.hero_xp
 	strong_body.credit_hero()
+	strong_body._tally_damage(hero, "basic", strong_body.max_health + 10.0, hero.combat_identity())
 	strong_body._apply_damage(strong_body.max_health + 10.0)
 	await get_tree().process_frame
 	var strong_paid: int = TownState.hero_xp - xp_before
 	expect("a stronger nemesis that beat the hero twice, with a plot, pays much more (%d)" % strong_paid, strong_paid > paid * 2)
 	# Nests: once each, when they break.
-	var nest_xp: int = HeroProgression.nest_xp(WorldThreat.monster_level(crypt.threat_at(crypt.nests[0].global_position)))
 	xp_before = TownState.hero_xp
 	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
 	await get_tree().process_frame
 	var after_nest: int = TownState.hero_xp
 	crypt.nests[0].hit(9999.0, Vector3.FORWARD)
 	await get_tree().process_frame
-	expect("a nest pays its miniboss XP with party share, once", after_nest - xp_before == HeroProgression.party_share(nest_xp, PartyManager.current().living().size()) and TownState.hero_xp == after_nest)
+	expect("breaking a nest pays no XP of its own: the two zombies that claw out pay theirs when killed (DS2: a nest pays its children)", after_nest == xp_before and TownState.hero_xp == after_nest)
 	# The standing quest: on hand-in, once.
 	TownState.board[0]["ready"] = true
 	xp_before = TownState.hero_xp
@@ -727,12 +735,37 @@ func _test_dungeon_kill_xp() -> void:
 	var xp_before: int = TownState.hero_xp
 	var melee_before: int = int(TownState.class_xp.get("melee", 0))
 	enemy.credit_hero()
+	enemy._tally_damage(player, "basic", enemy.max_health + 10.0, player.combat_identity())
 	enemy._apply_damage(enemy.max_health + 10.0)
 	for i in 3:
 		await get_tree().process_frame
 	expect("a kill in the dungeon raises the hero's XP (%d -> %d)" % [xp_before, TownState.hero_xp], TownState.hero_xp > xp_before)
 	expect("a kill in the dungeon raises the melee class XP (%d -> %d)" % [melee_before, int(TownState.class_xp.get("melee", 0))],
 		int(TownState.class_xp.get("melee", 0)) > melee_before)
+	# DS2 pays hit by hit from a finite pool: four quarter-life blows pay the whole pool between them, a fifth into the corpse nothing.
+	var members_now: int = PartyManager.current().living().size()
+	var pool_enemy: Enemy = dungeon.spawn_enemy(player.global_position + Vector3(2.0, 0.0, 0.0), "zombie", 1.0)
+	pool_enemy.aggro_range = 0.0
+	XpShare.pending.clear()
+	var pool: float = HeroProgression.monster_xp_value(pool_enemy.level, pool_enemy.def.tier)
+	var gap: float = HeroProgression.level_gap_mult(TownState.hero_level, pool_enemy.level)
+	var xp_start: int = TownState.hero_xp
+	var quarter: float = pool_enemy.max_health * 0.25
+	pool_enemy._tally_damage(player, "basic", quarter, player.combat_identity())
+	pool_enemy._apply_damage(quarter)
+	await get_tree().process_frame
+	expect("the first quarter-life blow pays a quarter of the pool (%d)" % (TownState.hero_xp - xp_start),
+		absi(TownState.hero_xp - xp_start - int(floor(pool * 0.25 * HeroProgression.PARTY_BONUS[members_now] / members_now * gap))) <= 1)
+	for i in 3:
+		pool_enemy._tally_damage(player, "basic", quarter, player.combat_identity())
+		pool_enemy._apply_damage(quarter)
+	await get_tree().process_frame
+	var paid_pool: int = TownState.hero_xp - xp_start
+	expect("four quarter blows pay the whole pool, party bonus and gap applied (%d)" % paid_pool,
+		absi(paid_pool - int(floor(pool * HeroProgression.PARTY_BONUS[members_now] / members_now * gap))) <= 1 and pool_enemy.xp_left < 0.001)
+	pool_enemy._tally_damage(player, "basic", quarter, player.combat_identity())
+	await get_tree().process_frame
+	expect("a blow into the finished pool pays nothing more", TownState.hero_xp - xp_start == paid_pool)
 	dungeon.queue_free()
 	await get_tree().process_frame
 	place.free()   # never added to the tree

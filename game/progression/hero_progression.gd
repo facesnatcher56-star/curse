@@ -132,11 +132,21 @@ const PLOT_BONUS_XP := 400
 ## `--xplog`: print why XP was paid (developer only).
 static var logging: bool = false
 
-## DS2's XP value of a monster: `L < 12: 48 + 12L`, otherwise `6480 x 1.11^L / (5.4 (L + 10))`, times its tier.
-static func monster_xp(level: int, tier: String = "normal") -> int:
+## DS2's XP value of a monster, unrounded (its template's `experience_value`, actor_evil_*.gas): below level 12 `base + slope x L`, from
+## level 12 `curve x 1.11^L / (5.4 (L + 10))`, with each tier's own constants as the templates give them (weak is 0.75 of normal below
+## level 12 but 0.8 of it above; trivial and miniboss are 0.42 and 3.33 of normal). This is the pool its hits drain (see XpShare).
+const TIER_VALUE := {
+	"trivial": [20.0, 5.0, 2722.0], "weak": [36.0, 9.0, 5184.0], "normal": [48.0, 12.0, 6480.0],
+	"strong": [60.0, 15.0, 8100.0], "miniboss": [160.0, 40.0, 21600.0],
+}
+
+static func monster_xp_value(level: int, tier: String = "normal") -> float:
 	var l: int = maxi(level, 0)
-	var base: float = 48.0 + 12.0 * l if l < 12 else 6480.0 * pow(1.11, l) / (5.4 * (l + 10))
-	return maxi(int(round(base * float(TIER_XP.get(tier, 1.0)))), 1)
+	var t: Array = TIER_VALUE.get(tier, TIER_VALUE["normal"])
+	return float(t[0]) + float(t[1]) * l if l < 12 else float(t[2]) * pow(1.11, l) / (5.4 * (l + 10))
+
+static func monster_xp(level: int, tier: String = "normal") -> int:
+	return maxi(int(round(monster_xp_value(level, tier))), 1)
 
 ## DS2's level-gap multiplier (hero level - monster level): more than 4 above, -20% a level; more than 4 below, -20% a level too
 ## (DS2 penalises both, so neither farming nor carrying pays); never under 5%.
@@ -154,9 +164,10 @@ static func party_share(xp: int, members: int) -> int:
 	var n: int = clampi(members, 1, PARTY_BONUS.size() - 1)
 	return int(round(float(xp) * float(PARTY_BONUS[n]) / float(n)))
 
-## A nest of this monster level.
+## What a nest of this monster level is worth: the two trivial zombies that claw out of it (DS2: a breakable generator pays its
+## children's `experience_value`; Curse's nest releases them as it breaks and they pay when killed, so breaking the nest pays nothing itself).
 static func nest_xp(level: int) -> int:
-	return monster_xp(level, "miniboss")
+	return 2 * monster_xp(level, "trivial")
 
 ## A named monster of this monster level, which has killed the hero `hero_kills` times, with or without a plot going.
 static func named_xp(level: int, hero_kills: int, has_plot: bool) -> int:

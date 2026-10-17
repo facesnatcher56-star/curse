@@ -14,6 +14,8 @@ var tutorial_fighter: bool = false
 ## Whether killing it pays the hero XP. True for everything the world places and for finite spawns (a nest's break-out, an uprising); false
 ## for anything that can be made over and over (a Plague Priest's summons), so nothing can be farmed. Set it deliberately at the spawn.
 var xp_eligible: bool = true
+## DS2: a monster has a finite pool of XP that its hits drain (XpShare.pay_hit). -1 until the first hit sets it from its level and tier.
+var xp_left: float = -1.0
 ## Set when the spawner makes this enemy a champion (Champion.attach / roll_pack): a tougher named body with one affix. Null otherwise.
 var champion: Champion = null
 
