@@ -73,6 +73,10 @@ godot --headless --path . -s res://game/dev/dungeon_walk.gd -- --crypt01 --loop 
 godot --headless --path . -s res://game/dev/crypt_nav_check.gd -- --crypt01       # every space and doorway reachable
 ```
 
+## Lane S3 follow-ups
+
+The Crypt names itself in the start banner (`CryptDungeon.banner_text`: "The Crypt / Deep Beyond", never the Road's "Free run"); the hero torch is 12 m / 2.4 in the Crypt (`CryptLook.tune_hero_torch`) so enemies stand out in dark rooms; the ambient is a warmer grey-violet; the baker (`_floor_detail`, own RNG) lays about 110 flat, collider-free marks (cracks, grime, blood, bones, grates, rune rings) across room centres.
+
 ## Lighting and mood (Lane S2)
 
 `CryptDungeon.tune_look` (the atmosphere profile is on by default; `--classic` skips it) hands over to `CryptLook`: cold dark
