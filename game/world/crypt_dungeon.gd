@@ -43,6 +43,7 @@ func build(for_arena: Arena) -> void:
 	level = (load(CRYPT_SCENE) as PackedScene).instantiate() as Node3D
 	var nav: NavigationRegion3D = arena.get("_nav_region")
 	nav.add_child(level)
+	CryptLook.apply_materials(level)
 	make_solid(level, nav)
 	for group in level.get_children():
 		match String(group.name):
@@ -56,6 +57,13 @@ func build(for_arena: Arena) -> void:
 	groups = read_groups(level)
 	level.get_node("EnemyGroups").queue_free()   # only read: the groups are spawned by spawn_encounters
 	arena.bake_navigation()
+
+
+## The Crypt's own mood instead of the test dungeon's bright rooms (only under the atmosphere profile, which is the default).
+func tune_look(environment: Environment) -> void:
+	var suns: Array = arena.get_tree().root.find_children("*", "DirectionalLight3D", true, false)
+	CryptLook.tune_environment(environment, suns[0] as DirectionalLight3D if not suns.is_empty() else null)
+	CryptLook.style_lights(arena)
 
 
 # --- Solid walls from the GridMaps --------------------------------------------------------------------------------------------------------
