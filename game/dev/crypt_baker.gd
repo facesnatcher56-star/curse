@@ -60,6 +60,7 @@ func build() -> int:
 	_scatter()
 	_chest_nodes()
 	_packs()
+	_floor_detail()
 	var start := Marker3D.new()
 	start.name = "PlayerStart"
 	var s: Vector2 = CryptLayout.world(CryptLayout.START_CELL.x, CryptLayout.START_CELL.y)
@@ -1107,3 +1108,144 @@ func _dress() -> void:
 	_rubble(CryptLayout.world(9.0, 4.0), 1.1, 1.5)
 	_cobwebs()
 	_puddles()
+
+
+# --- Flat floor detail (Lane S3) ---------------------------------------------------------------------------------------------------------
+
+## Low, flat marks across the middle of the rooms (cracks, grime, blood, scattered bones, floor grates, faint rune circles). Plain meshes with
+## no collider, at most 7 cm high, so nothing blocks the hero or the navigation; a separate generator keeps the rest of the scene as it was.
+const DETAIL_KINDS := ["crack", "crack", "crack", "grime", "grime", "grime", "blood", "bones", "bones", "grate"]
+
+
+func _floor_detail() -> void:
+	var detail_rng := RandomNumberGenerator.new()
+	detail_rng.seed = 4411
+	var dark := _flat_material(Color(0.04, 0.035, 0.035), 0.55)
+	var grime_mat := _flat_material(Color(0.07, 0.055, 0.045), 0.5)
+	var blood_mat := _flat_material(Color(0.2, 0.025, 0.02), 0.75)
+	var bone_mat := _flat_material(Color(0.62, 0.58, 0.48), 1.0)
+	var iron := _flat_material(Color(0.06, 0.06, 0.07), 1.0)
+	var rune_mat := _flat_material(Color(0.05, 0.03, 0.02), 1.0)
+	rune_mat.emission_enabled = true
+	rune_mat.emission = Color(0.9, 0.5, 0.2)
+	rune_mat.emission_energy_multiplier = 0.45
+	var disc := CylinderMesh.new()
+	disc.top_radius = 0.5
+	disc.bottom_radius = 0.5
+	disc.height = 0.01
+	disc.radial_segments = 16
+	disc.rings = 1
+	var slab := BoxMesh.new()
+	slab.size = Vector3(1.0, 0.012, 1.0)
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.93
+	ring.outer_radius = 1.0
+	ring.rings = 28
+	ring.ring_segments = 4
+	var bone := CylinderMesh.new()
+	bone.top_radius = 0.035
+	bone.bottom_radius = 0.035
+	bone.height = 0.55
+	bone.radial_segments = 5
+	bone.rings = 1
+	for space in CryptLayout.SPACES:
+		var kind: String = String(CryptLayout.SPACES[space]["kind"])
+		if kind == "corridor":
+			continue
+		var region: Dictionary = _detail_region(space, kind)
+		var wanted: int = clampi(int(float(region["area"]) / 26.0), 3, 14)
+		var made: int = 0
+		var tries: int = 0
+		var runes: int = 0
+		while made < wanted and tries < wanted * 30:
+			tries += 1
+			var p: Vector2 = _detail_point(region, detail_rng)
+			if _near_door(p, 3.5) or _in_cut(p) or not _spot_free(p, 0.5):
+				continue
+			var what: String = String(DETAIL_KINDS[detail_rng.randi() % DETAIL_KINDS.size()])
+			if made == 0 and (kind == "round" or kind == "room") and runes == 0:
+				what = "rune"
+			var node := Node3D.new()
+			node.position = Vector3(p.x, 0.0, p.y)
+			node.rotation.y = detail_rng.randf() * TAU
+			node.set_meta("floor_detail", what)
+			match what:
+				"crack":   # three thin dark strips in a zigzag
+					var at := Vector3.ZERO
+					for i in 3:
+						var seg_len: float = detail_rng.randf_range(0.5, 0.9)
+						var heading: float = detail_rng.randf_range(-0.7, 0.7)
+						var seg := _flat_mesh(slab, dark, Vector3(seg_len, 1.0, 0.05), at + Vector3(cos(heading), 0.0, sin(heading)) * seg_len * 0.5 + Vector3(0, 0.022, 0), -heading)
+						node.add_child(seg)
+						at += Vector3(cos(heading), 0.0, sin(heading)) * seg_len
+				"grime":
+					node.add_child(_flat_mesh(disc, grime_mat, Vector3(detail_rng.randf_range(1.3, 2.4), 1.0, detail_rng.randf_range(1.0, 1.9)), Vector3(0, 0.018, 0), 0.0))
+				"blood":
+					node.add_child(_flat_mesh(disc, blood_mat, Vector3(1.0, 1.0, 0.8), Vector3(0, 0.024, 0), 0.0))
+					for i in 3:
+						node.add_child(_flat_mesh(disc, blood_mat, Vector3.ONE * detail_rng.randf_range(0.15, 0.35), Vector3(detail_rng.randf_range(-0.9, 0.9), 0.026, detail_rng.randf_range(-0.9, 0.9)), 0.0))
+				"bones":
+					for i in 4:
+						var b := MeshInstance3D.new()
+						b.mesh = bone
+						b.material_override = bone_mat
+						b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+						b.rotation = Vector3(0.0, detail_rng.randf() * TAU, PI * 0.5)
+						b.position = Vector3(detail_rng.randf_range(-0.5, 0.5), 0.04, detail_rng.randf_range(-0.5, 0.5))
+						node.add_child(b)
+				"grate":
+					node.add_child(_flat_mesh(slab, dark, Vector3(1.1, 1.0, 1.1), Vector3(0, 0.02, 0), 0.0))
+					for i in 5:
+						node.add_child(_flat_mesh(slab, iron, Vector3(1.0, 2.5, 0.07), Vector3(0, 0.03, -0.42 + 0.21 * i), 0.0))
+				"rune":
+					runes += 1
+					node.add_child(_flat_mesh(ring, rune_mat, Vector3(1.4, 0.02, 1.4), Vector3(0, 0.03, 0), 0.0))
+					node.add_child(_flat_mesh(ring, rune_mat, Vector3(0.9, 0.02, 0.9), Vector3(0, 0.03, 0), 0.0))
+					for i in 4:
+						node.add_child(_flat_mesh(slab, rune_mat, Vector3(1.9, 1.5, 0.05), Vector3(0, 0.03, 0), PI * 0.25 * i))
+			_add("Decor", node, "FloorDetail")
+			made += 1
+
+
+func _flat_material(colour: Color, roughness: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = colour
+	m.roughness = roughness
+	return m
+
+
+func _flat_mesh(mesh: Mesh, mat: Material, scale: Vector3, at: Vector3, yaw: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visibility_range_end = 45.0
+	mi.scale = scale
+	mi.position = at
+	mi.rotation.y = yaw
+	return mi
+
+
+## The middle of a room: its first rectangle pulled in by a cell (an ellipse scaled down for the round rooms). {rect | ellipse, area}.
+func _detail_region(space: String, kind: String) -> Dictionary:
+	if CryptLayout.ROUNDS.has(space):
+		var cfg: Dictionary = CryptLayout.ROUNDS[space]
+		var ce: Vector2 = CryptLayout.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
+		var radii := Vector2(float(cfg["rx"]), float(cfg["ry"])) * 0.62
+		return {"ellipse": ce, "radii": radii, "area": PI * radii.x * radii.y}
+	var rect: Rect2 = _space_rect_world(space)
+	var inset: float = C * (0.5 if kind == "side" else 1.0)
+	rect = rect.grow_individual(-inset, -inset, -inset, -inset)
+	if rect.size.x < 1.0 or rect.size.y < 1.0:
+		rect = _space_rect_world(space).grow(-C * 0.5)
+	return {"rect": rect, "area": rect.get_area()}
+
+
+func _detail_point(region: Dictionary, detail_rng: RandomNumberGenerator) -> Vector2:
+	if region.has("ellipse"):
+		var radii: Vector2 = region["radii"]
+		var ang: float = detail_rng.randf() * TAU
+		var r: float = sqrt(detail_rng.randf())
+		return (region["ellipse"] as Vector2) + Vector2(cos(ang) * radii.x, sin(ang) * radii.y) * r
+	var rect: Rect2 = region["rect"]
+	return rect.position + Vector2(detail_rng.randf() * rect.size.x, detail_rng.randf() * rect.size.y)

@@ -15,22 +15,30 @@ const ROLES := {
 	"candle": {"energy": 1.6, "range": 5.0, "attenuation": 1.6, "shadow": false},
 }
 const SHADOW_FADE := 20.0
+const HERO_TORCH_RANGE := 12.0
+const HERO_TORCH_ENERGY := 2.4
 
 
 static func tune_environment(environment: Environment, sun: DirectionalLight3D) -> void:
-	environment.ambient_light_color = Color(0.36, 0.42, 0.6)   # a faint cold blue: dark corners, the warm pools stand out
+	environment.ambient_light_color = Color(0.5, 0.44, 0.5)   # a dim warm grey-violet, nudged toward the torch colour: a crypt, not a night outdoors
 	environment.ambient_light_energy = 0.42
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0.0, 0.0, 0.0)
 	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.09, 0.08, 0.09)   # a dusty haze that eats the far end of a room
+	environment.fog_light_color = Color(0.1, 0.08, 0.07)   # a dusty haze that eats the far end of a room
 	environment.fog_density = 0.014
 	environment.fog_aerial_perspective = 0.2
 	environment.tonemap_exposure = 1.05
 	if sun != null:
 		sun.light_energy = 0.25
-		sun.light_color = Color(0.55, 0.65, 1.0)
+		sun.light_color = Color(0.72, 0.72, 0.95)
 		sun.shadow_enabled = false
+
+
+## The hero's own torch in the Crypt reaches a little further and brighter, so enemies in the darkest rooms stand out against the floor.
+static func tune_hero_torch(torch: OmniLight3D) -> void:
+	torch.omni_range = HERO_TORCH_RANGE
+	torch.light_energy = HERO_TORCH_ENERGY
 
 
 static func style_lights(root: Node) -> void:

@@ -162,7 +162,7 @@ func start_location(place: CryptRoad) -> void:
 	location = place
 	Enemy.max_tokens = 3
 	place.nest_destroyed.connect(_on_nest_destroyed)
-	hud.show_banner("%s\n%s" % [String(job.get("location", "The road")).capitalize(), JobObjective.describe(job)], 4.0)
+	hud.show_banner(place.banner_text(job), 4.0)
 	place.spawn_encounters(self)
 
 func _on_nest_destroyed(count: int, total: int) -> void:

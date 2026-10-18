@@ -4,6 +4,7 @@ extends SceneTree
 ## name, hero position as a plan cell (column, row), frames to wait, zoom (-1 keeps the dungeon's start zoom).
 
 const SHOTS := [
+	["banner", Vector2(26, 56), 4, -1.0],
 	["vestibule", Vector2(26, 56), 60, -1.0],
 	["long_hall", Vector2(20, 47), 60, -1.0],
 	["pillared_crypt", Vector2(9, 37), 60, -1.0],

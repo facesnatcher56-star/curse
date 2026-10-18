@@ -27,6 +27,22 @@ func _test_crypt_dungeon() -> void:
 	expect("the rooms carry 3x+ the first pass's clutter (%d scatter items, was 672)" % scatter_items, scatter_items >= 672 * 3)
 	expect("rotunda and arena are curved and corners chamfered (%d liner pieces)" % level.get_node("Liners").get_child_count(),
 		level.get_node("Liners").get_child_count() >= 100 and CryptLayout.ROUNDS.has("rotunda") and CryptLayout.ROUNDS.has("arena"))
+	# Lane S3: low flat floor detail with no collider, and the Crypt's own title.
+	var detail: int = 0
+	var blocking: int = 0
+	var tall: float = 0.0
+	for node in level.get_node("Decor").get_children():
+		if node.has_meta("floor_detail"):
+			detail += 1
+			blocking += node.find_children("*", "CollisionObject3D", true, false).size()
+			for mi in node.find_children("*", "MeshInstance3D", true, false):
+				tall = maxf(tall, ((mi as MeshInstance3D).transform * (mi as MeshInstance3D).mesh.get_aabb()).end.y)
+	expect("the room centres carry flat floor detail (%d marks, none higher than %.2f m)" % [detail, tall], detail >= 60 and tall <= 0.08)
+	expect("floor detail has no collider, so it blocks nothing", blocking == 0)
+	var title: String = CryptDungeon.new().banner_text({})
+	expect("the Crypt's banner is its own title, not the Road's run text (%s)" % title.replace("
+", " / "),
+		title.begins_with("The Crypt") and not title.contains("Road") and not title.contains("Free run"))
 	# The plan: the start reaches the arena, with and without the loop.
 	var reach: Dictionary = _flood(CryptLayout.START_CELL, "")
 	expect("the arena is reachable from the start through the plan", reach.has("arena"))

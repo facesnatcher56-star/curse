@@ -80,6 +80,8 @@ func _ready() -> void:
 	torch.position = Vector3(0, 3.0, 0)
 	if location != null and AtmosphereProfile.enabled():
 		AtmosphereProfile.style_hero_torch(torch)
+		if location is CryptDungeon:
+			CryptLook.tune_hero_torch(torch)
 	player.add_child(torch)
 
 	rig = CameraRig.new()
