@@ -7,9 +7,9 @@ const DIR := "res://data/powers"
 static var _defs: Dictionary = {}   # id -> PowerDef
 
 ## Curse pacing (departs from DS2, docs/COMBAT_REFERENCE.md): seconds of combat each charged power takes to come back, in place of
-## PowerDef.recharge. Single-target bursts (Brutal Attack, Take Aim) take about 11 s, the crowd powers (Whirling Strike, Thunderous
-## Shot) about 7 s. Powers not listed keep DS2's. Tune here.
-const CHARGE_SECONDS := {"brutal_attack": 11.0, "take_aim": 11.0, "whirling_strike": 7.0, "thunderous_shot": 7.0}
+## PowerDef.recharge. Owner (2026-10-18): back to DS2's own durations, Brutal Attack and Take Aim 21 s, Whirling Strike and
+## Thunderous Shot 35 s (Lane P had 11 s / 7 s). Powers not listed keep DS2's. Tune here.
+const CHARGE_SECONDS := {"brutal_attack": 21.0, "take_aim": 21.0, "whirling_strike": 35.0, "thunderous_shot": 35.0}
 ## A new party's powers: learned at rank 1 without the passive ranks that would normally open them, slotted on the hotbar (see
 ## HotbarLayout.DEFAULT_SLOTS) and fully charged.
 const STARTING_POWERS := {"hero": ["brutal_attack", "whirling_strike"], "cutter": ["take_aim", "thunderous_shot"]}

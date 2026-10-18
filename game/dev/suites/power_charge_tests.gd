@@ -67,9 +67,9 @@ func _test_power_charge() -> void:
 	expect("Whirling Strike is not blocked by its rank or its charge", not hero.powers.blocker("whirling_strike").contains("not open") and not hero.powers.blocker("whirling_strike").contains("charged"))
 
 	# --- Each power's recharge time matches its constant --------------------------------------------------------------------------------------
-	expect("the constants: Brutal Attack and Take Aim 11 s, Whirling Strike and Thunderous Shot 7 s",
-		is_equal_approx(PowerDb.charge_seconds("brutal_attack"), 11.0) and is_equal_approx(PowerDb.charge_seconds("take_aim"), 11.0)
-		and is_equal_approx(PowerDb.charge_seconds("whirling_strike"), 7.0) and is_equal_approx(PowerDb.charge_seconds("thunderous_shot"), 7.0))
+	expect("the constants (owner 2026-10-18, DS2's own): Brutal Attack and Take Aim 21 s, Whirling Strike and Thunderous Shot 35 s",
+		is_equal_approx(PowerDb.charge_seconds("brutal_attack"), 21.0) and is_equal_approx(PowerDb.charge_seconds("take_aim"), 21.0)
+		and is_equal_approx(PowerDb.charge_seconds("whirling_strike"), 35.0) and is_equal_approx(PowerDb.charge_seconds("thunderous_shot"), 35.0))
 	for entry in [["brutal_attack", hero, "melee"], ["whirling_strike", hero, "melee"], ["take_aim", cutter, "ranged"], ["thunderous_shot", cutter, "ranged"]]:
 		var id: String = entry[0]
 		var body: Player = entry[1]
