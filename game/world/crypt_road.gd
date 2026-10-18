@@ -98,6 +98,10 @@ func build(for_arena: Arena) -> void:
 
 ## The navigation map takes its new regions on a background thread, and this one is big: true once the road is really in it.
 ## Where the hero begins in this location (the test dungeon overrides it).
+## The banner when the run starts, title then second line. The Road shows the job's place and objective; a hand-built dungeon overrides it.
+func banner_text(job: Dictionary) -> String:
+	return "%s\n%s" % [String(job.get("location", "The road")).capitalize(), JobObjective.describe(job)]
+
 func start_position() -> Vector3:
 	return START
 

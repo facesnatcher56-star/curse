@@ -26,6 +26,11 @@ static func make_arena() -> Arena:
 	return a
 
 
+## The Crypt names itself and never shows the Road's job text ("The Road / Free run").
+func banner_text(_job: Dictionary) -> String:
+	return "The Crypt\nDeep Beyond"
+
+
 func start_position() -> Vector3:
 	if level != null and level.has_node("PlayerStart"):
 		return (level.get_node("PlayerStart") as Node3D).global_position
