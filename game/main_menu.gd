@@ -21,7 +21,7 @@ func _ready() -> void:
 	if args.has("--itemlab"):
 		LoadingScreen.go.call_deferred(get_tree(), "res://game/dev/item_lab/item_test_lab.tscn")
 		return
-	if args.has("--dungeon") or args.has("--crypt") or args.has("--selftest"):
+	if args.has("--dungeon") or args.has("--crypt") or args.has("--crypt01") or args.has("--selftest"):
 		LoadingScreen.go.call_deferred(get_tree(), DUNGEON_SCENE)
 		return
 	if args.has("--startshot"):

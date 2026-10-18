@@ -5,7 +5,7 @@ extends SceneTree
 
 ## The route: each waypoint must be reached within TOLERANCE metres.
 ## The critical path, door to door: the entry, then each corridor and hall to the final hall (see TestDungeon).
-const ROUTE := [
+var ROUTE: Array = [
 	Vector3(0, 0, 100), Vector3(9, 0, 82), Vector3(-20, 0, 64), Vector3(-25, 0, 48), Vector3(0, 0, 30), Vector3(25, 0, 13),
 	Vector3(0, 0, -4), Vector3(-29, 0, -28), Vector3(0, 0, -52), Vector3(21, 0, -76), Vector3(0, 0, -100),
 ]
@@ -25,6 +25,11 @@ var _frozen := false
 
 
 func _initialize() -> void:
+	if OS.get_cmdline_user_args().has("--crypt01"):   # the Crypt: its main route, or `--loop` for the way through the ossuary
+		var cells: Array[Vector2] = CryptLayout.LOOP_PATH if OS.get_cmdline_user_args().has("--loop") else CryptLayout.MAIN_PATH
+		ROUTE = []
+		for w in CryptLayout.route_world(cells):
+			ROUTE.append(Vector3(w.x, 0.0, w.y))
 	_main = (load("res://game/main.tscn") as PackedScene).instantiate()
 	get_root().add_child(_main)
 	current_scene = _main

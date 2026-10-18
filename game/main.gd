@@ -205,6 +205,13 @@ func _build_world() -> void:
 		location.build(arena)
 		environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
 		environment.fog_density *= CryptRoad.FOG_MULT
+	elif OS.get_cmdline_user_args().has("--crypt01"):   # the hand-built Crypt (docs/CRYPT_DUNGEON.md); opt-in, Menu -> Play stays on the test dungeon
+		arena = CryptDungeon.make_arena()
+		add_child(arena)
+		arena.build(false)
+		location = CryptDungeon.new()
+		add_child(location)
+		location.build(arena)
 	elif OS.get_cmdline_user_args().has("--selftest") or OS.get_cmdline_user_args().has("--shot"):
 		arena = Arena.new()
 		add_child(arena)
