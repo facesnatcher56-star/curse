@@ -39,7 +39,7 @@ func _process(_delta: float) -> bool:
 		var gap: float = Vector2(end.x, end.z).distance_to(p)
 		if gap > 2.5:   # an altar may stand on a room's middle: its footprint plus the agent radius
 			bad += 1
-			print("CRYPT_NAV UNREACHABLE %s at %s: path ends %.1f m short" % [t[0], p, gap])
+			print("CRYPT_NAV UNREACHABLE %s at %s: path ends %.1f m short, at (%.1f, %.1f)" % [t[0], p, gap, end.x, end.z])
 	print("CRYPT_NAV DONE targets=%d unreachable=%d" % [targets.size(), bad])
 	quit(1 if bad > 0 else 0)
 	return true

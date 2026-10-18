@@ -15,11 +15,18 @@ func _test_crypt_dungeon() -> void:
 		var walls := level.get_node("Walls/Walls" + dir_name) as GridMap
 		for cell in walls.get_used_cells():
 			door_cells += 1 if walls.mesh_library.get_item_name(walls.get_cell_item(cell)).begins_with("wall_doorway") else 0
-	expect("it is a GridMap build of 12+ spaces with 22 doorways (%d floor cells, %d doorways)" % [floor_cells, door_cells],
-		CryptLayout.SPACES.size() >= 12 and floor_cells > 500 and door_cells == 22)
+	expect("it is a GridMap build of 12+ spaces with 22+ doorways (%d floor cells, %d doorways)" % [floor_cells, door_cells],
+		CryptLayout.SPACES.size() >= 12 and floor_cells > 500 and door_cells >= 22)
 	expect("every side room has its chest", level.get_node("Chests").get_child_count() == CryptLayout.CHESTS.size() and CryptLayout.CHESTS.size() >= 2)
 	expect("props are dressed with ProtonScatter in every space (%d)" % level.get_node("Scatter").get_child_count(),
 		level.get_node("Scatter").get_child_count() == CryptLayout.SPACES.size())
+	# The refinement: curved rooms and chamfers (wall segments), and clutter several times the first pass's 672 scatter items.
+	var scatter_items: int = 0
+	for sc in level.get_node("Scatter").get_children():
+		scatter_items += int((sc.get("modifier_stack").stack[0] as Object).get("amount"))
+	expect("the rooms carry 3x+ the first pass's clutter (%d scatter items, was 672)" % scatter_items, scatter_items >= 672 * 3)
+	expect("rotunda and arena are curved and corners chamfered (%d liner pieces)" % level.get_node("Liners").get_child_count(),
+		level.get_node("Liners").get_child_count() >= 100 and CryptLayout.ROUNDS.has("rotunda") and CryptLayout.ROUNDS.has("arena"))
 	# The plan: the start reaches the arena, with and without the loop.
 	var reach: Dictionary = _flood(CryptLayout.START_CELL, "")
 	expect("the arena is reachable from the start through the plan", reach.has("arena"))

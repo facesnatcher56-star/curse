@@ -15,6 +15,9 @@ const SHOTS := [
 	["antechamber", Vector2(16, 11), 60, -1.0],
 	["arena", Vector2(16, 6), 60, -1.0],
 	["arena_fight", Vector2(15, 5.5), 200, -1.0],
+	["brazier_close", Vector2(14.2, 24.6), 60, 0.55],
+	["arena_gate", Vector2(16, 6.8), 60, -1.0],
+	["long_hall_wall", Vector2(16, 45.8), 60, -1.0],
 ]
 
 var _main: Node
@@ -23,6 +26,7 @@ var _shot := -1
 var _wait := 0
 var _dir := ""
 var _only := ""
+var _wait_override := -1
 var _list: Array = []
 var _fps: Array = []
 
@@ -30,6 +34,8 @@ func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):
 			_dir = arg.substr(8)
+		elif arg.begins_with("--wait="):
+			_wait_override = int(arg.substr(7))   # frames to settle before the shot and its frame rate (default: per shot)
 		elif arg.begins_with("--only="):
 			_only = arg.substr(7)
 	for shot in SHOTS:
@@ -66,5 +72,5 @@ func _process(_delta: float) -> bool:
 	_main.player.global_position = Vector3(p.x, 0, p.y)
 	if float(_list[_shot][3]) >= 0.0:
 		_main.rig.set_zoom_now(float(_list[_shot][3]))
-	_wait = int(_list[_shot][2])
+	_wait = _wait_override if _wait_override >= 0 else int(_list[_shot][2])
 	return false

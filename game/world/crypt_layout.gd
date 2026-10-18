@@ -17,24 +17,24 @@ const H := 58
 const SPACES := {
 	"vestibule": {"rects": [[24, 53, 30, 57]], "kind": "room", "stage": 0},
 	"stair_hall": {"rects": [[27, 49, 27, 52]], "kind": "corridor", "stage": 0},
-	"long_hall": {"rects": [[8, 45, 30, 48]], "kind": "hall", "stage": 1},
-	"gallery_link": {"rects": [[9, 41, 9, 44]], "kind": "corridor", "stage": 1},
-	"pillared_crypt": {"rects": [[4, 33, 14, 40]], "kind": "hall", "stage": 2},
+	"long_hall": {"rects": [[8, 45, 30, 48], [14, 44, 14, 44], [20, 44, 20, 44], [24, 44, 24, 44], [12, 49, 12, 49], [17, 49, 17, 49], [22, 49, 22, 49]], "kind": "hall", "stage": 1},
+	"gallery_link": {"rects": [[9, 41, 10, 44]], "kind": "corridor", "stage": 1},
+	"pillared_crypt": {"rects": [[4, 33, 14, 40], [6, 32, 6, 32], [10, 32, 10, 32], [6, 41, 6, 41], [13, 41, 13, 41]], "kind": "hall", "stage": 2},
 	"bone_closet": {"rects": [[0, 34, 2, 38]], "kind": "side", "stage": 2},
 	"bone_closet_door": {"rects": [[3, 36, 3, 36]], "kind": "corridor", "stage": 2},
 	"ossuary_link": {"rects": [[15, 36, 17, 36]], "kind": "corridor", "stage": 3},
-	"ossuary": {"rects": [[18, 33, 26, 39]], "kind": "hall", "stage": 3},
-	"ossuary_stair": {"rects": [[20, 26, 20, 32]], "kind": "corridor", "stage": 3},
+	"ossuary": {"rects": [[18, 33, 26, 39], [24, 32, 24, 32], [19, 40, 19, 40], [23, 40, 23, 40], [27, 35, 27, 35], [27, 37, 27, 37]], "kind": "hall", "stage": 3},
+	"ossuary_stair": {"rects": [[20, 26, 21, 32]], "kind": "corridor", "stage": 3},
 	"choke": {"rects": [[14, 28, 14, 32]], "kind": "corridor", "stage": 3},
-	"rotunda": {"rects": [[14, 21, 18, 27], [13, 22, 19, 26]], "kind": "round", "stage": 4},
+	"rotunda": {"rects": [[13, 21, 19, 26], [14, 27, 18, 27]], "kind": "round", "stage": 4},
 	"vault_link": {"rects": [[10, 24, 12, 24]], "kind": "corridor", "stage": 4},
 	"vault": {"rects": [[4, 22, 9, 26]], "kind": "side", "stage": 4},
 	"warden_walk": {"rects": [[16, 19, 16, 20]], "kind": "corridor", "stage": 4},
-	"guard_hall": {"rects": [[11, 15, 21, 18]], "kind": "hall", "stage": 5},
+	"guard_hall": {"rects": [[11, 15, 21, 18], [12, 14, 12, 14], [20, 14, 20, 14], [12, 19, 12, 19], [20, 19, 20, 19]], "kind": "hall", "stage": 5},
 	"shrine_link": {"rects": [[22, 16, 24, 16]], "kind": "corridor", "stage": 5},
 	"shrine": {"rects": [[25, 14, 29, 18]], "kind": "side", "stage": 5},
 	"nave_link": {"rects": [[16, 13, 16, 14]], "kind": "corridor", "stage": 5},
-	"antechamber": {"rects": [[12, 10, 20, 12]], "kind": "hall", "stage": 6},
+	"antechamber": {"rects": [[12, 10, 20, 12], [13, 9, 13, 9], [19, 9, 19, 9]], "kind": "hall", "stage": 6},
 	"arena_link": {"rects": [[16, 8, 16, 9]], "kind": "corridor", "stage": 6},
 	"arena": {"rects": [[8, 0, 24, 7]], "kind": "arena", "stage": 7},
 }
@@ -51,6 +51,27 @@ const CHESTS: Array = [
 	{"space": "bone_closet", "cell": Vector2(0.4, 36)},
 	{"space": "vault", "cell": Vector2(4.3, 24)},
 	{"space": "shrine", "cell": Vector2(29.2, 16)},
+]
+
+## Round spaces: the cells stay a block, but the room is walled as an ellipse (centre in plan cells, semi-axes in metres to the wall's middle,
+## segments). Doorways keep their cell edge and get a short stub passage to the curve.
+const ROUNDS := {
+	"rotunda": {"centre": Vector2(16, 24), "rx": 13.0, "ry": 13.0, "segments": 24},
+	"arena": {"centre": Vector2(16, 3.5), "rx": 31.0, "ry": 13.5, "segments": 44},
+}
+
+## Chamfered corners of the first rect of a space: [space, corner (NW NE SW SE), size in metres along each wall]. A diagonal wall cuts
+## the corner off inside the room; the square walls behind it stay.
+const CUTS: Array = [
+	["vestibule", "NW", 4.0], ["vestibule", "NE", 4.0], ["vestibule", "SW", 4.0], ["vestibule", "SE", 4.0],
+	["long_hall", "NW", 5.0], ["long_hall", "NE", 5.0], ["long_hall", "SW", 5.0], ["long_hall", "SE", 5.0],
+	["pillared_crypt", "NW", 5.0], ["pillared_crypt", "SW", 5.0], ["pillared_crypt", "SE", 5.0],
+	["ossuary", "NW", 5.0], ["ossuary", "NE", 5.0], ["ossuary", "SW", 5.0], ["ossuary", "SE", 5.0],
+	["vault", "NW", 4.0], ["vault", "NE", 4.0], ["vault", "SW", 4.0], ["vault", "SE", 4.0],
+	["guard_hall", "NW", 3.0], ["guard_hall", "NE", 3.0], ["guard_hall", "SW", 4.0], ["guard_hall", "SE", 4.0],
+	["shrine", "NW", 4.0], ["shrine", "NE", 4.0], ["shrine", "SW", 4.0], ["shrine", "SE", 4.0],
+	["antechamber", "NW", 4.0], ["antechamber", "NE", 4.0], ["antechamber", "SW", 4.0], ["antechamber", "SE", 4.0],
+	["bone_closet", "NW", 4.0], ["bone_closet", "NE", 4.0], ["bone_closet", "SW", 4.0], ["bone_closet", "SE", 4.0],
 ]
 
 const START_CELL := Vector2(26, 56)
