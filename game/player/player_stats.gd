@@ -93,12 +93,15 @@ func magic_find() -> float:
 ## Everything worn adds up to this: stat (AffixDb.STAT_NAMES) -> value. Worked out by `refresh`.
 var gear: Dictionary = {}
 
+## Stat -> value added to the gear totals for a while (a map-mode shrine's blessing, see MapDrops). Empty means nothing changes.
+var temp_bonus: Dictionary = {}
+
 func gear_stat(stat: String) -> float:
 	return float(gear.get(stat, 0.0))
 
 ## The modifiers of every worn piece, plus each set's bonus for the pieces of it worn.
 func gear_totals() -> Dictionary:
-	var out: Dictionary = {}
+	var out: Dictionary = temp_bonus.duplicate()   # a timed blessing (map mode's shrine); empty otherwise
 	var set_pieces: Dictionary = {}
 	for place in equipment:
 		var item: Dictionary = equipment[place]

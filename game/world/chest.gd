@@ -12,6 +12,10 @@ const MODEL := "res://assets/models/dungeon/chest/model.glb"
 const CHEST_HEIGHT := 0.8
 
 var opened: bool = false
+## Map mode: which kind of chest this is (a key of MapDrops.T.guards: wooden, iron, gilded, cursed, hoard) and the item level of what it holds.
+## An empty guard is the ordinary chest of the default game.
+var guard: String = ""
+var drop_level: int = 0
 var _lid: Node3D
 var _collision: StaticBody3D
 
@@ -66,6 +70,46 @@ func _build() -> void:
 	_collision.add_child(shape)
 	add_child(_collision)
 
+## A map-mode chest of `kind` (see MapDrops) holding items of `level`. It looks the part: tinted, bigger for a hoard, a cursed one glows.
+static func create(kind: String, level: int) -> Chest:
+	var chest := Chest.new()
+	chest.guard = kind
+	chest.drop_level = level
+	return chest
+
+## Gives an existing chest (one the scene already holds) its map-mode kind.
+func set_guard(kind: String, level: int) -> void:
+	guard = kind
+	drop_level = level
+	if _lid != null:
+		_apply_guard_look()
+
+func _apply_guard_look() -> void:
+	var tint: Color = MapDrops.guard_color(guard)
+	var def: Dictionary = (MapDrops.T.guards as Dictionary).get(guard, {})
+	scale = Vector3.ONE * float(def.get("scale", 1.0))
+	if guard == "wooden":
+		return
+	for node in find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = (node as MeshInstance3D).mesh
+		for i in mesh.get_surface_count():
+			var mat := mesh.surface_get_material(i) as BaseMaterial3D
+			if mat != null:
+				var copy := mat.duplicate() as BaseMaterial3D
+				copy.albedo_color = copy.albedo_color * tint.lerp(Color.WHITE, 0.25)
+				if guard in ["gilded", "cursed", "hoard"]:
+					copy.emission_enabled = true
+					copy.emission = tint
+					copy.emission_energy_multiplier = 0.25 if guard == "gilded" else 0.5
+				(node as MeshInstance3D).set_surface_override_material(i, copy)
+	if guard in ["cursed", "hoard", "gilded"]:
+		var light := OmniLight3D.new()
+		light.light_color = tint
+		light.light_energy = 0.8 if guard == "gilded" else 1.4
+		light.omni_range = 4.0
+		light.position = Vector3(0.0, 1.2, 0.0)
+		add_child(light)
+
 ## Scale the model to CHEST_HEIGHT, centre it, and find its real lid pivot before adding the unchanged collision box.
 func _build_model(scene: PackedScene) -> void:
 	var visual: Node3D = scene.instantiate()
@@ -90,6 +134,8 @@ func _build_model(scene: PackedScene) -> void:
 	shape.position.y = BODY_SIZE.y * 0.5
 	_collision.add_child(shape)
 	add_child(_collision)
+	if guard != "":
+		_apply_guard_look()
 
 ## The nearest closed chest to a ground point, within `margin` metres of its edge (the click target).
 static func near(tree: SceneTree, point: Vector3, margin: float) -> Chest:
@@ -125,6 +171,9 @@ func open() -> bool:
 	return true
 
 func _drop_loot() -> void:
+	if guard != "":
+		_drop_guarded()
+		return
 	var at: Vector3 = global_position + Vector3(0.0, 0.1, 0.9)
 	var director: Node = get_tree().get_first_node_in_group("director")
 	var level: int = 1
@@ -138,3 +187,22 @@ func _drop_loot() -> void:
 	gold.gold_amount = randi_range(4, 10) * maxi(level, 1)
 	get_tree().current_scene.add_child(gold)
 	gold.global_position = at
+
+## Map mode: the chest's contents by its kind (MapDrops.chest_items), sprayed round the front with a burst in the chest's colour, and its gold.
+func _drop_guarded() -> void:
+	var at: Vector3 = global_position + Vector3(0.0, 0.1, 0.0) + global_transform.basis.z * 0.9
+	var director: Node = get_tree().get_first_node_in_group("director")
+	var level: int = drop_level
+	if level <= 0:
+		level = director.drop_level_at(at) if director != null and director.has_method("drop_level_at") else 1
+	var tint: Color = MapDrops.guard_color(guard)
+	Fx.burst(self, global_position + Vector3(0.0, 0.9, 0.0), Vector3.UP, tint, 36, 6.0, 0.03, true)
+	if director != null and director.has_method("drop_item"):
+		for item in MapDrops.chest_items(guard, level, float(PartyManager.current().loot_bonuses().magic_find)):
+			director.drop_item(at + Vector3(randf_range(-0.6, 0.6), 0.0, randf_range(-0.2, 0.6)), item)
+	var gold := HealthOrb.new()
+	gold.gold_amount = MapDrops.gold_for(level, (MapDrops.T.chests[guard] as Dictionary).gold, float(PartyManager.current().loot_bonuses().gold_find))
+	get_tree().current_scene.add_child(gold)
+	gold.global_position = at
+	if MapMode.active:
+		MapMode.current.note_pickup("gold", gold.gold_amount)

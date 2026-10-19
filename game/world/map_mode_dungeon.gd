@@ -8,12 +8,14 @@ extends CryptDungeon
 ##   node_groups  node id -> Enemy.group_id of the node's pack (combat nodes)
 ##   node_chests  node id -> Chest
 ##   node_shrines node id -> Shrine (call use_shrine())
+##   node_plans   node id -> what the node guards ({guard, title, chest}); a chest guard has its Chest in node_chests, placed behind the group's room
 
 const MAP_SCENE := "res://game/world/dungeons/map_mode_01.tscn"
 
 var node_groups: Dictionary = {}
 var node_chests: Dictionary = {}
 var node_shrines: Dictionary = {}
+var node_plans: Dictionary = {}           # node id -> what it guards (MapDrops.plan_for), decided when the groups spawn
 var _marker_nodes: Array[int] = []        # the node id of each enemy marker, in the order spawn_encounters walks them
 var _marker_champions: Array[Dictionary] = []
 
@@ -88,6 +90,7 @@ func spawn_encounters(for_director: RunDirector) -> void:
 	Champion.chance_override = 0.0
 	super.spawn_encounters(for_director)
 	Champion.chance_override = chance
+	plan_guards()
 	for i in _marker_nodes.size():
 		var gid: int = first_id + 1 + i   # TestDungeon.spawn_encounters hands out ids in marker order
 		node_groups[_marker_nodes[i]] = gid
@@ -99,3 +102,87 @@ func spawn_encounters(for_director: RunDirector) -> void:
 			if e != null and e.group_id == gid and not e.dead and e.champion == null and e.def != null and e.def.id == String(plan["kind"]):
 				Champion.attach(e, String(plan["affix"]))
 				break
+
+
+# --- Guarded chests (map-mode drop model, MapDrops) ------------------------------------------------------------------------------------------
+
+## Decides what every group guards, from the run's seed, and stands the chests up. Done when the groups spawn: the node map shows the same plan.
+func plan_guards(run_seed: int = 0) -> void:
+	MapDrops.new_run(run_seed)
+	node_plans.clear()
+	for n in MapModeLayout.nodes():
+		node_plans[int(n["id"])] = MapDrops.plan_for(n)
+	place_guard_chests(self, node_plans, node_chests)
+
+
+## A chest for every node whose plan is a chest and that has none yet, placed behind the group's room; the side-branch chests of the scene get their
+## kind. `chests` (node id -> Chest) is filled in. Chests hold items of the node's level.
+func place_guard_chests(parent: Node3D, plans: Dictionary, chests: Dictionary) -> void:
+	for n in MapModeLayout.nodes():
+		var id: int = int(n["id"])
+		var plan: Dictionary = plans.get(id, {})
+		if not bool(plan.get("chest", false)):
+			continue
+		var level: int = level_for_node(id, _stage_of(id))
+		if chests.has(id):
+			(chests[id] as Chest).set_guard(String(plan["guard"]), level)
+			continue
+		var chest := Chest.create(String(plan["guard"]), level)
+		chest.name = "Guard%d" % id
+		parent.add_child(chest)
+		var spot: Vector2 = guard_chest_spot(id)
+		var centre: Vector2 = n["pos"]
+		chest.position = Vector3(spot.x, 0.0, spot.y)
+		chest.rotation.y = atan2(centre.x - spot.x, centre.y - spot.y)   # the lid faces away from the wall, toward the group
+		chests[id] = chest
+
+
+func _stage_of(id: int) -> int:
+	for n in MapModeLayout.NODES:
+		if int(n["id"]) == id:
+			return int(n["stage"])
+	return 0
+
+
+## World (x, z) of a group's chest: against the far wall of its room, on the side away from the way in (the corridor that leads back toward the
+## start), 6 to 12 m behind the group's centre.
+static func guard_chest_spot(id: int) -> Vector2:
+	var node: Dictionary = {}
+	for n in MapModeLayout.NODES:
+		if int(n["id"]) == id:
+			node = n
+	if node.is_empty():
+		return Vector2.ZERO
+	var centre: Vector2 = node["centre"]
+	var hops: Dictionary = {0: 0}
+	var queue: Array[int] = [0]
+	while not queue.is_empty():   # hops from the start
+		var at: int = queue.pop_front()
+		for link in MapModeLayout.LINKS:
+			var other: int = -1
+			if int(link["a"]) == at:
+				other = int(link["b"])
+			elif int(link["b"]) == at:
+				other = int(link["a"])
+			if other >= 0 and not hops.has(other):
+				hops[other] = int(hops[at]) + 1
+				queue.append(other)
+	var best_toward: Vector2 = Vector2.ZERO
+	var best_hops: int = 1 << 30
+	for link in MapModeLayout.LINKS:
+		var a: int = int(link["a"])
+		var b: int = int(link["b"])
+		if a != id and b != id:
+			continue
+		var other: int = b if a == id else a
+		var path: Array = link["path"]
+		var next: Vector2 = path[1] if a == id else path[path.size() - 2]
+		if int(hops.get(other, 1 << 29)) < best_hops and next != centre:
+			best_hops = int(hops.get(other, 1 << 29))
+			best_toward = (next - centre).normalized()
+	var back: Vector2 = -best_toward
+	var rect: Array = node["rect"]
+	var half: float = (float(rect[2] - rect[0] + 1) if absf(back.x) > absf(back.y) else float(rect[3] - rect[1] + 1)) * 0.5
+	var cells: float = clampf(half - 1.5, 1.5, 3.0)
+	var cell: Vector2 = centre + back * cells
+	return MapModeLayout.world(cell.x, cell.y)

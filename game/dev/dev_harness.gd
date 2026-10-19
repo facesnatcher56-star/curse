@@ -66,6 +66,7 @@ const SUITES := [
 	preload("res://game/dev/suites/power_charge_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
 	preload("res://game/dev/suites/portrait_plus_tests.gd"),
+	preload("res://game/dev/suites/map_drops_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -247,7 +248,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon", "mmdrops": "_test_map_drops",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus",

@@ -12,6 +12,11 @@ const TABLES := {
 static func gold_amount(base: float, gold_find: float) -> int:
 	return maxi(1, roundi(base * (1.0 + maxf(gold_find, 0.0) / 100.0)))
 
+## DS2's gold-by-level curve for a tier key ("weak", "normal" or "strong"); the drop multiplies it by a random fraction.
+static func gold_curve(level: int, key: String) -> float:
+	var l := float(maxi(level, 1))
+	return (0.1 * l * l + 2.6 * l + 1.0) if key == "weak" else ((0.267 * l * l + 6.9 * l + 2.67) if key == "strong" else (0.2 * l * l + 5.2 * l + 2.0))
+
 static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0, gold_find: float = 0.0) -> Dictionary:
 	var out := {"gold": 0, "health": 0, "mana": 0, "item": {}}
 	if tier == "miniboss":
@@ -32,8 +37,7 @@ static func roll(level: int, tier: String, mf: float = 0.0, mult: float = 1.0, g
 			selected = i
 			break
 	if selected in [1, 2]:
-		var l := float(maxi(level, 1))
-		var curve := (0.1 * l * l + 2.6 * l + 1.0) if key == "weak" else ((0.267 * l * l + 6.9 * l + 2.67) if key == "strong" else (0.2 * l * l + 5.2 * l + 2.0))
+		var curve := gold_curve(level, key)
 		out.gold = gold_amount(curve * (randf_range(0.375, 0.625) if selected == 2 else randf_range(0.093, 0.156)), gold_find)
 	elif selected == 3: out.health = 1
 	elif selected == 4: out.mana = 1
