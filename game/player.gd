@@ -324,7 +324,7 @@ func _physics_process(delta: float) -> void:
 		if input_locked:
 			if skills.busy: skills.tick_busy(delta)
 			return
-	if Input.is_action_just_released("click"):
+	if Input.is_action_just_released("click") and not MapMode.active:   # (map mode attacks by itself: letting go ends nothing)
 		# No auto-attack: the hero fights only while the click is held on the target. Letting go ends the engagement, even
 		# mid-swing (the swing finishes, nothing follows it; a skill's own queued target is not affected).
 		attack_target = null
@@ -615,6 +615,9 @@ func enemy_near(point: Vector3, max_dist: float) -> Actor:
 	return best
 
 func _read_input(cursor: Vector3) -> void:
+	if MapMode.active:   # `--mapmode`: no walking, no held-click attacks; a click on an enemy only picks the focus target
+		MapMode.read_input(self, cursor)
+		return
 	var ctrl: bool = Input.is_action_pressed("stand_still")
 	_pursue_pickup(ctrl)
 
@@ -891,6 +894,8 @@ func revive_at(pos: Vector3) -> void:
 ## Consume an explicit ground order while an action or movement lock would otherwise hide input.
 ## UI, actors, loot, props and Ctrl clicks keep their existing semantics.
 func _read_interrupt_move_click(cursor: Vector3) -> bool:
+	if MapMode.active:
+		return false
 	if Input.is_action_just_pressed("click"):
 		_ui_click = _ui_click or mouse_over_ui()
 	elif not Input.is_action_pressed("click"):
@@ -940,7 +945,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 				else:
 					move_with(Vector3.ZERO)
 				return
-			if not ctrl and Gamepad.move_vector().length() == 0.0:
+			if not ctrl and (Gamepad.move_vector().length() == 0.0 or MapMode.active):
 				movement.goal = attack_prop.global_position
 				movement.has_goal = true
 	var skill_id: String = ""
@@ -979,7 +984,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 			face(target.global_position, 0.4)
 			move_with(Vector3.ZERO)
 			return
-		if Gamepad.move_vector().length() == 0.0:   # with the left stick in use the player steers; no auto-chase
+		if Gamepad.move_vector().length() == 0.0 or MapMode.active:   # with the left stick in use the player steers; no auto-chase
 			movement.goal = target.global_position
 			movement.has_goal = true
 
@@ -990,6 +995,8 @@ func _act(delta: float, cursor: Vector3) -> void:
 	movement.move(delta)
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
+	if MapMode.active:
+		MapMode.note_hit()
 	var outcome: int = result.get("outcome", 0)
 	if outcome == Combat.Outcome.CRITICAL or float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT:
 		Gamepad.rumble(0.15, 0.55, 0.14)
@@ -1077,6 +1084,8 @@ func _say(text: String) -> void:
 	message_time = 1.5
 
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
+	if MapMode.active:
+		MapMode.note_damage(self, float(result.get("damage", 0.0)))
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0

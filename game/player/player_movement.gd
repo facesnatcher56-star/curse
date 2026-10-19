@@ -64,7 +64,7 @@ func stick_move(stick: Vector2, delta: float) -> void:
 	p.move_with(direction * speed)
 
 func move(delta: float, speed_mult: float = 1.0) -> void:
-	var stick: Vector2 = Gamepad.move_vector() if p.is_controlled() else Vector2.ZERO
+	var stick: Vector2 = Gamepad.move_vector() if p.is_controlled() and not MapMode.active else Vector2.ZERO
 	if stick.length() > 0.0:
 		stick_move(stick, delta)
 		return
