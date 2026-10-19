@@ -31,6 +31,20 @@ func banner_text(_job: Dictionary) -> String:
 	return "The Crypt\nDeep Beyond"
 
 
+## Hooks for a dungeon built on this loader (MapModeDungeon): the scene to load, the HUD's zone name, and a look at the scene once the groups are
+## read (the markers are still in it, the chests already stand under this node).
+func scene_path() -> String:
+	return CRYPT_SCENE
+
+
+func zone_title() -> String:
+	return "The Crypt"
+
+
+func _scene_read() -> void:
+	pass
+
+
 func start_position() -> Vector3:
 	if level != null and level.has_node("PlayerStart"):
 		return (level.get_node("PlayerStart") as Node3D).global_position
@@ -45,7 +59,7 @@ func build(for_arena: Arena) -> void:
 	add_to_group("crypt_dungeon")   # the HUD names the zone from it
 	_rng.seed = 2525
 	_black_out_ground()
-	level = (load(CRYPT_SCENE) as PackedScene).instantiate() as Node3D
+	level = (load(scene_path()) as PackedScene).instantiate() as Node3D
 	var nav: NavigationRegion3D = arena.get("_nav_region")
 	nav.add_child(level)
 	CryptLook.apply_materials(level)
@@ -60,6 +74,7 @@ func build(for_arena: Arena) -> void:
 					group.remove_child(chest)
 					add_child(chest)
 	groups = read_groups(level)
+	_scene_read()
 	level.get_node("EnemyGroups").queue_free()   # only read: the groups are spawned by spawn_encounters
 	arena.bake_navigation()
 
