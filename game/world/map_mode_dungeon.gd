@@ -45,6 +45,15 @@ func start_position() -> Vector3:
 	return Vector3(start.x, 0.0, start.y)
 
 
+## The enemies' level on the way in: stage 0..7 to a level the party can hold at that point (the swarm is the weakest kind, level 1).
+const STAGE_LEVELS: Array[int] = [1, 1, 2, 2, 3, 3, 4, 5]
+
+func level_for_node(node_id: int, stage: int) -> int:
+	for n in MapModeLayout.nodes():
+		if int(n["id"]) == node_id and String(n["kind"]) == "swarm":
+			return 1
+	return STAGE_LEVELS[clampi(stage, 0, STAGE_LEVELS.size() - 1)]
+
 ## The markers are still in the scene and the chests already stand under this node: remember which node is which.
 func _scene_read() -> void:
 	_marker_nodes.clear()
@@ -73,6 +82,8 @@ static func _node_id(node: Node) -> int:
 ## while they spawn (so no other pack gets one by chance) and the champions are attached to the kinds the plan names.
 func spawn_encounters(for_director: RunDirector) -> void:
 	var first_id: int = _enemy_group_id
+	for i in _marker_nodes.size():   # levels follow the way in, not the XP the hero would earn clearing every room (a route can skip rooms)
+		groups[i]["fixed_level"] = level_for_node(_marker_nodes[i], int(groups[i]["area"]))
 	var chance: float = Champion.chance_override
 	Champion.chance_override = 0.0
 	super.spawn_encounters(for_director)

@@ -24,6 +24,7 @@ const COLLECT_DELAY := 1.4        # s after the last kill before drops are colle
 const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
+const FROZEN_SAMPLE := 6.0        # s between checks for an awake enemy that is not moving or fighting (a diagnostic, printed)
 const STALL_WARNING := 90.0       # s: a fight this long prints one warning with what the party is hitting
 
 const ID_LOOT := 100000           # flat map marker ids: groups use their group_id, loot ID_LOOT + n, chests ID_CHEST + n
@@ -61,6 +62,10 @@ var _visit_node: int = -1
 var _kept_target: Dictionary = {}   # member id -> the enemy it keeps attacking
 var _stall_warned: bool = false
 var _fight_started: float = 0.0
+var _last_sample: float = 0.0
+var _good_pos: Dictionary = {}      # enemy instance id -> its last position that was on the floor and reachable
+var _good_at: float = 0.0
+var _sample_pos: Dictionary = {}   # enemy instance id -> where it stood at the last sample
 var _route: Array[Vector2] = []     # world (x, z) corridor polyline of the dash
 var _dash_time: float = DASH_TIME
 var _dash_t: float = 0.0
@@ -103,6 +108,12 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	if current == self:
 		current = null
+	if _auto_dir != "" and not run_complete:   # the scene changed under the autoplay (the party fell: the run ends in town): say so, then stop
+		print("[mapmode] RUN ENDED EARLY: the scene changed (party dead: %s) after %d fights" % [hero != null and is_instance_valid(hero) and hero.dead, log.fights.size()])
+		for line in log.summary_lines():
+			print(line)
+		if is_inside_tree():
+			get_tree().quit()
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
@@ -110,6 +121,7 @@ func _ready() -> void:
 			_auto_dir = arg.substr(15)
 			DirAccess.make_dir_recursive_absolute(_auto_dir)
 			_auto_started_ms = Time.get_ticks_msec()
+			_force_1080p()
 	for body in [hero, companion]:
 		if body != null:
 			body.power_activated.connect(func(_id: String, power_id: String) -> void: log.note_power(power_id))
@@ -400,6 +412,10 @@ func _auto_pick() -> void:
 		if String(m.get("state", "reachable")) != "reachable":
 			continue
 		var h: int = int(hops.get(int(m["id"]), 0))
+		if String(m.get("kind", "")) == "shrine" and hero.health < hero.max_health * 0.6:
+			h = -1   # hurt: take the shrine first
+		elif String(m.get("kind", "")) == "chest":
+			h = -2   # gear first: the chests are on dead-end spurs and worth the detour
 		if best.is_empty() or h < best_hops or (h == best_hops and hero.global_position.distance_to(m["pos"]) < hero.global_position.distance_to(best["pos"])):
 			best = m
 			best_hops = h
@@ -413,7 +429,12 @@ func _auto_pick() -> void:
 		await get_tree().create_timer(1.5).timeout
 		await _shot("fight")
 		while state == State.FIGHT:   # powers on whatever the hero is hitting, once a second
-			MapAutoPowers.fire(hero, companion, hero.attack_target)
+			for i in MapAutoPowers.fire(hero, companion, hero.attack_target):
+				log.note_power("auto")
+			if hero.health < hero.max_health * 0.5 and hero.stats.potions > 0:
+				Input.action_press("use_potion")
+				await get_tree().create_timer(0.1).timeout
+				Input.action_release("use_potion")
 			await get_tree().create_timer(1.0).timeout
 	await get_tree().create_timer(1.0).timeout
 	if Time.get_ticks_msec() - _auto_started_ms > 900000:
@@ -421,19 +442,33 @@ func _auto_pick() -> void:
 			print(line)
 		get_tree().quit()
 
-## Autoplay only: the number of hops from each node to the boss (a plain breadth-first walk over the graph).
+## Autoplay only: the dev harness sizes the window 1280x720; the screenshots must be 1920x1080 on the second monitor.
+func _force_1080p() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	if DisplayServer.get_screen_count() > 1:
+		DisplayServer.window_set_current_screen(1)
+	DisplayServer.window_set_size(Vector2i(1920, 1080))
+	DisplayServer.window_set_position(DisplayServer.screen_get_position(DisplayServer.window_get_current_screen()) + Vector2i(0, 40))
+
+## Autoplay only: the cost of the cheapest way from each node to the boss over the graph (one per hop, a swarm costs extra: a level-1 party
+## routes around it, as a player would). Plain Bellman-Ford; the graph is small.
 func _hops_to_boss() -> Dictionary:
 	var out: Dictionary = {}
 	if graph == null or graph.boss_id < 0:
 		return out
-	var queue: Array = [graph.boss_id]
 	out[graph.boss_id] = 0
-	while not queue.is_empty():
-		var id: int = int(queue.pop_front())
-		for n in graph.neighbours(id):
-			if not out.has(int(n)):
-				out[int(n)] = int(out[id]) + 1
-				queue.append(int(n))
+	var changed: bool = true
+	while changed:
+		changed = false
+		for id in graph.ids():
+			for n in graph.neighbours(int(id)):
+				if out.has(int(n)):
+					var cost: int = int(out[int(n)]) + 1 + (8 if graph.kind_of(int(id)) == "swarm" else 0)
+					if not out.has(int(id)) or cost < int(out[int(id)]):
+						out[int(id)] = cost
+						changed = true
 	return out
 
 func _wait_fight() -> void:
@@ -443,7 +478,10 @@ func _wait_fight() -> void:
 func _shot(label: String) -> void:
 	await RenderingServer.frame_post_draw
 	_shot_n += 1
-	get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [_auto_dir, _shot_n, label])
+	var img: Image = get_viewport().get_texture().get_image()
+	if _shot_n == 1:
+		print("[mapmode] screenshot size ", img.get_size())
+	img.save_png("%s/%02d_%s.png" % [_auto_dir, _shot_n, label])
 
 func _leftover_markers() -> Array:
 	return markers().filter(func(m: Dictionary) -> bool: return m["kind"] != "group")
@@ -642,6 +680,8 @@ func _arrive() -> void:
 			state = State.FIGHT
 			_fight_started = now()
 			_stall_warned = false
+			_last_sample = now()
+			_sample_pos.clear()
 			_kept_target.clear()
 			MapModeRules.note_fight_start(now())
 			for e in group_members():   # only this group: neighbouring groups stay asleep
@@ -669,10 +709,52 @@ func _tick_fight() -> void:
 		_begin_collect()
 		return
 	hero.attack_target = target_for(hero)
+	_keep_enemies_inside()
+	if now() - _last_sample >= FROZEN_SAMPLE:
+		_sample_frozen()
 	if not _stall_warned and now() - _fight_started > STALL_WARNING:
 		_stall_warned = true
 		var t: Actor = hero.attack_target
 		print("[mapmode] STALL: fight over %.0f s; hero target %s (%s hp, %s)" % [STALL_WARNING, t, t.health if t != null else "-", "champion" if t is Enemy and (t as Enemy).champion != null else "plain"])
+
+## A knockback (the area powers) can throw an enemy through a wall into rock or a neighbouring room, where nobody can reach it and the fight never
+## ends. Every quarter second each enemy of the fight is checked: one that left the floor, or jumped a long way with a wall between, goes back to
+## where it last stood properly.
+func _keep_enemies_inside() -> void:
+	if now() - _good_at < 0.25:
+		return
+	_good_at = now()
+	for e in fight_enemies():
+		var id: int = e.get_instance_id()
+		var here: Vector3 = e.global_position
+		var snapped: Vector3 = Nav.snap(e, here)
+		var off_floor: bool = Vector2(snapped.x - here.x, snapped.z - here.z).length() > 0.9
+		var jumped: bool = false
+		if _good_pos.has(id):
+			var prev: Vector3 = _good_pos[id]
+			jumped = prev.distance_to(here) > 2.5 and not e.behavior.is_attacking() and not Nav.sight_clear(e, prev, here)
+			if off_floor or jumped:
+				e.global_position = prev
+				e.velocity = Vector3.ZERO
+				print("[mapmode] enemy knocked through a wall, put back: %s" % e.variant)
+				continue
+		if not off_floor:
+			_good_pos[id] = here
+
+## Diagnostic: an awake enemy of the fight that has not moved since the last sample and is not next to anyone to hit is printed with its state,
+## so a "frozen" enemy can be told apart (dormant, still asleep, stunned, ranged and holding, or stuck behind something).
+func _sample_frozen() -> void:
+	_last_sample = now()
+	for e in fight_enemies():
+		var id: int = e.get_instance_id()
+		var was: Vector3 = _sample_pos.get(id, Vector3(INF, 0, INF))
+		_sample_pos[id] = e.global_position
+		var near: float = minf(e.flat_distance_to(hero), e.flat_distance_to(companion) if is_instance_valid(companion) else INF)
+		if was.x != INF and e.global_position.distance_to(was) < 0.3 and near > 3.0:
+			print("[mapmode] FROZEN? %s group %d aggro=%s dormant=%s stun=%.1f dist=%.1f line=%s champion=%s busy=%s" % [e.variant, e.group_id, e.is_aggro(),
+				e.dormant, e.stun_time, near, Nav.line_clear(e, hero.global_position), e.champion != null, e.behavior.is_attacking()]
+				+ " | state=%s active=%s timer=%s cool=%s attacking=%s alert=%.1f fear=%.1f snare=%s" % [e.behavior.get("_state"), e.behavior.get("_active"), e.behavior.get("_timer"),
+				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")])
 
 func _begin_collect() -> void:
 	MapModeRules.note_fight_end()
