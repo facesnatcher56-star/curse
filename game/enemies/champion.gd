@@ -41,6 +41,8 @@ var adds: Array = []
 var base_name: String = ""
 var has_summoned: bool = false
 var _bubble: MeshInstance3D = null
+## Map mode only (MapModeRules): when a power last hit this champion, in MapMode.now() seconds.
+var last_power_hit: float = -1000.0
 
 ## Rolls one champion for a freshly spawned pack. Returns the champion's enemy, or null when this pack gets none.
 static func roll_pack(members: Array) -> Enemy:
@@ -92,6 +94,8 @@ static func loot(level: int, tier: String, magic_find: float = 0.0) -> Dictionar
 ## The shield soaks damage before the body does. Returns the result to apply (a copy when anything was absorbed).
 func filter_incoming(enemy: Enemy, result: Dictionary) -> Dictionary:
 	var damage: float = float(result.get("damage", 0.0))
+	if MapMode.active and MapModeRules.is_power_hit(result):
+		last_power_hit = MapMode.now()   # a power hit pauses the shield's regeneration (map mode)
 	if shield <= 0.0 or damage <= 0.0:
 		return result
 	var absorbed: float = minf(shield, damage)
@@ -110,6 +114,8 @@ func filter_incoming(enemy: Enemy, result: Dictionary) -> Dictionary:
 
 ## Per-frame affix work: a summoner calls its adds while it is awake.
 func tick(enemy: Enemy, delta: float) -> void:
+	if MapMode.active and shield_max > 0.0:
+		MapModeRules.regen_step(self, delta, MapMode.now())
 	if affix_id != "summoner" or not enemy._aggro or enemy.dead:
 		return
 	adds = adds.filter(func(a) -> bool: return is_instance_valid(a) and not a.dead)
