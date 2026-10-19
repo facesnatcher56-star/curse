@@ -134,8 +134,9 @@ var picker := HudSkillPicker.new()
 func zone_name() -> String:
 	if player == null:
 		return ""
-	if not get_tree().get_nodes_in_group("crypt_dungeon").is_empty():   # the hand-built Crypt (`-- --crypt01`)
-		return "The Crypt"
+	var crypt: Node = get_tree().get_first_node_in_group("crypt_dungeon")
+	if crypt != null:   # the hand-built Crypt (`-- --crypt01`), or the map-mode dungeon built on it (`-- --mapmode`)
+		return String(crypt.call("zone_title")) if crypt.has_method("zone_title") else "The Crypt"
 	if not get_tree().get_nodes_in_group("test_dungeon").is_empty():   # the dev dungeon (`-- --dungeon`) has its own name
 		return "Test Dungeon"
 	for node in get_tree().get_nodes_in_group("crypt_road"):

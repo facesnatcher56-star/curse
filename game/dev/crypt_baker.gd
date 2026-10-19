@@ -1,6 +1,6 @@
 class_name CryptBaker
 extends RefCounted
-## Writes the Crypt scene (`game/world/dungeons/crypt_01.tscn`) from the plan in CryptLayout. Developer tool: the game never runs this.
+## Writes the Crypt scene (`game/world/dungeons/crypt_01.tscn`) from the plan in L. Developer tool: the game never runs this.
 ##   godot --headless --path . -s res://tools/build_crypt_01.gd
 ## The scene it writes is the SOURCE of the dungeon from then on (docs/CRYPT_DUNGEON.md): open it in the editor, move, add and delete things,
 ## save. Run this again only to throw hand edits away and start over from the plan.
@@ -12,12 +12,16 @@ const Q1 := "res://assets/third_party/quaternius_modular_dungeon_1/%s.glb"
 const Q2 := "res://assets/third_party/quaternius_modular_dungeon_2/%s.glb"
 const URN := "res://assets/models/dungeon/urn/model.glb"
 const SCATTER_MOD := "res://addons/proton_scatter/src/modifiers/%s.gd"
-const C := CryptLayout.CELL
+const C := 4.0   # the cell size of every plan (CryptLayout.CELL)
 
 const DIRS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]   # north, east, south, west
 const DIR_NAMES := ["N", "E", "S", "W"]
 const DIR_YAW := [0.0, 270.0, 180.0, 90.0]    # the GridMap rotation that puts a wall on that edge (the piece sits on the -z edge at 0 degrees)
 
+## The plan to bake: CryptLayout, or a layout with the same constants and helpers (MapModeBaker hands in MapModeLayout).
+var L: Variant = CryptLayout
+var out_path: String = OUT
+var root_name: String = "Crypt01"
 var root: Node3D
 var lib: MeshLibrary
 var rng := RandomNumberGenerator.new()
@@ -38,8 +42,8 @@ func build() -> int:
 	_stone.albedo_color = Color(0.3, 0.31, 0.35)
 	_stone.roughness = 0.95
 	root = Node3D.new()
-	root.name = "Crypt01"
-	for group_name in ["Floor", "Walls", "Pillars", "Props", "SetPieces", "Decor", "Torches", "Liners", "Scatter", "Chests", "EnemyGroups"]:
+	root.name = root_name
+	for group_name in _group_names():
 		var group := Node3D.new()
 		group.name = group_name
 		root.add_child(group)
@@ -50,8 +54,8 @@ func build() -> int:
 	_corner_posts()
 	_rounds()
 	_cuts()
-	for chest in CryptLayout.CHESTS:
-		var spot: Vector2 = CryptLayout.world(float(chest["cell"].x), float(chest["cell"].y))
+	for chest in L.CHESTS:
+		var spot: Vector2 = L.world(float(chest["cell"].x), float(chest["cell"].y))
 		_chests.append(spot)
 	_set_pieces()
 	_props()
@@ -63,7 +67,7 @@ func build() -> int:
 	_floor_detail()
 	var start := Marker3D.new()
 	start.name = "PlayerStart"
-	var s: Vector2 = CryptLayout.world(CryptLayout.START_CELL.x, CryptLayout.START_CELL.y)
+	var s: Vector2 = L.world(L.START_CELL.x, L.START_CELL.y)
 	start.position = Vector3(s.x, 0.0, s.y)
 	root.add_child(start)
 	start.owner = root
@@ -71,9 +75,14 @@ func build() -> int:
 	var error: int = packed.pack(root)
 	if error != OK:
 		return error
-	error = ResourceSaver.save(packed, OUT)
-	print("CRYPT_BAKE %s: %s (error %d)" % [OUT, str(_counts), error])
+	error = ResourceSaver.save(packed, out_path)
+	print("CRYPT_BAKE %s: %s (error %d)" % [out_path, str(_counts), error])
 	return error
+
+
+## The scene's top-level groups (MapModeBaker adds "Shrines").
+func _group_names() -> Array:
+	return ["Floor", "Walls", "Pillars", "Props", "SetPieces", "Decor", "Torches", "Liners", "Scatter", "Chests", "EnemyGroups"]
 
 
 # --- helpers ---------------------------------------------------------------------------------------------------------------------------
@@ -84,7 +93,7 @@ func _grid(parent: String, node_name: String) -> GridMap:
 	g.mesh_library = lib
 	g.cell_size = Vector3(C, C, C)
 	g.cell_center_y = false
-	g.position = Vector3(-float(CryptLayout.W) * C * 0.5, 0.0, -float(CryptLayout.H) * C * 0.5)
+	g.position = Vector3(-float(L.W) * C * 0.5, 0.0, -float(L.H) * C * 0.5)
 	g.collision_layer = 0
 	g.collision_mask = 0
 	(_groups[parent] as Node3D).add_child(g)
@@ -258,12 +267,12 @@ func _floor() -> void:
 	for deg in [0, 90, 180, 270]:
 		rotations.append(grid.get_orthogonal_index_from_basis(Basis(Vector3.UP, deg_to_rad(float(deg)))))
 	var n: int = 0
-	for r in CryptLayout.H:
-		for c in CryptLayout.W:
-			var space: String = CryptLayout.space_at(c, r)
+	for r in L.H:
+		for c in L.W:
+			var space: String = L.space_at(c, r)
 			if space == "":
 				continue
-			if CryptLayout.ROUNDS.has(space) and not _round_keeps(space, c, r):
+			if L.ROUNDS.has(space) and not _round_keeps(space, c, r):
 				continue
 			var item: int = plain
 			if rng.randf() < 0.0:   # floor_tile_large_rocks carries a boulder bigger than the hero: left out
@@ -289,18 +298,18 @@ func _walls() -> void:
 	var door: int = lib.find_item_by_name("wall_doorway")
 	var n_wall := 0
 	var n_door := 0
-	for r in CryptLayout.H:
-		for c in CryptLayout.W:
-			var space: String = CryptLayout.space_at(c, r)
+	for r in L.H:
+		for c in L.W:
+			var space: String = L.space_at(c, r)
 			if space == "":
 				continue
 			for d in 4:
 				var nc: int = c + (DIRS[d] as Vector2i).x
 				var nr: int = r + (DIRS[d] as Vector2i).y
-				var other: String = CryptLayout.space_at(nc, nr)
+				var other: String = L.space_at(nc, nr)
 				if other == space:
 					continue
-				var centre: Vector2 = CryptLayout.world(c, r)
+				var centre: Vector2 = L.world(c, r)
 				var edge: Vector2 = centre + Vector2(DIRS[d]) * C * 0.5
 				if other != "":
 					if space > other:
@@ -309,7 +318,7 @@ func _walls() -> void:
 					_doors.append(edge)
 					n_door += 1
 					continue
-				if CryptLayout.ROUNDS.has(space):
+				if L.ROUNDS.has(space):
 					continue   # the curve walls this space (see _rounds)
 				var item: int = wall
 				var roll: float = rng.randf()
@@ -319,9 +328,9 @@ func _walls() -> void:
 					item = cracked
 				elif roll < 0.2:
 					item = broken
-				elif roll < 0.25 and CryptLayout.SPACES[space]["kind"] in ["side", "hall"]:
+				elif roll < 0.25 and L.SPACES[space]["kind"] in ["side", "hall"]:
 					item = shelves
-				elif roll < 0.29 and CryptLayout.SPACES[space]["kind"] in ["side", "hall"]:
+				elif roll < 0.29 and L.SPACES[space]["kind"] in ["side", "hall"]:
 					item = arched
 				grids[d].set_cell_item(Vector3i(c, 0, r), item, rot[d])
 				n_wall += 1
@@ -334,10 +343,10 @@ func _walls() -> void:
 func _corner_posts() -> void:
 	var post: PackedScene = load(KK % "pillar")
 	var n := 0
-	for vr in range(0, CryptLayout.H + 1):
-		for vc in range(0, CryptLayout.W + 1):
-			var around: Array[String] = [CryptLayout.space_at(vc - 1, vr - 1), CryptLayout.space_at(vc, vr - 1),
-				CryptLayout.space_at(vc, vr), CryptLayout.space_at(vc - 1, vr)]   # NW, NE, SE, SW
+	for vr in range(0, L.H + 1):
+		for vc in range(0, L.W + 1):
+			var around: Array[String] = [L.space_at(vc - 1, vr - 1), L.space_at(vc, vr - 1),
+				L.space_at(vc, vr), L.space_at(vc - 1, vr)]   # NW, NE, SE, SW
 			var north: bool = around[0] != around[1]
 			var east: bool = around[1] != around[2]
 			var south: bool = around[2] != around[3]
@@ -350,12 +359,12 @@ func _corner_posts() -> void:
 			for i in 4:
 				var a: String = around[i]
 				var b: String = around[(i + 1) % 4]
-				round_here = round_here or CryptLayout.ROUNDS.has(a) or CryptLayout.ROUNDS.has(b)
+				round_here = round_here or L.ROUNDS.has(a) or L.ROUNDS.has(b)
 				door_here = door_here or (a != b and a != "" and b != "")
 			if round_here and not door_here:
 				continue   # the curve has no square corners to post
 			var holder := Node3D.new()
-			holder.position = Vector3((float(vc) - float(CryptLayout.W) * 0.5) * C, 0.0, (float(vr) - float(CryptLayout.H) * 0.5) * C)
+			holder.position = Vector3((float(vc) - float(L.W) * 0.5) * C, 0.0, (float(vr) - float(L.H) * 0.5) * C)
 			holder.add_child(post.instantiate())
 			_add("Pillars", holder, "Post")
 			n += 1
@@ -365,9 +374,9 @@ func _corner_posts() -> void:
 # --- set pieces and props -----------------------------------------------------------------------------------------------------------------
 
 func _space_rect_world(space: String) -> Rect2:
-	var rect: Array = CryptLayout.SPACES[space]["rects"][0]
-	var a: Vector2 = CryptLayout.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
-	var b: Vector2 = CryptLayout.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
+	var rect: Array = L.SPACES[space]["rects"][0]
+	var a: Vector2 = L.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
+	var b: Vector2 = L.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
 	return Rect2(a, b - a)
 
 
@@ -414,46 +423,52 @@ func _set_pieces() -> void:
 	# Pillared crypt: two lines of pillars down the nave, a broken one now and then.
 	for vr in [35, 38]:
 		for vc in [7, 10, 13]:
-			var p := Vector2((float(vc) - float(CryptLayout.W) * 0.5) * C, (float(vr) - float(CryptLayout.H) * 0.5) * C)
+			var p := Vector2((float(vc) - float(L.W) * 0.5) * C, (float(vr) - float(L.H) * 0.5) * C)
 			var broken: bool = (vr == 38 and vc == 10)
 			_solid("SetPieces", Q2 % "Column_Broken" if broken else KK % "pillar_decorated", p, 0.0, 2.6 if broken else 4.0, 0.75, "CryptPillar")
-	_sarcophagus(CryptLayout.world(5.2, 34.2) + Vector2(0, 0), 0.0, "A")
-	_sarcophagus(CryptLayout.world(5.2, 39.0), PI, "B")
+	_sarcophagus(L.world(5.2, 34.2) + Vector2(0, 0), 0.0, "A")
+	_sarcophagus(L.world(5.2, 39.0), PI, "B")
 	# Long hall: a broken pillar every few cells along the north wall, banners above, a sarcophagus at the west end.
 	for c in [26, 22, 18, 14, 11]:
-		var p := CryptLayout.world(c, 45) + Vector2(rng.randf_range(-0.4, 0.4), 0.9)
+		var p: Vector2 = L.world(c, 45) + Vector2(rng.randf_range(-0.4, 0.4), 0.9)
 		_solid("SetPieces", Q2 % ("Column_Broken" if c % 2 == 0 else "Column_Broken2"), p, rng.randf() * TAU, 2.4, 0.6, "BrokenPillar")
-	_sarcophagus(CryptLayout.world(10, 47) + Vector2(0, 0.6), PI * 0.5, "C")
+	_sarcophagus(L.world(10, 47) + Vector2(0, 0.6), PI * 0.5, "C")
 	# Ossuary: two rows of sarcophagi with bones between them.
 	for i in 3:
-		_sarcophagus(CryptLayout.world(20.2 + float(i) * 2.3, 34.7), 0.0, "O%d" % i)
-		_sarcophagus(CryptLayout.world(20.2 + float(i) * 2.3, 37.9), PI, "P%d" % i)
+		_sarcophagus(L.world(20.2 + float(i) * 2.3, 34.7), 0.0, "O%d" % i)
+		_sarcophagus(L.world(20.2 + float(i) * 2.3, 37.9), PI, "P%d" % i)
 	# Rotunda: the altar in the middle, eight pillars round it.
-	var centre: Vector2 = CryptLayout.world(16, 24)
+	var centre: Vector2 = L.world(16, 24)
 	_altar(centre, "RotundaAltar", 1.4)
 	_ring(centre, 8.5, 8, 22.5, KK % "pillar_decorated", 4.0, "RotundaPillar")
 	# Vault (side): a long table with candles and shelves; shrine (side): an altar and a statue; bone closet: a sarcophagus.
-	_solid("SetPieces", KK % "table_long_decorated_A", CryptLayout.world(7, 24) + Vector2(0, 0), PI * 0.5, 1.1, 1.0, "VaultTable", Vector3(2.4, 1.1, 1.0))
-	_solid("SetPieces", KK % "shelf_large", CryptLayout.world(4.4, 22.6) + Vector2(-0.4, 0.0), PI * 0.5, 2.6, 0.9, "VaultShelf", Vector3(1.0, 2.0, 2.4))
-	_altar(CryptLayout.world(27, 16), "ShrineAltar", 1.2)
-	_solid("SetPieces", Q1 % "Statue_Horse", CryptLayout.world(27, 14.4), PI, 2.8, 1.0, "ShrineStatue")
-	_sarcophagus(CryptLayout.world(1, 34.7), 0.0, "D")
+	_solid("SetPieces", KK % "table_long_decorated_A", L.world(7, 24) + Vector2(0, 0), PI * 0.5, 1.1, 1.0, "VaultTable", Vector3(2.4, 1.1, 1.0))
+	_solid("SetPieces", KK % "shelf_large", L.world(4.4, 22.6) + Vector2(-0.4, 0.0), PI * 0.5, 2.6, 0.9, "VaultShelf", Vector3(1.0, 2.0, 2.4))
+	_altar(L.world(27, 16), "ShrineAltar", 1.2)
+	_solid("SetPieces", Q1 % "Statue_Horse", L.world(27, 14.4), PI, 2.8, 1.0, "ShrineStatue")
+	_sarcophagus(L.world(1, 34.7), 0.0, "D")
 	# Guard hall: two pairs of pillars and a statue at each end.
 	for vc in [14, 18]:
 		for vr in [16, 18]:
-			var p := Vector2((float(vc) - float(CryptLayout.W) * 0.5) * C, (float(vr) - float(CryptLayout.H) * 0.5) * C)
+			var p := Vector2((float(vc) - float(L.W) * 0.5) * C, (float(vr) - float(L.H) * 0.5) * C)
 			_solid("SetPieces", KK % "pillar", p, 0.0, 4.0, 0.7, "GuardPillar")
-	_solid("SetPieces", Q1 % "Statue_Horse", CryptLayout.world(12, 15.6), PI * 0.5, 2.6, 1.0, "GuardStatue")
-	_solid("SetPieces", Q1 % "Statue_Horse", CryptLayout.world(20, 15.6), -PI * 0.5, 2.6, 1.0, "GuardStatue")
+	_solid("SetPieces", Q1 % "Statue_Horse", L.world(12, 15.6), PI * 0.5, 2.6, 1.0, "GuardStatue")
+	_solid("SetPieces", Q1 % "Statue_Horse", L.world(20, 15.6), -PI * 0.5, 2.6, 1.0, "GuardStatue")
 	# Antechamber: sarcophagi against the side walls, an altar between them.
-	_sarcophagus(CryptLayout.world(13.0, 11.0), PI * 0.5, "E")
-	_sarcophagus(CryptLayout.world(19.0, 11.0), PI * 0.5, "F")
+	_sarcophagus(L.world(13.0, 11.0), PI * 0.5, "E")
+	_sarcophagus(L.world(19.0, 11.0), PI * 0.5, "F")
 	# The arena: six great pillars in two rows and a broken altar in the middle.
 	for vc in [11, 14, 18, 21]:
 		for vr in [2, 6]:
-			var p := Vector2((float(vc) - float(CryptLayout.W) * 0.5) * C, (float(vr) - float(CryptLayout.H) * 0.5) * C)
+			var p := Vector2((float(vc) - float(L.W) * 0.5) * C, (float(vr) - float(L.H) * 0.5) * C)
 			_solid("SetPieces", KK % "pillar_decorated", p, 0.0, 4.0, 0.75, "ArenaPillar")
-	_altar(CryptLayout.world(16, 3.5) + Vector2(0, 0), "WardenAltar", 1.0)
+	_altar(L.world(16, 3.5) + Vector2(0, 0), "WardenAltar", 1.0)
+
+
+## How many breakables each space gets. Corridors stay clear: a barrel in a 4 m passage closes the navigation mesh.
+func _prop_targets() -> Dictionary:
+	return {"vestibule": 7, "long_hall": 9, "pillared_crypt": 6, "ossuary": 5, "rotunda": 3, "guard_hall": 6, "antechamber": 4, "arena": 5,
+		"vault": 4, "shrine": 3, "bone_closet": 3}
 
 
 func _props() -> void:
@@ -465,8 +480,7 @@ func _props() -> void:
 		["barrel", KK % "keg", 0.9, 0.5],
 		["urn", URN, 0.9, 0.45],
 	]
-	var targets := {"vestibule": 7, "long_hall": 9, "pillared_crypt": 6, "ossuary": 5, "rotunda": 3, "guard_hall": 6, "antechamber": 4, "arena": 5,
-		"vault": 4, "shrine": 3, "bone_closet": 3}   # corridors stay clear: a barrel in a 4 m passage closes the navigation mesh
+	var targets: Dictionary = _prop_targets()
 	for space in targets:
 		var wanted: int = int(targets[space])
 		var cells: Array = _wall_cells.filter(func(w: Dictionary) -> bool: return w["space"] == space and not bool(w["item"]))
@@ -488,8 +502,8 @@ func _props() -> void:
 
 
 func _near_pack(p: Vector2) -> bool:
-	for pack in CryptLayout.PACKS:
-		if p.distance_to(CryptLayout.world((pack["cell"] as Vector2).x, (pack["cell"] as Vector2).y)) < 3.6:
+	for pack in L.PACKS:
+		if p.distance_to(L.world((pack["cell"] as Vector2).x, (pack["cell"] as Vector2).y)) < 3.6:
 			return true
 	return false
 
@@ -510,7 +524,7 @@ func _torches() -> void:
 		var key: String = "%s/%d" % [w["space"], int(w["dir"])]
 		var n: int = int(counters.get(key, 0))
 		counters[key] = n + 1
-		var kind: String = String(CryptLayout.SPACES[w["space"]]["kind"])
+		var kind: String = String(L.SPACES[w["space"]]["kind"])
 		var step: int = 3 if kind == "corridor" else 5
 		var edge: Vector2 = w["edge"]
 		var inward: Vector2 = w["inward"]
@@ -571,8 +585,8 @@ func _scatter() -> void:
 	var picks: Array = [[Q2 % "Bones2", 20, 0.5], [Q2 % "Bones", 14, 0.5], [Q1 % "Skull", 14, 0.9], [KK % "candle_melted", 6, 0.55],
 		[Q1 % "Brick", 24, 1.4], [Q1 % "Vase", 6, 1.6],
 		[Q1 % "Bucket", 2, 1.2]]
-	for space in CryptLayout.SPACES:
-		var kind: String = String(CryptLayout.SPACES[space]["kind"])
+	for space in L.SPACES:
+		var kind: String = String(L.SPACES[space]["kind"])
 		var area: float = 0.0
 		var sc := ProtonScatter.new()
 		sc.global_seed = 100 + absi(int(hash(space) % 1000))
@@ -632,9 +646,9 @@ func _scatter() -> void:
 ## bands inside a curved wall. The middle of the floor stays free, which is where the fighting is.
 func _scatter_strips(space: String) -> Array:
 	var out: Array = []
-	if CryptLayout.ROUNDS.has(space):
-		var cfg: Dictionary = CryptLayout.ROUNDS[space]
-		var ce: Vector2 = CryptLayout.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
+	if L.ROUNDS.has(space):
+		var cfg: Dictionary = L.ROUNDS[space]
+		var ce: Vector2 = L.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
 		var n: int = int(cfg["segments"]) / 2
 		for i in n:
 			var ang: float = TAU * (float(i) + 0.5) / float(n)
@@ -644,9 +658,9 @@ func _scatter_strips(space: String) -> Array:
 			out.append({"centre": at, "size": Vector2(maxf(TAU * minf(float(cfg["rx"]), float(cfg["ry"])) / float(n), 3.0), 2.6),
 				"yaw": atan2(-tangent.y, tangent.x)})
 		return out
-	for rect in CryptLayout.SPACES[space]["rects"]:
-		var a: Vector2 = CryptLayout.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
-		var b: Vector2 = CryptLayout.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
+	for rect in L.SPACES[space]["rects"]:
+		var a: Vector2 = L.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
+		var b: Vector2 = L.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
 		var w: float = b.x - a.x
 		var h: float = b.y - a.y
 		var band: float = 2.6
@@ -662,21 +676,21 @@ func _scatter_strips(space: String) -> Array:
 
 func _door_in_space(door: Vector2, space: String) -> bool:
 	for off in [Vector2(2.1, 0), Vector2(-2.1, 0), Vector2(0, 2.1), Vector2(0, -2.1)]:
-		var cell: Vector2i = CryptLayout.cell_of(door + off)
-		if CryptLayout.space_at(cell.x, cell.y) == space:
+		var cell: Vector2i = L.cell_of(door + off)
+		if L.space_at(cell.x, cell.y) == space:
 			return true
 	return false
 
 
 func _chest_nodes() -> void:
 	var i := 0
-	for chest in CryptLayout.CHESTS:
+	for chest in L.CHESTS:
 		var node := Chest.new()
 		node.position = Vector3(_chests[i].x, 0.0, _chests[i].y)
 		var space: String = String(chest["space"])
 		var toward: Vector2 = _space_rect_world(space).get_center() - _chests[i]
 		node.rotation.y = atan2(toward.x, toward.y)
-		node.name = "Chest_%s" % space
+		node.name = "Node%d" % int(chest["node"]) if chest.has("node") else "Chest_%s" % space
 		(_groups["Chests"] as Node3D).add_child(node)
 		node.owner = root
 		i += 1
@@ -684,9 +698,9 @@ func _chest_nodes() -> void:
 
 func _packs() -> void:
 	var made := 0
-	for pack in CryptLayout.PACKS:
+	for pack in L.PACKS:
 		var marker := DungeonEnemyGroup.new()
-		var p: Vector2 = CryptLayout.world((pack["cell"] as Vector2).x, (pack["cell"] as Vector2).y)
+		var p: Vector2 = L.world((pack["cell"] as Vector2).x, (pack["cell"] as Vector2).y)
 		marker.position = Vector3(p.x, 0.0, p.y)
 		marker.area = int(pack["stage"])
 		marker.behaviour = DungeonEnemyGroup.Behaviour.WANDER if String(pack["mode"]) == "wander" else DungeonEnemyGroup.Behaviour.STAND_GUARD
@@ -696,7 +710,13 @@ func _packs() -> void:
 			members += int(pair[1])
 		marker.spread = clampf(0.9 + 0.3 * float(members), 1.6, 3.0)
 		made += 1
-		marker.name = "Pack%02d_stage%d_%s" % [made, marker.area, CryptLayout.space_at(CryptLayout.cell_of(p).x, CryptLayout.cell_of(p).y)]
+		marker.name = "Pack%02d_stage%d_%s" % [made, marker.area, L.space_at(L.cell_of(p).x, L.cell_of(p).y)]
+		if pack.has("node"):   # map mode: one marker per node, named for it; a champion pack carries its champion as metadata
+			marker.name = "Node%d" % int(pack["node"])
+			if not (pack["champion"] as Dictionary).is_empty():
+				marker.set_meta(L.CHAMPION_META, pack["champion"])
+			if members >= 20:
+				marker.spread = 6.0   # a swarm
 		(_groups["EnemyGroups"] as Node3D).add_child(marker)
 		marker.owner = root
 	_counts["packs"] = made
@@ -734,10 +754,10 @@ func _in_cut(p: Vector2) -> bool:
 
 
 func _cuts() -> void:
-	for cut in CryptLayout.CUTS:
-		var rect: Array = CryptLayout.SPACES[cut[0]]["rects"][0]
-		var a: Vector2 = CryptLayout.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
-		var b: Vector2 = CryptLayout.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
+	for cut in L.CUTS:
+		var rect: Array = L.SPACES[cut[0]]["rects"][0]
+		var a: Vector2 = L.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
+		var b: Vector2 = L.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
 		var size: float = float(cut[2])
 		var corner: String = String(cut[1])
 		var v: Vector2 = Vector2(a.x if corner.ends_with("W") else b.x, a.y if corner.begins_with("N") else b.y)
@@ -745,13 +765,13 @@ func _cuts() -> void:
 		var w: Vector2 = Vector2(0.0, 1.0 if corner.begins_with("N") else -1.0)
 		_cut_zones.append(Vector3(v.x, v.y, size))
 		_wall_seg(v + u * size, v + w * size, LOW_H if corner.begins_with("S") else 4.0, "Chamfer")
-	_counts["chamfers"] = CryptLayout.CUTS.size()
+	_counts["chamfers"] = L.CUTS.size()
 
 
 func _round_keeps(space: String, c: int, r: int) -> bool:
-	var cfg: Dictionary = CryptLayout.ROUNDS[space]
-	var m: Vector2 = CryptLayout.world(c, r)
-	var ce: Vector2 = CryptLayout.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
+	var cfg: Dictionary = L.ROUNDS[space]
+	var m: Vector2 = L.world(c, r)
+	var ce: Vector2 = L.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
 	var dx: float = maxf(absf(m.x - ce.x) - C * 0.5, 0.0)
 	var dz: float = maxf(absf(m.y - ce.y) - C * 0.5, 0.0)
 	var rx: float = float(cfg["rx"])
@@ -762,21 +782,21 @@ func _round_keeps(space: String, c: int, r: int) -> bool:
 ## The doorways of a space: [{edge (world x, z), out (unit, pointing out of the space)}].
 func _round_doors(space: String) -> Array:
 	var out: Array = []
-	for r in CryptLayout.H:
-		for c in CryptLayout.W:
-			if CryptLayout.space_at(c, r) != space:
+	for r in L.H:
+		for c in L.W:
+			if L.space_at(c, r) != space:
 				continue
 			for d in 4:
-				var other: String = CryptLayout.space_at(c + (DIRS[d] as Vector2i).x, r + (DIRS[d] as Vector2i).y)
+				var other: String = L.space_at(c + (DIRS[d] as Vector2i).x, r + (DIRS[d] as Vector2i).y)
 				if other != "" and other != space:
-					out.append({"edge": CryptLayout.world(c, r) + Vector2(DIRS[d]) * C * 0.5, "out": Vector2(DIRS[d])})
+					out.append({"edge": L.world(c, r) + Vector2(DIRS[d]) * C * 0.5, "out": Vector2(DIRS[d])})
 	return out
 
 
 func _rounds() -> void:
-	for space in CryptLayout.ROUNDS:
-		var cfg: Dictionary = CryptLayout.ROUNDS[space]
-		var ce: Vector2 = CryptLayout.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
+	for space in L.ROUNDS:
+		var cfg: Dictionary = L.ROUNDS[space]
+		var ce: Vector2 = L.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
 		var rx: float = float(cfg["rx"])
 		var ry: float = float(cfg["ry"])
 		var n: int = int(cfg["segments"])
@@ -983,17 +1003,17 @@ func _candles(p: Vector2, height: float, node_name: String = "Candles") -> void:
 ## Cobwebs in the floor corners of every room and alcove, turned into the corner.
 func _cobwebs() -> void:
 	var webs: Array = [Q1 % "Cobweb", Q1 % "Cobweb2"]
-	for space in CryptLayout.SPACES:
-		if String(CryptLayout.SPACES[space]["kind"]) == "corridor" or CryptLayout.ROUNDS.has(space):
+	for space in L.SPACES:
+		if String(L.SPACES[space]["kind"]) == "corridor" or L.ROUNDS.has(space):
 			continue
-		for rect in CryptLayout.SPACES[space]["rects"]:
-			var a: Vector2 = CryptLayout.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
-			var b: Vector2 = CryptLayout.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
+		for rect in L.SPACES[space]["rects"]:
+			var a: Vector2 = L.world(int(rect[0]), int(rect[1])) - Vector2(C, C) * 0.5
+			var b: Vector2 = L.world(int(rect[2]), int(rect[3])) + Vector2(C, C) * 0.5
 			for corner in [Vector2(a.x, a.y), Vector2(b.x, a.y), Vector2(a.x, b.y), Vector2(b.x, b.y)]:
 				var into: Vector2 = Vector2(1.0 if corner.x == a.x else -1.0, 1.0 if corner.y == a.y else -1.0)
 				var at: Vector2 = corner + into * 1.0
-				var cell: Vector2i = CryptLayout.cell_of(corner + into * 0.5)
-				if CryptLayout.space_at(cell.x, cell.y) != space or _in_cut(at) or rng.randf() < 0.25:
+				var cell: Vector2i = L.cell_of(corner + into * 0.5)
+				if L.space_at(cell.x, cell.y) != space or _in_cut(at) or rng.randf() < 0.25:
 					continue
 				var web := _fitted(String(webs[rng.randi() % 2]), 0.0)
 				web.scale = Vector3.ONE * 1.5
@@ -1018,9 +1038,9 @@ func _puddles() -> void:
 	disc.height = 0.01
 	disc.radial_segments = 14
 	disc.rings = 1
-	for space in CryptLayout.SPACES:
+	for space in L.SPACES:
 		var strips: Array = _scatter_strips(space)
-		var corridor: bool = String(CryptLayout.SPACES[space]["kind"]) == "corridor"
+		var corridor: bool = String(L.SPACES[space]["kind"]) == "corridor"
 		var wanted: int = 3 if corridor else 4 + strips.size()
 		var made: int = 0
 		var tries: int = 0
@@ -1049,12 +1069,12 @@ func _dress() -> void:
 	for cell in [Vector2(25.2, 54.3), Vector2(12, 47.6), Vector2(24.5, 45.4), Vector2(29.5, 47.5), Vector2(5.4, 34.4), Vector2(13.6, 39.6),
 			Vector2(25.6, 34.1), Vector2(25.5, 38.8), Vector2(26, 17.4), Vector2(28.7, 17.4), Vector2(14.5, 11.9), Vector2(17.5, 11.9),
 			Vector2(12, 14), Vector2(20, 14), Vector2(5.2, 25.4), Vector2(8.7, 22.6), Vector2(13.4, 6.9), Vector2(18.6, 6.9)]:
-		_brazier(CryptLayout.world(cell.x, cell.y))
-	var rc: Vector2 = CryptLayout.world(16, 24)
+		_brazier(L.world(cell.x, cell.y))
+	var rc: Vector2 = L.world(16, 24)
 	for deg in [83.0, 155.0, 225.0, 320.0]:   # the four doors are at about 38, 128, 180 and 270 degrees: keep clear of them
 		var a: float = deg_to_rad(deg)
 		_brazier(rc + Vector2(cos(a), sin(a)) * 10.4, "RotundaBrazier")
-	var ac: Vector2 = CryptLayout.world(16, 3.5)
+	var ac: Vector2 = L.world(16, 3.5)
 	for deg in [12.0, 35.0, 145.0, 168.0, 192.0, 215.0, 325.0, 348.0]:
 		var a: float = deg_to_rad(deg)
 		_brazier(ac + Vector2(cos(a) * 26.0, sin(a) * 9.6), "ArenaBrazier")
@@ -1066,7 +1086,7 @@ func _dress() -> void:
 		[20, 19, "urns"], [12, 19, "rubble"], [13, 9, "sarc", 0.0], [19, 9, "sarc", 0.0],
 	]
 	for al in alcoves:
-		var p: Vector2 = CryptLayout.world(al[0], al[1])
+		var p: Vector2 = L.world(al[0], al[1])
 		match String(al[2]):
 			"sarc":
 				_sarcophagus(p, float(al[3]), "Alcove")
@@ -1081,31 +1101,31 @@ func _dress() -> void:
 			"pit":
 				_pit(p)
 	# Room pieces.
-	_pit(CryptLayout.world(29.2, 54.3), true)
-	_fallen_pillar(CryptLayout.world(19.5, 48.2) + Vector2(-2.0, 0.0), 0.0)
-	_fallen_pillar(CryptLayout.world(8.3, 39.4) + Vector2(0.5, 0.0), 0.0)
-	_rubble(CryptLayout.world(9.4, 33.6), 0.7, 1.3)
-	_rubble(CryptLayout.world(25.8, 39.4), 2.1, 1.3)
-	_rubble(CryptLayout.world(3.6, 44.7), 0.4, 1.2)
-	_rubble(CryptLayout.world(18.6, 33.7), 1.0, 1.2)
-	_bone_pile(CryptLayout.world(21.5, 35.9))
-	_bone_pile(CryptLayout.world(23.8, 35.9))
-	_bone_pile(CryptLayout.world(19.4, 38.7))
-	_bone_pile(CryptLayout.world(1.4, 34.4))
-	_bone_pile(CryptLayout.world(1.5, 38.2))
-	_candles(CryptLayout.world(5.4, 22.7), 0.0)
-	_candles(CryptLayout.world(29.0, 14.5), 0.0)
-	_candles(CryptLayout.world(7.0, 24.0), 1.1, "TableCandles")
-	_urns(CryptLayout.world(0.7, 38.0), 3)
-	_urns(CryptLayout.world(9.2, 26.2), 3)
-	_urns(CryptLayout.world(29.0, 18.2), 3)
-	_fallen_pillar(CryptLayout.world(12.2, 7.6), 0.3)
-	_fallen_pillar(CryptLayout.world(19.0, 0.9), -0.2)
-	_bone_pile(CryptLayout.world(9.6, 0.9))
-	_bone_pile(CryptLayout.world(22.6, 6.4))
-	_bone_pile(CryptLayout.world(10.4, 6.6))
-	_rubble(CryptLayout.world(23.0, 1.0), 0.5, 1.5)
-	_rubble(CryptLayout.world(9.0, 4.0), 1.1, 1.5)
+	_pit(L.world(29.2, 54.3), true)
+	_fallen_pillar(L.world(19.5, 48.2) + Vector2(-2.0, 0.0), 0.0)
+	_fallen_pillar(L.world(8.3, 39.4) + Vector2(0.5, 0.0), 0.0)
+	_rubble(L.world(9.4, 33.6), 0.7, 1.3)
+	_rubble(L.world(25.8, 39.4), 2.1, 1.3)
+	_rubble(L.world(3.6, 44.7), 0.4, 1.2)
+	_rubble(L.world(18.6, 33.7), 1.0, 1.2)
+	_bone_pile(L.world(21.5, 35.9))
+	_bone_pile(L.world(23.8, 35.9))
+	_bone_pile(L.world(19.4, 38.7))
+	_bone_pile(L.world(1.4, 34.4))
+	_bone_pile(L.world(1.5, 38.2))
+	_candles(L.world(5.4, 22.7), 0.0)
+	_candles(L.world(29.0, 14.5), 0.0)
+	_candles(L.world(7.0, 24.0), 1.1, "TableCandles")
+	_urns(L.world(0.7, 38.0), 3)
+	_urns(L.world(9.2, 26.2), 3)
+	_urns(L.world(29.0, 18.2), 3)
+	_fallen_pillar(L.world(12.2, 7.6), 0.3)
+	_fallen_pillar(L.world(19.0, 0.9), -0.2)
+	_bone_pile(L.world(9.6, 0.9))
+	_bone_pile(L.world(22.6, 6.4))
+	_bone_pile(L.world(10.4, 6.6))
+	_rubble(L.world(23.0, 1.0), 0.5, 1.5)
+	_rubble(L.world(9.0, 4.0), 1.1, 1.5)
 	_cobwebs()
 	_puddles()
 
@@ -1148,8 +1168,8 @@ func _floor_detail() -> void:
 	bone.height = 0.55
 	bone.radial_segments = 5
 	bone.rings = 1
-	for space in CryptLayout.SPACES:
-		var kind: String = String(CryptLayout.SPACES[space]["kind"])
+	for space in L.SPACES:
+		var kind: String = String(L.SPACES[space]["kind"])
 		if kind == "corridor":
 			continue
 		var region: Dictionary = _detail_region(space, kind)
@@ -1228,9 +1248,9 @@ func _flat_mesh(mesh: Mesh, mat: Material, scale: Vector3, at: Vector3, yaw: flo
 
 ## The middle of a room: its first rectangle pulled in by a cell (an ellipse scaled down for the round rooms). {rect | ellipse, area}.
 func _detail_region(space: String, kind: String) -> Dictionary:
-	if CryptLayout.ROUNDS.has(space):
-		var cfg: Dictionary = CryptLayout.ROUNDS[space]
-		var ce: Vector2 = CryptLayout.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
+	if L.ROUNDS.has(space):
+		var cfg: Dictionary = L.ROUNDS[space]
+		var ce: Vector2 = L.world(float((cfg["centre"] as Vector2).x), float((cfg["centre"] as Vector2).y))
 		var radii := Vector2(float(cfg["rx"]), float(cfg["ry"])) * 0.62
 		return {"ellipse": ce, "radii": radii, "area": PI * radii.x * radii.y}
 	var rect: Rect2 = _space_rect_world(space)
