@@ -137,6 +137,10 @@ func _ready() -> void:
 		await location.wait_for_navigation()
 		director.start_location(location)
 		_mark("location populated")
+		if (MapMode.requested() or location is MapModeDungeon) and location is CryptDungeon:   # `-- --crypt01 --mapmode`: pick on the map, dash, auto-attack (issue #79)
+			var map_mode := MapMode.new()
+			add_child(map_mode)
+			map_mode.setup(player, companion, hud)
 	else:
 		director.start_wave()
 		_mark("first wave spawned")
@@ -212,6 +216,13 @@ func _build_world() -> void:
 		add_child(arena)
 		arena.build(false)
 		location = CryptDungeon.new()
+		add_child(location)
+		location.build(arena)
+	elif OS.get_cmdline_user_args().has("--mapmode"):   # the dedicated map-mode dungeon (docs/MAP_MODE_DUNGEON.md); `--crypt01 --mapmode` is the Crypt, above
+		arena = MapModeDungeon.make_arena()
+		add_child(arena)
+		arena.build(false)
+		location = MapModeDungeon.new()
 		add_child(location)
 		location.build(arena)
 	elif OS.get_cmdline_user_args().has("--selftest") or OS.get_cmdline_user_args().has("--shot"):

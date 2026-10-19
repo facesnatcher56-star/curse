@@ -56,9 +56,13 @@ const SUITES := [
 	preload("res://game/dev/suites/archer_nest_order_tests.gd"),
 	preload("res://game/dev/suites/dungeon_scene_tests.gd"),
 	preload("res://game/dev/suites/crypt_dungeon_tests.gd"),
+	preload("res://game/dev/suites/map_mode_tests.gd"),
+	preload("res://game/dev/suites/map_graph_tests.gd"),
+	preload("res://game/dev/suites/map_mode_dungeon_tests.gd"),
 	preload("res://game/dev/suites/archer_stance_tests.gd"),
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
+	preload("res://game/dev/suites/champion_map_mode_tests.gd"),
 	preload("res://game/dev/suites/power_charge_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
 	preload("res://game/dev/suites/portrait_plus_tests.gd"),
@@ -243,7 +247,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus",
@@ -384,6 +388,7 @@ func _run_selftest() -> void:
 	await _run("_test_archer_nest_order")
 	await _run("_test_dungeon_scene")
 	await _run("_test_crypt_dungeon")
+	await _run("_test_map_mode_dungeon")
 	_party_restore(party_before)
 
 	var names := ["MISS", "BLOCK", "HIT", "CRIT", "CRUSH", "WOUND"]

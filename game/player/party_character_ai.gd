@@ -54,8 +54,10 @@ func tick(delta: float) -> void:
 			var enemy := node as Enemy
 			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < 12.0:
 				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
+	if MapMode.active and MapMode.current.state == MapMode.State.FIGHT:   # `--mapmode`: the fight's nearest or focus target, wherever the leader is
+		target = MapMode.current.target_for(p)
 	p.attack_target = target
-	if gap > 16.0: target = null
+	if gap > 16.0 and not MapMode.active: target = null
 	# An enemy in contact turns an archer to his dagger, and his bow comes back when the contact is gone (see Player.update_melee_stance).
 	p.update_melee_stance(target)
 	# A prop (a nest) is attacked only when the player ordered it (the companion-attack hotkey). AI companions never choose a prop
