@@ -63,6 +63,7 @@ const SUITES := [
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
 	preload("res://game/dev/suites/champion_map_mode_tests.gd"),
+	preload("res://game/dev/suites/map_traits_tests.gd"),
 	preload("res://game/dev/suites/power_charge_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
 	preload("res://game/dev/suites/portrait_plus_tests.gd"),
@@ -247,7 +248,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus",
@@ -299,6 +300,7 @@ func _run_selftest() -> void:
 	await _run("_test_zoom")
 	await _run("_test_portrait_plus")   # early: the archer suites later free the Cutter body this check needs
 	await _run("_test_power_charge")   # early, with the Cutter body still in the party (the archer suites free it)
+	await _run("_test_map_traits")
 	await _run("_test_hotkeys")
 	await _run("_test_navigation")
 	await _run("_test_roll_shove")

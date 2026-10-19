@@ -60,7 +60,7 @@ func spot_chance() -> float:
 	var r: int = rank()
 	if r <= 0:
 		return 0.0
-	return PassiveDb.get_def("opening").extra_value("spot", r) + p.stats.gear_stat("opening")
+	return PassiveDb.get_def("opening").extra_value("spot", r) + p.stats.gear_stat("opening") + MapModeTraits.opening_bonus(p)
 
 func shield_chance() -> float:
 	var r: int = rank()
@@ -70,7 +70,7 @@ func shield_chance() -> float:
 
 ## Extra damage on an execution, in percent on top of its guaranteed critical.
 func damage_bonus() -> float:
-	return PassiveDb.get_def("opening").extra_value("damage", maxi(rank(), 1))
+	return PassiveDb.get_def("opening").extra_value("damage", maxi(rank(), 1)) + MapModeTraits.execution_bonus(p)
 
 ## Extra item drop chance on the executed enemy, in percent.
 func drop_bonus() -> float:
@@ -108,7 +108,7 @@ func style() -> Dictionary:
 func on_melee_hit(target: Actor) -> void:
 	if mark_target != null or cooldown > 0.0 or rank() <= 0 or style_id() == "":
 		return
-	if randf() * 100.0 >= spot_chance():
+	if randf() * 100.0 >= spot_chance() + MapModeTraits.opening_bonus_vs(p, target):
 		return
 	var nearby: Actor = _nearest_enemy_in_reach(target)
 	if nearby != null:

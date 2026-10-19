@@ -424,7 +424,7 @@ static func pick_base(low: int, high: int, slot: int = -1) -> Dictionary:
 		var d := def as ItemDef
 		if slot >= 0 and d.slot != slot:
 			continue
-		for lvl in d.levels:
+		for lvl in (MapModeTraits.drop_levels(d) if MapMode.active else d.levels):   # map mode also offers Battle Axe and Buckler from level 3
 			if lvl >= low and lvl <= high:
 				if not by_slot.has(d.slot):
 					by_slot[d.slot] = []
@@ -577,6 +577,7 @@ static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictiona
 		var line := passive_effect_line(effect)
 		if line != "":
 			out.append({"text": line, "key": ""})
+	out.append_array(MapModeTraits.rows_for(item))   # map mode only: the base's trait line
 	var need: String = requirement_text(item, member_id)
 	out.append({"text": "Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""], "key": ""})
 	return out

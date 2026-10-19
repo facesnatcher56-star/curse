@@ -19,6 +19,8 @@ func on_interrupted() -> void:
 
 func tick(delta: float, dist: float) -> void:
 	_cool = maxf(_cool - delta, 0.0)
+	if not _active and e.target != null:
+		MapModeTraits.pre_telegraph(e, _cool, dist)   # map-mode Leather Cap: warn before the swing (does nothing outside map mode)
 	if _active:
 		_tick_attack(delta, dist)
 		e.move_with(_move)

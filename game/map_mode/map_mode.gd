@@ -626,6 +626,7 @@ func _start_dash() -> void:
 			total += pts[k - 1].distance_to(pts[k])
 			lengths.append(total)
 		_dash_paths.append({"body": body, "points": pts, "lengths": lengths, "total": total})
+	MapModeTraits.on_dash_started(self)   # item traits: dash speed
 
 func _tick_dash(delta: float) -> void:
 	_dash_t += delta
@@ -675,6 +676,7 @@ func _afterimage(at: Vector3) -> void:
 
 func _arrive() -> void:
 	log.note_dash_end(now())
+	MapModeTraits.on_dash_arrived(self)   # item traits: after-dash buffs, the Greaves' knockback
 	match _visit_kind:
 		"group":
 			state = State.FIGHT
