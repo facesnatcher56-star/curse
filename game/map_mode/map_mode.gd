@@ -23,6 +23,8 @@ const COMPANION_SIDE := 2.0       # m the companion stands beside the hero on ar
 const COLLECT_DELAY := 1.4        # s after the last kill before drops are collected (they have to land)
 const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
+const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
+const STALL_WARNING := 90.0       # s: a fight this long prints one warning with what the party is hitting
 
 const ID_LOOT := 100000           # flat map marker ids: groups use their group_id, loot ID_LOOT + n, chests ID_CHEST + n
 const ID_CHEST := 200000
@@ -56,6 +58,9 @@ var _visit_pos: Vector3
 var _visit_kind: String = "group"   # group, chest, shrine, revisit (a cleared node), loot
 var _visit_ref: Variant
 var _visit_node: int = -1
+var _kept_target: Dictionary = {}   # member id -> the enemy it keeps attacking
+var _stall_warned: bool = false
+var _fight_started: float = 0.0
 var _route: Array[Vector2] = []     # world (x, z) corridor polyline of the dash
 var _dash_time: float = DASH_TIME
 var _dash_t: float = 0.0
@@ -184,11 +189,28 @@ func target_for(body: Player) -> Actor:
 		return null
 	if is_instance_valid(focus) and not focus.dead:
 		return focus
+	# Stick to one target until it dies (the nearest one changes as everybody moves, and the party would flap between them).
+	var kept: Actor = _kept_target.get(body.member_id) as Actor if _kept_target.has(body.member_id) else null
+	if is_instance_valid(kept) and not kept.dead and kept.is_in_group("enemies"):
+		return kept
 	var best: Actor = null
-	for enemy in group_members():
-		if best == null or enemy.flat_distance_to(body) < best.flat_distance_to(body):
+	var best_clear: bool = false
+	for enemy in fight_enemies():
+		var clear: bool = Nav.line_clear(body, enemy.global_position)   # a target behind a wall is the last choice
+		if best == null or (clear and not best_clear) or (clear == best_clear and enemy.flat_distance_to(body) < best.flat_distance_to(body)):
 			best = enemy
+			best_clear = clear
+	_kept_target[body.member_id] = best
 	return best
+
+## Everything that is part of the fight: the chosen group's living members, plus summoned adds (they have no group) that are awake close by.
+func fight_enemies() -> Array[Enemy]:
+	var out: Array[Enemy] = group_members()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and e.group_id < 0 and e.is_aggro() and e.flat_distance_to(hero) <= SUMMON_REACH:
+			out.append(e)
+	return out
 
 static func note_hit() -> void:
 	if current != null and current.state == State.FIGHT and not current._hit_logged:
@@ -363,6 +385,8 @@ func _finish_run() -> void:
 	print("Run complete: %d of %d nodes cleared" % [graph.cleared.size(), graph.nodes.size()])
 	hero.say_banner("Run complete")
 	if _auto_dir != "":
+		await get_tree().create_timer(1.5).timeout
+		await _shot("run_complete")
 		get_tree().quit()
 
 ## The developer autoplay: shoot the map, pick the nearest marker, shoot the dash and the fight, fire a power, repeat until nothing is left.
@@ -370,11 +394,17 @@ func _auto_pick() -> void:
 	await get_tree().create_timer(0.8).timeout
 	await _shot("map")
 	var best: Dictionary = {}
+	var best_hops: int = 1 << 30
+	var hops: Dictionary = _hops_to_boss()
 	for m in markers():
 		if String(m.get("state", "reachable")) != "reachable":
 			continue
-		if best.is_empty() or hero.global_position.distance_to(m["pos"]) < hero.global_position.distance_to(best["pos"]):
+		var h: int = int(hops.get(int(m["id"]), 0))
+		if best.is_empty() or h < best_hops or (h == best_hops and hero.global_position.distance_to(m["pos"]) < hero.global_position.distance_to(best["pos"])):
 			best = m
+			best_hops = h
+	if best.is_empty():
+		return
 	select_marker(int(best["id"]))
 	await get_tree().create_timer(0.45).timeout
 	await _shot("dash")
@@ -382,14 +412,29 @@ func _auto_pick() -> void:
 	if state == State.FIGHT:
 		await get_tree().create_timer(1.5).timeout
 		await _shot("fight")
-		Input.action_press("skill_1")
-		await get_tree().create_timer(0.2).timeout
-		Input.action_release("skill_1")
+		while state == State.FIGHT:   # powers on whatever the hero is hitting, once a second
+			MapAutoPowers.fire(hero, companion, hero.attack_target)
+			await get_tree().create_timer(1.0).timeout
 	await get_tree().create_timer(1.0).timeout
 	if Time.get_ticks_msec() - _auto_started_ms > 900000:
 		for line in log.summary_lines():
 			print(line)
 		get_tree().quit()
+
+## Autoplay only: the number of hops from each node to the boss (a plain breadth-first walk over the graph).
+func _hops_to_boss() -> Dictionary:
+	var out: Dictionary = {}
+	if graph == null or graph.boss_id < 0:
+		return out
+	var queue: Array = [graph.boss_id]
+	out[graph.boss_id] = 0
+	while not queue.is_empty():
+		var id: int = int(queue.pop_front())
+		for n in graph.neighbours(id):
+			if not out.has(int(n)):
+				out[int(n)] = int(out[id]) + 1
+				queue.append(int(n))
+	return out
 
 func _wait_fight() -> void:
 	while state == State.DASH:
@@ -595,6 +640,10 @@ func _arrive() -> void:
 	match _visit_kind:
 		"group":
 			state = State.FIGHT
+			_fight_started = now()
+			_stall_warned = false
+			_kept_target.clear()
+			MapModeRules.note_fight_start(now())
 			for e in group_members():   # only this group: neighbouring groups stay asleep
 				e.alert_delay = 0.0
 				e.wake()
@@ -616,12 +665,17 @@ func _tick_fight() -> void:
 		log.end_fight(now())
 		state = State.DEAD
 		return
-	if group_members().is_empty():
+	if fight_enemies().is_empty():
 		_begin_collect()
 		return
 	hero.attack_target = target_for(hero)
+	if not _stall_warned and now() - _fight_started > STALL_WARNING:
+		_stall_warned = true
+		var t: Actor = hero.attack_target
+		print("[mapmode] STALL: fight over %.0f s; hero target %s (%s hp, %s)" % [STALL_WARNING, t, t.health if t != null else "-", "champion" if t is Enemy and (t as Enemy).champion != null else "plain"])
 
 func _begin_collect() -> void:
+	MapModeRules.note_fight_end()
 	var row: Dictionary = log.end_fight(now())
 	if not row.is_empty():
 		log.emit_line(row)
