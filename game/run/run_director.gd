@@ -467,6 +467,9 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 		drop_item(enemy.global_position, loot.item)
 	if enemy.champion != null:   # a champion always drops a magic item or better, on top of the ordinary roll
 		drop_item(enemy.global_position, Champion.loot(enemy.level, enemy.def.tier, bonuses.magic_find))
+		var legendary: Dictionary = MapModeLegendaries.first_champion_drop()   # map mode only: the run's first champion always drops one
+		if not legendary.is_empty():
+			drop_item(enemy.global_position, legendary)
 	for kind in ["gold", "health", "mana"]:
 		if int(loot[kind]) <= 0: continue
 		var pickup := HealthOrb.new()

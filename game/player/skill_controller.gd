@@ -865,6 +865,8 @@ func _apply_skill(skill: Dictionary) -> void:
 					_clear_brutal_visual()
 				var target: Actor = busy_target
 				target.receive(result, p.global_position)
+				if brutal and is_instance_valid(target) and target.dead:
+					MapModeLegendaries.headsman_chain(p, target, damage, multiplier, weight)   # Headsman's Due (map mode only)
 				if opening:
 					p.openings.on_executed(target, result, skill)
 				elif brutal:

@@ -111,6 +111,7 @@ func _ready() -> void:
 	# The window sees every pointer event before it is routed to a popup or control, so a press that a dropdown consumes is still latched.
 	get_tree().root.window_input.connect(_latch_ui_click)
 	PartyManager.current().bodies[member_id] = self
+	power_activated.connect(MapModeLegendaries.on_power_used.bind(self))   # Hero's Amulet (map mode only)
 	ai = PartyCharacterAI.new(self)
 	display_name = "Hero" if member_id == "hero" else "Cutter"
 	collision_layer = LAYER_PLAYER
