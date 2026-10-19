@@ -577,6 +577,9 @@ static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictiona
 		var line := passive_effect_line(effect)
 		if line != "":
 			out.append({"text": line, "key": ""})
+	var legendary: String = MapModeLegendaries.tooltip_line(item)   # map mode only
+	if legendary != "":
+		out.append({"text": legendary, "key": ""})
 	var need: String = requirement_text(item, member_id)
 	out.append({"text": "Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""], "key": ""})
 	return out

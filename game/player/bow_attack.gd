@@ -20,6 +20,7 @@ var _recovery: float = 1.05
 var armed: bool = false
 var reload_required: float = 0.0
 var reload_remaining: float = 0.0
+var sight_refund: float = 0.0   # Executioner's Sight: the share of Take Aim's charge given back by the shot being loosed
 var _draw_arrow: Node3D
 var _bow_holder: Node3D
 var _quiver: Node3D
@@ -220,18 +221,23 @@ func loose() -> void:
 	var multiplier := PowerDb.hero_value("take_aim", "damage_pct", p.member_id) / 100.0 * p.stats.power_damage_mult() if armed else 1.0
 	if thunder_visual:
 		# The visuals first (they read who is on the line), then the power's damage and stun.
-		ThunderousShotFx.release(p, p, from, aim - from, p.powers.thunderous_stun() if thunder_power else 6.0)
+		for bolt in (p.powers.thunderous_directions(aim - from) if thunder_power else [aim - from]):   # the Splitbow draws its three bolts (map mode only)
+			ThunderousShotFx.release(p, p, from, bolt, p.powers.thunderous_stun() if thunder_power else 6.0)
 		if thunder_power:
 			p.powers.thunderous_release(from, aim - from)
 		_clear_thunder_fx()
 		_clear_thunder_state()
 	else:
-		CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed)
+		var sight: bool = armed and MapModeLegendaries.sight_applies(p, _target)   # Executioner's Sight (map mode only): Take Aim on an Opening
+		CompanionArrow.fire(p.get_parent(), p, from, aim, randf_range(damage.x, damage.y) * multiplier, armed, sight)
+		if sight:
+			sight_refund = MapModeLegendaries.number("executioners_sight", "refund")
 	if armed and not thunder_visual:
 		TakeAimFx.launch(p, from, aim - from, _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)))
 		Sfx.power(p, "take_aim_fire")
 		reload_required = p.stats.power_recharge_damage(PowerDb.charge_seconds("take_aim"), "ranged")
-		reload_remaining = reload_required
+		reload_remaining = reload_required * (1.0 - sight_refund)
+		sight_refund = 0.0
 		armed = false
 		if is_instance_valid(aura): aura.queue_free()
 	p.skills.busy_hit_done = true

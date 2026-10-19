@@ -191,6 +191,7 @@ func _whirling_strike() -> void:
 	var mult: float = value("whirling_strike", "damage_pct") / 100.0
 	var stun: float = value("whirling_strike", "stun")
 	var radius: float = value("whirling_strike", "radius")
+	MapModeLegendaries.pull_in(p)   # Gravecaller Maul (map mode only): the pull comes before anything is measured or hit
 	var hit: Array[Enemy] = enemies_within(p.global_position, radius)
 	for e in hit:
 		_strike(e, p.stats.weapon_damage(1.0), "whirling_strike", 2.0, p.global_position, mult)
@@ -207,8 +208,9 @@ func _whirling_strike() -> void:
 ## rank's time. Kills are ordinary deaths: this power does not gib. Returns how many it hit.
 func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 	var dir: Vector3 = direction.normalized()
-	var line: Dictionary = thunderous_line(muzzle, dir)
-	var victims: Array[Dictionary] = line["victims"]
+	var victims: Array[Dictionary] = []
+	for bolt in thunderous_directions(dir):   # one bolt, or the Splitbow's fan (map mode only)
+		victims.append_array(thunderous_line(muzzle, bolt)["victims"])
 	var mult: float = value("thunderous_shot", "damage_pct") / 100.0 * p.stats.power_damage_mult()
 	var stun: float = value("thunderous_shot", "stun")
 	var base: Vector2 = p.stats.ranged_range()
@@ -216,6 +218,8 @@ func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 		p.openings.on_power_use()   # one Opening roll for the whole shot, not per enemy
 	for victim in victims:
 		var e: Enemy = victim["enemy"]
+		if not is_instance_valid(e) or e.dead:
+			continue   # an earlier bolt of the same shot killed it
 		if p is ArcherCompanion:
 			e.credit_hero()   # Cutter serves the hero: his kills count as the hero's
 		var result: Dictionary = Combat.resolve(p, e, randf_range(base.x, base.y), Combat.DamageType.RANGED, false, 2.0, false, false, mult)
@@ -227,6 +231,10 @@ func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 	_spend("thunderous_shot")
 	p.power_activated.emit(p.member_id, "thunderous_shot")
 	return victims.size()
+
+## The directions Thunderous Shot's bolts fly in along `dir`: one, or three in a cone with the Splitbow (map mode only).
+func thunderous_directions(dir: Vector3) -> Array[Vector3]:
+	return MapModeLegendaries.bolt_directions(p, dir.normalized())
 
 ## Where Thunderous Shot is aimed for a cursor: the enemy under the cursor (its chest) if there is one, else the point on the ground.
 func thunderous_aim_point(cursor: Vector3) -> Vector3:

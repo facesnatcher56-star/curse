@@ -42,7 +42,17 @@ func _ready() -> void:
 	var rarity: int = int(item["rarity"])
 	var color: Color = Items.RARITY_COLORS[rarity]
 	_add_model(int(item["slot"]))
-	if GROUND_HIGHLIGHTS and rarity > Items.Rarity.NORMAL:   # (the owner does not want beams or circles on the ground: the name plate and the minimap find it)
+	if MapModeLegendaries.beam_for(item):   # a map-mode legendary: its own gold beam and pool even though ordinary drops have none
+		_light = OmniLight3D.new()
+		_light.light_color = MapModeLegendaries.BEAM_COLOR
+		_light.light_energy = 0.9
+		_light.omni_range = 4.5
+		_light.position = Vector3(0, 1.8, 0)
+		_light.shadow_enabled = false
+		add_child(_light)
+		_add_column(MapModeLegendaries.BEAM_COLOR, Items.Rarity.UNIQUE, 0.22)
+		_add_pool(MapModeLegendaries.BEAM_COLOR, Items.Rarity.UNIQUE)
+	elif GROUND_HIGHLIGHTS and rarity > Items.Rarity.NORMAL:   # (the owner does not want beams or circles on the ground: the name plate and the minimap find it)
 		_light = OmniLight3D.new()
 		_light.light_color = color
 		_light.light_energy = 0.35 if rarity == Items.Rarity.RARE else 0.7
@@ -90,7 +100,7 @@ static func _use_vertex_colours(root: Node) -> void:
 			if mat != null:
 				mat.vertex_color_use_as_albedo = true
 
-func _add_column(color: Color, rarity: int) -> void:
+func _add_column(color: Color, rarity: int, alpha: float = 0.09) -> void:
 	_column = MeshInstance3D.new()
 	var cylinder := CylinderMesh.new()
 	cylinder.top_radius = 0.05
@@ -102,7 +112,7 @@ func _add_column(color: Color, rarity: int) -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = Color(color.r, color.g, color.b, 0.09)
+	mat.albedo_color = Color(color.r, color.g, color.b, alpha)
 	mat.no_depth_test = false
 	_column.material_override = mat
 	_column.position.y = cylinder.height * 0.5
@@ -169,6 +179,8 @@ func toss_from(origin: Vector3) -> void:
 	_end = Vector3(origin.x + cos(angle) * randf_range(0.6, 1.8), 0.0, origin.z + sin(angle) * randf_range(0.6, 1.8))
 	_end = Arena.clamp_point(get_tree(), _end, 1.0)
 	global_position = _start
+	if MapModeLegendaries.beam_for(item):
+		Sfx.power(self, MapModeLegendaries.DROP_SOUND)   # the legendary's sound: the war cry, not the ordinary drop's silence
 
 func _process(delta: float) -> void:
 	_age += delta

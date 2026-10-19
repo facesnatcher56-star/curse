@@ -103,6 +103,7 @@ func use_graph(g: MapGraph, groups: Dictionary, chests: Dictionary = {}, shrines
 
 func _enter_tree() -> void:
 	current = self
+	MapModeLegendaries.reset_run()
 	process_physics_priority = 100   # after the bodies have moved, so the dash wins over their own steering
 
 func _exit_tree() -> void:
