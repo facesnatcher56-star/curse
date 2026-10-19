@@ -20,7 +20,8 @@ const DASH_REVISIT_MIN := 0.4     # s, dashing to the node the party already sta
 const ARRIVE_DISTANCE := 6.0      # m from the group's centre, on the side the party came from
 const ARRIVE_AT_POINT := 1.2      # m short of a chest or shrine
 const COMPANION_SIDE := 2.0       # m the companion stands beside the hero on arrival
-const COLLECT_DELAY := 1.4        # s after the last kill before drops are collected (they have to land)
+const COLLECT_RADIUS := 16.0      # m round the visited node: drops this close are collected (a room is about 10-12 m across)
+const COLLECT_DELAY := 1.4       # s after the last kill before drops are collected (they have to land)
 const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
@@ -596,6 +597,10 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	return goals
 
 func _start_dash() -> void:
+	# The pad's A both picked the node and is the alt-skill button: the press that chose it must not also start an attack after the dash.
+	for body in [hero, companion]:
+		if is_instance_valid(body):
+			body.skills.swallow_alt = Input.is_action_pressed("alt_skill")
 	state = State.DASH
 	_dash_t = 0.0
 	_trail_clock = 0.0
@@ -775,11 +780,15 @@ func _begin_collect() -> void:
 func _collect_rewards() -> void:
 	for node in get_tree().get_nodes_in_group("loot"):
 		var drop := node as LootDrop
-		if drop == null or drop.is_queued_for_deletion():
+		if drop == null or drop.is_queued_for_deletion() or not _in_collect_area(drop.global_position):
 			continue
 		if hero.stats.pickup(drop.item) != "":
 			drop.queue_free()
 	for node in get_tree().get_nodes_in_group("orbs"):
 		var orb := node as Node3D
-		if orb != null and not orb.is_queued_for_deletion():
+		if orb != null and not orb.is_queued_for_deletion() and _in_collect_area(orb.global_position):
 			orb.global_position = hero.global_position + Vector3(0, 0.6, 0)
+
+## Only what lies in the area just visited (the cleared room, the chest, the pile dashed to) is collected, not the whole level.
+func _in_collect_area(at: Vector3) -> bool:
+	return Vector2(at.x - _visit_pos.x, at.z - _visit_pos.z).length() <= COLLECT_RADIUS
