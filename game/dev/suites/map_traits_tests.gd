@@ -77,6 +77,7 @@ func _left(body: Player) -> float:
 
 func _test_map_traits() -> void:
 	TownState.persist = false
+	var town_before: Dictionary = TownState.to_dict()   # the town and party this suite finds: put back at the end, so later suites start from what they always did
 	TownState.reset()
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
@@ -528,3 +529,4 @@ func _test_map_traits() -> void:
 	_cutter.set_physics_process(true)
 	_hero.set_physics_process(true)
 	MapModeTraits.reset()
+	TownState.from_dict(town_before)
