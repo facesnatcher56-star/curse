@@ -53,6 +53,14 @@ func _test_champion_affix_chips() -> void:
 	champ.shield = 0.0
 	banner.update_target(two, 0.1)
 	expect("a broken shield leaves the empty track", banner._shield_track.visible and not banner._shield_fill.visible)
+	# Legibility: the shield strip (y 36..) must not sit behind the health numbers or the tag line, and both keep a black outline of 4 px.
+	var num_top: float = banner._health_label.position.y + banner._health_label.size.y * 0.5 - 18.0 * 0.36   # numerals are about 0.72 em tall
+	expect("the shield strip ends above the health numbers' glyphs", banner._shield_track.position.y + banner._shield_track.size.y <= num_top)
+	expect("the tag line ends above the shield strip", banner._tag_label.position.y + 12.0 <= banner._shield_track.position.y + 1.0)
+	expect("tag and numbers carry a dark outline of at least 4 px",
+		banner._tag_label.get_theme_constant("outline_size") >= 4 and banner._health_label.get_theme_constant("outline_size") >= 4
+		and banner._tag_label.get_theme_color("font_outline_color").get_luminance() < 0.05 and banner._health_label.get_theme_color("font_outline_color").get_luminance() < 0.05)
+	expect("the name carries a dark outline too", banner._name_label.get_theme_constant("outline_size") >= 4)
 	banner.update_target(null, 0.1)
 	expect("no target, no chips", banner._chips.chip_count() == 0)
 	expect("plain enemies have no strong frame", not Ds2TargetBanner.strong_frame(player))
