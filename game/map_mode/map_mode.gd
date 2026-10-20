@@ -26,6 +26,7 @@ const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
 const FROZEN_SAMPLE := 6.0        # s between checks for an awake enemy that is not moving or fighting (a diagnostic, printed)
+const UNSTICK_AFTER := 2.5        # s of failed pathing after which an awake enemy is set back on the navmesh (see _unstick)
 const STALL_WARNING := 90.0       # s: a fight this long prints one warning with what the party is hitting
 
 const ID_LOOT := 100000           # flat map marker ids: groups use their group_id, loot ID_LOOT + n, chests ID_CHEST + n
@@ -802,6 +803,21 @@ func _keep_enemies_inside() -> void:
 				continue
 		if not off_floor:
 			_good_pos[id] = here
+		_unstick(e)
+
+## An enemy that has been knocked or staggered into the margin against a wall (a little off the navmesh) cannot take its first step along its path: it makes
+## no progress, after 5 s its path state says "unreachable" for good, and it stands there, awake and not moving, while the party waits for the fight to end.
+## Once its pathing has failed for UNSTICK_AFTER seconds it is set on the closest navmesh point and its path state is cleared. Returns true if it did.
+func _unstick(e: Enemy) -> bool:
+	if e.dead or not e.is_aggro() or float(e._nav_state.get("failed_time", 0.0)) < UNSTICK_AFTER or e.behavior.is_attacking():
+		return false
+	var map: RID = Nav.map_of(e)
+	var on_mesh: Vector3 = NavigationServer3D.map_get_closest_point(map, e.global_position)
+	e.global_position = Vector3(on_mesh.x, e.global_position.y, on_mesh.z)
+	e.velocity = Vector3.ZERO
+	Nav.reset(e, e._nav_state)
+	print("[mapmode] enemy stuck at the wall, put on the navmesh: %s" % e.variant)
+	return true
 
 ## Diagnostic: an awake enemy of the fight that has not moved since the last sample and is not next to anyone to hit is printed with its state,
 ## so a "frozen" enemy can be told apart (dormant, still asleep, stunned, ranged and holding, or stuck behind something).
@@ -819,7 +835,9 @@ func _sample_frozen() -> void:
 				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")]
 				+ " | phys=%s processing=%s target=%s tdist=%.1f vel=%s layer=%d mask=%d speed_mult=%s hp=%.0f/%.0f" % [e.is_physics_processing(), e.can_process(),
 				e.target.member_id if e.target is Player else str(e.target), e.flat_distance_to(e.target) if e.target != null else -1.0, e.velocity, e.collision_layer, e.collision_mask,
-				e.get("speed_mult"), e.health, e.max_health])
+				e.get("speed_mult"), e.health, e.max_health]
+				+ " | nav: path=%d failed=%.1f replans=%s queries=%s" % [(e._nav_state.get("path", PackedVector3Array()) as PackedVector3Array).size(),
+				float(e._nav_state.get("failed_time", 0.0)), e._nav_state.get("failed_replans"), e._nav_state.get("queries")])
 
 func _begin_collect() -> void:
 	MapModeRules.note_fight_end()

@@ -166,11 +166,16 @@ static func targets_cutter(e: Enemy) -> bool:
 	var p := e.target as Player
 	return p != null and p.member_id == CUTTER_ID and not p.dead and not e.dead and e.is_aggro()
 
+## Within this many metres of its detour point a flanker counts as having arrived there (it then heads for the real goal).
+const ARRIVED_AT_DETOUR := 1.2
+
 ## For a flanker: the next point to head for on the way to `goal`, going AROUND any other party member standing on the straight line.
 ## Everything else (and the default game) gets `goal` back unchanged.
 static func route_goal(e: Enemy, goal: Vector3) -> Vector3:
 	if not MapMode.active or not enabled or rule_of(e) != "flanker":
 		return goal
+	if e.has_meta(PASS_META) and Time.get_ticks_msec() < int(e.get_meta(PASS_META)):
+		return goal   # just went round him: no new detour yet
 	var role: Dictionary = role_of(e)
 	var a := Vector2(e.global_position.x, e.global_position.z)
 	var b := Vector2(goal.x, goal.z)
@@ -193,8 +198,18 @@ static func route_goal(e: Enemy, goal: Vector3) -> Vector3:
 		# Pass on the side the line already leans to; dead centre, on the enemy's own side (its random orbit direction).
 		var sign_side: float = signf(off) if absf(off) > 0.05 else e._orbit_dir
 		var via: Vector2 = c + perp * sign_side * float(role.get("side", 3.4))
-		return Nav.snap(e, Vector3(via.x, goal.y, via.y))
+		var spot: Vector3 = Nav.snap(e, Vector3(via.x, goal.y, via.y))
+		# Standing on the detour point (or just past it): go on to the real goal for a moment. Without this the line from there still passes near him,
+		# the same point is handed back, the path reports "arrived", and the ghoul waits there, not moving, until the fight moves on.
+		if a.distance_to(Vector2(spot.x, spot.z)) <= ARRIVED_AT_DETOUR:
+			e.set_meta(PASS_META, Time.get_ticks_msec() + int(PASS_SECONDS * 1000.0))
+			return goal
+		return spot
 	return goal
+
+## A flanker that has reached its detour point heads straight for the goal for this long, whatever the line to it passes near.
+const PASS_SECONDS := 1.5
+const PASS_META := "flank_pass_until_ms"
 
 # --- Dash formation -------------------------------------------------------------------------------------------------------------------
 
