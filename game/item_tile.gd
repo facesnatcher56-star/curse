@@ -81,7 +81,7 @@ static func display_rows(it: Dictionary, comparison: Array[Dictionary], member_i
 			shown[key] = true
 			out.append({"text": "%s %s" % [line, String(entry["delta"])], "color": _delta_color(int(entry["sign"]))})
 		else:
-			out.append({"text": line, "color": stat_line_color(it, line)})
+			out.append({"text": line, "color": row.get("color", stat_line_color(it, line))})
 	for key in deltas:
 		if not shown.has(key):
 			var entry: Dictionary = deltas[key]

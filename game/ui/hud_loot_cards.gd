@@ -18,6 +18,12 @@ const LOCKED_COLOR := LootAppraisal.LOCKED_COLOR
 ## Room for the upgrade arrow or the locked cross at the left end of a name plate.
 const MARK_WIDTH := 16.0
 
+## Map mode's loot summary after a clear (show_summary): {title, gold, health, mana, rows, until_ms}; empty when none is showing.
+## A row is {item, mark: Mark, who}: how the item compares with what the party wears, by LootAppraisal's own comparison.
+enum Mark { LOCKED = -2, DOWN = -1, EVEN = 0, UP = 1 }
+var summary: Dictionary = {}
+var summary_rect := Rect2()
+
 ## The item under the mouse (or, with a controller, the nearest one within reach): what it is, what it does, and how it compares with
 ## what is worn in that slot, with a note on whether walking over it will put it on or send it to the bag.
 func draw(size_px: Vector2, font: Font) -> void:
@@ -28,6 +34,7 @@ func draw(size_px: Vector2, font: Font) -> void:
 		return
 	names = _layout_loot_names(font)
 	_draw_loot_names(font)
+	_draw_summary(size_px, font)
 	var drop: LootDrop = drop_in_focus()
 	LootDrop.focused = drop
 	if drop == null:
@@ -210,6 +217,90 @@ func drop_in_focus() -> LootDrop:
 			best = drop
 	return best
 
+## The summary's rows for a clear's items, worked out BEFORE they are picked up (an empty slot fills at once and would then compare equal): for each
+## item the best mark over the party members who can wear it, with who that is; locked when none can yet.
+static func summary_rows(tally: Dictionary, bodies: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for item in tally.get("items", []):
+		var mark: int = Mark.LOCKED
+		var who: String = ""
+		for body in bodies:
+			var member := body as Player
+			if member == null or not is_instance_valid(member) or member.stats == null:
+				continue
+			if not Items.hero_can_wear(item, member.member_id):
+				continue
+			var t: int = LootAppraisal.trend(item, member.stats)
+			if mark == Mark.LOCKED or t > mark:
+				mark = t
+				who = member.display_name
+		out.append({"item": item, "mark": mark, "who": who})
+	return out
+
+func show_summary(title: String, tally: Dictionary, rows: Array[Dictionary], seconds: float) -> void:
+	summary = {"title": title, "gold": int(tally.get("gold", 0)), "health": int(tally.get("health", 0)), "mana": int(tally.get("mana", 0)),
+		"rows": rows, "until_ms": Time.get_ticks_msec() + int(seconds * 1000.0)}
+
+func hide_summary() -> void:
+	summary = {}
+	summary_rect = Rect2()
+
+const SUMMARY_WIDTH := 420.0
+const SUMMARY_ROW := 27.0
+
+## The card: what the clear paid (gold, potions) and each item under its rarity colour, with a green arrow up for a better piece, a red arrow down for
+## a worse one, a grey bar for the same, a red cross for one nobody can wear yet. The same marks as the name plates.
+func _draw_summary(size_px: Vector2, font: Font) -> void:
+	summary_rect = Rect2()
+	if summary.is_empty():
+		return
+	if Time.get_ticks_msec() > int(summary["until_ms"]):
+		hide_summary()
+		return
+	if hud.show_gear:   # the inventory or character screen is open: they show the same items, and nothing is drawn under them
+		return
+	var rows: Array = summary["rows"]
+	var pad := 16.0
+	var head_h := 58.0
+	var height: float = pad * 2.0 + head_h + SUMMARY_ROW * float(maxi(rows.size(), 1))
+	var origin := Vector2((size_px.x - SUMMARY_WIDTH) * 0.5, clampf(size_px.y * 0.12, 100.0, maxf(size_px.y - height - 160.0, 100.0)))
+	summary_rect = Rect2(origin, Vector2(SUMMARY_WIDTH, height))
+	hud.draw_set_transform(origin, 0.0, Vector2.ONE)
+	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, summary_rect.size), 0.97)
+	UiTheme.text(hud, UiTheme.heading_font(), Vector2(pad, pad + 20.0), "%s cleared" % String(summary["title"]), 21, UiTheme.ACCENT,
+		HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0)
+	var paid: PackedStringArray = []
+	if int(summary["gold"]) > 0:
+		paid.append("%d gold" % int(summary["gold"]))
+	var potions: int = int(summary["health"]) + int(summary["mana"])
+	if potions > 0:
+		paid.append("%d potion%s" % [potions, "" if potions == 1 else "s"])
+	if rows.is_empty():
+		paid.append("no items")
+	UiTheme.text(hud, font, Vector2(pad, pad + 46.0), "Found: " + ", ".join(paid), 15, Color(0.95, 0.85, 0.5), HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0)
+	var y: float = pad + head_h
+	for row in rows:
+		var item: Dictionary = row["item"]
+		var colour: Color = Items.RARITY_COLORS[int(item["rarity"])]
+		var mark: int = int(row["mark"])
+		var mid := Vector2(pad + 8.0, y + SUMMARY_ROW * 0.5 - 2.0)
+		match mark:
+			Mark.UP: _draw_mark(mid, true)
+			Mark.DOWN: _draw_arrow_down(mid)
+			Mark.LOCKED: _draw_mark(mid, false)
+			_: hud.draw_line(mid + Vector2(-4, 0), mid + Vector2(4, 0), Color(0.7, 0.7, 0.7), 2.0)
+		var note: String = ""
+		match mark:
+			Mark.UP: note = "better (%s)" % String(row["who"]) if String(row["who"]) != "" else "better"
+			Mark.DOWN: note = "worse"
+			Mark.LOCKED: note = "not yet"
+			_: note = "same"
+		UiTheme.text(hud, font, Vector2(pad + 26.0, y + 17.0), String(item["name"]), 16, colour.darkened(0.25 if mark == Mark.LOCKED else 0.0),
+			HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0 - 110.0)
+		UiTheme.text(hud, font, Vector2(SUMMARY_WIDTH - pad - 100.0, y + 17.0), note, 13, Color(1, 1, 1, 0.55), HORIZONTAL_ALIGNMENT_RIGHT, 100.0)
+		y += SUMMARY_ROW
+	hud.draw_set_transform(Vector2.ZERO)
+
 ## Each drop's verdict, worked out again at most every REAPPRAISE_MS (wearing something, levelling up or a new hero changes it), not every frame.
 const REAPPRAISE_MS := 400
 var _verdicts: Dictionary = {}   # LootDrop -> int
@@ -307,6 +398,12 @@ func _draw_loot_names(font: Font) -> void:
 				text_colour = text_colour.darkened(0.25)
 		UiTheme.text(hud, font, rect.position + Vector2(shift, 15.5), String(drop.item["name"]), NAME_FONT, text_colour,
 			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - shift)
+
+## A red arrow down: worse than what is worn.
+func _draw_arrow_down(at: Vector2) -> void:
+	for row in 10:
+		var half: float = 0.5 + float(row) * 0.5
+		hud.draw_line(at + Vector2(-half, 5.0 - row), at + Vector2(half, 5.0 - row), LOCKED_COLOR, 1.0)
 
 ## A green arrow up (better than what you wear, or fills an empty slot) or a red cross (cannot be worn yet), drawn as shapes so no font is needed.
 func _draw_mark(at: Vector2, upgrade: bool) -> void:

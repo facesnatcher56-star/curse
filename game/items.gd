@@ -87,7 +87,7 @@ static func build(def: ItemDef, level: int, rarity: int, mods: Array = [], uniqu
 	for id in mods:
 		var affix: AffixDef = AffixDb.get_def(String(id))
 		if affix != null and affix.value_ceiling > affix.value:
-			values[id] = clampf(float(saved_values[id]), affix.value, affix.value_ceiling) if saved_values.has(id) else float(randi_range(int(affix.value), int(affix.value_ceiling)))
+			values[id] = clampf(float(saved_values[id]), affix.value, affix.value_ceiling) if saved_values.has(id) else MapDrops.roll_value(affix, rarity)
 	item["mod_values"] = values
 	item["name"] = _name(def, item)
 	return item
@@ -125,7 +125,7 @@ static func roll_mods(def: ItemDef, level: int, rarity: int, count: int = -1) ->
 		return []
 	if count < 0:
 		count = randi_range(1, 2) if rarity == Rarity.MAGIC else randi_range(RARE_MODS.x, RARE_MODS.y)
-	var window: Vector2i = MAGIC_MOD_WINDOW if rarity == Rarity.MAGIC else RARE_MOD_WINDOW
+	var window: Vector2i = MapDrops.mod_window(rarity, MAGIC_MOD_WINDOW if rarity == Rarity.MAGIC else RARE_MOD_WINDOW)   # map mode: the top of it
 	var positions: Array[String] = []
 	if rarity == Rarity.MAGIC and count == 2:
 		positions.append_array(["prefix", "suffix"])
@@ -424,7 +424,7 @@ static func pick_base(low: int, high: int, slot: int = -1) -> Dictionary:
 		var d := def as ItemDef
 		if slot >= 0 and d.slot != slot:
 			continue
-		for lvl in d.levels:
+		for lvl in (MapModeTraits.drop_levels(d) if MapMode.active else d.levels):   # map mode also offers Battle Axe and Buckler from level 3
 			if lvl >= low and lvl <= high:
 				if not by_slot.has(d.slot):
 					by_slot[d.slot] = []
@@ -577,6 +577,10 @@ static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictiona
 		var line := passive_effect_line(effect)
 		if line != "":
 			out.append({"text": line, "key": ""})
+	out.append_array(MapModeTraits.rows_for(item))   # map mode only: the base's trait line
+	var legendary: String = MapModeLegendaries.tooltip_line(item)   # map mode only
+	if legendary != "":
+		out.append({"text": legendary, "key": ""})
 	var need: String = requirement_text(item, member_id)
 	out.append({"text": "Item level %d%s" % [int(item["level"]), ("    " + need) if need != "" else ""], "key": ""})
 	return out

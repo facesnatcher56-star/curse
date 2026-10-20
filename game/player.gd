@@ -107,9 +107,11 @@ var _held_path: String = SWORD_PATH
 
 func _ready() -> void:
 	add_to_group("player")
+	power_activated.connect(MapModeTraits.on_power)   # map-mode Signet (inert outside map mode)
 	# The window sees every pointer event before it is routed to a popup or control, so a press that a dropdown consumes is still latched.
 	get_tree().root.window_input.connect(_latch_ui_click)
 	PartyManager.current().bodies[member_id] = self
+	power_activated.connect(MapModeLegendaries.on_power_used.bind(self))   # Hero's Amulet (map mode only)
 	ai = PartyCharacterAI.new(self)
 	display_name = "Hero" if member_id == "hero" else "Cutter"
 	collision_layer = LAYER_PLAYER
@@ -258,7 +260,7 @@ func _gain_stun(duration: float, result: Dictionary = {}) -> void:
 		return   # already down: the lock is the fall's own, and a second blow neither restarts nor stretches it
 	if is_heavy_hit(result) and knockdown.begin():
 		return
-	super._gain_stun(duration, result)
+	super._gain_stun(duration * MapModeTraits.stun_mult(self), result)
 
 ## The flinch of an ordinary stagger. A blow that lands in the middle of a swing is only felt once the swing is over (the swing is
 ## never cut short), so the reaction runs at the speed that ends it with the stun: it never plays on after control is back, and a
@@ -997,6 +999,7 @@ func _act(delta: float, cursor: Vector3) -> void:
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	if MapMode.active:
 		MapMode.note_hit()
+		MapModeTraits.on_dealt_hit(self, target, result)
 	var outcome: int = result.get("outcome", 0)
 	if outcome == Combat.Outcome.CRITICAL or float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT:
 		Gamepad.rumble(0.15, 0.55, 0.14)
@@ -1058,6 +1061,7 @@ func on_enemy_killed(enemy: Actor) -> void:
 	var share: float = PlayerStats.CHAMPION_KILL_REFILL if enemy is Enemy and (enemy as Enemy).champion != null else PlayerStats.KILL_REFILL
 	for body in PartyManager.current().living():
 		body.stats.refund_power_charge(share)
+	MapModeTraits.on_kill()   # (does nothing outside map mode)
 
 ## The throw samples aim at release, after the short catch beat. Stick input wins
 ## while it is active; otherwise the controller uses current combat facing.
@@ -1086,6 +1090,7 @@ func _say(text: String) -> void:
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	if MapMode.active:
 		MapMode.note_damage(self, float(result.get("damage", 0.0)))
+		MapModeTraits.on_hurt(self, result)
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0

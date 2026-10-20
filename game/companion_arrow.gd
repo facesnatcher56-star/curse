@@ -14,17 +14,19 @@ var origin: Dictionary = {}
 var velocity: Vector3
 var damage: float = 16.0
 var take_aim: bool = false
+var always_crit: bool = false   # Executioner's Sight: this Take Aim shot crits
 var age: float = 0.0
 var struck: Actor
 var _trail: TakeAimTrail
 
 static func fire(parent: Node, archer: Actor, from: Vector3, toward: Vector3, hit_damage: float,
-		empowered: bool = false) -> CompanionArrow:
+		empowered: bool = false, crit: bool = false) -> CompanionArrow:
 	var arrow := CompanionArrow.new()
 	arrow.shooter = archer
 	arrow.origin = archer.combat_identity()
 	arrow.damage = hit_damage
 	arrow.take_aim = empowered
+	arrow.always_crit = crit
 	arrow.velocity = (toward - from).normalized() * SPEED * (2.0 if empowered else 1.0)
 	parent.add_child(arrow)
 	arrow.global_position = from
@@ -76,7 +78,7 @@ func _hit_enemy(enemy: Enemy, from: Vector3) -> void:
 	# Cutter serves the hero: his kills count as the hero's for XP and physical-kill bookkeeping.
 	enemy.credit_hero()
 	var result: Dictionary = Combat.resolve(shooter, enemy, damage, Combat.DamageType.RANGED, not take_aim,
-		1.6 if take_aim else 0.9, false, not take_aim)
+		1.6 if take_aim else 0.9, always_crit, not take_aim or always_crit)
 	result["skill_id"] = "take_aim" if take_aim else "companion_arrow"
 	result["origin"] = origin.duplicate(true)
 	enemy.receive(result, from)

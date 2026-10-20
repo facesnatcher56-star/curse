@@ -55,6 +55,7 @@ var node_chests: Dictionary = {}  # node id -> Chest
 var node_shrines: Dictionary = {} # node id -> object with use_shrine()
 var dungeon: Node                 # the MapModeDungeon (anything exposing node_groups / node_chests / node_shrines); found by itself when unset
 var run_complete: bool = false
+var loot_tally: Dictionary = {"gold": 0, "health": 0, "mana": 0, "items": []}   # what this clear paid (MapDrops): the loot summary card shows it
 
 var _visit_pos: Vector3
 var _visit_kind: String = "group"   # group, chest, shrine, revisit (a cleared node), loot
@@ -77,6 +78,9 @@ var _labels: Dictionary = {}      # group_id -> label, captured while the group 
 var _chests: Array = []
 var _loot_refs: Array = []
 var _hit_logged: bool = false
+var _rewards_collected: bool = false   # COLLECT: the drops are in the bag and the summary card is showing
+var _summary_up: bool = false
+var _fight_level: int = 1              # the level of the group being fought: what its chest and top-up are worth
 var _auto_dir: String = ""        # `--mapmode-auto=<dir>`: a developer tool that plays the whole run itself and saves screenshots there
 var _shot_n: int = 0
 var _auto_started_ms: int = 0
@@ -104,6 +108,7 @@ func use_graph(g: MapGraph, groups: Dictionary, chests: Dictionary = {}, shrines
 
 func _enter_tree() -> void:
 	current = self
+	MapModeLegendaries.reset_run()
 	process_physics_priority = 100   # after the bodies have moved, so the dash wins over their own steering
 
 func _exit_tree() -> void:
@@ -144,8 +149,16 @@ func _physics_process(delta: float) -> void:
 		State.COLLECT:
 			_collect_clock -= delta
 			if _collect_clock <= 0.0:
-				_collect_rewards()
-				_open_map()
+				if not _rewards_collected and _visit_kind != "revisit":
+					_rewards_collected = true
+					var rows: Array[Dictionary] = HudLootCards.summary_rows(loot_tally, [hero, companion])   # compared before anything is worn
+					_collect_rewards()
+					_summary_up = _show_loot_summary(rows)
+					if _summary_up and _auto_dir != "":
+						_shot_later(1.2, "summary")   # (after the map has reopened: the card shows over it)
+				_rewards_collected = false
+				_summary_up = false
+				_open_map()   # no waiting: the card stays up over the map until its time runs out or the next dash starts
 		State.DEAD:
 			if not hero.dead:
 				_open_map()
@@ -168,6 +181,9 @@ func _world_ready() -> bool:
 	return not live_groups().is_empty()
 
 func _input(event: InputEvent) -> void:
+	if state == State.COLLECT and _summary_up and ((event is InputEventMouseButton and event.pressed) 			or ((event is InputEventKey or event is InputEventJoypadButton) and event.pressed and not event.is_echo())):
+		_collect_clock = 0.0   # any click or key closes the loot summary at once
+		return
 	if state != State.FIGHT:
 		return
 	if event is InputEventMouseButton and event.pressed:
@@ -318,7 +334,7 @@ func _graph_markers() -> Array:
 		var p: Vector2 = graph.pos_of(int(id))
 		var kind: String = String(row.get("kind", "pack"))
 		out.append({"id": int(id), "pos": Vector3(p.x, 0.0, p.y), "kind": kind, "state": st, "strength": _strength_of(row),
-			"label": node_label(int(id)) if st != "beyond" else ""})
+			"label": node_label(int(id)) if st != "beyond" else "", "guard": String(plan_of(int(id)).get("guard", "")) if st == "reachable" else ""})
 	return out
 
 static func _strength_of(row: Dictionary) -> int:
@@ -342,22 +358,31 @@ func node_label(id: int) -> String:
 	var champion: String = String(row.get("champion", ""))
 	if champion != "":
 		lines.append("Champion: %s" % champion)
+	var plan: Dictionary = plan_of(id)
 	match String(row.get("kind", "")):
 		"chest":
-			lines.append("A chest")
+			lines.append(String(plan.get("title", "A chest")))
 		"shrine":
 			lines.append("A shrine")
 		"boss":
-			lines.append("Guards: the way out")
+			lines.append("Guards: %s" % String(plan.get("title", "the way out")))
+			lines.append("The way out")
 		_:
-			lines.append("Guards: %s" % ("champion chest" if champion != "" else ("item" if _strength_of(row) >= 5 else "gold")))
+			lines.append("Guards: %s" % String(plan.get("title", "gold")))
 	return "\n".join(lines)
+
+## What a node guards: the dungeon's plan (decided when its groups spawned) or, for a graph without a dungeon, the same rule on the same seed.
+func plan_of(id: int) -> Dictionary:
+	if dungeon != null and "node_plans" in dungeon and (dungeon.node_plans as Dictionary).has(id):
+		return dungeon.node_plans[id]
+	return MapDrops.plan_for(graph.row(id)) if graph != null and graph.has_node(id) else {}
 
 func _ensure_overlay() -> void:
 	if overlay == null:
 		overlay = MapModeOverlay.new()
 		overlay.selected.connect(select_marker)
 		hud.add_child(overlay)
+		overlay.show_behind_parent = true   # the Hud's own drawing, which holds the loot summary card, then shows over the map
 		hud.minimap.map_data.ensure_built(get_tree())
 		overlay.map_data = hud.minimap.map_data
 	if graph != null:
@@ -406,7 +431,6 @@ func _finish_run() -> void:
 ## The developer autoplay: shoot the map, pick the nearest marker, shoot the dash and the fight, fire a power, repeat until nothing is left.
 func _auto_pick() -> void:
 	await get_tree().create_timer(0.8).timeout
-	await _shot("map")
 	var best: Dictionary = {}
 	var best_hops: int = 1 << 30
 	var hops: Dictionary = _hops_to_boss()
@@ -423,6 +447,10 @@ func _auto_pick() -> void:
 			best_hops = h
 	if best.is_empty():
 		return
+	overlay._focus = int(best["id"])   # the tooltip of the node about to be picked is in the map shot (what it guards)
+	overlay._focus_shown = true
+	overlay.queue_redraw()
+	await _shot("map")
 	select_marker(int(best["id"]))
 	await get_tree().create_timer(0.45).timeout
 	await _shot("dash")
@@ -477,6 +505,10 @@ func _wait_fight() -> void:
 	while state == State.DASH:
 		await get_tree().physics_frame
 
+func _shot_later(delay: float, label: String) -> void:
+	await get_tree().create_timer(delay).timeout
+	await _shot(label)
+
 func _shot(label: String) -> void:
 	await RenderingServer.frame_post_draw
 	_shot_n += 1
@@ -513,6 +545,7 @@ func select_marker(id: int) -> void:
 		_visit_ref = _loot_refs[id - ID_LOOT]
 	overlay.close()
 	_hit_logged = false
+	_reset_tally()
 	log.begin_fight(String(picked["label"]), now())
 	_start_dash()
 
@@ -547,6 +580,7 @@ func _select_node(id: int) -> void:
 				group_id = int(node_groups.get(id, -1))
 	overlay.close()
 	_hit_logged = false
+	_reset_tally()
 	if _visit_kind != "revisit":
 		log.begin_fight(String(row.get("name", "node")), now())
 	_start_dash()
@@ -614,6 +648,8 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	return goals
 
 func _start_dash() -> void:
+	if hud != null:
+		hud.loot_cards.hide_summary()
 	# The pad's A both picked the node and is the alt-skill button: the press that chose it must not also start an attack after the dash.
 	for body in [hero, companion]:
 		if is_instance_valid(body):
@@ -648,6 +684,7 @@ func _start_dash() -> void:
 			total += pts[k - 1].distance_to(pts[k])
 			lengths.append(total)
 		_dash_paths.append({"body": body, "points": pts, "lengths": lengths, "total": total})
+	MapModeTraits.on_dash_started(self)   # item traits: dash speed
 
 func _tick_dash(delta: float) -> void:
 	_dash_t += delta
@@ -697,6 +734,7 @@ func _afterimage(at: Vector3) -> void:
 
 func _arrive() -> void:
 	log.note_dash_end(now())
+	MapModeTraits.on_dash_arrived(self)   # item traits: after-dash buffs, the Greaves' knockback
 	match _visit_kind:
 		"group":
 			state = State.FIGHT
@@ -706,7 +744,9 @@ func _arrive() -> void:
 			_sample_pos.clear()
 			_kept_target.clear()
 			MapModeRules.note_fight_start(now())
+			_fight_level = 1
 			for e in group_members():   # only this group: neighbouring groups stay asleep
+				_fight_level = maxi(_fight_level, e.level)
 				e.alert_delay = 0.0
 				e.wake()
 		"chest":
@@ -776,10 +816,17 @@ func _sample_frozen() -> void:
 			print("[mapmode] FROZEN? %s group %d aggro=%s dormant=%s stun=%.1f dist=%.1f line=%s champion=%s busy=%s" % [e.variant, e.group_id, e.is_aggro(),
 				e.dormant, e.stun_time, near, Nav.line_clear(e, hero.global_position), e.champion != null, e.behavior.is_attacking()]
 				+ " | state=%s active=%s timer=%s cool=%s attacking=%s alert=%.1f fear=%.1f snare=%s" % [e.behavior.get("_state"), e.behavior.get("_active"), e.behavior.get("_timer"),
-				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")])
+				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")]
+				+ " | phys=%s processing=%s target=%s tdist=%.1f vel=%s layer=%d mask=%d speed_mult=%s hp=%.0f/%.0f" % [e.is_physics_processing(), e.can_process(),
+				e.target.member_id if e.target is Player else str(e.target), e.flat_distance_to(e.target) if e.target != null else -1.0, e.velocity, e.collision_layer, e.collision_mask,
+				e.get("speed_mult"), e.health, e.max_health])
 
 func _begin_collect() -> void:
 	MapModeRules.note_fight_end()
+	if _visit_kind == "group":
+		_settle_guard()   # the chest opens (loot spray), the shrine blesses, the cache spills: before the log row closes, so its loot is counted
+	if _visit_kind not in ["revisit", "loot"]:
+		_top_up()
 	var row: Dictionary = log.end_fight(now())
 	if not row.is_empty():
 		log.emit_line(row)
@@ -790,6 +837,7 @@ func _begin_collect() -> void:
 		current_node = _visit_node
 	if _auto_dir != "":
 		_shot("clear")
+		_shot_later(0.8, "chest_open")
 	state = State.COLLECT
 	_collect_clock = COLLECT_DELAY if _visit_kind not in ["loot", "revisit"] else 0.1
 
@@ -805,6 +853,82 @@ func _collect_rewards() -> void:
 		var orb := node as Node3D
 		if orb != null and not orb.is_queued_for_deletion() and _in_collect_area(orb.global_position):
 			orb.global_position = hero.global_position + Vector3(0, 0.6, 0)
+
+# --- Drops (MapDrops): the guard of a cleared group, the top-up, the loot summary ------------------------------------------------------------
+
+func _reset_tally() -> void:
+	loot_tally = {"gold": 0, "health": 0, "mana": 0, "items": []}
+
+## Called by the director and the chests for everything this clear drops.
+func note_item(item: Dictionary) -> void:
+	(loot_tally["items"] as Array).append(item)
+	log.note_item(item)
+
+func note_pickup(kind: String, amount: int = 0) -> void:
+	match kind:
+		"gold":
+			loot_tally["gold"] = int(loot_tally["gold"]) + amount
+			log.note_gold(amount)
+		"health":
+			loot_tally["health"] = int(loot_tally["health"]) + 1
+		"mana":
+			loot_tally["mana"] = int(loot_tally["mana"]) + 1
+
+## A cleared group gives up what it guarded: a chest opens by itself (lid and spray, then the auto-collect takes it), a shrine blesses the party,
+## gold and a potion cache spill. On the node map only (the plan is per node).
+func _settle_guard() -> void:
+	if graph == null or _visit_node < 0:
+		return
+	var plan: Dictionary = plan_of(_visit_node)
+	match String(plan.get("guard", "")):
+		"":
+			return
+		"shrine":
+			MapDrops.bless([hero, companion])
+			hero.say_banner(String(MapDrops.T.shrine_buff.title))
+		"gold":
+			_spawn_orb("gold", MapDrops.gold_for(_fight_level, MapDrops.T.gold_pile, _gold_find()))
+		"potions":
+			for i in int(MapDrops.T.potion_cache):
+				_spawn_orb("health", 0)
+		_:
+			var chest: Chest = node_chests.get(_visit_node) as Chest
+			if chest == null or not is_instance_valid(chest):
+				chest = Chest.create(String(plan["guard"]), _fight_level)
+				get_tree().current_scene.add_child(chest)
+				chest.global_position = Vector3(graph.pos_of(_visit_node).x, 0.0, graph.pos_of(_visit_node).y)
+				node_chests[_visit_node] = chest
+			if _auto_dir != "":
+				var cam: Camera3D = get_viewport().get_camera_3d()
+				print("[mapmode] chest %s at %s hero %s screen %s" % [plan["guard"], chest.global_position, hero.global_position, cam.unproject_position(chest.global_position)])
+			chest.open()
+
+## Every cleared node pays at least gold, and an item or a potion: what the fight and the guard did not give is added.
+func _top_up() -> void:
+	if int(loot_tally["gold"]) <= 0:
+		_spawn_orb("gold", MapDrops.gold_for(_fight_level, MapDrops.T.clear_gold, _gold_find()))
+	if (loot_tally["items"] as Array).is_empty() and int(loot_tally["health"]) + int(loot_tally["mana"]) <= 0:
+		for i in int(MapDrops.T.clear_potion):
+			_spawn_orb("health", 0)
+
+func _gold_find() -> float:
+	return float(PartyManager.current().loot_bonuses().gold_find)
+
+## A gold or potion pickup beside the hero; the auto-collect flies it in.
+func _spawn_orb(kind: String, amount: int) -> void:
+	var orb := HealthOrb.new()
+	orb.is_potion = kind == "health"
+	orb.gold_amount = amount if kind == "gold" else 0
+	get_tree().current_scene.add_child(orb)
+	orb.global_position = hero.global_position + Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
+	note_pickup(kind, orb.gold_amount)
+
+func _show_loot_summary(rows: Array[Dictionary]) -> bool:
+	if hud == null or _visit_kind == "revisit":
+		return false
+	var title: String = String(graph.row(_visit_node).get("name", "Cleared")) if graph != null and _visit_node >= 0 else "Cleared"
+	hud.loot_cards.show_summary(title, loot_tally, rows, float(MapDrops.T.summary_seconds))
+	return true
 
 ## Only what lies in the area just visited (the cleared room, the chest, the pile dashed to) is collected, not the whole level.
 func _in_collect_area(at: Vector3) -> bool:

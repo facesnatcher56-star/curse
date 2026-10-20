@@ -16,6 +16,8 @@ var _tally: Dictionary = {}
 var _powers: Array[String] = []
 var _damage: float = 0.0
 var _by_member: Dictionary = {}
+var _items: Array[Dictionary] = []   # the items this fight (and its chest) dropped
+var _gold: int = 0
 var _cutter: float = 0.0
 
 ## The player clicked the group on the map. Resets the per-fight counters.
@@ -30,6 +32,8 @@ func begin_fight(group_label: String, now: float) -> void:
 	_powers = []
 	_damage = 0.0
 	_by_member = {}
+	_items = []
+	_gold = 0
 	_cutter = 0.0
 
 func note_dash_end(now: float) -> void:
@@ -51,6 +55,15 @@ func note_input(_now: float, what: String) -> void:
 func note_power(power_id: String) -> void:
 	if _active:
 		_powers.append(power_id)
+
+## An item the clear dropped (a chest's, an enemy's), counted by rarity in the row and the totals.
+func note_item(item: Dictionary) -> void:
+	if _active:
+		_items.append(item)
+
+func note_gold(amount: int) -> void:
+	if _active:
+		_gold += amount
 
 ## `who` is the member id ("hero" or a companion).
 func note_damage_taken(amount: float, who: String) -> void:
@@ -78,6 +91,8 @@ func end_fight(now: float) -> Dictionary:
 		"powers": _powers.duplicate(),
 		"damage_taken": _damage,
 		"damage_by_member": _by_member.duplicate(),
+		"items": MapDrops.count_tiers(_items),
+		"gold": _gold,
 		"cutter_damage": _cutter,   # what the Cutter alone took this fight (the enemy roles' effect, issue #81)
 	}
 	fights.append(row)
@@ -89,7 +104,8 @@ func row_line(row: Dictionary) -> String:
 	var hit_text: String = "never" if hit < 0.0 else "%.2fs" % hit
 	return "[mapmode] fight %s: length %.1fs, dash %.1fs, click->first hit %s, inputs %d %s, powers %s, damage taken %.0f %s, Cutter took %.0f" % [
 		row.get("group", "?"), float(row.get("length_s", 0.0)), float(row.get("dash_s", 0.0)), hit_text, int(row.get("inputs", 0)),
-		row.get("input_tally", {}), row.get("powers", []), float(row.get("damage_taken", 0.0)), row.get("damage_by_member", {}), float(row.get("cutter_damage", 0.0))]
+		row.get("input_tally", {}), row.get("powers", []), float(row.get("damage_taken", 0.0)), row.get("damage_by_member", {}), float(row.get("cutter_damage", 0.0))] \
+		+ ", loot %s, %d gold" % [MapDrops.tiers_text(row.get("items", {})), int(row.get("gold", 0))]
 
 ## Header, one line per fight, and a totals line; suitable for pasting into a PR.
 func summary_lines() -> PackedStringArray:
@@ -101,19 +117,25 @@ func summary_lines() -> PackedStringArray:
 	var cutter: float = 0.0
 	var hit_sum: float = 0.0
 	var hit_n: int = 0
+	var item_totals := {"normal": 0, "magic": 0, "rare": 0, "legendary": 0}
+	var gold_total: int = 0
 	for row: Dictionary in fights:
 		lines.append(row_line(row))
 		secs += float(row["length_s"])
 		inputs += int(row["inputs"])
 		powers += (row["powers"] as Array).size()
 		damage += float(row["damage_taken"])
+		gold_total += int(row.get("gold", 0))
+		for k in item_totals:
+			item_totals[k] = int(item_totals[k]) + int((row.get("items", {}) as Dictionary).get(k, 0))
 		cutter += float(row.get("cutter_damage", 0.0))
 		if float(row["click_to_first_hit_s"]) >= 0.0:
 			hit_sum += float(row["click_to_first_hit_s"])
 			hit_n += 1
 	var mean_text: String = "%.2fs" % (hit_sum / hit_n) if hit_n > 0 else "n/a"
-	lines.append("[mapmode] totals: %d fights, %.1fs fighting, %d inputs, %d powers used, %.0f damage taken (Cutter %.0f), mean click->first hit %s" % [
-		fights.size(), secs, inputs, powers, damage, cutter, mean_text])
+	var item_n: int = int(item_totals.normal) + int(item_totals.magic) + int(item_totals.rare) + int(item_totals.legendary)
+	lines.append("[mapmode] totals: %d fights, %.1fs fighting, %d inputs, %d powers used, %.0f damage taken (Cutter %.0f), mean click->first hit %s, loot %d items (%s), %d gold" % [
+		fights.size(), secs, inputs, powers, damage, cutter, mean_text, item_n, MapDrops.tiers_text(item_totals), gold_total])
 	return lines
 
 ## Prints the row line. (The existing --xplog convention is a plain print() gated by a static flag; there is no shared file writer.)

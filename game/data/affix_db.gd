@@ -17,12 +17,12 @@ const STAT_NAMES := {
 	"fire_resist": "Fire resistance", "reflect": "Melee damage reflected", "life_regen": "Life recovery", "mana_regen": "Mana recovery",
 	"physical_resist": "Melee and ranged resistance", "melee_resist": "Melee resistance", "ranged_resist": "Ranged resistance", "magical_resist": "Magic damage resistance",
 	"block": "Chance to block melee", "block_ranged": "Chance to block ranged", "opening": "Opening chance (melee and shield)", "openings_ignite": "Openings ignite (burn, % of the blow a second)", "openings_heal": "Openings heal (life per execution)",
-	"power_damage": "Power damage", "dodge": "Chance to dodge melee and ranged", "dodge_melee": "Chance to dodge melee", "dodge_ranged": "Chance to dodge ranged", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
+	"power_damage": "Power damage", "charge_on_kill": "Power charge on kill", "marked_damage": "Damage to marked enemies", "dash_speed": "Dash speed", "auto_speed": "Auto-attack speed", "dodge": "Chance to dodge melee and ranged", "dodge_melee": "Chance to dodge melee", "dodge_ranged": "Chance to dodge ranged", "recharge": "Power recharge", "magic_find": "Magic find", "gold_find": "Gold found",
 }
 
 ## The stats that are percentages.
 const PERCENT_STATS: Array[String] = ["melee_pct", "ranged_pct", "spell_pct", "life_steal", "mana_steal", "armor_pct", "fire_resist", "ice_resist", "lightning_resist", "death_resist", "reflect", "life_regen", "mana_regen",
-	"block", "block_ranged", "opening", "openings_ignite", "openings_heal", "dodge", "dodge_melee", "dodge_ranged", "power_damage", "recharge", "magic_find", "gold_find",
+	"block", "block_ranged", "opening", "openings_ignite", "openings_heal", "dodge", "dodge_melee", "dodge_ranged", "power_damage", "charge_on_kill", "marked_damage", "dash_speed", "auto_speed", "recharge", "magic_find", "gold_find",
 	"physical_resist", "melee_resist", "ranged_resist", "magical_resist"]
 
 static func is_percent(stat: String) -> bool:
@@ -47,7 +47,8 @@ static func all() -> Dictionary:
 	return _defs
 
 static func get_def(id: String) -> AffixDef:
-	return all().get(id) as AffixDef
+	var def := all().get(id) as AffixDef
+	return def if def != null else MapModeTraits.affix_def(id)   # (the map-mode extra modifiers resolve by id so a saved item still reads)
 
 ## Every affix that may roll on this item kind with a modifier level inside [low, high], optionally only prefixes or suffixes.
 static func eligible(kind: String, low: int, high: int, position: String = "") -> Array[AffixDef]:
@@ -56,4 +57,5 @@ static func eligible(kind: String, low: int, high: int, position: String = "") -
 		var a := def as AffixDef
 		if a.slots.has(kind) and a.level >= low and a.level <= high and (position == "" or a.position == position):
 			out.append(a)
+	out.append_array(MapModeTraits.extra_affixes(kind, low, high, position))   # empty unless map mode
 	return out

@@ -607,6 +607,18 @@ func _draw_icon(m: Dictionary, on: bool) -> void:
 			draw_polyline(PackedVector2Array([d[0], d[1], d[2], d[3], d[0]]), edge, 1.5)
 		_:
 			draw_circle(at, r * 0.6, col)
+	var guard: String = String(m.get("guard", ""))
+	if guard != "" and st == "reachable":   # a small chest (its colour is the chest's kind) or a dot: what the node guards, before the player picks
+		var spot: Vector2 = at + Vector2(r * 0.78, -r * 0.78)
+		var gc: Color = MapDrops.guard_color(guard)
+		if bool(((MapDrops.T.guards as Dictionary).get(guard, {}) as Dictionary).get("chest", false)):
+			var chest_box := Rect2(spot + Vector2(-6.0, -4.5), Vector2(12.0, 9.0))
+			draw_rect(chest_box.grow(1.5), edge)
+			draw_rect(chest_box, gc)
+			draw_line(chest_box.position + Vector2(0.0, 3.5), chest_box.position + Vector2(12.0, 3.5), edge, 1.0)
+		else:
+			draw_circle(spot, 6.0, edge)
+			draw_circle(spot, 4.5, gc)
 	if st == "cleared" and kind in COMBAT_KINDS + ["chest", "shrine"]:
 		var tick := PackedVector2Array([at + Vector2(r * 0.25, r * 0.55), at + Vector2(r * 0.55, r * 0.85), at + Vector2(r * 1.05, r * 0.2)])
 		draw_polyline(tick, Color(0.1, 0.1, 0.1), 5.0)

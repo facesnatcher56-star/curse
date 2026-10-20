@@ -16,7 +16,7 @@ static func sets() -> Dictionary:
 	return _sets
 
 static func get_unique(id: String) -> UniqueDef:
-	return uniques().get(id) as UniqueDef
+	return (uniques().get(id) as UniqueDef) if uniques().has(id) else MapModeLegendaries.def(id)   # map-mode legendaries are outside the drop pool
 
 static func get_set(id: String) -> SetDef:
 	return sets().get(id) as SetDef

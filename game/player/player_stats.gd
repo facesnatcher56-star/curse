@@ -93,12 +93,15 @@ func magic_find() -> float:
 ## Everything worn adds up to this: stat (AffixDb.STAT_NAMES) -> value. Worked out by `refresh`.
 var gear: Dictionary = {}
 
+## Stat -> value added to the gear totals for a while (a map-mode shrine's blessing, see MapDrops). Empty means nothing changes.
+var temp_bonus: Dictionary = {}
+
 func gear_stat(stat: String) -> float:
 	return float(gear.get(stat, 0.0))
 
 ## The modifiers of every worn piece, plus each set's bonus for the pieces of it worn.
 func gear_totals() -> Dictionary:
-	var out: Dictionary = {}
+	var out: Dictionary = temp_bonus.duplicate()   # a timed blessing (map mode's shrine); empty otherwise
 	var set_pieces: Dictionary = {}
 	for place in equipment:
 		var item: Dictionary = equipment[place]
@@ -186,7 +189,7 @@ func power_recharge_damage(seconds_of_combat: float, tree: String = "", caster: 
 	var level: float = maxf(float(caster.level if caster != null else p.character.level), 1.0)
 	var hero: bool = caster == null or caster == p
 	var renewal: float = (passive("fierce_renewal") if tree == "melee" else passive("cunning_renewal") if tree == "ranged" else 0.0) if hero else 0.0
-	var gear_bonus: float = gear_stat("recharge") if hero else 0.0
+	var gear_bonus: float = (gear_stat("recharge") + MapModeTraits.recharge_bonus(p)) if hero else 0.0
 	return seconds_of_combat * (6.0 + 1.5 * level) * (1.0 + 0.022 * level) * brutal_active_members() / ((1.0 + gear_bonus / 100.0) * (1.0 + renewal / 100.0))
 
 ## Brutal Attack is a melee power: Fierce Renewal speeds its recharge.
@@ -197,7 +200,7 @@ func brutal_recharge_damage() -> float:
 ## DS2 `ALTER_POWER_DAMAGE_PERCENT` (rules.skrit `DamageGoPower$`: every power's damage is multiplied by `1 + Attack.GetPowerDamageBonusPercent()`).
 ## Equipment sources add; the result multiplies an activated power's own damage once, and nothing else.
 func power_damage_mult() -> float:
-	return maxf(1.0 + gear_stat("power_damage") / 100.0, 0.0)
+	return maxf(1.0 + (gear_stat("power_damage") + MapModeTraits.power_damage_bonus(p)) / 100.0, 0.0)
 
 func brutal_mult() -> float:
 	return maxf(PowerDb.hero_value("brutal_attack", "damage_pct", p.member_id), 1500.0) / 100.0
@@ -364,7 +367,7 @@ func armor_stat(key: String, fallback: float) -> float:
 
 ## Attack speed: the weapon's own.
 func attack_speed() -> float:
-	return weapon_stat("speed", 1.0)
+	return weapon_stat("speed", 1.0) * MapModeTraits.speed_mult(p)
 
 ## How fast a skill plays out: a spell by Quickened Casting, everything else by the weapon and Alacrity (DS2: melee speed).
 func skill_speed(id: String) -> float:

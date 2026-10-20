@@ -76,7 +76,7 @@ func _test_map_mode() -> void:
 		e.credit_hero()
 		e._apply_damage(e.max_health + 10.0)
 	await _wait_state(m, MapMode.State.COLLECT, 30)
-	await _wait_state(m, MapMode.State.MAP, 150)
+	await _wait_state(m, MapMode.State.MAP, 420)
 	expect("a cleared group reopens the map", m.state == MapMode.State.MAP and m.overlay.is_open())
 	var lying: Array = get_tree().get_nodes_in_group("loot").filter(func(n: Node) -> bool: return not n.is_queued_for_deletion())
 	expect("its loot was collected automatically, and only the loot near the cleared room (the far drop stays: %d lying)" % lying.size(),
