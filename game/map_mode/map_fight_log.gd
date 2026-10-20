@@ -19,6 +19,8 @@ var _by_member: Dictionary = {}
 var _items: Array[Dictionary] = []   # the items this fight (and its chest) dropped
 var _gold: int = 0
 var _cutter: float = 0.0
+## Autoplay only (MapAutoGear): the pieces it put on, in order, each {name, rarity, slot, who, how, replaces, lines, balance}.
+var equips: Array[Dictionary] = []
 
 ## The player clicked the group on the map. Resets the per-fight counters.
 func begin_fight(group_label: String, now: float) -> void:
@@ -136,7 +138,23 @@ func summary_lines() -> PackedStringArray:
 	var item_n: int = int(item_totals.normal) + int(item_totals.magic) + int(item_totals.rare) + int(item_totals.legendary)
 	lines.append("[mapmode] totals: %d fights, %.1fs fighting, %d inputs, %d powers used, %.0f damage taken (Cutter %.0f), mean click->first hit %s, loot %d items (%s), %d gold" % [
 		fights.size(), secs, inputs, powers, damage, cutter, mean_text, item_n, MapDrops.tiers_text(item_totals), gold_total])
+	lines.append_array(equip_lines())
 	return lines
+
+func note_equip(rec: Dictionary) -> void:
+	equips.append(rec)
+
+## One line per equip, then a count per member (empty when nothing was equipped).
+func equip_lines() -> PackedStringArray:
+	var out := PackedStringArray()
+	if equips.is_empty():
+		return out
+	var by_who: Dictionary = {}
+	for rec in equips:
+		out.append(MapAutoGear.line_of(rec))
+		by_who[rec["who"]] = int(by_who.get(rec["who"], 0)) + 1
+	out.append("[mapmode] equips: %d (%s)" % [equips.size(), by_who])
+	return out
 
 ## Prints the row line. (The existing --xplog convention is a plain print() gated by a static flag; there is no shared file writer.)
 func emit_line(row: Dictionary) -> void:
