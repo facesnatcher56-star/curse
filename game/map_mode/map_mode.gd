@@ -153,15 +153,10 @@ func _physics_process(delta: float) -> void:
 					_collect_rewards()
 					_summary_up = _show_loot_summary(rows)
 					if _summary_up and _auto_dir != "":
-						_shot_later(0.4, "summary")
-					if _summary_up:
-						_collect_clock = float(MapDrops.T.summary_seconds)
-						return
+						_shot_later(1.2, "summary")   # (after the map has reopened: the card shows over it)
 				_rewards_collected = false
 				_summary_up = false
-				if hud != null:
-					hud.loot_cards.hide_summary()
-				_open_map()
+				_open_map()   # no waiting: the card stays up over the map until its time runs out or the next dash starts
 		State.DEAD:
 			if not hero.dead:
 				_open_map()
@@ -385,6 +380,7 @@ func _ensure_overlay() -> void:
 		overlay = MapModeOverlay.new()
 		overlay.selected.connect(select_marker)
 		hud.add_child(overlay)
+		overlay.show_behind_parent = true   # the Hud's own drawing, which holds the loot summary card, then shows over the map
 		hud.minimap.map_data.ensure_built(get_tree())
 		overlay.map_data = hud.minimap.map_data
 	if graph != null:
@@ -634,6 +630,8 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	return goals
 
 func _start_dash() -> void:
+	if hud != null:
+		hud.loot_cards.hide_summary()
 	state = State.DASH
 	_dash_t = 0.0
 	_trail_clock = 0.0

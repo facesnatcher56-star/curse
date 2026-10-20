@@ -62,7 +62,7 @@ const T := {
 	"clear_gold": [3.0, 5.0],        # x the DS2 gold curve of the node's level, when nothing else dropped gold
 	"clear_potion": 1,               # a health potion, when no item and no potion dropped
 	# --- the summary card after a clear ---
-	"summary_seconds": 2.4,
+	"summary_seconds": 7.0,   # the card shows over the reopened map this long (the map is usable at once, nothing waits for the card)
 	# --- party fit: this share of item rolls is forced onto a base the warrior or the Cutter can use ---
 	"party_members": ["hero", "cutter"],
 	"party_fit": 0.6,

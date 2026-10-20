@@ -31,7 +31,7 @@ const TABLE := {
 	"studded_gloves": {"id": "studded_champions", "text": "+{opening}% Opening chance against champions", "numbers": {"opening": 15.0}},
 	"leather_boots": {"id": "boots_burst", "text": "+{speed}% attack speed for {secs} s after a dash", "numbers": {"speed": 30.0, "secs": 3.0}},
 	"iron_greaves": {"id": "greaves_knock", "text": "A dash knocks back enemies at the landing spot", "numbers": {"knock": 3.0, "radius": 7.0, "stun": 0.5}},
-	"signet": {"id": "signet_share", "text": "When a party member uses a power, the others gain {charge}% charge", "numbers": {"charge": 10.0}},
+	"signet": {"id": "signet_share", "text": "When you use a power, the other party members gain {charge}% charge", "numbers": {"charge": 10.0}},
 	"charm": {"id": "charm_kills", "text": "Kills refill {charge}% of your power charge", "numbers": {"charge": 5.0}},
 }
 
@@ -204,7 +204,7 @@ static func modify_hit(target: Actor, result: Dictionary) -> Dictionary:
 		var mark: Dictionary = target.get_meta(MARK_META)
 		if now() < float(mark["until"]):
 			pct += gear(body, "marked_damage")
-			if String(mark["by"]) != body.member_id:
+			if String(mark["by"]) != body.member_id and body.member_id == "hero":   # the bonus is the warrior's only (owner decision)
 				pct += float(mark["pct"])
 	if pct > 0.0:
 		result["damage"] = float(result["damage"]) * (1.0 + pct / 100.0)
@@ -290,7 +290,8 @@ static func on_power(member_id: String, _power_id: String) -> void:
 		return
 	var share: float = 0.0
 	for body in _living():
-		share += value(body, "signet_share", "charge")
+		if body.member_id == member_id:   # only the wearer's own power use shares charge (owner decision)
+			share = value(body, "signet_share", "charge")
 	if share <= 0.0:
 		return
 	for body in _living():

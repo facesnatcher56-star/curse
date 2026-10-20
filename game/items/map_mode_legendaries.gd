@@ -17,8 +17,8 @@ const DEFS := {
 		"text": "Take Aim on an Opening always crits and refunds half its charge",
 		"numbers": {"refund": 0.5}, "mods": {"ranged_pct": 10.0}},
 	"splitbow": {"name": "Splitbow", "base": "short_bow", "level": 5,
-		"text": "Thunderous Shot fires 3 bolts in a cone",
-		"numbers": {"bolts": 3, "cone_degrees": 30.0}, "mods": {"ranged_pct": 8.0}},
+		"text": "Thunderous Shot fires 3 bolts in a cone, each for 60% damage",
+		"numbers": {"bolts": 3, "cone_degrees": 30.0, "bolt_damage": 0.6}, "mods": {"ranged_pct": 8.0}},
 	"heros_amulet": {"name": "Hero's Amulet", "unique": true,
 		"text": "When one party member uses a power, the other gains 25% charge",
 		"numbers": {"charge_share": 0.25}},
@@ -182,6 +182,10 @@ static func bolt_directions(p: Player, dir: Vector3) -> Array[Vector3]:
 		var t: float = (float(i) / float(n - 1) - 0.5) * cone if n > 1 else 0.0
 		out.append(dir.rotated(Vector3.UP, t))
 	return out
+
+## What each bolt of the fan is worth of the power's damage: 60% with the Splitbow (owner decision), 1.0 for a single bolt.
+static func bolt_damage_factor(p: Player) -> float:
+	return number("splitbow", "bolt_damage") if active_for(p, "splitbow") else 1.0
 
 # --- The first champion --------------------------------------------------------------------------------------------------------------
 

@@ -286,13 +286,15 @@ func _run_selftest() -> void:
 			only_name = arg.substr(7)
 			break
 	if only_name != "":
-		if not ONLY_TESTS.has(only_name):
-			push_error("Unknown self-test suite: " + only_name)
-			_finish()
-			return
-		print("SELFTEST suite start: ", only_name)
-		await _run(ONLY_TESTS[only_name])
-		print("SELFTEST suite done: ", only_name)
+		for name in only_name.split("+"):   # `--only=a+b` runs suites in that order (to reproduce one suite leaking into the next)
+			if not ONLY_TESTS.has(name):
+				push_error("Unknown self-test suite: " + name)
+				_finish()
+				return
+		for name in only_name.split("+"):
+			print("SELFTEST suite start: ", name)
+			await _run(ONLY_TESTS[name])
+			print("SELFTEST suite done: ", name)
 		_finish()
 		return
 	for action in ["click", "alt_skill", "stand_still", "restart", "skill_1", "skill_4"]:

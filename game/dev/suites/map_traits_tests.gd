@@ -453,7 +453,7 @@ func _test_map_traits() -> void:
 	expect("Signet: when the hero uses a power the Cutter gains 10%% charge (%.0f of 100000) and the user gains nothing" % (100000.0 - _left(_cutter)),
 		_near(_left(_cutter), 90000.0, 0.5) and _left(_hero) == 100000.0)
 	_cutter.power_activated.emit("cutter", "take_aim")
-	expect("Signet: and the other way round (the hero gains 10%)", _near(_left(_hero), 90000.0, 0.5))
+	expect("Signet: it works from the wearer only: the Cutter using a power shares nothing with the hero (owner decision)", _left(_hero) == 100000.0)
 	_strip(_hero)
 	_charge(_cutter)
 	_hero.power_activated.emit("hero", "whirling_strike")

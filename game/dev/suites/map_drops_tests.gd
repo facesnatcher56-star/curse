@@ -511,7 +511,9 @@ func _run_pays_out() -> void:
 	var paid: Dictionary = m.loot_tally
 	expect("a cleared pack paid gold and an item or a potion (%d gold, %d items, %d potions)" % [paid["gold"], (paid["items"] as Array).size(), int(paid["health"]) + int(paid["mana"])],
 		int(paid["gold"]) > 0 and ((paid["items"] as Array).size() + int(paid["health"]) + int(paid["mana"])) >= 1)
-	expect("the loot summary card showed after the clear, then the map reopened", saw_card and m.state == MapMode.State.MAP and hud.loot_cards.summary.is_empty())
+	saw_card = saw_card or not hud.loot_cards.summary.is_empty()
+	expect("the loot summary card shows over the reopened map, with no waiting for it (owner decision)", saw_card and m.state == MapMode.State.MAP and m.overlay.is_open()
+		and not hud.loot_cards.summary.is_empty())
 	if bool(pack_plan["chest"]):
 		expect("a pack that guards a chest opened it by itself on the clear", guard_chest != null and guard_chest.opened and guard_chest.guard == pack_plan["guard"])
 	# --- the shrine and the chest side branches ---
@@ -524,6 +526,7 @@ func _run_pays_out() -> void:
 			seen = seen or not hud.loot_cards.summary.is_empty()
 			await get_tree().physics_frame
 			n += 1
+		seen = seen or not hud.loot_cards.summary.is_empty()
 		var p2: Dictionary = m.loot_tally
 		expect("the %s paid gold and an item or a potion too, and showed its summary (%d gold, %d items, %d potions)" % [rows[node_id]["kind"], p2["gold"], (p2["items"] as Array).size(), int(p2["health"]) + int(p2["mana"])],
 			seen and int(p2["gold"]) > 0 and ((p2["items"] as Array).size() + int(p2["health"]) + int(p2["mana"])) >= 1)

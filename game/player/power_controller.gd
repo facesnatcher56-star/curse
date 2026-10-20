@@ -211,7 +211,7 @@ func thunderous_release(muzzle: Vector3, direction: Vector3) -> int:
 	var victims: Array[Dictionary] = []
 	for bolt in thunderous_directions(dir):   # one bolt, or the Splitbow's fan (map mode only)
 		victims.append_array(thunderous_line(muzzle, bolt)["victims"])
-	var mult: float = value("thunderous_shot", "damage_pct") / 100.0 * p.stats.power_damage_mult()
+	var mult: float = value("thunderous_shot", "damage_pct") / 100.0 * p.stats.power_damage_mult() * MapModeLegendaries.bolt_damage_factor(p)
 	var stun: float = value("thunderous_shot", "stun")
 	var base: Vector2 = p.stats.ranged_range()
 	if not victims.is_empty():

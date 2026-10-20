@@ -252,7 +252,7 @@ func _test_map_legendaries() -> void:
 		for f in foes:
 			f.global_position.y = lane.y
 		var count: int = archer.powers.thunderous_release(muzzle, Vector3.RIGHT)
-		bolts[mode] = {"dirs": dirs.size(), "count": count, "lost": [_lost(foes[0]), _lost(foes[1]), _lost(foes[2]), _lost(foes[3])],
+		bolts[mode] = {"dirs": dirs.size(), "count": count, "factor": MapModeLegendaries.bolt_damage_factor(archer), "lost": [_lost(foes[0]), _lost(foes[1]), _lost(foes[2]), _lost(foes[3])],
 			"angle": rad_to_deg(Vector3.RIGHT.angle_to(dirs[dirs.size() - 1])) if dirs.size() > 1 else 0.0}
 		for f in foes:
 			f.queue_free()
@@ -260,7 +260,9 @@ func _test_map_legendaries() -> void:
 	expect("map mode on: three bolts fly, 15 degrees either side of the aim (%.1f)" % bolts["on"]["angle"], bolts["on"]["dirs"] == 3 and absf(bolts["on"]["angle"] - 15.0) < 0.01)
 	expect("they hit the centre and both flank enemies, and not the one outside the cone", bolts["on"]["count"] == 3 and bolts["on"]["lost"][0] > 0.0
 		and bolts["on"]["lost"][1] > 0.0 and bolts["on"]["lost"][2] > 0.0 and bolts["on"]["lost"][3] == 0.0)
-	expect("each bolt deals the power's normal damage (flank within the centre's range)", bolts["on"]["lost"][1] > bolts["on"]["lost"][0] * 0.5 and bolts["on"]["lost"][1] < bolts["on"]["lost"][0] * 2.0)
+	expect("the flank bolts hit about as hard as the centre one (each at the same 60%% share)", bolts["on"]["lost"][1] > bolts["on"]["lost"][0] * 0.5 and bolts["on"]["lost"][1] < bolts["on"]["lost"][0] * 2.0)
+	expect("the damage factor is 0.6 with the Splitbow and 1.0 without", is_equal_approx(bolts["on"]["factor"], 0.6) and is_equal_approx(bolts["off"]["factor"], 1.0)
+		and is_equal_approx(bolts["plain_bow"]["factor"], 1.0))
 	expect("map mode off: one bolt, centre only", bolts["off"]["dirs"] == 1 and bolts["off"]["count"] == 1 and bolts["off"]["lost"][0] > 0.0
 		and bolts["off"]["lost"][1] == 0.0 and bolts["off"]["lost"][2] == 0.0)
 	expect("a plain Short Bow in map mode fires one bolt", bolts["plain_bow"]["dirs"] == 1 and bolts["plain_bow"]["count"] == 1)
