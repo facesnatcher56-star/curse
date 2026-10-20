@@ -116,6 +116,7 @@ func _exit_tree() -> void:
 			get_tree().quit()
 
 func _ready() -> void:
+	add_child(CutterThreatLines.new())   # the red line from an enemy that dives the Cutter (issue #81)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mapmode-auto="):
 			_auto_dir = arg.substr(15)
@@ -579,6 +580,9 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	if graph == null:
 		var spot: Vector3 = arrival_spot()
 		var side: Vector3 = (spot - hero.global_position).cross(Vector3.UP).normalized() * COMPANION_SIDE
+		if body_index == 1 and _visit_kind == "group":   # dash formation (issue #81): the Cutter lands 8-10 m behind the warrior, away from the group
+			goals.append(EnemyRoles.cutter_spot(companion, spot, spot - _visit_pos))
+			return goals
 		goals.append(spot if body_index == 0 else Nav.snap(companion, spot + side))
 		return goals
 	var short: float = ARRIVE_DISTANCE if _visit_kind == "group" else (ARRIVE_AT_POINT if _visit_kind in ["chest", "shrine"] else 0.0)
@@ -586,6 +590,19 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	var y: float = hero.global_position.y
 	for p in pts:
 		goals.append(Nav.snap(hero, Vector3(p.x, y, p.y)))
+	if body_index == 1 and goals.size() >= 1 and _visit_kind == "group":   # dash formation (issue #81): see EnemyRoles.cutter_spot
+		var hero_spot: Vector3 = goals[goals.size() - 1]
+		var back_pts: Array[Vector2] = trim_route(_route, short + EnemyRoles.BACK)
+		var back_goals: Array[Vector3] = []
+		for p in back_pts:
+			back_goals.append(Nav.snap(companion, Vector3(p.x, y, p.y)))
+		var corridor: Vector3 = back_goals[back_goals.size() - 1] if not back_goals.is_empty() else Vector3.INF
+		var spot: Vector3 = EnemyRoles.cutter_spot(companion, hero_spot, hero_spot - _visit_pos, corridor)
+		if not back_goals.is_empty():
+			back_goals[back_goals.size() - 1] = spot
+		else:
+			back_goals.append(spot)
+		return back_goals
 	if body_index == 1 and goals.size() >= 1:
 		var last: Vector3 = goals[goals.size() - 1]
 		var before: Vector3 = goals[goals.size() - 2] if goals.size() >= 2 else hero.global_position

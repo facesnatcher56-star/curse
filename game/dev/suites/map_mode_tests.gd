@@ -51,7 +51,7 @@ func _test_map_mode() -> void:
 	var hero_gap: float = player.global_position.distance_to(group_centre)
 	var cutter_gap: float = cutter.global_position.distance_to(group_centre)
 	expect("the hero stands at the edge of the group (%.1f m)" % hero_gap, hero_gap < MapMode.ARRIVE_DISTANCE + 3.0)
-	expect("the Cutter dashed with the hero (%.1f m)" % cutter_gap, cutter_gap < MapMode.ARRIVE_DISTANCE + 5.0)
+	expect("the Cutter dashed with the hero and stands in formation 8-10 m behind him (%.1f m from the group, %.1f m from the hero; issue #81)" % [cutter_gap, cutter.global_position.distance_to(player.global_position)], cutter_gap < MapMode.ARRIVE_DISTANCE + EnemyRoles.BACK_MAX + 1.0 and cutter.global_position.distance_to(player.global_position) <= EnemyRoles.BACK_MAX + 0.6)
 	await _frames(3)
 	expect("the group is awake on arrival and the hero auto-attacks the nearest enemy", near[0].is_aggro() and player.attack_target in near)
 	expect("the other group stayed asleep (groups are isolated)", not far.is_aggro())

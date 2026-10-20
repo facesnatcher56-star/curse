@@ -326,6 +326,7 @@ func _war_cry(cursor: Vector3) -> void:
 func _provoke() -> void:
 	for e in enemies_within(p.global_position, value("provoke", "radius")):
 		e.target = p
+		e.provoked_until_ms = Time.get_ticks_msec() + int(value("provoke", "duration") * 1000.0)   # map-mode roles leave it alone while it holds
 		e.wake()
 	provoke_armor_pct = value("provoke", "armor_pct")
 	provoke_time = value("provoke", "duration")
