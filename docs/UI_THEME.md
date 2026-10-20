@@ -155,3 +155,12 @@ recertification. Existing intro-log overlap at 720p/1.5, small-scale texture/tex
 softness, exit ObjectDB warnings and the separate Linux roll-shove assertion
 remain acceptance gaps. No production save was used or written. Not player-test
 readiness certification; these changes remain local until separately committed.
+
+### Item cards (#85)
+
+One builder, `ItemTile.card()` (lines from `ItemTile.display_rows()` over `Items.rows()` / `Items.compare()`), makes every item card: inventory and
+worn hover, controller focus, trader, stash, and the card over a drop on the ground (a Control on the HUD, no drawn copy). Panel: `UiTheme.card_box()`
+(near-opaque dark, theme border, rarity-coloured top band; glow for unique, set and legendary). Order: header (icon, name, rarity, slot, item level),
+one "vs <worn item>" line, then base stats, modifiers, trait, legendary effect, set bonuses, requirements, then one action hint. Changes are one
+arrow (green up, red down) beside the stat, in the stat line's own numbers. No card text is translucent. Shots: `game/dev/item_card_shots.gd`,
+`docs/screenshots/item-cards/`.

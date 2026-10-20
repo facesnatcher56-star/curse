@@ -186,7 +186,7 @@ func _test_ornate_theme() -> void:
 				var natural_lines_visible := equipped_card != null
 				if equipped_card != null:
 					expect("equipped helm hover shows the take-off action in its item card: " + tag,
-						equipped_card.find_children("*", "Label", true, false).any(func(node: Node) -> bool: return (node as Label).text == "(R-click to take off)"))
+						equipped_card.find_children("*", "Label", true, false).any(func(node: Node) -> bool: return (node as Label).text == "R-click to take off"))
 					for line in Items.lines(natural_helm, PartyManager.current().active_id):
 						var found := false
 						for node in equipped_card.find_children("*", "Label", true, false):
@@ -213,7 +213,7 @@ func _test_ornate_theme() -> void:
 				var focused_natural_lines_visible := equipped_card != null
 				if equipped_card != null:
 					expect("equipped helm focus shows the take-off action in its item card: " + tag,
-						equipped_card.find_children("*", "Label", true, false).any(func(node: Node) -> bool: return (node as Label).text == "(R-click to take off)"))
+						equipped_card.find_children("*", "Label", true, false).any(func(node: Node) -> bool: return (node as Label).text == "Confirm to take off"))
 					for line in Items.lines(natural_helm, PartyManager.current().active_id):
 						var found := false
 						for node in equipped_card.find_children("*", "Label", true, false):

@@ -31,6 +31,7 @@ func draw(size_px: Vector2, font: Font) -> void:
 	if hud.player != null and hud.player.dead:   # the death plate owns the screen: no loot name plates or item card showing through it
 		names = []
 		LootDrop.focused = null
+		_hide_ground_card()
 		return
 	names = _layout_loot_names(font)
 	_draw_loot_names(font)
@@ -38,21 +39,31 @@ func draw(size_px: Vector2, font: Font) -> void:
 	var drop: LootDrop = drop_in_focus()
 	LootDrop.focused = drop
 	if drop == null:
+		_hide_ground_card()
 		return
 	var pointer: Vector2 = hud.get_viewport().get_mouse_position() if hud.mouse_override.x < 0.0 else hud.mouse_override
 	var anchor: Vector2 = pointer + Vector2(24, 18) if not Gamepad.active else Vector2(size_px.x * 0.5 + 40.0, size_px.y * 0.5 - 150.0)
 	_draw_card(drop.item, hud.player.stats.equipment.get(int(drop.item["slot"])), anchor, size_px, font, true, true)
 
-## An item's details card at `anchor`: the same lines every item card shows (ItemTile.display_rows), then, for a drop on the ground, whether
-## walking over it will put it on or send it to the bag. The card keeps its full text size and grows with its content. With the return
-## waystone prompt on screen it takes clear room beside that prompt; it is never shrunk to fit.
-func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vector2, font: Font, with_compare: bool, for_drop: bool) -> void:
-	var color: Color = Items.RARITY_COLORS[int(item["rarity"])]
+## An item's details card at `anchor`: the one shared card (ItemTile.card), whose action hint, for a drop on the ground, says whether walking
+## over it will put it on or send it to the bag. The card keeps its full text size and grows with its content. With the return waystone
+## prompt on screen it takes clear room beside that prompt; it is never shrunk to fit. It is a Control on the HUD (never in the way of the
+## mouse), rebuilt only when what it shows changes.
+func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vector2, _font: Font, with_compare: bool, for_drop: bool) -> void:
 	var member: String = PartyManager.current().active_id
-	var comparison: Array[Dictionary] = Items.compare(item, worn, member) if with_compare else Items.wear_warning(item, member)
-	var rows: Array[Dictionary] = ItemTile.display_rows(item, comparison, member)
-	var m := _card_metrics(item, rows, font, for_drop)
-	var card_size := Vector2(m.width, m.height)
+	var walk: Dictionary = _walk_over(item) if for_drop else {"text": "", "color": Color(0, 0, 0, 0)}
+	var key := "%d|%d|%s|%s|%s|%s|%s" % [item.hash(), (worn as Dictionary).hash() if worn != null else 0, with_compare, member, walk.text, Gamepad.active, Items.hero_can_wear(item, member)]
+	if _ground_card == null or not is_instance_valid(_ground_card) or key != _ground_key:
+		_hide_ground_card(true)
+		_ground_card = ItemTile.card(item, worn, with_compare, false, String(walk.text), walk.color)
+		_ground_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for child in _ground_card.find_children("*", "Control", true, false):
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ground_card.z_index = 30
+		hud.add_child(_ground_card)
+		_ground_key = key
+	_ground_card.size = _ground_card.get_combined_minimum_size()
+	var card_size: Vector2 = _ground_card.size
 	var return_prompt := _return_prompt_rect() if for_drop else Rect2()
 	var origin: Vector2
 	if return_prompt.has_area():
@@ -61,46 +72,21 @@ func _draw_card(item: Dictionary, worn: Variant, anchor: Vector2, size_px: Vecto
 		origin = Vector2(clampf(anchor.x, 8.0, maxf(8.0, size_px.x - card_size.x - 8.0)), clampf(anchor.y, 8.0, maxf(8.0, size_px.y - card_size.y - 110.0)))
 	if for_drop:
 		ground_card_rect = Rect2(origin, card_size)
-	hud.draw_set_transform(origin, 0.0, Vector2.ONE)
-	_draw_card_body(item, rows, m, color, font, for_drop)
-	hud.draw_set_transform(Vector2.ZERO)
+	_ground_card.position = origin
+	_ground_card.visible = true
 
-## Every position on the card, relative to its top-left. Measuring and drawing both read these, so they cannot drift apart.
-func _card_metrics(item: Dictionary, rows: Array[Dictionary], font: Font, for_drop: bool) -> Dictionary:
-	var width: float = ItemTile.CARD_WIDTH
-	var pad := 14.0
-	var inner := width - pad * 2.0
-	var name_h := maxf(20.0, font.get_multiline_string_size(String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21).y)
-	var kind_y := pad + name_h + 12.0
-	var y := kind_y + 8.0
-	var line_ys: Array[float] = []
-	for row in rows:
-		line_ys.append(y + 14.0)
-		y += font.get_multiline_string_size(String(row["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y + 4.0
-	var m := {"width": width, "inner": inner, "kind_y": kind_y, "line_ys": line_ys, "drop_y": 0.0}
-	if for_drop:
-		y += 8.0
-		m["drop_y"] = y + 14.0
-		y += font.get_multiline_string_size(String(_walk_over(item).text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15).y
-	m["height"] = y + pad
-	return m
+var _ground_card: Control
+var _ground_key := ""
 
-func _draw_card_body(item: Dictionary, rows: Array[Dictionary], m: Dictionary, color: Color, font: Font, for_drop: bool) -> void:
-	var width: float = m.width
-	var height: float = m.height
-	var pad := 14.0
-	var inner: float = m.inner
-	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, Vector2(width, height)), 0.97)
-	hud.draw_rect(Rect2(Vector2(3, 3), Vector2(4, height - 6)), color)   # a rarity-coloured spine
-	hud.draw_multiline_string(font, Vector2(pad + 6.0, pad + 18.0), String(item["name"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 21, -1, color)
-	UiTheme.text(hud, font, Vector2(pad + 6.0, m.kind_y), "%s %s" % [Items.RARITY_NAMES[int(item["rarity"])], Items.SLOT_NAMES[int(item["slot"])]], 13,
-		Color(1, 1, 1, 0.55))
-	for i in rows.size():
-		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.line_ys[i]), String(rows[i]["text"]), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1,
-			rows[i]["color"])
-	if for_drop:
-		var walk: Dictionary = _walk_over(item)
-		hud.draw_multiline_string(font, Vector2(pad + 6.0, m.drop_y), String(walk.text), HORIZONTAL_ALIGNMENT_LEFT, inner - 6.0, 15, -1, walk.color)
+func _hide_ground_card(free: bool = false) -> void:
+	if _ground_card == null or not is_instance_valid(_ground_card):
+		_ground_card = null
+		return
+	if free:
+		_ground_card.queue_free()
+		_ground_card = null
+	else:
+		_ground_card.visible = false
 
 ## What walking over a drop does, with the appraisal's verdict: worn at once, a better piece waiting in the bag, or not wearable yet.
 func _walk_over(item: Dictionary) -> Dictionary:
@@ -246,6 +232,8 @@ func hide_summary() -> void:
 	summary_rect = Rect2()
 
 const SUMMARY_WIDTH := 420.0
+## The summary's note beside each item ("better", "worse"): readable cream, never a dimmed white.
+const NOTE_COLOR := ItemTile.TEXT_COLOR
 const SUMMARY_ROW := 27.0
 
 ## The card: what the clear paid (gold, potions) and each item under its rarity colour, with a green arrow up for a better piece, a red arrow down for
@@ -297,7 +285,7 @@ func _draw_summary(size_px: Vector2, font: Font) -> void:
 			_: note = "same"
 		UiTheme.text(hud, font, Vector2(pad + 26.0, y + 17.0), String(item["name"]), 16, colour.darkened(0.25 if mark == Mark.LOCKED else 0.0),
 			HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0 - 110.0)
-		UiTheme.text(hud, font, Vector2(SUMMARY_WIDTH - pad - 100.0, y + 17.0), note, 13, Color(1, 1, 1, 0.55), HORIZONTAL_ALIGNMENT_RIGHT, 100.0)
+		UiTheme.text(hud, font, Vector2(SUMMARY_WIDTH - pad - 100.0, y + 17.0), note, 15, NOTE_COLOR, HORIZONTAL_ALIGNMENT_RIGHT, 100.0)
 		y += SUMMARY_ROW
 	hud.draw_set_transform(Vector2.ZERO)
 

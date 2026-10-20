@@ -70,7 +70,7 @@ func _ready() -> void:
 	skills_button.pressed.connect(func() -> void: (get_parent() as Hud).open_skills())
 	left.add_child(skills_button)
 	var gear_label := ItemTile._label(gear_text(), 14, UiTheme.TEXT)
-	gear_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	gear_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	left.add_child(gear_label)
 	_add_paper_doll(left)
 	var right := VBoxContainer.new()
@@ -135,7 +135,7 @@ func _add_paper_doll(parent: Control) -> void:
 		if worn != null:
 			var item_tile := ItemTile.create(worn, null, 48)
 			item_tile.show_compare = false
-			item_tile.action_hint = "(R-click to take off)"
+			item_tile.action_hint = "R-click to take off"
 			item_tile.gui_input.connect(_worn_input.bind(place, item_tile))
 			tile = item_tile
 		else:
@@ -151,14 +151,15 @@ static func _empty_place(title: String) -> Control:
 	box.tooltip_text = "%s: nothing worn" % title
 	box.draw.connect(func() -> void:
 		box.draw_rect(Rect2(Vector2.ZERO, box.size), Color(0.05, 0.048, 0.06, 0.6))
-		box.draw_rect(Rect2(Vector2(1, 1), box.size - Vector2(2, 2)), Color(0.42, 0.4, 0.37, 0.35), false, 1.0)
+		box.draw_rect(Rect2(Vector2(1, 1), box.size - Vector2(2, 2)), Color(0.62, 0.55, 0.42, 0.85), false, 1.0)
 		var font: Font = ThemeDB.fallback_font
-		box.draw_string(font, Vector2(0, box.size.y * 0.5 + 4.0), title, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 10, Color(UiTheme.TEXT_DIM, 0.6)))
+		box.draw_string(font, Vector2(0, box.size.y * 0.5 + 5.0), title, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 13, UiTheme.TEXT))
 	return box
 
 ## "Armor 34   Block 0%   Fire resist 0%   Magic find 0%": what the gear adds up to.
 func gear_text() -> String:
-	return "Armor %d   Block %d%%   Fire resist %d%%   Magic find %d%%" % [int(hero.armor), int(round(hero.block_chance * 100.0)),
+	return "Armor %d   Block %d%%
+Fire resist %d%%   Magic find %d%%" % [int(hero.armor), int(round(hero.block_chance * 100.0)),
 		int(round(hero.fire_resist * 100.0)), int(hero.stats.magic_find())]
 
 ## Right-click, double-click or confirm on a worn piece takes it off, into the bag.
@@ -205,7 +206,7 @@ func _add_progression(parent: Control) -> void:
 		UiTheme.draw_bar(xp_bar, Rect2(Vector2(2, 1), xp_bar.size - Vector2(4, 2)), HeroProgression.level_fraction(hero.character.xp), UiTheme.EMBER.darkened(0.2), "", ThemeDB.fallback_font))
 	parent.add_child(xp_bar)
 	classes_label = ItemTile._label(classes_text(hero.member_id), 14, UiTheme.TEXT)
-	classes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	classes_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	parent.add_child(classes_label)
 	attributes_label = ItemTile._label(attributes_text(), 14, UiTheme.TEXT_DIM)
 	attributes_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -217,7 +218,8 @@ static func classes_text(member_id: String = "hero") -> String:
 	var parts: PackedStringArray = []
 	for id in HeroAttributes.CLASSES:
 		parts.append("%s %d" % [HeroAttributes.CLASS_NAMES[id], int(levels[id])])
-	return "   ".join(parts)
+	return "%s
+%s" % ["   ".join(parts.slice(0, 2)), "   ".join(parts.slice(2))]
 
 ## "STR 24  DEX 15  INT 15    Life 118  Mana 76".
 func attributes_text() -> String:
