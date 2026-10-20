@@ -26,6 +26,10 @@ const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
 const FROZEN_SAMPLE := 6.0        # s between checks for an awake enemy that is not moving or fighting (a diagnostic, printed)
+const UNSTICK_PARTY_AFTER := 4.0  # s of failed pathing after which a party member gives up on its target for a while
+const SKIP_SECONDS := 10.0
+const GATHER_DISTANCE := 6.0       # m from the hero the stalled enemies are set
+const FIGHT_NO_KILL_LIMIT := 45.0   # s without a kill after which the enemies still standing are brought to the party (a fight can never stall for ever)
 const UNSTICK_AFTER := 2.5        # s of failed pathing after which an awake enemy is set back on the navmesh (see _unstick)
 const STALL_WARNING := 90.0       # s: a fight this long prints one warning with what the party is hitting
 
@@ -66,6 +70,9 @@ var _kept_target: Dictionary = {}   # member id -> the enemy it keeps attacking
 var _stall_warned: bool = false
 var _fight_started: float = 0.0
 var _last_sample: float = 0.0
+var _skipped: Dictionary = {}       # enemy instance id -> the time until which the party leaves it alone (it could not be reached)
+var _last_progress: float = 0.0    # the last time a kill shrank the fight (see FIGHT_NO_KILL_LIMIT)
+var _last_count: int = 0
 var _good_pos: Dictionary = {}      # enemy instance id -> its last position that was on the floor and reachable
 var _good_at: float = 0.0
 var _sample_pos: Dictionary = {}   # enemy instance id -> where it stood at the last sample
@@ -229,17 +236,24 @@ func target_for(body: Player) -> Actor:
 		return focus
 	# Stick to one target until it dies (the nearest one changes as everybody moves, and the party would flap between them).
 	var kept: Actor = _kept_target.get(body.member_id) as Actor if _kept_target.has(body.member_id) else null
-	if is_instance_valid(kept) and not kept.dead and kept.is_in_group("enemies"):
+	if is_instance_valid(kept) and not kept.dead and kept.is_in_group("enemies") and not _is_skipped(kept):
 		return kept
 	var best: Actor = null
 	var best_clear: bool = false
-	for enemy in fight_enemies():
+	var candidates: Array[Enemy] = fight_enemies().filter(func(c: Enemy) -> bool: return not _is_skipped(c))
+	if candidates.is_empty():
+		candidates = fight_enemies()   # everything is skipped: try them again
+	for enemy in candidates:
 		var clear: bool = Nav.line_clear(body, enemy.global_position)   # a target behind a wall is the last choice
 		if best == null or (clear and not best_clear) or (clear == best_clear and enemy.flat_distance_to(body) < best.flat_distance_to(body)):
 			best = enemy
 			best_clear = clear
 	_kept_target[body.member_id] = best
 	return best
+
+## An enemy the party could not reach (its path was blocked for UNSTICK_PARTY_AFTER s) is left alone for SKIP_SECONDS and another target is chosen.
+func _is_skipped(e: Actor) -> bool:
+	return float(_skipped.get(e.get_instance_id(), 0.0)) > now()
 
 ## Everything that is part of the fight: the chosen group's living members, plus summoned adds (they have no group) that are awake close by.
 func fight_enemies() -> Array[Enemy]:
@@ -760,6 +774,9 @@ func _arrive() -> void:
 			_last_sample = now()
 			_sample_pos.clear()
 			_kept_target.clear()
+			_skipped.clear()
+			_last_progress = 0.0
+			_last_count = 0
 			MapModeRules.note_fight_start(now())
 			_fight_level = 1
 			for e in group_members():   # only this group: neighbouring groups stay asleep
@@ -789,6 +806,13 @@ func _tick_fight() -> void:
 		return
 	hero.attack_target = target_for(hero)
 	_keep_enemies_inside()
+	_keep_party_moving()
+	var count: int = fight_enemies().size()
+	if count < _last_count or _last_progress <= 0.0:
+		_last_progress = now()
+	_last_count = count
+	if now() - _last_progress > FIGHT_NO_KILL_LIMIT:
+		_gather_enemies()
 	if now() - _last_sample >= FROZEN_SAMPLE:
 		_sample_frozen()
 	if not _stall_warned and now() - _fight_started > STALL_WARNING:
@@ -820,6 +844,44 @@ func _keep_enemies_inside() -> void:
 		if not off_floor:
 			_good_pos[id] = here
 		_unstick(e)
+
+## A party member whose path to its target has been blocked for UNSTICK_PARTY_AFTER s (the target is wedged where it cannot be reached) drops that
+## target for SKIP_SECONDS, takes another, and starts its path afresh. Returns the number of members that gave up.
+func _keep_party_moving() -> int:
+	var gave_up: int = 0
+	for body in [hero, companion]:
+		if not is_instance_valid(body) or body.dead:
+			continue
+		var nav: Dictionary = body.movement._nav_state
+		var target: Actor = body.attack_target
+		if is_instance_valid(target) and float(nav.get("failed_time", 0.0)) >= UNSTICK_PARTY_AFTER:
+			_skipped[target.get_instance_id()] = now() + SKIP_SECONDS
+			_kept_target.erase(body.member_id)
+			body.attack_target = null
+			Nav.reset(body, nav)
+			print("[mapmode] %s could not reach its target (%s), takes another" % [body.member_id, (target as Enemy).variant if target is Enemy else str(target)])
+			gave_up += 1
+	return gave_up
+
+## The fight has gone FIGHT_NO_KILL_LIMIT seconds with no kill: whatever is still standing is brought up to the party (set on the navmesh a few
+## metres from the hero, on the side it stood on) with fresh path state, so nothing wedged somewhere can hold the run up. Returns how many it moved.
+func _gather_enemies() -> int:
+	_last_progress = now()
+	var moved: int = 0
+	var map: RID = Nav.map_of(hero)
+	for e in fight_enemies():
+		var away: Vector3 = e.global_position - hero.global_position
+		away.y = 0.0
+		away = away.normalized() * GATHER_DISTANCE if away.length() > 0.1 else Vector3.BACK * GATHER_DISTANCE
+		var spot: Vector3 = NavigationServer3D.map_get_closest_point(map, hero.global_position + away)
+		e.global_position = Vector3(spot.x, e.global_position.y, spot.z)
+		e.velocity = Vector3.ZERO
+		Nav.reset(e, e._nav_state)
+		moved += 1
+	if moved > 0:
+		_skipped.clear()
+		print("[mapmode] no kill for %.0f s: %d enemies brought to the party" % [FIGHT_NO_KILL_LIMIT, moved])
+	return moved
 
 ## An enemy that has been knocked or staggered into the margin against a wall (a little off the navmesh) cannot take its first step along its path: it makes
 ## no progress, after 5 s its path state says "unreachable" for good, and it stands there, awake and not moving, while the party waits for the fight to end.
