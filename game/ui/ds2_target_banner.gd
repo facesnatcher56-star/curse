@@ -279,7 +279,7 @@ func update_target(target: Actor, delta: float) -> void:
 		_health_label.text = health_text(cur_hp, max_hp)
 		_level_label.text = "LV %d" % target.level
 		
-		_name_label.add_theme_color_override("font_color", status_color(target).lightened(0.3))
+		_name_label.add_theme_color_override("font_color", status_color(target))   # exactly the affix/status colour (a test holds it); the 5 px black outline gives the contrast
 		var base_fill := Color(0.65, 0.12, 0.1, 0.95) if not tinted else Color(status_color(target).darkened(0.55), 0.95)
 		_hp_fill.color = base_fill.lerp(Color(1.0, 0.9, 0.72, 1.0), _hit_flash / HIT_FLASH_SECONDS)
 		_damage_trail.color = Color(0.95, 0.43, 0.26, 0.82) if not tinted else Color(status_color(target).lightened(0.12), 0.8)
