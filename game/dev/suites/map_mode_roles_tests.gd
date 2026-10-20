@@ -111,28 +111,23 @@ func _test_map_mode_roles() -> void:
 	expect("formation: the Cutter lands %.1f m behind the warrior (8-10 m)" % behind, behind >= EnemyRoles.BACK_MIN - 0.6 and behind <= EnemyRoles.BACK_MAX + 0.6)
 	expect("formation: the Cutter is on the side away from the group (%.1f m against the warrior's %.1f m)" % [cutter_far, hero_far], cutter_far > hero_far + 6.0)
 	# The dive: the ghoul goes for the Cutter and reaches her.
-	var marker_seen: bool = false
 	var reached: float = INF
 	var targeted: bool = false
-	var drawn: int = 0
-	var lines: CutterThreatLines = null
-	for child in m.get_children():
-		if child is CutterThreatLines:
-			lines = child
 	for i in 480:
 		await get_tree().physics_frame
 		if is_instance_valid(diver) and not diver.dead:
 			reached = minf(reached, diver.flat_distance_to(cutter))
 			targeted = targeted or diver.target == cutter
-			if lines != null and lines.divers().has(diver):
-				marker_seen = true
-				drawn = lines.get_child_count()
 		if reached < 2.6:
 			break
-	print("[mmroles] dive: ghoul closest to the Cutter %.1f m, marker drawn %s" % [reached, marker_seen])
+	print("[mmroles] dive: ghoul closest to the Cutter %.1f m" % reached)
 	expect("the ghoul targets the Cutter, not the nearest member", targeted)
 	expect("the ghoul reaches the Cutter in the small arena (closest %.1f m)" % reached, reached < 2.6)
-	expect("a red marker and line are drawn for a diver (%d meshes)" % drawn, marker_seen and drawn >= 2)
+	var has_lines: bool = false
+	for child in m.get_children():
+		var script: Script = child.get_script() as Script
+		has_lines = has_lines or (script != null and String(script.resource_path).contains("threat_lines"))
+	expect("no red threat lines are drawn for a diver (the owner removed them)", not has_lines)
 	# Provoke overrides the role for as long as it holds.
 	player.global_position = diver.global_position + Vector3(2.0, 0.0, 0.0)
 	player.powers._provoke()
