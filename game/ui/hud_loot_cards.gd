@@ -291,6 +291,8 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 	var camera: Camera3D = hud.get_viewport().get_camera_3d()
 	if camera == null or hud.show_gear or hud.player == null:
 		return out
+	if MapMode.active and MapMode.current != null and MapMode.current.overlay != null and MapMode.current.overlay.is_open():
+		return out   # the node map covers the world: plates for items left on the ground would float over it at meaningless spots
 	var entries: Array[Dictionary] = []
 	for node in hud.get_tree().get_nodes_in_group("loot"):
 		var drop := node as LootDrop
@@ -315,7 +317,7 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 		for step in 65:
 			var distance: float = float((step + 1) / 2) * 12.0
 			var offset: float = 0.0 if step == 0 else distance * (1.0 if step % 2 == 1 else -1.0)
-			rect.position.y = clampf(original_y + offset, 2.0, hud.get_viewport_rect().size.y - NAME_HEIGHT - 2.0)
+			rect.position.y = clampf(original_y + offset, PLATE_MARGIN, hud.get_viewport_rect().size.y - NAME_HEIGHT - PLATE_MARGIN)
 			if _plate_blocked(rect, toast_rect, placed):
 				continue
 			found = true

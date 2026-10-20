@@ -62,7 +62,7 @@ func _test_map_rewards() -> void:
 		int(lock_info["state"]) == State.LOCKED and String(lock_info["need"]) == Items.requirement_card_text(locked, String(lock_info["member"])).replace("Requires ", "Needs ")
 		and String(lock_info["need"]).begins_with("Needs ") and not String(lock_info["need"]).contains("have"))
 	expect("an item left on the ground is Inventory full, whatever it would be", int(full_info["state"]) == State.FULL)
-	expect("the badge words: Upgrade: Hero (green), Downgrade, the unmet part (red), Inventory full (amber)",
+	expect("the badge words: Upgrade: Hero (green), Worn (neutral), Downgrade, the unmet part (red), Inventory full (amber)",
 		String(MapRewardPanel.badge_of(up_info)["text"]) == "%s Upgrade: %s" % [Items.UP, hero.display_name] and MapRewardPanel.badge_of(up_info)["color"] == MapRewardPanel.GREEN
 		and String(MapRewardPanel.badge_of(down_info)["text"]) == "Downgrade" and MapRewardPanel.badge_of(lock_info)["color"] == MapRewardPanel.RED
 		and String(MapRewardPanel.badge_of(full_info)["text"]) == "Inventory full" and MapRewardPanel.badge_of(full_info)["color"] == MapRewardPanel.AMBER)
@@ -70,7 +70,8 @@ func _test_map_rewards() -> void:
 	twin["name"] = "Same blade, other name"
 	hero.stats.add_to_bag(twin)
 	expect("an equal piece is SIDEGRADE", int(MapRewardPanel.classify(twin, party)["state"]) == State.SIDEGRADE and LootAppraisal.trend(twin, hero.stats) == 0)
-	expect("a worn piece is WORN", int(MapRewardPanel.classify(weak, party)["state"]) == State.WORN)
+	expect("a worn piece is WORN, and its badge is neutral, not the upgrade green", int(MapRewardPanel.classify(weak, party)["state"]) == State.WORN
+		and MapRewardPanel.badge_of(MapRewardPanel.classify(weak, party))["color"] == MapRewardPanel.NEUTRAL)
 	hero.stats.bag.erase(twin)
 
 	# --- the panel on the real HUD: tiles, badges, count-up, Equip ----------------------------------------------------------------------------
@@ -154,6 +155,22 @@ func _test_map_rewards() -> void:
 		String(MapRewardPanel.dock(panel_size, wide, no_one, 260.0)["side"]) == "right" and String(MapRewardPanel.dock(panel_size, wide, avoid_right, 260.0)["side"]) == "left"
 		and (MapRewardPanel.dock(panel_size, wide, avoid_right, 260.0)["rect"] as Rect2).position.y >= 260.0 and String(MapRewardPanel.dock(panel_size, wide, avoid_left, 260.0)["side"]) == "right")
 
+	# --- the title and chest kind come from the node actually visited ---------------------------------------------------------------------------
+	var mm := MapMode.new()
+	mm.use_graph(MapGraph.from_layout(), {})
+	mm.hud = hud
+	game.add_child(mm)
+	var checked: int = 0
+	for id in [mm.graph.boss_id, 5, 12]:
+		mm._visit_node = int(id)
+		mm._visit_kind = "group"
+		var shown: bool = mm._show_loot_summary([])
+		var shown_panel: MapRewardPanel = hud.loot_cards.reward_panel
+		checked += 1 if shown and shown_panel != null and shown_panel.title == String(mm.graph.row(int(id)).get("name", "")) and shown_panel.guard == String(mm.plan_of(int(id)).get("guard", "")) else 0
+		hud.loot_cards.hide_summary()
+	expect("the panel names the node that was visited and its planned chest kind (boss hoard included): %d of 3" % checked, checked == 3 and String(mm.plan_of(mm.graph.boss_id)["guard"]) == "hoard")
+	mm.queue_free()
+
 	# --- a legendary tile is larger and carries its effect in full -----------------------------------------------------------------------------
 	var legend: Dictionary = MapModeLegendaries.item("gravecaller_maul")
 	var line: Dictionary = MapRewardPanel.key_line(legend, "hero")
@@ -185,6 +202,17 @@ func _test_map_rewards() -> void:
 		var r: Rect2 = entry["rect"]
 		off += 0 if (r.position.x >= 0.0 and r.end.x <= screen.x and r.position.y >= 0.0 and r.end.y <= screen.y) else 1
 	expect("plates at the left and right screen edges stay inside the screen (%d placed, %d off screen)" % [plates.size(), off], off == 0)
+	var top_spot: Vector3 = camera.project_position(Vector2(screen.x * 0.5, 3.0), depth)
+	top_spot.y = ground.y
+	var d_top: LootDrop = game.director.drop_item(top_spot, long_item.duplicate(true))
+	d_top._end = top_spot
+	await get_tree().create_timer(LootDrop.LAND_TIME + 0.5).timeout
+	var top_plates: Array[Dictionary] = hud.loot_cards._layout_loot_names(ThemeDB.fallback_font)
+	var top_ok: bool = true
+	for entry in top_plates:
+		var tr: Rect2 = entry["rect"]
+		top_ok = top_ok and tr.position.y >= 0.0 and tr.end.y <= screen.y
+	expect("a plate over an item at the top edge stays on screen too (%d placed)" % top_plates.size(), top_ok)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
 

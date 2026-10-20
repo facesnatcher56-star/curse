@@ -8,6 +8,7 @@ var _main: Node
 var _frames := 0
 var _dir := ""
 var _only: PackedStringArray = []
+var _prefix := ""
 var _started := false
 var _hero_pos := Vector3.ZERO
 var _spawned: Array[Chest] = []
@@ -16,6 +17,8 @@ func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):
 			_dir = arg.substr(8)
+		elif arg.begins_with("--prefix="):
+			_prefix = arg.substr(9)
 		elif arg.begins_with("--only="):
 			_only = arg.substr(7).split(",")
 	DirAccess.make_dir_recursive_absolute(_dir)
@@ -27,7 +30,7 @@ func _initialize() -> void:
 func _save(shot: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image := get_root().get_texture().get_image()
-	var path := _dir.path_join(shot + ".png")
+	var path := _dir.path_join(_prefix + shot + ".png")
 	image.save_png(path)
 	print("MMREWARDS_SHOT %s %dx%d" % [path, image.get_width(), image.get_height()])
 
@@ -81,8 +84,9 @@ func _gear(level: int) -> void:
 
 ## A clear of a `kind` chest: it opens (its own spray); with `items` the random loot is swapped for exactly those. Then the real COLLECT sequence
 ## runs and the reward screen shows over the reopened map.
-func _clear(kind: String, items: Array, node_id: int, shot: String) -> void:
+func _clear(kind: String, items: Array, _unused: int, shot: String) -> void:
 	var m := _m()
+	var node_id: int = _node_for(kind)
 	m.overlay.close()
 	_clear_ground()
 	m._reset_tally()
@@ -105,12 +109,19 @@ func _clear(kind: String, items: Array, node_id: int, shot: String) -> void:
 	await _wait(1.8)
 	var rows: Array[Dictionary] = HudLootCards.summary_rows(m.loot_tally, [_hero(), m.companion])
 	m._collect_rewards()
-	if m.hud.loot_cards.has_method("hide_summary"):
-		m.hud.loot_cards.hide_summary()
-	m.hud.loot_cards.show_summary(String(m.graph.row(node_id).get("name", "Cleared")), m.loot_tally, rows, 120.0, kind)
+	m.hud.loot_cards.hide_summary()
+	m._show_loot_summary(rows)   # the real path: the title and chest kind come from the node actually visited
 	m._open_map()
 	await _wait(1.6)
 	await _save(shot)
+
+## A node of the dungeon whose plan guards a chest of this kind (the boss for a hoard).
+func _node_for(kind: String) -> int:
+	var m := _m()
+	for id in m.graph.ids():
+		if String(m.plan_of(int(id)).get("guard", "")) == kind:
+			return int(id)
+	return int(m.graph.boss_id)
 
 func hud_panel() -> MapRewardPanel:
 	return _main.hud.loot_cards.reward_panel
@@ -171,8 +182,12 @@ func _run() -> void:
 		_arrange_gear()
 		var club: Dictionary = _club(1.0, "Weak club")
 		var verdict_items: Array = [_club(3.0, "Heavy Club of the Pit"), _club(1.0, "Plain club, other maker"), _club(0.5, "Splintered Club"),
-			_legendary("gravecaller_maul"), Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.MAGIC)]
+			_legendary("gravecaller_maul"), Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.MAGIC), Items.make(Items.Slot.BOOTS, Items.Rarity.NORMAL, 1)]
 		await _clear("gilded", verdict_items, 12, "reward_verdicts")
+		if _want("verdicts") and hud_panel() != null:
+			hud_panel()._scroll.scroll_vertical = 9999
+			await _wait(0.4)
+			await _save("reward_worn_neutral")
 		if _want("hover") and hud_panel() != null:
 			var icon: Control = hud_panel().tiles[0]["icon"]
 			icon.mouse_entered.emit()
@@ -185,6 +200,26 @@ func _run() -> void:
 			await _wait(0.6)
 			await _save("reward_controller_focus")
 			Gamepad.active = false
+	if _want("top_plate"):
+		m.overlay.close()
+		m.hud.loot_cards.hide_summary()
+		await _wait(0.6)
+		_clear_ground()
+		var cam: Camera3D = get_root().get_camera_3d()
+		var depth: float = cam.global_position.distance_to(_hero_pos)
+		var long_item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 12, "Longsword")
+		var plate_drops: Array = []
+		for x in [960.0, 90.0, 1830.0]:
+			var spot: Vector3 = cam.project_position(Vector2(x, 6.0), depth)
+			spot.y = 0.0
+			var d: LootDrop = _main.director.drop_item(spot, long_item.duplicate(true))
+			d._end = spot
+			plate_drops.append([d, spot])
+		await _wait(1.2)
+		for pair in plate_drops:   # (the arena pulls a toss inside it: put them where the screen edge is)
+			(pair[0] as LootDrop).global_position = pair[1]
+		await _wait(0.5)
+		await _save("plates_top_edge")
 	if _want("full"):
 		_arrange_gear()
 		var filler: Array = []

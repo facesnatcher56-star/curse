@@ -7,11 +7,11 @@ extends RefCounted
 
 ## tier -> the model's textured materials: tint (and how far), emission and metal.
 const BODY := {
-	"wooden": {"tint": Color(0.70, 0.48, 0.26), "amount": 0.12, "emission": Color(0.70, 0.48, 0.26), "energy": 0.4, "metal": 0.0},
-	"iron": {"tint": Color(0.42, 0.46, 0.52), "amount": 0.2, "emission": Color(0.5, 0.55, 0.62), "energy": 0.25, "metal": 0.1},
-	"gilded": {"tint": Color(0.92, 0.74, 0.34), "amount": 0.22, "emission": Color(1.0, 0.8, 0.3), "energy": 0.3, "metal": 0.15},
-	"cursed": {"tint": Color(0.52, 0.3, 0.72), "amount": 0.42, "emission": Color(0.62, 0.28, 0.95), "energy": 1.8, "metal": 0.05},
-	"hoard": {"tint": Color(0.95, 0.66, 0.26), "amount": 0.24, "emission": Color(1.0, 0.62, 0.2), "energy": 0.32, "metal": 0.15},
+	"wooden": {"tint": Color(0.70, 0.48, 0.26), "amount": 0.12, "emission": Color(0.70, 0.48, 0.26), "energy": 0.3, "metal": 0.0},
+	"iron": {"tint": Color(0.42, 0.46, 0.52), "amount": 0.2, "emission": Color(0.5, 0.55, 0.62), "energy": 0.3, "metal": 0.1},
+	"gilded": {"tint": Color(0.7, 0.6, 0.4), "amount": 0.1, "emission": Color(0.8, 0.7, 0.55), "energy": 0.25, "metal": 0.15},
+	"cursed": {"tint": Color(0.52, 0.3, 0.72), "amount": 0.3, "emission": Color(0.62, 0.28, 0.95), "energy": 0.3, "metal": 0.05},
+	"hoard": {"tint": Color(0.8, 0.6, 0.35), "amount": 0.1, "emission": Color(0.8, 0.7, 0.55), "energy": 0.25, "metal": 0.15},
 }
 
 static func apply(chest: Chest, guard: String) -> void:
@@ -45,12 +45,12 @@ static func apply(chest: Chest, guard: String) -> void:
 		"gilded": _gilded(chest, b, l)
 		"cursed": _cursed(chest, b, l)
 		"hoard": _hoard(chest, b, l)
-	if guard in ["cursed", "hoard", "gilded"]:
+	if guard in ["cursed", "hoard"]:
 		var light := OmniLight3D.new()
 		light.light_color = MapDrops.guard_color(guard)
-		light.light_energy = 0.8 if guard == "gilded" else 1.4
-		light.omni_range = 4.0
-		light.position = Vector3(0.0, 1.2, 0.0)
+		light.light_energy = 0.4 if guard == "hoard" else 0.9
+		light.position = Vector3(0.0, 1.8, 0.0)
+		light.omni_range = 3.5
 		chest.add_child(light)
 
 ## The node's bounds in the chest's own (unscaled) space.
@@ -113,10 +113,9 @@ static func _iron(chest: Chest, b: AABB, l: AABB) -> void:
 	_box(chest, chest, Vector3(b.get_center().x, b.position.y + b.size.y * 0.78, b.end.z + 0.012), Vector3(0.14, 0.17, 0.03), steel)   # the lock plate
 
 static func _gilded(chest: Chest, b: AABB, l: AABB) -> void:
-	var gold: StandardMaterial3D = _metal(Color(1.0, 0.8, 0.28), 0.85, 0.3, 0.35)
+	var gold: StandardMaterial3D = _metal(Color(0.85, 0.62, 0.18), 0.5, 0.35, 0.7)
 	_bands(chest, b, l, [0.14, 0.86], 0.045, gold)
 	_box(chest, chest, Vector3(b.get_center().x, b.position.y + 0.02, b.get_center().z), Vector3(b.size.x + 0.04, 0.045, b.size.z + 0.04), gold)   # the base rim
-	_box(chest, chest, Vector3(b.get_center().x, b.end.y - 0.02, b.get_center().z), Vector3(b.size.x + 0.04, 0.04, b.size.z + 0.04), gold)   # the top rim
 	_box(chest, chest, Vector3(b.get_center().x, b.position.y + b.size.y * 0.78, b.end.z + 0.015), Vector3(0.17, 0.2, 0.035), gold)   # the clasp
 
 static func _cursed(chest: Chest, b: AABB, l: AABB) -> void:
@@ -164,10 +163,9 @@ static func _cursed(chest: Chest, b: AABB, l: AABB) -> void:
 	chest.add_child(wisps)
 
 static func _hoard(chest: Chest, b: AABB, l: AABB) -> void:
-	var gold: StandardMaterial3D = _metal(Color(1.0, 0.76, 0.22), 0.9, 0.28, 0.5)
+	var gold: StandardMaterial3D = _metal(Color(0.85, 0.62, 0.18), 0.5, 0.35, 0.7)
 	_bands(chest, b, l, [0.1, 0.5, 0.9], 0.055, gold)
 	_box(chest, chest, Vector3(b.get_center().x, b.position.y + 0.02, b.get_center().z), Vector3(b.size.x + 0.05, 0.05, b.size.z + 0.05), gold)
-	_box(chest, chest, Vector3(b.get_center().x, b.end.y - 0.02, b.get_center().z), Vector3(b.size.x + 0.05, 0.045, b.size.z + 0.05), gold)
 	_box(chest, chest, Vector3(b.get_center().x, b.position.y + b.size.y * 0.78, b.end.z + 0.018), Vector3(0.2, 0.24, 0.04), gold)
 	for corner in [Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 1.0)]:   # a gold cap on each foot
 		_box(chest, chest, Vector3(b.position.x + b.size.x * corner.x, b.position.y + 0.06, b.position.z + b.size.z * corner.y), Vector3(0.1, 0.12, 0.1), gold)

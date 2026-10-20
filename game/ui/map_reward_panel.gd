@@ -117,7 +117,7 @@ static func badge_of(info: Dictionary) -> Dictionary:
 		State.DOWNGRADE: return {"text": "Downgrade", "color": DIM}
 		State.LOCKED: return {"text": String(info["need"]), "color": RED}
 		State.FULL: return {"text": "Inventory full", "color": AMBER}
-	return {"text": "Worn: %s" % String(info["who"]), "color": GREEN}
+	return {"text": "Worn: %s" % String(info["who"]), "color": NEUTRAL}
 
 ## An item's one most important line: a legendary's effect, else its map-mode trait, else its best (first) modifier, else its base stat.
 static func key_line(item: Dictionary, member_id: String) -> Dictionary:
