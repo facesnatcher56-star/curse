@@ -132,7 +132,6 @@ func _exit_tree() -> void:
 			get_tree().quit()
 
 func _ready() -> void:
-	add_child(CutterThreatLines.new())   # the red line from an enemy that dives the Cutter (issue #81)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mapmode-auto="):
 			_auto_dir = arg.substr(15)
