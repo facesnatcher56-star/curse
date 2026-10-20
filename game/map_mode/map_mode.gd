@@ -50,6 +50,8 @@ var hud: Hud
 var overlay: MapModeOverlay
 var log: MapFightLog = MapFightLog.new()
 var focus: Actor
+var _guard_clock: float = 0.0     # s until the Cutter's next on-screen check (issue #87)
+var guard_pulls: int = 0          # how many times the guard had to walk him back (a diagnostic)
 var group_id: int = -1            # the group being fought (-1 for a chest or loot visit)
 
 # The node map. `graph == null` is the flat Crypt map.
@@ -646,7 +648,7 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 		var spot: Vector3 = arrival_spot()
 		var side: Vector3 = (spot - hero.global_position).cross(Vector3.UP).normalized() * COMPANION_SIDE
 		if body_index == 1 and _visit_kind == "group":   # dash formation (issue #81): the Cutter lands 8-10 m behind the warrior, away from the group
-			goals.append(EnemyRoles.cutter_spot(companion, spot, spot - _visit_pos))
+			goals.append(MapModeScreen.clamp_spot(companion, EnemyRoles.cutter_spot(companion, spot, spot - _visit_pos), spot, MapModeScreen.ARRIVAL_INSET))   # (issue #87: on screen)
 			return goals
 		goals.append(spot if body_index == 0 else Nav.snap(companion, spot + side))
 		return goals
@@ -663,6 +665,7 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 			back_goals.append(Nav.snap(companion, Vector3(p.x, y, p.y)))
 		var corridor: Vector3 = back_goals[back_goals.size() - 1] if not back_goals.is_empty() else Vector3.INF
 		var spot: Vector3 = EnemyRoles.cutter_spot(companion, hero_spot, hero_spot - _visit_pos, corridor)
+		spot = MapModeScreen.clamp_spot(companion, spot, hero_spot, MapModeScreen.ARRIVAL_INSET)   # issue #87: inside the visible screen, even if nearer than BACK_MIN
 		if not back_goals.is_empty():
 			back_goals[back_goals.size() - 1] = spot
 		else:
@@ -805,6 +808,7 @@ func _tick_fight() -> void:
 		return
 	hero.attack_target = target_for(hero)
 	_keep_enemies_inside()
+	_guard_cutter()
 	_keep_party_moving()
 	var count: int = fight_enemies().size()
 	if count < _last_count or _last_progress <= 0.0:
@@ -818,6 +822,20 @@ func _tick_fight() -> void:
 		_stall_warned = true
 		var t: Actor = hero.attack_target
 		print("[mapmode] STALL: fight over %.0f s; hero target %s (%s hp, %s)" % [STALL_WARNING, t, t.health if t != null else "-", "champion" if t is Enemy and (t as Enemy).champion != null else "plain"])
+
+## Issue #87: once a second, a Cutter who projects outside the safe screen area is sent to the nearest on-screen navmesh point, and his own
+## firing-position goal is put aside for a moment (BowAttack.screen_goal).
+func _guard_cutter() -> void:
+	if companion == null or not is_instance_valid(companion) or companion.dead or companion.bow == null:
+		return
+	_guard_clock -= get_physics_process_delta_time()
+	if _guard_clock > 0.0:
+		return
+	_guard_clock = MapModeScreen.GUARD_EVERY
+	var goal: Vector3 = MapModeScreen.guard_goal(companion, hero.global_position)
+	if goal.is_finite():
+		guard_pulls += 1
+		companion.bow.set_screen_goal(goal)
 
 ## A knockback (the area powers) can throw an enemy through a wall into rock or a neighbouring room, where nobody can reach it and the fight never
 ## ends. Every quarter second each enemy of the fight is checked: one that left the floor, or jumped a long way with a wall between, goes back to
