@@ -27,7 +27,8 @@ const BAR_WIDTH := 400.0
 const TRAIL_HOLD_SECONDS := 0.32
 const TRAIL_CATCHUP_PER_SECOND := 1.8
 const HIT_FLASH_SECONDS := 0.12
-const SHIELD_H := 8.0
+## Thin, so the shield strip sits above the health numbers and below the tag line, never behind either one.
+const SHIELD_H := 4.0
 
 ## Presentation only: no HP/level threshold may turn an ordinary enemy elite.
 static func status_of(target: Actor) -> String:
@@ -163,6 +164,8 @@ func _ready() -> void:
 	_name_label.add_theme_font_size_override("font_size", 20)
 	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_name_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.78))
+	_name_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_name_label.add_theme_constant_override("outline_size", 5)
 	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_name_label)
 
@@ -174,7 +177,7 @@ func _ready() -> void:
 	_tag_label.add_theme_font_size_override("font_size", 12)
 	_tag_label.add_theme_font_override("font", UiTheme.heading_font())
 	_tag_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_tag_label.add_theme_constant_override("outline_size", 3)
+	_tag_label.add_theme_constant_override("outline_size", 4)
 	_tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_tag_label)
 
@@ -187,8 +190,8 @@ func _ready() -> void:
 	_health_label.add_theme_font_size_override("font_size", 18)
 	_health_label.add_theme_font_override("font", ThemeDB.fallback_font) # Clear numerals at small physical sizes.
 	_health_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_health_label.add_theme_constant_override("outline_size", 2)
-	_health_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.9))
+	_health_label.add_theme_constant_override("outline_size", 4)
+	_health_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
 	_health_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_health_label)
 
@@ -230,7 +233,7 @@ func update_target(target: Actor, delta: float) -> void:
 		var tinted := not tag.is_empty()
 		_name_label.text = name_of(target).to_upper()
 		_tag_label.text = tag
-		_tag_label.add_theme_color_override("font_color", status_color(target).lightened(0.2))
+		_tag_label.add_theme_color_override("font_color", status_color(target).lightened(0.45))
 		_elite_frame.visible = tinted
 		if tinted:
 			var rim := _elite_frame.get_theme_stylebox("panel") as StyleBoxFlat
@@ -276,7 +279,7 @@ func update_target(target: Actor, delta: float) -> void:
 		_health_label.text = health_text(cur_hp, max_hp)
 		_level_label.text = "LV %d" % target.level
 		
-		_name_label.add_theme_color_override("font_color", status_color(target))
+		_name_label.add_theme_color_override("font_color", status_color(target).lightened(0.3))
 		var base_fill := Color(0.65, 0.12, 0.1, 0.95) if not tinted else Color(status_color(target).darkened(0.55), 0.95)
 		_hp_fill.color = base_fill.lerp(Color(1.0, 0.9, 0.72, 1.0), _hit_flash / HIT_FLASH_SECONDS)
 		_damage_trail.color = Color(0.95, 0.43, 0.26, 0.82) if not tinted else Color(status_color(target).lightened(0.12), 0.8)
