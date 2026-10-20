@@ -39,11 +39,11 @@ const TEXT_COLOR := Color(0.95, 0.92, 0.84)
 const MOD_COLOR := Color(0.66, 0.80, 1.0)
 const SET_COLOR := Color(0.55, 0.92, 0.50)
 const LEGENDARY_COLOR := Color(1.0, 0.64, 0.20)
-const MET_COLOR := Color(0.55, 0.88, 0.55)
+const MET_NEUTRAL := Color(0.80, 0.76, 0.68)
 const HINT_COLOR := Color(0.86, 0.82, 0.72)
 const DIVIDER_COLOR := Color(0.62, 0.48, 0.28, 0.55)
 const UP_COLOR := Color(0.45, 0.92, 0.45)
-const ICON_SIZE := 72.0
+const ICON_SIZE := 96.0
 const BAND_HEIGHT := 5.0
 const PAD := 14.0
 ## Width of every item card (the trader, stash, inventory and hover cards, and the one on the ground). Wide so long lines wrap in few lines.
@@ -57,10 +57,11 @@ const DELTA_WIDTH := 110.0
 static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "", hint_color: Color = Color(0, 0, 0, 0)) -> Control:
 	var member: String = PartyManager.current().active_id
 	var rarity: int = int(it["rarity"])
-	var accent: Color = Items.RARITY_COLORS[rarity]
+	var legendary: bool = MapModeLegendaries.id_of(it) != ""
+	var accent: Color = LEGENDARY_COLOR if legendary else Items.RARITY_COLORS[rarity]
 	var comparison: Array[Dictionary] = Items.compare(it, worn, member) if with_compare else Items.wear_warning(it, member)
 	var rows: Array[Dictionary] = display_rows(it, comparison, member)
-	var strong: bool = rarity >= Items.Rarity.UNIQUE or rows.any(func(r: Dictionary) -> bool: return String(r["section"]) == "legendary")
+	var strong: bool = legendary or rarity >= Items.Rarity.UNIQUE
 	var panel := PanelContainer.new()
 	panel.theme = UiTheme.get_theme() # Native tooltip windows do not always inherit the opener's theme.
 	panel.add_theme_stylebox_override("panel", UiTheme.card_box(accent, strong))
@@ -105,14 +106,24 @@ static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_
 static func _header(it: Dictionary, accent: Color, inner: float) -> Control:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
+	# The item's own high-resolution icon on a lighter, rarity-tinted backing, so a thin dark blade still reads.
+	var backing := PanelContainer.new()
+	var back_style := StyleBoxFlat.new()
+	back_style.bg_color = Color(0.34, 0.31, 0.27).lerp(accent, 0.28)
+	back_style.border_color = accent
+	back_style.set_border_width_all(2)
+	back_style.set_corner_radius_all(3)
+	back_style.set_content_margin_all(4)
+	backing.add_theme_stylebox_override("panel", back_style)
+	backing.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
+	backing.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var icon := TextureRect.new()
-	icon.texture = ItemIcons.badge(it, 128)
-	icon.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
+	icon.texture = ItemIcons.icon_for(it)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	icon.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	head.add_child(icon)
+	backing.add_child(icon)
+	head.add_child(backing)
 	var text := VBoxContainer.new()
 	text.add_theme_constant_override("separation", 2)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -123,7 +134,7 @@ static func _header(it: Dictionary, accent: Color, inner: float) -> Control:
 	text.add_child(name_label)
 	var kind := HBoxContainer.new()
 	kind.add_theme_constant_override("separation", 8)
-	kind.add_child(_label("%s %s" % [Items.RARITY_NAMES[int(it["rarity"])], Items.SLOT_NAMES[int(it["slot"])]], 16, accent.lightened(0.2)))
+	kind.add_child(_label("%s %s" % [Items.rarity_label(it), Items.SLOT_NAMES[int(it["slot"])]], 16, accent.lightened(0.2)))
 	kind.add_child(_label(Items.level_text(it), 16, TEXT_COLOR))
 	text.add_child(kind)
 	return head
@@ -197,10 +208,10 @@ static func display_rows(it: Dictionary, comparison: Array[Dictionary], member_i
 			"delta": "", "delta_color": TEXT_COLOR}
 		if key == Items.REQ_KEY:
 			var met: bool = Items.hero_can_wear(it, member_id)
-			out_row["color"] = MET_COLOR if met else UNMET_COLOR
-			unmet = not met   # a second red line says what the requirement means
-			groups[section].append(out_row)
-			continue
+			out_row["color"] = MET_NEUTRAL if met else UNMET_COLOR   # a met requirement is quiet; only what is lacking is red
+			if not met:
+				out_row["text"] = "%s - you cannot wear this yet" % String(row["text"])
+			unmet = false
 		elif deltas.has(key):
 			shown[key] = true
 			out_row["delta"] = String(deltas[key]["delta"])
@@ -296,6 +307,16 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 		# Try the sides of the item in turn (right, left, below, above) and take the first that covers no buttons. Buttons are the
 		# merchant's Buy/Sell controls and neighbouring rows; with none clear, the side that covers the least wins.
 		var item_rect := Rect2(control.global_position, control.size)
+		# A tile inside the character window: the card goes beside the window (right, then left), so the grid being browsed stays visible.
+		var window: Control = control
+		while window != null and not window.has_method("gear_text"):
+			window = window.get_parent() as Control
+		if window != null:
+			var win_rect := window.get_global_rect()
+			for beside in [win_rect.end.x + 8.0, win_rect.position.x - 8.0 - shown.x]:
+				if beside >= safe_rect.position.x and beside + shown.x <= safe_rect.end.x:
+					holder.global_position = Vector2(beside, clampf(item_rect.position.y, safe_rect.position.y, maxf(safe_rect.position.y, safe_rect.end.y - shown.y)))
+					return
 		var blockers: Array[Rect2] = []
 		for button in control.get_viewport().find_children("*", "BaseButton", true, false):
 			var other := button as Control

@@ -264,6 +264,11 @@ static func hero_can_wear(item: Dictionary, member_id: String = "hero") -> bool:
 	var member := PartyManager.current().member(member_id)
 	return bool(evaluate_requirement(requirement_expression(item), float(item.get("level", 0)), _member_requirement_context(member)).get("satisfied", false))
 
+## The requirement as the item card says it: only what the hero lacks when he cannot wear it, else the whole requirement (see EquipmentRequirement.describe_terms).
+static func requirement_card_text(item: Dictionary, member_id: String = "hero") -> String:
+	return EquipmentRequirement.describe_terms(requirement_expression(item), float(item.get("level", 0)), _member_requirement_context(PartyManager.current().member(member_id)),
+		not hero_can_wear(item, member_id))
+
 static func requirement_text(item: Dictionary, member_id: String = "hero") -> String:
 	return EquipmentRequirement.describe(requirement_expression(item), float(item.get("level", 0)), _member_requirement_context(PartyManager.current().member(member_id)))
 
@@ -600,7 +605,7 @@ static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictiona
 				var parts: PackedStringArray = []
 				for stat in set_def.bonuses[count]:
 					parts.append(AffixDb.describe_stat(String(stat), float(set_def.bonuses[count][stat])))
-				out.append({"text": "%s worn: %s" % [count, ", ".join(parts)], "key": "", "section": "set"})
+				out.append({"text": "  %s worn: %s" % [count, ", ".join(parts)], "key": "", "section": "set"})
 			for count in set_def.passive_effect_tiers:
 				var parts: PackedStringArray = []
 				for effect in set_def.passive_effect_tiers[count]:
@@ -608,13 +613,17 @@ static func rows(item: Dictionary, member_id: String = "hero") -> Array[Dictiona
 						var line := passive_effect_line(effect)
 						if line != "": parts.append(line)
 				if not parts.is_empty():
-					out.append({"text": "%s worn: %s" % [count, ", ".join(parts)], "key": "", "section": "set"})
-	var need: String = requirement_text(item, member_id)
+					out.append({"text": "  %s worn: %s" % [count, ", ".join(parts)], "key": "", "section": "set"})
+	var need: String = requirement_card_text(item, member_id)
 	if need != "":
 		out.append({"text": need, "key": REQ_KEY, "section": "req"})
 	return out
 
 ## The "Item level N" shown in the card's header (it is not a row of its own).
+## What the card calls the item's rarity: a map-mode power legendary is "Legendary", whatever its rarity colour.
+static func rarity_label(item: Dictionary) -> String:
+	return "Legendary" if MapModeLegendaries.id_of(item) != "" else String(RARITY_NAMES[int(item["rarity"])])
+
 static func level_text(item: Dictionary) -> String:
 	return "Item level %d" % int(item["level"])
 

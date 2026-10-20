@@ -116,6 +116,25 @@ func _test_item_cards() -> void:
 	MapMode.current.free()
 	MapMode.current = null
 
+	# --- Requirement names only what is lacking; legendary reads Legendary; no stale ground hint in map mode ---------------------------------
+	var half: Dictionary = Items.build(ItemDb.get_def("greatsword"), 5, Items.Rarity.NORMAL)
+	if not Items.hero_can_wear(half, member):
+		var half_rows := ItemTile.display_rows(half, [], member).filter(func(r: Dictionary) -> bool: return String(r["section"]) == "req")
+		expect("an unmet requirement is one red line naming only what is lacking: %s" % [half_rows], half_rows.size() == 1
+			and String(half_rows[0]["text"]).begins_with("Requires Overbear 1") and not String(half_rows[0]["text"]).contains("Melee")
+			and (half_rows[0]["color"] as Color).is_equal_approx(ItemTile.UNMET_COLOR))
+	var legend_card := ItemTile.card(legend if not legend.is_empty() else better, null, false)
+	expect("a legendary card says Legendary, not Unique", legend.is_empty() or (_count(_labels(legend_card), "Legendary Weapon") == 1 and _count(_labels(legend_card), "Unique") == 0))
+	legend_card.free()
+	var set_ring: Dictionary = Items.make(Items.Slot.RING, Items.Rarity.SET, 10)
+	var set_texts: Array[String] = _labels(ItemTile.card(set_ring, null, false))
+	expect("a set card lists its set bonus tiers: %s" % [set_texts], _count(set_texts, " worn: ") >= 1 or Items.lines(set_ring).filter(func(l: String) -> bool: return l.contains(" worn: ")).is_empty())
+	MapMode.current = MapMode.new()
+	expect("map mode shows no walk-over hint on a ground card", String(hud.loot_cards._walk_over(better).text) == "")
+	MapMode.current.free()
+	MapMode.current = null
+	expect("outside map mode the walk-over hint is short", String(hud.loot_cards._walk_over(better).text).begins_with("Walk over to"))
+
 	# --- Readability ------------------------------------------------------------------------------------------------------------------------
 	var panel_bg: Color = UiTheme.card_box().bg_color
 	expect("the panel is near-opaque", panel_bg.a >= 0.98)

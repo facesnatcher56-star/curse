@@ -91,14 +91,16 @@ func _hide_ground_card(free: bool = false) -> void:
 ## What walking over a drop does, with the appraisal's verdict: worn at once, a better piece waiting in the bag, or not wearable yet.
 func _walk_over(item: Dictionary) -> Dictionary:
 	var stats: PlayerStats = hud.player.stats
+	if MapMode.active:   # map mode collects loot by itself: no instruction to give
+		return {"text": "", "color": Color(0, 0, 0, 0)}
 	if stats.takes_empty_slot(item):
-		return {"text": "Walk over it: you will wear it (empty slot)", "color": Color(0.95, 0.8, 0.5)}
+		return {"text": "Walk over to wear it", "color": Color(0.95, 0.8, 0.5)}
 	match LootAppraisal.of(item, stats):
 		LootAppraisal.Verdict.UPGRADE:
-			return {"text": "Walk over it: it goes in the bag (better than what you wear)", "color": UPGRADE_COLOR}
+			return {"text": "Walk over to pick up (better than worn)", "color": UPGRADE_COLOR}
 		LootAppraisal.Verdict.LOCKED:
-			return {"text": "Walk over it: it goes in the bag", "color": LOCKED_COLOR}   # the card's one "You cannot wear this yet" line says why
-	return {"text": "Walk over it: it goes in the bag", "color": Color(0.7, 0.68, 0.62)}
+			return {"text": "Walk over to pick up", "color": LOCKED_COLOR}   # the card's one "You cannot wear this yet" line says why
+	return {"text": "Walk over to pick up", "color": ItemTile.HINT_COLOR}
 
 ## Restrict clearance to the active return-waystone decision; other cards retain their layout.
 func _return_prompt_rect() -> Rect2:
