@@ -93,6 +93,7 @@ func _test_map_mode_roles() -> void:
 		e.health = e.max_health
 		group.append(e)
 	var diver: Enemy = group[2]
+	MapModeScreen.enabled = false   # this checks the role table's own 8-10 m formation; the on-screen clamp (issue #87) has its own suite, mmcutterscreen
 	var m := MapMode.new()
 	game.add_child(m)
 	m.setup(player, cutter, hud)
@@ -184,6 +185,7 @@ func _test_map_mode_roles() -> void:
 	m.queue_free()
 	await _frames(2)
 	cutter.testing_disabled = cutter_was_disabled
+	MapModeScreen.enabled = true
 	expect("map mode is off again afterwards", not MapMode.active)
 
 ## Before/after for the issue: the Cutter's damage in the same fight with the roles off (the old closest-member targeting) and on.

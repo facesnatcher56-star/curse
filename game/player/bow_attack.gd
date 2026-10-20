@@ -269,6 +269,8 @@ func cancel() -> void:
 func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false) -> void:
 	if p.skills.busy:
 		return
+	if follow_screen_goal(delta):
+		return
 	_replan_wait = maxf(_replan_wait - delta, 0.0)
 	var point := _shot_point(target, prop)
 	var sight := p.flat_distance_to_point(point) <= SHOT_RANGE and Nav.sight_clear(p, p.global_position, point, prop)
@@ -283,6 +285,31 @@ func engage(target: Actor, prop: Destructible, delta: float, hold: bool = false)
 		_stop()
 		return
 	_take_position(point, prop, delta)
+
+## Map mode (issue #87): the on-screen guard sends him to `goal` for a moment; his firing-position goal is cleared and he walks there first.
+var _screen_goal: Vector3 = Vector3.INF
+var _screen_goal_left: float = 0.0
+
+func set_screen_goal(goal: Vector3) -> void:
+	_screen_goal = goal
+	_screen_goal_left = MapModeScreen.GUARD_HOLD
+	_has_spot = false
+	_spot_age = 0.0
+	_replan_wait = 0.0
+
+func has_screen_goal() -> bool:
+	return _screen_goal.is_finite()
+
+## True while he is walking to the guard's goal (this frame's engage is then spent on that walk).
+func follow_screen_goal(delta: float) -> bool:
+	if not _screen_goal.is_finite():
+		return false
+	_screen_goal_left -= delta
+	if _screen_goal_left <= 0.0 or p.flat_distance_to_point(_screen_goal) <= MapModeScreen.GUARD_ARRIVE:
+		_screen_goal = Vector3.INF
+		return false
+	_travel(_screen_goal, delta)
+	return true
 
 func _stop() -> void:
 	p.movement.has_goal = false
@@ -329,7 +356,7 @@ func _take_position(point: Vector3, prop: Destructible, delta: float) -> void:
 ## A position at a shooting range of the point, with a clear sight line to it (through the target prop, if that is the target).
 func _spot_good(spot: Vector3, point: Vector3, prop: Destructible) -> bool:
 	var reach := Vector2(spot.x - point.x, spot.z - point.z).length()
-	return reach >= SPOT_MIN and reach <= SHOT_RANGE - 1.0 and Nav.sight_clear(p, spot, point, prop)
+	return reach >= SPOT_MIN and reach <= SHOT_RANGE - 1.0 and MapModeScreen.spot_visible(p, spot) and Nav.sight_clear(p, spot, point, prop)
 
 ## Priorities, in order: a clear line of sight and a shooting range (required); the nearest such spot to where the archer stands, so he
 ## moves only as far as it takes to shoot (a straight advance wins when it is clear, and an obstruction forces a lateral spot); and
@@ -339,7 +366,7 @@ func _pick_spot(point: Vector3, prop: Destructible) -> bool:
 	away = away.normalized() if away.length() > 0.05 else Vector3.BACK
 	var best := Vector3.ZERO
 	var best_score := INF
-	for ring: float in SPOT_RINGS:
+	for ring: float in (MapModeScreen.FIRE_RINGS if MapMode.active and MapModeScreen.enabled else SPOT_RINGS):
 		for angle: float in SPOT_ANGLES:
 			var candidate := Nav.snap(p, point + away.rotated(Vector3.UP, angle) * ring)
 			if _is_rejected(candidate) or not _spot_good(candidate, point, prop) or _melee_near(candidate):
