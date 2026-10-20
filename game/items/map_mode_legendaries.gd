@@ -108,6 +108,7 @@ static func on_power_used(_member_id: String, power_id: String, user: Player) ->
 	for body in PartyManager.current().living():
 		if body != user:
 			body.stats.refund_power_charge(number("heros_amulet", "charge_share"))
+			MapAutoTally.note("heros_amulet_share", number("heros_amulet", "charge_share"))
 
 # --- Gravecaller Maul ----------------------------------------------------------------------------------------------------------------
 
@@ -124,6 +125,7 @@ static func pull_in(p: Player) -> void:
 		var dir: Vector3 = out.normalized() if out.length() > 0.05 else Vector3.FORWARD
 		var spot: Vector3 = p.global_position + dir * (gap + e.body_radius)
 		e.global_position = Vector3(spot.x, e.global_position.y, spot.z)
+		MapAutoTally.note("gravecaller_pull")
 
 # --- Headsman's Due ------------------------------------------------------------------------------------------------------------------
 
@@ -157,6 +159,7 @@ static func headsman_chain(p: Player, first: Actor, damage: float, multiplier: f
 		from = next.global_position
 		next.receive(result, p.global_position)
 		jumps += 1
+		MapAutoTally.note("headsman_jump", damage * multiplier)
 		last = next
 		if not next.dead:
 			break   # the chain only continues through kills
@@ -166,7 +169,10 @@ static func headsman_chain(p: Player, first: Actor, damage: float, multiplier: f
 
 ## Whether the Take Aim shot loosed at `target` is the legendary's: the bow is worn and the target stands open.
 static func sight_applies(p: Player, target: Actor) -> bool:
-	return active_for(p, "executioners_sight") and target != null and p.openings.is_open_on(target)
+	var applies: bool = active_for(p, "executioners_sight") and target != null and p.openings.is_open_on(target)
+	if applies:
+		MapAutoTally.note("executioners_sight")
+	return applies
 
 # --- Splitbow ------------------------------------------------------------------------------------------------------------------------
 
@@ -178,6 +184,7 @@ static func bolt_directions(p: Player, dir: Vector3) -> Array[Vector3]:
 	var n: int = int(number("splitbow", "bolts"))
 	var cone: float = deg_to_rad(number("splitbow", "cone_degrees"))
 	out.clear()
+	MapAutoTally.note("splitbow_volley")
 	for i in n:
 		var t: float = (float(i) / float(n - 1) - 0.5) * cone if n > 1 else 0.0
 		out.append(dir.rotated(Vector3.UP, t))

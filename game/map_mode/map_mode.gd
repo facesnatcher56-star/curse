@@ -26,6 +26,7 @@ const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
 const FROZEN_SAMPLE := 6.0        # s between checks for an awake enemy that is not moving or fighting (a diagnostic, printed)
+const UNSTICK_AFTER := 2.5        # s of failed pathing after which an awake enemy is set back on the navmesh (see _unstick)
 const STALL_WARNING := 90.0       # s: a fight this long prints one warning with what the party is hitting
 
 const ID_LOOT := 100000           # flat map marker ids: groups use their group_id, loot ID_LOOT + n, chests ID_CHEST + n
@@ -118,6 +119,8 @@ func _exit_tree() -> void:
 		print("[mapmode] RUN ENDED EARLY: the scene changed (party dead: %s) after %d fights" % [hero != null and is_instance_valid(hero) and hero.dead, log.fights.size()])
 		for line in log.summary_lines():
 			print(line)
+		MapAutoReport.room_died(self)
+		MapAutoReport.finish(_auto_dir, "RUN ENDED EARLY (party dead)")
 		if is_inside_tree():
 			get_tree().quit()
 
@@ -126,6 +129,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mapmode-auto="):
 			_auto_dir = arg.substr(15)
+			MapAutoReport.reset()
+			MapAutoTally.enabled = true   # dev counters for the synergy report (inert without the autoplay)
 			DirAccess.make_dir_recursive_absolute(_auto_dir)
 			_auto_started_ms = Time.get_ticks_msec()
 			_force_1080p()
@@ -152,7 +157,10 @@ func _physics_process(delta: float) -> void:
 				if not _rewards_collected and _visit_kind != "revisit":
 					_rewards_collected = true
 					var rows: Array[Dictionary] = HudLootCards.summary_rows(loot_tally, [hero, companion])   # compared before anything is worn
+					var worn_before: Dictionary = MapAutoGear.snapshot([hero, companion]) if _auto_dir != "" else {}
 					_collect_rewards()
+					if _auto_dir != "":
+						MapAutoGear.process(self, worn_before, rows)   # autoplay only: wear every upgrade (the shared comparison decides)
 					_summary_up = _show_loot_summary(rows)
 					if _summary_up and _auto_dir != "":
 						_shot_later(1.2, "summary")   # (after the map has reopened: the card shows over it)
@@ -427,6 +435,7 @@ func _finish_run() -> void:
 	print("Run complete: %d of %d nodes cleared" % [graph.cleared.size(), graph.nodes.size()])
 	hero.say_banner("Run complete")
 	if _auto_dir != "":
+		MapAutoReport.finish(_auto_dir, "Run complete", self)
 		await get_tree().create_timer(1.5).timeout
 		await _shot("run_complete")
 		get_tree().quit()
@@ -459,9 +468,13 @@ func _auto_pick() -> void:
 	await _shot("dash")
 	await _wait_fight()
 	if state == State.FIGHT:
+		MapAutoReport.room_begin(self)
 		await get_tree().create_timer(1.5).timeout
 		await _shot("fight")
 		while state == State.FIGHT:   # powers on whatever the hero is hitting, once a second
+			if MapAutoReport.sample(self):
+				get_tree().quit()
+				return
 			for i in MapAutoPowers.fire(hero, companion, hero.attack_target):
 				log.note_power("auto")
 			if hero.health < hero.max_health * 0.5 and hero.stats.potions > 0:
@@ -473,6 +486,7 @@ func _auto_pick() -> void:
 	if Time.get_ticks_msec() - _auto_started_ms > 900000:
 		for line in log.summary_lines():
 			print(line)
+		MapAutoReport.finish(_auto_dir, "time cap", self)
 		get_tree().quit()
 
 ## Autoplay only: the dev harness sizes the window 1280x720; the screenshots must be 1920x1080 on the second monitor.
@@ -805,6 +819,21 @@ func _keep_enemies_inside() -> void:
 				continue
 		if not off_floor:
 			_good_pos[id] = here
+		_unstick(e)
+
+## An enemy that has been knocked or staggered into the margin against a wall (a little off the navmesh) cannot take its first step along its path: it makes
+## no progress, after 5 s its path state says "unreachable" for good, and it stands there, awake and not moving, while the party waits for the fight to end.
+## Once its pathing has failed for UNSTICK_AFTER seconds it is set on the closest navmesh point and its path state is cleared. Returns true if it did.
+func _unstick(e: Enemy) -> bool:
+	if e.dead or not e.is_aggro() or float(e._nav_state.get("failed_time", 0.0)) < UNSTICK_AFTER or e.behavior.is_attacking():
+		return false
+	var map: RID = Nav.map_of(e)
+	var on_mesh: Vector3 = NavigationServer3D.map_get_closest_point(map, e.global_position)
+	e.global_position = Vector3(on_mesh.x, e.global_position.y, on_mesh.z)
+	e.velocity = Vector3.ZERO
+	Nav.reset(e, e._nav_state)
+	print("[mapmode] enemy stuck at the wall, put on the navmesh: %s" % e.variant)
+	return true
 
 ## Diagnostic: an awake enemy of the fight that has not moved since the last sample and is not next to anyone to hit is printed with its state,
 ## so a "frozen" enemy can be told apart (dormant, still asleep, stunned, ranged and holding, or stuck behind something).
@@ -822,7 +851,9 @@ func _sample_frozen() -> void:
 				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")]
 				+ " | phys=%s processing=%s target=%s tdist=%.1f vel=%s layer=%d mask=%d speed_mult=%s hp=%.0f/%.0f" % [e.is_physics_processing(), e.can_process(),
 				e.target.member_id if e.target is Player else str(e.target), e.flat_distance_to(e.target) if e.target != null else -1.0, e.velocity, e.collision_layer, e.collision_mask,
-				e.get("speed_mult"), e.health, e.max_health])
+				e.get("speed_mult"), e.health, e.max_health]
+				+ " | nav: path=%d failed=%.1f replans=%s queries=%s" % [(e._nav_state.get("path", PackedVector3Array()) as PackedVector3Array).size(),
+				float(e._nav_state.get("failed_time", 0.0)), e._nav_state.get("failed_replans"), e._nav_state.get("queries")])
 
 func _begin_collect() -> void:
 	MapModeRules.note_fight_end()
@@ -839,6 +870,7 @@ func _begin_collect() -> void:
 		graph.mark_cleared(_visit_node)   # a group is cleared, a chest opened, a shrine used: the nodes behind it come into view
 		current_node = _visit_node
 	if _auto_dir != "":
+		MapAutoReport.room_end(self, row)
 		_shot("clear")
 		_shot_later(0.8, "chest_open")
 	state = State.COLLECT

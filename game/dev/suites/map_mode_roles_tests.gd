@@ -146,6 +146,29 @@ func _test_map_mode_roles() -> void:
 	var goal: Vector3 = cutter.global_position
 	var via: Vector3 = EnemyRoles.route_goal(diver, goal)
 	expect("flank: with the warrior on its line the ghoul heads for a point beside him, not through him (%.1f m off him)" % via.distance_to(player.global_position), via != goal and via.distance_to(player.global_position) > 2.4)
+	# Standing on the detour point, the ghoul is sent on to the real goal, not handed the same point again (it used to wait there, not moving).
+	diver.global_position = via
+	var steps: int = 0
+	var onward: Vector3 = EnemyRoles.route_goal(diver, goal)
+	while onward != goal and steps < 6:   # following the detour points it is handed, it must come to the real goal (never be handed the same point for ever)
+		diver.global_position = onward
+		onward = EnemyRoles.route_goal(diver, goal)
+		steps += 1
+	expect("flank: following its detour points the ghoul is sent on to the real goal within a few steps (%d), so it never waits beside the warrior" % steps, onward == goal)
+	expect("and for a moment after, it keeps heading for the goal (no new detour at once)", EnemyRoles.route_goal(diver, goal) == goal)
+	# An awake enemy stuck against a wall (pathing failing for seconds, a little off the navmesh) is set back on the navmesh with fresh path state.
+	diver.wake()
+	diver.behavior.on_interrupted()   # (not in the middle of a pounce: it stalks)
+	var map: RID = Nav.map_of(diver)
+	diver._nav_state["failed_time"] = 1.0
+	expect("a ghoul whose pathing has only just started to fail is left alone", not m._unstick(diver))
+	diver._nav_state["failed_time"] = 3.0
+	diver._nav_state["path"] = PackedVector3Array([diver.global_position, diver.global_position])   # (some state to be cleared)
+	var expected: Vector3 = NavigationServer3D.map_get_closest_point(map, diver.global_position)   # where it must be set: its closest navmesh point
+	var recovered: bool = m._unstick(diver)
+	var gap: float = Vector2(diver.global_position.x - expected.x, diver.global_position.z - expected.z).length()
+	expect("a ghoul whose pathing has failed for 3 s is set on its closest navmesh point (%.2f m from it) and its path state is cleared" % gap,
+		recovered and gap < 0.1 and float(diver._nav_state.get("failed_time", 0.0)) == 0.0 and (diver._nav_state.get("path", PackedVector3Array()) as PackedVector3Array).is_empty())
 	# The fight log carries the Cutter's damage.
 	m.log.note_damage_taken(7.0, "cutter")
 	m.log.note_damage_taken(3.0, "hero")
