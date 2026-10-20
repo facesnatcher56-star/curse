@@ -153,7 +153,8 @@ static func nodes() -> Array[Dictionary]:
 	for n in NODES:
 		var centre: Vector2 = n["centre"]
 		out.append({"id": int(n["id"]), "kind": String(n["kind"]), "name": String(n["name"]), "pos": world(centre.x, centre.y),
-			"groups": (n["groups"] as Array).duplicate(true), "champion": champion_name(n)})
+			"groups": (n["groups"] as Array).duplicate(true), "champion": champion_name(n),
+			"affixes": ([String((n["champion"] as Dictionary)["affix"])] if not (n.get("champion", {}) as Dictionary).is_empty() else [])})
 	return out
 
 

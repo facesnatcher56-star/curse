@@ -11,6 +11,9 @@ var _health_label: Label
 var _level_label: Label
 var _tag_label: Label
 var _elite_frame: Panel
+var _chips: AffixChips
+var _shield_track: ColorRect
+var _shield_fill: ColorRect
 var _fade: float = 0.0
 var _tracked_target_id: int = 0
 var _displayed_hp_ratio: float = -1.0
@@ -24,6 +27,7 @@ const BAR_WIDTH := 400.0
 const TRAIL_HOLD_SECONDS := 0.32
 const TRAIL_CATCHUP_PER_SECOND := 1.8
 const HIT_FLASH_SECONDS := 0.12
+const SHIELD_H := 8.0
 
 ## Presentation only: no HP/level threshold may turn an ordinary enemy elite.
 static func status_of(target: Actor) -> String:
@@ -40,6 +44,17 @@ static func tag_of(target: Actor) -> String:
 	if enemy != null and enemy.champion != null:
 		return "%s CHAMPION" % String(enemy.champion.affix.title).to_upper()
 	return status_of(target)
+
+## The affix ids a banner shows chips for (empty for anything but a champion).
+static func affixes_of(target: Actor) -> Array:
+	var enemy := target as Enemy
+	if enemy != null and enemy.champion != null:
+		return enemy.champion.affix_ids()
+	return []
+
+## Champions and bosses get the heavy frame; other tinted targets (elites) the thin one.
+static func strong_frame(target: Actor) -> bool:
+	return target.is_boss or (target is Enemy and (target as Enemy).champion != null)
 
 ## The name as the banner shows it: a champion's affix title moves to the tag, so the name is its plain one.
 static func name_of(target: Actor) -> String:
@@ -99,6 +114,12 @@ func _ready() -> void:
 	_elite_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_elite_frame)
 
+	# The affix chips sit under the plaque, one row per affix.
+	_chips = AffixChips.new()
+	_chips.position = Vector2(0, HEIGHT + 4.0)
+	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_chips)
+
 	# Delayed damage trail sits behind the immediate health fill.
 	_damage_trail = ColorRect.new()
 	_damage_trail.color = Color(1.0, 0.42, 0.24, 0.82)
@@ -114,6 +135,22 @@ func _ready() -> void:
 	_hp_fill.size = Vector2(BAR_WIDTH, 24)
 	_hp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_hp_fill)
+
+	# A Warded champion's shield: its own bright segment along the top of the health bar (the dark track shows once it is broken).
+	_shield_track = ColorRect.new()
+	_shield_track.color = Color(0.02, 0.05, 0.12, 0.85)
+	_shield_track.position = Vector2(40, 36)
+	_shield_track.size = Vector2(BAR_WIDTH, SHIELD_H)
+	_shield_track.visible = false
+	_shield_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_shield_track)
+	_shield_fill = ColorRect.new()
+	_shield_fill.color = Color(0.55, 0.85, 1.0, 1.0)
+	_shield_fill.position = Vector2(40, 36)
+	_shield_fill.size = Vector2(0, SHIELD_H)
+	_shield_fill.visible = false
+	_shield_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_shield_fill)
 
 	# Monster Name Label
 	_name_label = Label.new()
@@ -194,7 +231,9 @@ func update_target(target: Actor, delta: float) -> void:
 		_tag_label.add_theme_color_override("font_color", status_color(target).lightened(0.2))
 		_elite_frame.visible = tinted
 		if tinted:
-			(_elite_frame.get_theme_stylebox("panel") as StyleBoxFlat).border_color = Color(status_color(target), 0.85)
+			var rim := _elite_frame.get_theme_stylebox("panel") as StyleBoxFlat
+			rim.set_border_width_all(5 if strong_frame(target) else 2)
+			rim.border_color = Color(status_color(target), 1.0 if strong_frame(target) else 0.85)
 		_name_label.position.y = 1.0 if tinted else 5.0
 		_name_label.size.y = 22.0 if tinted else 28.0
 		var name_font := _name_label.get_theme_font("font")
@@ -225,6 +264,13 @@ func update_target(target: Actor, delta: float) -> void:
 		_hit_flash = maxf(_hit_flash - delta, 0.0)
 		_damage_trail.size.x = _trail_hp_ratio * BAR_WIDTH
 		_hp_fill.size.x = pct * BAR_WIDTH
+		_chips.set_ids(affixes_of(target))
+		var ward: Champion = (target as Enemy).champion if target is Enemy else null
+		var warded: bool = ward != null and ward.shield_max > 0.0
+		_shield_track.visible = warded
+		_shield_fill.visible = warded and ward.shield > 0.0
+		if warded:
+			_shield_fill.size.x = clampf(ward.shield / ward.shield_max, 0.0, 1.0) * BAR_WIDTH
 		_health_label.text = health_text(cur_hp, max_hp)
 		_level_label.text = "LV %d" % target.level
 		
@@ -244,6 +290,9 @@ func update_target(target: Actor, delta: float) -> void:
 			_name_label.text = ""
 			_tag_label.text = ""
 			_elite_frame.visible = false
+			_chips.set_ids([])
+			_shield_track.visible = false
+			_shield_fill.visible = false
 			_health_label.text = ""
 			_level_label.text = ""
 		_tracked_target_id = 0
