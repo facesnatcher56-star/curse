@@ -19,6 +19,14 @@ var _neck_bone: int = -1
 var _head_bone: int = -1
 var _thighs: Array[int] = []     # left, right
 var _react_skeleton: Skeleton3D
+## 0..1: how far the upper body is held in the shield-guard pose (ShieldGuard, map mode). The pose is the `game/block` clip's held frame,
+## written over the spine, arms and head after the animation each frame (the legs keep the walk): upper-body layering without an AnimationTree.
+var guard_amount: float = 0.0
+const GUARD_CLIP := "game/block"
+const GUARD_TIME := 0.30   # the clip's held guard (see tools/author_block_anims.gd: 0.30 s "the guard sets again")
+const GUARD_ROOT := "Spine"
+var _guard_skeleton: Skeleton3D
+var _guard_bones: Array = []   # [bone index, rotation track index] for every bone at or under the spine
 var _reaction_owner: Node        # Actor that owns this model, for ragdoll/death cleanup
 
 static func build(folder: String, clips: Array[String], fists: bool = true) -> CharacterModel:
@@ -251,6 +259,8 @@ func set_overlay(material: Material) -> void:
 		(node as MeshInstance3D).material_overlay = material
 
 func _after_mixer() -> void:
+	if guard_amount > 0.001:
+		_apply_guard()
 	if reaction.active():
 		_apply_hit_reaction()
 	_follow_hands()
@@ -261,6 +271,36 @@ func _after_mixer() -> void:
 	_rotate_bone_about_x("RightUpLeg", -1.8 * leg_raise)   # thigh forward and up
 	_rotate_bone_about_x("RightLeg", 0.5 * leg_raise)      # knee bends the shin back down
 	_rotate_bone_about_x("RightFoot", -0.25 * leg_raise)
+
+func _find_guard_bones() -> void:
+	_guard_bones = []
+	var skeletons: Array[Node] = find_children("*", "Skeleton3D", true, false)
+	if skeletons.is_empty() or anim == null or not anim.has_animation(GUARD_CLIP):
+		return
+	_guard_skeleton = skeletons[0] as Skeleton3D
+	var root: int = _guard_skeleton.find_bone(GUARD_ROOT)
+	var clip: Animation = anim.get_animation(GUARD_CLIP)
+	for t in clip.get_track_count():
+		if clip.track_get_type(t) != Animation.TYPE_ROTATION_3D:
+			continue
+		var bone: int = _guard_skeleton.find_bone(String(clip.track_get_path(t)).get_slice(":", 1))
+		var walker: int = bone
+		while walker >= 0 and walker != root:
+			walker = _guard_skeleton.get_bone_parent(walker)
+		if bone >= 0 and walker == root and root >= 0:
+			_guard_bones.append([bone, t])
+
+## Blends the spine and everything above it toward the held guard pose; the hips and legs keep whatever clip is playing.
+func _apply_guard() -> void:
+	if _guard_skeleton == null:
+		_find_guard_bones()
+	if _guard_bones.is_empty():
+		return
+	var clip: Animation = anim.get_animation(GUARD_CLIP)
+	for pair in _guard_bones:
+		var bone: int = pair[0]
+		var target: Quaternion = clip.rotation_track_interpolate(pair[1], GUARD_TIME)
+		_guard_skeleton.set_bone_pose_rotation(bone, _guard_skeleton.get_bone_pose_rotation(bone).slerp(target, guard_amount))
 
 ## Rotates a bone about the skeleton's X axis (the character's left-right axis), on top of its animated pose.
 func _rotate_bone_about_x(bone_name: String, angle: float) -> void:

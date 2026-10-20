@@ -100,6 +100,7 @@ func _blast_actor(actor: Actor, centre: Vector3, radius: float, damage: float, i
 	var falloff: float = 1.0 - clampf(gap.length() / (radius + 0.01), 0.0, 1.0) * 0.5
 	var result: Dictionary = Combat.resolve(e, actor, damage * falloff, Combat.DamageType.FIRE, false, 2.2)
 	result["secondary"] = true
+	result["aoe"] = true   # an explosion: never auto-blocked (ShieldGuard)
 	actor.receive(result, centre)
 	if is_instance_valid(actor) and not actor.dead and ignite:
 		actor.apply_burn(4.0, 4.0)

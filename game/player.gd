@@ -44,6 +44,7 @@ var skills: SkillController
 var powers: PowerController   # the DS2 powers that play (Whirling Strike, War Cry ...)
 var knockdown: Knockdown
 var hit_reaction: HitReaction
+var shield_guard := ShieldGuard.new(self)   # map mode only: the raised shield (game/map_mode/shield_guard.gd)
 var openings: Openings   # the Opening passive: a mark on an enemy, and its execution (game/player/openings.gd)
 var member_id: String = "hero"
 var character: CharacterState:
@@ -295,6 +296,8 @@ func _physics_process(delta: float) -> void:
 		return
 	knockdown.tick(delta)
 	hit_reaction.tick(delta)
+	if MapMode.active:
+		shield_guard.tick(delta)   # map mode: the raised shield while closing on a ranged attacker (issue #88)
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
 	if model != null and model.weapon != null:
@@ -1112,10 +1115,14 @@ func _on_avoided(outcome: int) -> void:
 ## A blow caught on the shield: the guard clip (only when the swing in progress is not using the body), the shield's ring, and the Shield
 ## Openings roll on the attacker. Blocks are not stunned, so the hero keeps his footing.
 func _on_blocked() -> void:
-	if not dead and not knockdown.active() and not skills.busy and model != null and model.anim != null and model.anim.has_animation("game/block"):
+	if not dead and not shield_guard.blocking() and not knockdown.active() and not skills.busy and model != null and model.anim != null and model.anim.has_animation("game/block"):
 		model.once("block", 0.0, 1.0, 0.04)
 	Sfx.sample(self, "sword_hit", -6.0, 1.45)   # the shield's ring: the blade's recording, higher and quieter (a dedicated shield recording is pending)
 	openings.on_block(last_hit_by)
 
 func _popup_tint() -> Color:
 	return Color(1.0, 0.35, 0.3)
+
+## Map mode: a single projectile from the front is caught by the raised shield (ShieldGuard); everything else is as ever.
+func _filter_incoming(result: Dictionary) -> Dictionary:
+	return shield_guard.filter(result) if MapMode.active else result

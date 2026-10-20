@@ -310,7 +310,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 		return
 	if outcome == Combat.Outcome.BLOCK:
 		Fx.burst(self, chest, away + Vector3.UP * 0.5, Color(1.0, 0.85, 0.5), 10, 6.0, 0.03, true)
-		if not plain_blow:
+		if not plain_blow and not result.get("guard", false):   # (a raised guard takes the shot without being shoved)
 			knock += away * 1.5 * weight
 		_on_avoided(outcome)
 		return
