@@ -294,7 +294,7 @@ func _test_inventory_equip() -> void:
 		for label in hint_card.find_children("*", "Label", true, false):
 			hint_texts.append((label as Label).text)
 		hint_card.free()
-		expect("a bag item's card ends with (R-click to equip)", hint_texts.has("(R-click to equip)") or hint_texts.has("(Confirm to equip)"))
+		expect("a bag item's card ends with its one action hint (R-click to equip)", hint_texts.has("R-click to equip") or hint_texts.has("Confirm to equip"))
 		expect("a ground or trader card has no such hint", not ItemTile.card(item, old, true).find_children("*", "Label", true, false).any(func(l: Node) -> bool: return (l as Label).text.contains("to equip")))
 		await _inventory_mouse_click(item_tile, MOUSE_BUTTON_RIGHT)
 		expect("a right-click equips the bag item", Items.to_save(player.stats.equipment[Items.Slot.WEAPON]) == Items.to_save(item))

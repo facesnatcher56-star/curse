@@ -8,7 +8,7 @@ const UNMET_COLOR := Color(0.93, 0.30, 0.24)   # the same red as an unmet requir
 var item: Dictionary = {}
 var compare_to: Variant = null    # the item worn in this item's slot (or null)
 var show_compare: bool = true
-var equip_hint: bool = false      # a bag item: its card ends with how to equip it ("(R-click to equip)")
+var equip_hint: bool = false      # a bag item: its card ends with how to equip it ("R-click to equip")
 var action_hint: String = ""      # optional action shown inside the item's details card
 var tile_size: float = 52.0
 var hovered: bool = false
@@ -34,78 +34,216 @@ func _draw() -> void:
 	draw_texture_rect(ItemIcons.badge(item), Rect2(Vector2.ZERO, size), false)
 	if hovered or has_focus(): UiTheme.draw_hover(self, Rect2(Vector2.ZERO, size), has_focus())
 
-## The details card for an item: name in its rarity colour, kind, stats and effect, then the comparison.
-static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "") -> Control:
-	var panel := PanelContainer.new()
-	panel.theme = UiTheme.get_theme() # Native tooltip windows do not always inherit the opener's theme.
-	panel.add_theme_stylebox_override("panel", UiTheme.tooltip_box())
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
-	box.custom_minimum_size = Vector2(CARD_WIDTH, 0)
-	panel.add_child(box)
+## Card text colours: every one reads clearly on the card's near-black panel (none is dimmed by transparency).
+const TEXT_COLOR := Color(0.95, 0.92, 0.84)
+const MOD_COLOR := Color(0.66, 0.80, 1.0)
+const SET_COLOR := Color(0.55, 0.92, 0.50)
+const LEGENDARY_COLOR := Color(1.0, 0.64, 0.20)
+const MET_COLOR := Color(0.55, 0.88, 0.55)
+const HINT_COLOR := Color(0.86, 0.82, 0.72)
+const DIVIDER_COLOR := Color(0.62, 0.48, 0.28, 0.55)
+const UP_COLOR := Color(0.45, 0.92, 0.45)
+const ICON_SIZE := 72.0
+const BAND_HEIGHT := 5.0
+const PAD := 14.0
+## Width of every item card (the trader, stash, inventory and hover cards, and the one on the ground). Wide so long lines wrap in few lines.
+const CARD_WIDTH := 460.0
+const DELTA_WIDTH := 110.0
+
+## The details card for an item, built once for every place an item is shown: a header (icon, name in its rarity colour, rarity, slot and
+## item level) under a rarity-coloured band, then the "vs <worn item>" line, then sections split by dividers (base stats, modifiers, trait,
+## legendary effect, set bonuses, requirements), then one action hint. Each stat carries its change beside it as an up or down arrow.
+## `with_action_hint` is a bag item's or a ground drop's line of what to do; it is coloured `hint_color` when that is opaque.
+static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "", hint_color: Color = Color(0, 0, 0, 0)) -> Control:
 	var member: String = PartyManager.current().active_id
 	var rarity: int = int(it["rarity"])
-	box.add_child(_wrapping_label(String(it["name"]), 22, Items.RARITY_COLORS[rarity]))
-	box.add_child(_label("%s %s" % [Items.RARITY_NAMES[rarity], Items.SLOT_NAMES[int(it["slot"])]], 14, Color(1, 1, 1, 0.55)))
+	var accent: Color = Items.RARITY_COLORS[rarity]
 	var comparison: Array[Dictionary] = Items.compare(it, worn, member) if with_compare else Items.wear_warning(it, member)
-	for row in display_rows(it, comparison, member):
-		box.add_child(_wrapping_label(String(row["text"]), 15, row["color"]))
+	var rows: Array[Dictionary] = display_rows(it, comparison, member)
+	var strong: bool = rarity >= Items.Rarity.UNIQUE or rows.any(func(r: Dictionary) -> bool: return String(r["section"]) == "legendary")
+	var panel := PanelContainer.new()
+	panel.theme = UiTheme.get_theme() # Native tooltip windows do not always inherit the opener's theme.
+	panel.add_theme_stylebox_override("panel", UiTheme.card_box(accent, strong))
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 0)
+	root.custom_minimum_size = Vector2(CARD_WIDTH, 0)
+	panel.add_child(root)
+	var band := ColorRect.new()   # the rarity band across the top
+	band.color = accent
+	band.custom_minimum_size = Vector2(0, BAND_HEIGHT)
+	root.add_child(band)
+	var margin := MarginContainer.new()
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, int(PAD))
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	root.add_child(margin)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	margin.add_child(box)
+	var inner: float = CARD_WIDTH - PAD * 2.0 - 6.0   # the panel's border takes 3 px a side
+	box.add_child(_header(it, accent, inner))
+	var section: String = ""
+	for row in rows:
+		if String(row["section"]) != section:
+			section = String(row["section"])
+			box.add_child(_divider())
+		box.add_child(_row(row, inner))
+	var hints: Array[String] = []
 	if with_equip_hint:
-		box.add_child(_label("(Confirm to equip)" if Gamepad.active else "(R-click to equip)", 14, Color(0.7, 0.68, 0.62)))
+		hints.append("Confirm to equip" if Gamepad.active else "R-click to equip")
 	if not with_action_hint.is_empty():
-		box.add_child(_wrapping_label(with_action_hint, 14, Color(0.7, 0.68, 0.62)))
+		hints.append(_hint_text(with_action_hint))
+	if not hints.is_empty():
+		box.add_child(_divider())
+		for hint in hints:
+			box.add_child(_wrapping_label(hint, 15, hint_color if hint_color.a > 0.0 else HINT_COLOR, inner))
 	return panel
 
-## Width of every item card (the trader, stash, inventory and hover cards). Wider than the old 300 so long descriptions wrap in fewer lines.
-const CARD_WIDTH := 460.0
-## How far a hover card's edge overlaps the item it describes (see focus_card): the pointer crosses from item to card without a gap.
-const HOVER_OVERLAP := 6.0
-## The lines of an item card, in order, as {text, color}. Shared by every item card (hover, trader, stash, inventory and the ground). The one
-## "cannot wear it yet" warning comes first. Each stat then carries its change beside it, coloured by that change ("Armor 8 (-1)" in red); a
-## change to a stat the item does not have still appears, as its own line. An empty slot's note comes last.
+## The icon on the left (the item's own art on its rarity badge at its full 128 px, shown at 72 px), the name in its rarity colour, and under
+## it the rarity, slot and item level.
+static func _header(it: Dictionary, accent: Color, inner: float) -> Control:
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 12)
+	var icon := TextureRect.new()
+	icon.texture = ItemIcons.badge(it, 128)
+	icon.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	icon.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	head.add_child(icon)
+	var text := VBoxContainer.new()
+	text.add_theme_constant_override("separation", 2)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(text)
+	var text_width: float = inner - ICON_SIZE - 12.0
+	var name_label := _wrapping_label(String(it["name"]), 22, accent.lightened(0.1), text_width)
+	name_label.add_theme_font_override("font", UiTheme.heading_font())
+	text.add_child(name_label)
+	var kind := HBoxContainer.new()
+	kind.add_theme_constant_override("separation", 8)
+	kind.add_child(_label("%s %s" % [Items.RARITY_NAMES[int(it["rarity"])], Items.SLOT_NAMES[int(it["slot"])]], 16, accent.lightened(0.2)))
+	kind.add_child(_label(Items.level_text(it), 16, TEXT_COLOR))
+	text.add_child(kind)
+	return head
+
+static func _divider() -> Control:
+	var line := ColorRect.new()
+	line.color = DIVIDER_COLOR
+	line.custom_minimum_size = Vector2(0, 1)
+	return line
+
+## One line of the card: its text (wrapping inside its own column), and its change, if any, right-aligned beside it.
+static func _row(row: Dictionary, inner: float) -> Control:
+	var section: String = String(row["section"])
+	var delta: String = String(row.get("delta", ""))
+	var size: int = 17 if section == "legendary" else 16
+	var text_width: float = inner - (DELTA_WIDTH if delta != "" else 0.0)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 6)
+	var label := _wrapping_label(String(row["text"]), size, row["color"], text_width)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_child(label)
+	if delta != "":
+		var change := _label(delta, 16, row["delta_color"])
+		change.custom_minimum_size.x = DELTA_WIDTH
+		change.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		change.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		line.add_child(change)
+	if section != "legendary":
+		return line
+	var tint := PanelContainer.new()   # the legendary effect sits on a warm band: the most prominent line after the name
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(LEGENDARY_COLOR.r, LEGENDARY_COLOR.g, LEGENDARY_COLOR.b, 0.16)
+	style.border_color = LEGENDARY_COLOR
+	style.border_width_left = 3
+	style.set_content_margin_all(6)
+	style.content_margin_left = 10
+	tint.add_theme_stylebox_override("panel", style)
+	tint.add_child(line)
+	return tint
+
+## An action hint in the words of the input in use: "(R-click to take off)" reads "Confirm to take off" with a controller.
+static func _hint_text(hint: String) -> String:
+	var plain: String = hint.substr(1, hint.length() - 2) if hint.begins_with("(") and hint.ends_with(")") and hint.count("(") == 1 else hint
+	return plain.replace("R-click", "Confirm") if Gamepad.active else plain
+
+## The lines of an item card, in order, as {text, color, section, key, delta, delta_color}. Shared by every item card (hover, trader, stash,
+## inventory and the ground). First the one "vs <worn item>" line; then the sections (Items.SECTIONS). Each stat carries its change beside it
+## (`delta`, "▲ 1.5", coloured by `delta_color`); a change to a stat the item does not have still appears, as its own line in the modifiers.
+## The requirement is one line, red (and saying the hero cannot wear it yet) only when unmet.
 static func display_rows(it: Dictionary, comparison: Array[Dictionary], member_id: String) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
+	var vs: Array[Dictionary] = []
 	var deltas: Dictionary = {}
+	var unmet: bool = false
 	for entry in comparison:
 		var key: String = String(entry["key"])
 		if key == Items.WARNING_KEY:
-			out.append({"text": String(entry["text"]), "color": UNMET_COLOR})
-		elif key != "":
+			unmet = true
+		elif key == Items.VS_KEY or key == "":
+			vs.append({"text": String(entry["text"]), "color": _delta_color(int(entry["sign"])) if int(entry["sign"]) != 0 else TEXT_COLOR,
+				"section": "vs", "key": key, "delta": "", "delta_color": TEXT_COLOR})
+		else:
 			deltas[key] = entry
+	var groups: Dictionary = {}
+	for section in Items.SECTIONS:
+		groups[section] = []
 	var shown: Dictionary = {}
 	for row in Items.rows(it, member_id):
 		var key: String = String(row["key"])
-		var line: String = String(row["text"])
-		if deltas.has(key):
-			var entry: Dictionary = deltas[key]
+		var section: String = String(row["section"])
+		var out_row := {"text": String(row["text"]), "color": row.get("color", _section_color(section)), "section": section, "key": key,
+			"delta": "", "delta_color": TEXT_COLOR}
+		if key == Items.REQ_KEY:
+			var met: bool = Items.hero_can_wear(it, member_id)
+			out_row["color"] = MET_COLOR if met else UNMET_COLOR
+			unmet = not met   # a second red line says what the requirement means
+			groups[section].append(out_row)
+			continue
+		elif deltas.has(key):
 			shown[key] = true
-			out.append({"text": "%s %s" % [line, String(entry["delta"])], "color": _delta_color(int(entry["sign"]))})
-		else:
-			out.append({"text": line, "color": row.get("color", stat_line_color(it, line))})
+			out_row["delta"] = String(deltas[key]["delta"])
+			out_row["delta_color"] = _delta_color(int(deltas[key]["sign"]))
+		groups[section].append(out_row)
 	for key in deltas:
 		if not shown.has(key):
 			var entry: Dictionary = deltas[key]
-			out.append({"text": String(entry["text"]), "color": _delta_color(int(entry["sign"]))})
-	for entry in comparison:
-		if String(entry["key"]) == "":
-			out.append({"text": String(entry["text"]), "color": _delta_color(int(entry["sign"]))})
+			groups["mods"].append({"text": String(entry.get("stat_text", entry["text"])), "color": MOD_COLOR, "section": "mods", "key": String(key),
+				"delta": String(entry["delta"]), "delta_color": _delta_color(int(entry["sign"]))})
+	if unmet:   # the one line that says the hero cannot wear it yet (after its requirement, when it has one)
+		groups["req"].append({"text": "You cannot wear this yet", "color": UNMET_COLOR, "section": "req", "key": Items.WARNING_KEY, "delta": "", "delta_color": TEXT_COLOR})
+	var out: Array[Dictionary] = vs
+	for section in Items.SECTIONS:
+		out.append_array(groups[section])
 	return out
 
-## The colour of a comparison: green for a beneficial change, red for a detrimental one (the sign stays in the text), grey when neutral.
+static func _section_color(section: String) -> Color:
+	match section:
+		"mods": return MOD_COLOR
+		"legendary": return LEGENDARY_COLOR
+		"set": return SET_COLOR
+	return TEXT_COLOR
+
+## The colour of a comparison: green for a beneficial change, red for a detrimental one, cream when neutral.
 static func _delta_color(sign_value: int) -> Color:
 	if sign_value > 0:
-		return Color(0.5, 0.85, 0.5)
+		return UP_COLOR
 	if sign_value < 0:
 		return UNMET_COLOR
-	return Color(0.75, 0.75, 0.75)
+	return TEXT_COLOR
 
-static func _wrapping_label(text: String, size: int, color: Color) -> Label:
+static func _wrapping_label(text: String, size: int, color: Color, width: float = CARD_WIDTH) -> Label:
 	var label := _label(text, size, color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# A wrapping label measures its height at the width it has. Before the container lays it out that width is 0, which wraps every word
-	# onto its own line and made the card taller than the screen. Give it the card's width up front so its height is its text.
-	label.size.x = CARD_WIDTH
+	# onto its own line and made the card taller than the screen. Give it its column's width up front so its height is its text.
+	label.custom_minimum_size.x = width
+	label.size.x = width
 	return label
+
+## How far a hover card's edge overlaps the item it describes (see focus_card): the pointer crosses from item to card without a gap.
+const HOVER_OVERLAP := 6.0
 
 ## Shared by inventory/shop cards and ground-loot cards.
 static func stat_line_color(it: Dictionary, line: String) -> Color:
