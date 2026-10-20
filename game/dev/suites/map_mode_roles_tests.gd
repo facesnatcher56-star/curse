@@ -169,6 +169,18 @@ func _test_map_mode_roles() -> void:
 	var gap: float = Vector2(diver.global_position.x - expected.x, diver.global_position.z - expected.z).length()
 	expect("a ghoul whose pathing has failed for 3 s is set on its closest navmesh point (%.2f m from it) and its path state is cleared" % gap,
 		recovered and gap < 0.1 and float(diver._nav_state.get("failed_time", 0.0)) == 0.0 and (diver._nav_state.get("path", PackedVector3Array()) as PackedVector3Array).is_empty())
+	# A party member whose path to its target has been blocked for seconds gives that target up for a while and takes another.
+	player.attack_target = diver
+	player.movement._nav_state["failed_time"] = 5.0
+	var gave_up: int = m._keep_party_moving()
+	expect("a party member blocked on its target for 5 s gives it up (%d), skips it and starts its path afresh" % gave_up,
+		gave_up >= 1 and m._is_skipped(diver) and float(player.movement._nav_state.get("failed_time", 0.0)) == 0.0 and player.attack_target == null)
+	# The fight watchdog: no kill for a long time brings whatever still stands up to the party.
+	diver.global_position = Nav.snap(diver, player.global_position + Vector3(30.0, 0.0, 0.0))
+	var brought: int = m._gather_enemies()
+	var near_gap: float = diver.flat_distance_to(player)
+	expect("after a long fight with no kill the enemies still standing are brought to within a few metres of the party (%d moved, ghoul %.1f m away)" % [brought, near_gap],
+		brought >= 1 and near_gap <= MapMode.GATHER_DISTANCE + 3.0)
 	# The fight log carries the Cutter's damage.
 	m.log.note_damage_taken(7.0, "cutter")
 	m.log.note_damage_taken(3.0, "hero")
