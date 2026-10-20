@@ -87,7 +87,7 @@ static func build(def: ItemDef, level: int, rarity: int, mods: Array = [], uniqu
 	for id in mods:
 		var affix: AffixDef = AffixDb.get_def(String(id))
 		if affix != null and affix.value_ceiling > affix.value:
-			values[id] = clampf(float(saved_values[id]), affix.value, affix.value_ceiling) if saved_values.has(id) else float(randi_range(int(affix.value), int(affix.value_ceiling)))
+			values[id] = clampf(float(saved_values[id]), affix.value, affix.value_ceiling) if saved_values.has(id) else MapDrops.roll_value(affix, rarity)
 	item["mod_values"] = values
 	item["name"] = _name(def, item)
 	return item
@@ -125,7 +125,7 @@ static func roll_mods(def: ItemDef, level: int, rarity: int, count: int = -1) ->
 		return []
 	if count < 0:
 		count = randi_range(1, 2) if rarity == Rarity.MAGIC else randi_range(RARE_MODS.x, RARE_MODS.y)
-	var window: Vector2i = MAGIC_MOD_WINDOW if rarity == Rarity.MAGIC else RARE_MOD_WINDOW
+	var window: Vector2i = MapDrops.mod_window(rarity, MAGIC_MOD_WINDOW if rarity == Rarity.MAGIC else RARE_MOD_WINDOW)   # map mode: the top of it
 	var positions: Array[String] = []
 	if rarity == Rarity.MAGIC and count == 2:
 		positions.append_array(["prefix", "suffix"])

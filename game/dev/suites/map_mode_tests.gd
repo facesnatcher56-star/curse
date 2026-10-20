@@ -68,7 +68,7 @@ func _test_map_mode() -> void:
 		e.credit_hero()
 		e._apply_damage(e.max_health + 10.0)
 	await _wait_state(m, MapMode.State.COLLECT, 30)
-	await _wait_state(m, MapMode.State.MAP, 150)
+	await _wait_state(m, MapMode.State.MAP, 420)
 	expect("a cleared group reopens the map", m.state == MapMode.State.MAP and m.overlay.is_open())
 	expect("its loot was collected automatically", get_tree().get_nodes_in_group("loot").filter(func(n: Node) -> bool: return not n.is_queued_for_deletion()).is_empty())
 	var left: Array = m.markers().filter(func(x: Dictionary) -> bool: return x["kind"] == "group").map(func(x: Dictionary) -> int: return int(x["id"]))

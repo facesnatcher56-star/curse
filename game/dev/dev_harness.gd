@@ -68,6 +68,7 @@ const SUITES := [
 	preload("res://game/dev/suites/click_band_tests.gd"),
 	preload("res://game/dev/suites/portrait_plus_tests.gd"),
 	preload("res://game/dev/suites/map_legendaries_tests.gd"),
+	preload("res://game/dev/suites/map_drops_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -100,7 +101,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--startbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--startbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture") or _user_arg_value("--mmlootshot=") != "":
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -113,7 +114,9 @@ func run_from_args() -> bool:
 			DisplayServer.window_set_size(Vector2i(1280, 720))
 			DisplayServer.window_set_position(DisplayServer.screen_get_position(1) + Vector2i(120, 100))
 		print("DEV_WINDOW screen=", DisplayServer.window_get_current_screen(), " position=", DisplayServer.window_get_position())
-	if OS.get_cmdline_user_args().has("--wardenshot"):
+	if _user_arg_value("--mmlootshot=") != "":
+		_run("_map_loot_shot", [_user_arg_value("--mmlootshot=")])
+	elif OS.get_cmdline_user_args().has("--wardenshot"):
 		_run("_warden_shots")
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
 		_run("_skill_shots", ["fireball"])
@@ -249,7 +252,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits", "mmdrops": "_test_map_drops",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus", "mmlegend": "_test_map_legendaries",

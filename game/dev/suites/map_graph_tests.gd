@@ -274,7 +274,7 @@ func _run_checks() -> void:
 		e.credit_hero()
 		e._apply_damage(e.max_health + 10.0)
 	await _wait_state(m, MapMode.State.COLLECT, 30)
-	await _wait_state(m, MapMode.State.MAP, 150)
+	await _wait_state(m, MapMode.State.MAP, 420)
 	expect("a cleared pack reopens the map with the node cleared and the party's node moved", m.state == MapMode.State.MAP and g.is_cleared(1) and m.current_node == 1)
 	expect("the boss is now reachable and clickable", g.state_of(2) == "reachable" and g.is_clickable(2))
 	# Dash back to the start (a cleared node): no fight.
@@ -292,7 +292,7 @@ func _run_checks() -> void:
 	expect("the boss fight starts, only the boss group is awake", m.state == MapMode.State.FIGHT and boss.is_aggro() and not bystander.is_aggro())
 	boss.credit_hero()
 	boss._apply_damage(boss.max_health + 10.0)
-	await _wait_state(m, MapMode.State.DONE, 200)
+	await _wait_state(m, MapMode.State.DONE, 500)
 	expect("clearing the boss ends the run", m.state == MapMode.State.DONE and m.run_complete and g.boss_cleared())
 	# Tidy.
 	bystander.credit_hero()

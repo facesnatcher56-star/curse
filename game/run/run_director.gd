@@ -462,11 +462,11 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 	if bonuses.is_empty(): bonuses = PartyManager.current().loot_bonuses()
 	# An Opening's execution leaves a better chance of gear (its own multiplier, set on the enemy; 1.0 otherwise).
 	var drop_mult: float = (Quests.world_mult("drop_mult") if world_mode else 1.0) * float(enemy.get_meta("opening_drop_mult", 1.0))
-	var loot := MonsterLoot.roll(enemy.level, enemy.def.tier, bonuses.magic_find, drop_mult, bonuses.gold_find)
+	var loot := MapDrops.enemy_loot(enemy.level, enemy.def.tier, bonuses.magic_find, drop_mult, bonuses.gold_find)   # = MonsterLoot.roll unless map mode
 	if not loot.item.is_empty():
 		drop_item(enemy.global_position, loot.item)
 	if enemy.champion != null:   # a champion always drops a magic item or better, on top of the ordinary roll
-		drop_item(enemy.global_position, Champion.loot(enemy.level, enemy.def.tier, bonuses.magic_find))
+		drop_item(enemy.global_position, MapDrops.champion_loot(enemy.level, enemy.def.tier, bonuses.magic_find))
 		var legendary: Dictionary = MapModeLegendaries.first_champion_drop()   # map mode only: the run's first champion always drops one
 		if not legendary.is_empty():
 			drop_item(enemy.global_position, legendary)
@@ -478,6 +478,8 @@ func _drop_loot(actor: Actor, bonuses: Dictionary = {}) -> void:
 		pickup.gold_amount = gold_for_drop(int(loot.gold)) if kind == "gold" else 0
 		get_tree().current_scene.add_child(pickup)
 		pickup.global_position = enemy.global_position
+		if MapMode.active:
+			MapMode.current.note_pickup(kind, pickup.gold_amount)
 
 ## The gold a drop holds in the connected world: a running world event (a blood moon) multiplies it.
 func gold_for_drop(base: int) -> int:
@@ -487,6 +489,8 @@ func drop_item(at: Vector3, item: Dictionary) -> LootDrop:
 	var drop: LootDrop = LootDrop.create(item)
 	add_child(drop)
 	drop.toss_from(at)
+	if MapMode.active:
+		MapMode.current.note_item(item)
 	return drop
 
 ## The run's rewards still lying on the ground when it ends (owner policy). A dead hero loses them. Otherwise: gear goes to the town stash
