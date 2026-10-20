@@ -358,6 +358,9 @@ func node_label(id: int) -> String:
 	var champion: String = String(row.get("champion", ""))
 	if champion != "":
 		lines.append("Champion: %s" % champion)
+		var effects: String = Champion.effect_text(row.get("affixes", []))
+		if effects != "":
+			lines.append(effects)
 	var plan: Dictionary = plan_of(id)
 	match String(row.get("kind", "")):
 		"chest":
