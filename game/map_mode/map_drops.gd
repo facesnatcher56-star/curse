@@ -30,11 +30,11 @@ const T := {
 	"chest_nodes": {5: "wooden", 12: "cursed"},
 	"chest_node_default": "iron",
 	"guards": {
-		"wooden": {"title": "Wooden chest", "chest": true, "color": Color(0.66, 0.46, 0.26), "scale": 0.95},
-		"iron": {"title": "Iron chest", "chest": true, "color": Color(0.58, 0.64, 0.74), "scale": 1.0},
-		"gilded": {"title": "Gilded chest", "chest": true, "color": Color(1.0, 0.82, 0.3), "scale": 1.05},
-		"cursed": {"title": "Cursed chest", "chest": true, "color": Color(0.66, 0.3, 0.88), "scale": 1.0},
-		"hoard": {"title": "Boss hoard", "chest": true, "color": Color(1.0, 0.55, 0.2), "scale": 1.35},
+		"wooden": {"title": "Wooden chest", "chest": true, "color": Color(0.66, 0.46, 0.26), "scale": 1.2},
+		"iron": {"title": "Iron chest", "chest": true, "color": Color(0.58, 0.64, 0.74), "scale": 1.25},
+		"gilded": {"title": "Gilded chest", "chest": true, "color": Color(1.0, 0.82, 0.3), "scale": 1.3},
+		"cursed": {"title": "Cursed chest", "chest": true, "color": Color(0.66, 0.3, 0.88), "scale": 1.3},
+		"hoard": {"title": "Boss hoard", "chest": true, "color": Color(1.0, 0.55, 0.2), "scale": 1.7},
 		"shrine": {"title": "A shrine (a short blessing)", "chest": false, "color": Color(0.45, 0.78, 0.95)},
 		"gold": {"title": "A pile of gold", "chest": false, "color": Color(0.95, 0.8, 0.3)},
 		"potions": {"title": "A potion cache", "chest": false, "color": Color(0.9, 0.35, 0.35)},
@@ -62,7 +62,7 @@ const T := {
 	"clear_gold": [3.0, 5.0],        # x the DS2 gold curve of the node's level, when nothing else dropped gold
 	"clear_potion": 1,               # a health potion, when no item and no potion dropped
 	# --- the summary card after a clear ---
-	"summary_seconds": 7.0,   # the card shows over the reopened map this long (the map is usable at once, nothing waits for the card)
+	"summary_seconds": 180.0,   # the reward panel stays over the reopened map until Continue or the next node is picked (the map is usable at once); this is only its safety limit
 	# --- party fit: this share of item rolls is forced onto a base the warrior or the Cutter can use ---
 	"party_members": ["hero", "cutter"],
 	"party_fit": 0.6,
