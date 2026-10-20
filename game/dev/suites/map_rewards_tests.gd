@@ -1,0 +1,204 @@
+extends DevSuite
+## Map mode's reward panel (issue #87, game/ui/map_reward_panel.gd): its verdict is the shared comparison, Equip wears the item on the right member
+## (PlayerStats.equip_from_bag, the autoplay's call), the panel never covers the party on screen, the chest icons and tiles exist for every tier and
+## rarity, and a ground name plate never leaves the screen.
+
+func _weapon(damage_scale: float, level: int = 1, name: String = "") -> Dictionary:
+	var it: Dictionary = Items.build(ItemDb.get_def("club"), level, Items.Rarity.NORMAL)
+	it["stats"] = (it["stats"] as Dictionary).duplicate(true)
+	if it["stats"].has("max"):
+		it["stats"]["min"] = float(it["stats"]["min"]) * damage_scale
+		it["stats"]["max"] = float(it["stats"]["max"]) * damage_scale
+	it["name"] = name if name != "" else "Test blade x%.1f" % damage_scale
+	return it
+
+func _balance(item: Dictionary, current: Variant, member_id: String) -> int:
+	var b: int = 0
+	for line in Items.compare(item, current, member_id):
+		if String(line.get("key", "")) != Items.WARNING_KEY:
+			b += int(line["sign"])
+	return b
+
+func _test_map_rewards() -> void:
+	TownState.persist = false
+	TownState.reset()
+	var hero: Player = player
+	var cutter: Player = game.companion
+	var party: Array = [hero, cutter]
+	hero.set_physics_process(false)
+	var cutter_disabled: bool = cutter.testing_disabled
+	cutter.testing_disabled = true
+	cutter.set_physics_process(false)
+	var saved_hero: Dictionary = hero.stats.equipment.duplicate(true)
+	var saved_cutter: Dictionary = cutter.stats.equipment.duplicate(true)
+	var saved_bag: Array = hero.stats.bag.duplicate(true)
+	hero.stats.bag.clear()
+	var State = MapRewardPanel.State
+
+	# --- the verdict is the shared comparison -------------------------------------------------------------------------------------------
+	var weak: Dictionary = _weapon(1.0)
+	hero.stats.equipment.clear()
+	hero.stats.equipment[Items.Slot.WEAPON] = weak
+	var top: Dictionary = _weapon(100.0, 1, "Unbeatable blade")   # the Cutter's weapon: nothing here beats it, so only the warrior's slots are in play
+	cutter.stats.equipment[Items.Slot.WEAPON] = top
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	var strong: Dictionary = _weapon(3.0)
+	var worse: Dictionary = _weapon(0.5)
+	var locked: Dictionary = _weapon(10.0, 40, "Too high a blade")
+	var left_over: Dictionary = _weapon(2.0, 1, "Left on the floor")
+	for it in [strong, worse, locked]:
+		hero.stats.add_to_bag(it)
+	var up_info: Dictionary = MapRewardPanel.classify(strong, party)
+	var down_info: Dictionary = MapRewardPanel.classify(worse, party)
+	var lock_info: Dictionary = MapRewardPanel.classify(locked, party)
+	var full_info: Dictionary = MapRewardPanel.classify(left_over, party)
+	expect("setup: the shared comparison calls the strong blade better, the weak one worse, the level 40 one unwearable",
+		_balance(strong, weak, "hero") > 0 and LootAppraisal.trend(strong, hero.stats) > 0 and LootAppraisal.trend(worse, hero.stats) < 0
+		and not Items.hero_can_wear(locked, "hero") and not Items.hero_can_wear(locked, "cutter"))
+	expect("an upgrade is UPGRADE for the warrior (it matches LootAppraisal.trend)", int(up_info["state"]) == State.UPGRADE and String(up_info["member"]) == "hero" and int(up_info["bag_index"]) >= 0)
+	expect("a worse piece is DOWNGRADE, not an upgrade", int(down_info["state"]) == State.DOWNGRADE)
+	expect("an unwearable piece is LOCKED and says only what is lacking (%s)" % String(lock_info["need"]),
+		int(lock_info["state"]) == State.LOCKED and String(lock_info["need"]) == Items.requirement_card_text(locked, String(lock_info["member"])).replace("Requires ", "Needs ")
+		and String(lock_info["need"]).begins_with("Needs ") and not String(lock_info["need"]).contains("have"))
+	expect("an item left on the ground is Inventory full, whatever it would be", int(full_info["state"]) == State.FULL)
+	expect("the badge words: Upgrade: Hero (green), Downgrade, the unmet part (red), Inventory full (amber)",
+		String(MapRewardPanel.badge_of(up_info)["text"]) == "%s Upgrade: %s" % [Items.UP, hero.display_name] and MapRewardPanel.badge_of(up_info)["color"] == MapRewardPanel.GREEN
+		and String(MapRewardPanel.badge_of(down_info)["text"]) == "Downgrade" and MapRewardPanel.badge_of(lock_info)["color"] == MapRewardPanel.RED
+		and String(MapRewardPanel.badge_of(full_info)["text"]) == "Inventory full" and MapRewardPanel.badge_of(full_info)["color"] == MapRewardPanel.AMBER)
+	var twin: Dictionary = weak.duplicate(true)
+	twin["name"] = "Same blade, other name"
+	hero.stats.add_to_bag(twin)
+	expect("an equal piece is SIDEGRADE", int(MapRewardPanel.classify(twin, party)["state"]) == State.SIDEGRADE and LootAppraisal.trend(twin, hero.stats) == 0)
+	expect("a worn piece is WORN", int(MapRewardPanel.classify(weak, party)["state"]) == State.WORN)
+	hero.stats.bag.erase(twin)
+
+	# --- the panel on the real HUD: tiles, badges, count-up, Equip ----------------------------------------------------------------------------
+	var tally := {"gold": 148, "health": 2, "mana": 1, "items": [strong, worse, locked, left_over]}
+	hud.show_gear = false
+	hud.loot_cards.show_summary("The Warden's Court", tally, HudLootCards.summary_rows(tally, party), 60.0, "hoard")
+	var panel: MapRewardPanel = hud.loot_cards.reward_panel
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("the reward panel is on the HUD", panel != null and panel.get_parent() == hud and panel.visible and panel.tiles.size() == 4)
+	var equips: int = 0
+	for entry in panel.tiles:
+		equips += 1 if entry["equip"] != null else 0
+	expect("only the upgrade has an Equip button", equips == 1 and panel.tiles[0]["equip"] != null)
+	expect("gold and potions count up from zero to the totals", panel.shown_counts().x < 148 and panel.shown_counts().y < 3)
+	panel.finish_count()
+	expect("and end on them", panel.shown_counts() == Vector2i(148, 3))
+	expect("the header carries the node's name and the chest kind", panel.title == "The Warden's Court" and panel.guard == "hoard")
+	var before_name: String = String(hero.stats.equipment[Items.Slot.WEAPON]["name"])
+	(panel.tiles[0]["equip"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("pressing Equip wears the upgrade on the warrior (%s -> %s)" % [before_name, String(hero.stats.equipment[Items.Slot.WEAPON]["name"])],
+		String(hero.stats.equipment[Items.Slot.WEAPON]["name"]) == String(strong["name"]) and String(cutter.stats.equipment[Items.Slot.WEAPON]["name"]) == "Unbeatable blade")
+	expect("the replaced piece goes to the bag, and the tile now reads Worn", hero.stats.bag.any(func(i: Dictionary) -> bool: return String(i["name"]) == before_name)
+		and int(panel.tiles[0]["info"]["state"]) == State.WORN and panel.tiles[0]["equip"] == null)
+	expect("equipping again does nothing", not panel.equip_item(strong))
+	hud.loot_cards.hide_summary()
+	await get_tree().create_timer(MapRewardPanel.FADE_SECONDS + 0.2).timeout
+	expect("it fades by itself and is gone", not is_instance_valid(panel) and hud.loot_cards.reward_panel == null)
+
+	# --- Equip picks the right member: a piece only the Cutter can use goes on her ------------------------------------------------------------
+	var helm: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.NORMAL)
+	cutter.stats.equipment.erase(Items.Slot.HELM)
+	var unbeatable: Dictionary = Items.build(ItemDb.get_def("iron_helm"), 1, Items.Rarity.NORMAL)
+	unbeatable["stats"] = {"armor": 9999}
+	unbeatable["name"] = "Unbeatable helm"
+	hero.stats.equipment[Items.Slot.HELM] = unbeatable
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	hero.stats.add_to_bag(helm)
+	var helm_info: Dictionary = MapRewardPanel.classify(helm, party)
+	expect("the verdict names the Cutter for a piece the warrior's better helm outclasses (%s)" % String(helm_info["who"]),
+		int(helm_info["state"]) == State.UPGRADE and String(helm_info["member"]) == "cutter" and LootAppraisal.trend(helm, hero.stats) < 0)
+	var tally2 := {"gold": 5, "health": 0, "mana": 0, "items": [helm]}
+	hud.loot_cards.show_summary("Test", tally2, HudLootCards.summary_rows(tally2, party), 60.0, "wooden")
+	var panel2: MapRewardPanel = hud.loot_cards.reward_panel
+	await get_tree().process_frame
+	expect("the badge says Upgrade: Cutter", String(MapRewardPanel.badge_of(panel2.tiles[0]["info"])["text"]).ends_with(cutter.display_name))
+	(panel2.tiles[0]["equip"] as Button).pressed.emit()
+	expect("Equip puts it on the Cutter, not the warrior", cutter.stats.equipment.has(Items.Slot.HELM) and String(hero.stats.equipment[Items.Slot.HELM]["name"]) == "Unbeatable helm"
+		and not hero.stats.bag.any(func(i: Dictionary) -> bool: return String(i["name"]) == String(helm["name"])))
+	hud.loot_cards.hide_summary()
+
+	# --- the panel never covers the party on screen -------------------------------------------------------------------------------------------
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var big_tally := {"gold": 90, "health": 1, "mana": 0, "items": []}
+	for i in 6:
+		(big_tally["items"] as Array).append(Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 12, "Longsword") if i % 2 == 0 else MapModeLegendaries.item("gravecaller_maul"))
+	hud.loot_cards.show_summary("Crowded", big_tally, [], 60.0, "iron")
+	var crowded: MapRewardPanel = hud.loot_cards.reward_panel
+	for i in 5:
+		await get_tree().process_frame
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	var safe: Rect2 = MapRewardPanel.safe_rect(hud, screen)
+	var covered: int = 0
+	for body in party:
+		var feet: Vector2 = camera.unproject_position((body as Node3D).global_position)
+		var head: Vector2 = camera.unproject_position((body as Node3D).global_position + Vector3(0, 1.8, 0))
+		covered += 1 if crowded.rect().has_point(feet) or crowded.rect().has_point(head) else 0
+	expect("six tiles: the panel (%s on a %s screen) covers neither party member projected through the real camera" % [crowded.rect(), screen], covered == 0)
+	expect("it stays inside the safe area (above the hotbar and vessels) and on screen (panel %s, safe %s)" % [crowded.rect(), safe], safe.grow(1.0).encloses(crowded.rect()) or crowded.rect().size.y >= safe.size.y - 1.0)
+	expect("a tall list scrolls rather than growing past it", crowded.rect().end.y <= safe.end.y + 1.0)
+	hud.loot_cards.hide_summary()
+	# The docking choice: with the party on the right the panel goes to the left edge, below the party cards.
+	var wide := Rect2(Vector2(16, 24), Vector2(1888, 820))
+	var avoid_right: Array[Vector2] = [Vector2(1700, 400)]
+	var avoid_left: Array[Vector2] = [Vector2(300, 400)]
+	var no_one: Array[Vector2] = []
+	var panel_size := Vector2(MapRewardPanel.WIDTH, 500)
+	expect("docking: the right edge by default, the left edge (under the party cards) when the party stands on the right",
+		String(MapRewardPanel.dock(panel_size, wide, no_one, 260.0)["side"]) == "right" and String(MapRewardPanel.dock(panel_size, wide, avoid_right, 260.0)["side"]) == "left"
+		and (MapRewardPanel.dock(panel_size, wide, avoid_right, 260.0)["rect"] as Rect2).position.y >= 260.0 and String(MapRewardPanel.dock(panel_size, wide, avoid_left, 260.0)["side"]) == "right")
+
+	# --- a legendary tile is larger and carries its effect in full -----------------------------------------------------------------------------
+	var legend: Dictionary = MapModeLegendaries.item("gravecaller_maul")
+	var line: Dictionary = MapRewardPanel.key_line(legend, "hero")
+	expect("a legendary's key line is its whole effect", String(line["section"]) == "legendary" and String(line["text"]).begins_with("Legendary: ") and String(line["text"]).length() > 20)
+	var rare: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 12, "Longsword")
+	expect("an ordinary item's key line is one modifier or its base stat", String(MapRewardPanel.key_line(rare, "hero")["text"]) != "" and String(MapRewardPanel.key_line(rare, "hero")["section"]) in ["trait", "mods", "base"])
+
+	# --- ground name plates never leave the screen ---------------------------------------------------------------------------------------------
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	await get_tree().process_frame
+	var ground: Vector3 = Nav.snap(hero, hero.global_position)
+	var depth: float = camera.global_position.distance_to(ground)
+	var long_item: Dictionary = Items.make(Items.Slot.WEAPON, Items.Rarity.RARE, 12, "Longsword")
+	long_item["name"] = "Cruel Longsword of Haste and Many Other Long Words"
+	var right_edge: Vector3 = camera.project_position(Vector2(screen.x - 4.0, screen.y * 0.4), depth)
+	var left_edge: Vector3 = camera.project_position(Vector2(4.0, screen.y * 0.4), depth)
+	right_edge.y = ground.y
+	left_edge.y = ground.y
+	var d_right: LootDrop = game.director.drop_item(right_edge, long_item.duplicate(true))
+	var d_left: LootDrop = game.director.drop_item(left_edge, long_item.duplicate(true))
+	d_right._end = right_edge
+	d_left._end = left_edge
+	await get_tree().create_timer(LootDrop.LAND_TIME + 0.5).timeout
+	hud.show_gear = false
+	var plates: Array[Dictionary] = hud.loot_cards._layout_loot_names(ThemeDB.fallback_font)
+	var off: int = 0
+	for entry in plates:
+		var r: Rect2 = entry["rect"]
+		off += 0 if (r.position.x >= 0.0 and r.end.x <= screen.x and r.position.y >= 0.0 and r.end.y <= screen.y) else 1
+	expect("plates at the left and right screen edges stay inside the screen (%d placed, %d off screen)" % [plates.size(), off], off == 0)
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+
+	# --- clean up ---------------------------------------------------------------------------------------------------------------------------------
+	hero.stats.equipment.clear()
+	for place in saved_hero:
+		hero.stats.equipment[place] = saved_hero[place]
+	cutter.stats.equipment.clear()
+	for place in saved_cutter:
+		cutter.stats.equipment[place] = saved_cutter[place]
+	hero.stats.bag.assign(saved_bag)
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	cutter.testing_disabled = cutter_disabled
+	cutter.set_physics_process(true)
+	hero.set_physics_process(true)
+	hud.loot_cards.hide_summary()

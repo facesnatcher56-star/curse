@@ -962,7 +962,8 @@ func _show_loot_summary(rows: Array[Dictionary]) -> bool:
 	if hud == null or _visit_kind == "revisit":
 		return false
 	var title: String = String(graph.row(_visit_node).get("name", "Cleared")) if graph != null and _visit_node >= 0 else "Cleared"
-	hud.loot_cards.show_summary(title, loot_tally, rows, float(MapDrops.T.summary_seconds))
+	var guard: String = String(plan_of(_visit_node).get("guard", "")) if graph != null and _visit_node >= 0 else ""
+	hud.loot_cards.show_summary(title, loot_tally, rows, float(MapDrops.T.summary_seconds), guard)
 	return true
 
 ## Only what lies in the area just visited (the cleared room, the chest, the pile dashed to) is collected, not the whole level.

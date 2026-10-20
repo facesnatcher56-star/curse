@@ -37,6 +37,11 @@ const KIND_COLOR := {
 var map_data: MinimapMap
 ## Developer/test hook: lay the overlay out for this screen size instead of the viewport's.
 var screen_override: Vector2 = Vector2.ZERO
+## Strips of the screen the map leaves free (the loot reward panel docks there: the nodes stay visible and clickable), and the rectangle whose
+## mouse events go to the controls on top of the map (the panel) instead of the map.
+var reserve_left: float = 0.0
+var reserve_right: float = 0.0
+var yield_rect: Rect2 = Rect2()
 
 var _open: bool = false
 var _can_close: bool = true
@@ -97,8 +102,13 @@ func panel_rect() -> Rect2:
 		bottom = minf(bottom, hud.hotbar_rect(s).position.y - 8.0)
 	bottom -= 26.0   # the help line sits under the panel
 	# The party cards (Hero and Cutter, top left) stay fully visible: the panel starts to their right, as the shared windows do (ui_theme 'reserve_party_cards').
-	var left: float = PARTY_CARDS_WIDTH + MARGIN
-	return Rect2(Vector2(left, TOP_INSET), Vector2(s.x - left - MARGIN, maxf(bottom - TOP_INSET, 64.0)))
+	var left: float = maxf(PARTY_CARDS_WIDTH + MARGIN, reserve_left)
+	return Rect2(Vector2(left, TOP_INSET), Vector2(s.x - left - MARGIN - reserve_right, maxf(bottom - TOP_INSET, 64.0)))
+
+## Lays the map out again (a reserved strip appeared or went).
+func relayout() -> void:
+	_layout_dirty = true
+	queue_redraw()
 
 func is_graph_view() -> bool:
 	return not _links.is_empty()
@@ -237,6 +247,8 @@ func choose_focused() -> void:
 func _input(event: InputEvent) -> void:
 	if not _open:
 		return
+	if event is InputEventMouse and yield_rect.has_point((event as InputEventMouse).position):
+		return   # over the reward panel: its own controls take it
 	if event is InputEventMouseMotion:
 		var h: int = _hit((event as InputEventMouseMotion).position)
 		_focus_shown = false

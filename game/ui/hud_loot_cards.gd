@@ -13,6 +13,7 @@ var ground_card_rect := Rect2()   # actual drawn ground card, for focused layout
 ## above it, with a thin line back to its item.
 const NAME_HEIGHT := 21.0
 const NAME_FONT := 15
+const PLATE_MARGIN := 8.0   # a name plate keeps this far inside the screen's left and right edges
 const UPGRADE_COLOR := LootAppraisal.UPGRADE_COLOR
 const LOCKED_COLOR := LootAppraisal.LOCKED_COLOR
 ## Room for the upgrade arrow or the locked cross at the left end of a name plate.
@@ -225,71 +226,51 @@ static func summary_rows(tally: Dictionary, bodies: Array) -> Array[Dictionary]:
 		out.append({"item": item, "mark": mark, "who": who})
 	return out
 
-func show_summary(title: String, tally: Dictionary, rows: Array[Dictionary], seconds: float) -> void:
+## The reward screen after a clear (MapRewardPanel, a Control on the HUD over the reopened map). `guard` is the chest kind (its icon), `seconds` how
+## long it may stay up unattended; it goes at Continue or when the next node is picked.
+func show_summary(title: String, tally: Dictionary, rows: Array[Dictionary], seconds: float, guard: String = "") -> void:
+	hide_summary()
 	summary = {"title": title, "gold": int(tally.get("gold", 0)), "health": int(tally.get("health", 0)), "mana": int(tally.get("mana", 0)),
-		"rows": rows, "until_ms": Time.get_ticks_msec() + int(seconds * 1000.0)}
+		"rows": rows, "guard": guard, "until_ms": Time.get_ticks_msec() + int(seconds * 1000.0)}
+	reward_panel = MapRewardPanel.create(title, guard, tally, _party_bodies())
+	reward_panel.continued.connect(hide_summary)
+	hud.add_child(reward_panel)
+	summary_rect = reward_panel.rect()
+
+## The warrior and the Cutter, as far as they are in the world.
+func _party_bodies() -> Array:
+	var out: Array = []
+	for id in ["hero", "cutter"]:
+		var body: Variant = PartyManager.current().bodies.get(id)
+		if body is Player and is_instance_valid(body):
+			out.append(body)
+	if out.is_empty() and hud.player != null:
+		out.append(hud.player)
+	return out
 
 func hide_summary() -> void:
 	summary = {}
 	summary_rect = Rect2()
+	if reward_panel != null and is_instance_valid(reward_panel):
+		reward_panel.fade_out()
+	reward_panel = null
 
-const SUMMARY_WIDTH := 420.0
-## The summary's note beside each item ("better", "worse"): readable cream, never a dimmed white.
-const NOTE_COLOR := ItemTile.TEXT_COLOR
-const SUMMARY_ROW := 27.0
+var reward_panel: MapRewardPanel
 
-## The card: what the clear paid (gold, potions) and each item under its rarity colour, with a green arrow up for a better piece, a red arrow down for
-## a worse one, a grey bar for the same, a red cross for one nobody can wear yet. The same marks as the name plates.
-func _draw_summary(size_px: Vector2, font: Font) -> void:
+## Keeps the panel's bookkeeping: gone after its time, out of sight while the inventory or character screen is open (they show the same items).
+func _draw_summary(_size_px: Vector2, _font: Font) -> void:
 	summary_rect = Rect2()
 	if summary.is_empty():
 		return
 	if Time.get_ticks_msec() > int(summary["until_ms"]):
 		hide_summary()
 		return
-	if hud.show_gear:   # the inventory or character screen is open: they show the same items, and nothing is drawn under them
+	if reward_panel == null or not is_instance_valid(reward_panel):
+		summary = {}
 		return
-	var rows: Array = summary["rows"]
-	var pad := 16.0
-	var head_h := 58.0
-	var height: float = pad * 2.0 + head_h + SUMMARY_ROW * float(maxi(rows.size(), 1))
-	var origin := Vector2((size_px.x - SUMMARY_WIDTH) * 0.5, clampf(size_px.y * 0.12, 100.0, maxf(size_px.y - height - 160.0, 100.0)))
-	summary_rect = Rect2(origin, Vector2(SUMMARY_WIDTH, height))
-	hud.draw_set_transform(origin, 0.0, Vector2.ONE)
-	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, summary_rect.size), 0.97)
-	UiTheme.text(hud, UiTheme.heading_font(), Vector2(pad, pad + 20.0), "%s cleared" % String(summary["title"]), 21, UiTheme.ACCENT,
-		HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0)
-	var paid: PackedStringArray = []
-	if int(summary["gold"]) > 0:
-		paid.append("%d gold" % int(summary["gold"]))
-	var potions: int = int(summary["health"]) + int(summary["mana"])
-	if potions > 0:
-		paid.append("%d potion%s" % [potions, "" if potions == 1 else "s"])
-	if rows.is_empty():
-		paid.append("no items")
-	UiTheme.text(hud, font, Vector2(pad, pad + 46.0), "Found: " + ", ".join(paid), 15, Color(0.95, 0.85, 0.5), HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0)
-	var y: float = pad + head_h
-	for row in rows:
-		var item: Dictionary = row["item"]
-		var colour: Color = Items.RARITY_COLORS[int(item["rarity"])]
-		var mark: int = int(row["mark"])
-		var mid := Vector2(pad + 8.0, y + SUMMARY_ROW * 0.5 - 2.0)
-		match mark:
-			Mark.UP: _draw_mark(mid, true)
-			Mark.DOWN: _draw_arrow_down(mid)
-			Mark.LOCKED: _draw_mark(mid, false)
-			_: hud.draw_line(mid + Vector2(-4, 0), mid + Vector2(4, 0), Color(0.7, 0.7, 0.7), 2.0)
-		var note: String = ""
-		match mark:
-			Mark.UP: note = "better (%s)" % String(row["who"]) if String(row["who"]) != "" else "better"
-			Mark.DOWN: note = "worse"
-			Mark.LOCKED: note = "not yet"
-			_: note = "same"
-		UiTheme.text(hud, font, Vector2(pad + 26.0, y + 17.0), String(item["name"]), 16, colour.darkened(0.25 if mark == Mark.LOCKED else 0.0),
-			HORIZONTAL_ALIGNMENT_LEFT, SUMMARY_WIDTH - pad * 2.0 - 110.0)
-		UiTheme.text(hud, font, Vector2(SUMMARY_WIDTH - pad - 100.0, y + 17.0), note, 15, NOTE_COLOR, HORIZONTAL_ALIGNMENT_RIGHT, 100.0)
-		y += SUMMARY_ROW
-	hud.draw_set_transform(Vector2.ZERO)
+	reward_panel.visible = not hud.show_gear
+	if reward_panel.visible:
+		summary_rect = reward_panel.rect()
 
 ## Each drop's verdict, worked out again at most every REAPPRAISE_MS (wearing something, levelling up or a new hero changes it), not every frame.
 const REAPPRAISE_MS := 400
@@ -326,7 +307,9 @@ func _layout_loot_names(font: Font) -> Array[Dictionary]:
 	var toast_rect: Rect2 = hud.progression_hud.toast_rect(hud.get_viewport_rect().size) if hud.progression_hud != null else Rect2()
 	for entry in entries:
 		var anchor: Vector2 = entry["anchor"]
-		var rect := Rect2(anchor.x - float(entry["width"]) * 0.5, anchor.y - NAME_HEIGHT - 10.0, float(entry["width"]), NAME_HEIGHT)
+		var screen_width: float = hud.get_viewport_rect().size.x
+		var rect := Rect2(clampf(anchor.x - float(entry["width"]) * 0.5, PLATE_MARGIN, maxf(PLATE_MARGIN, screen_width - float(entry["width"]) - PLATE_MARGIN)),
+			anchor.y - NAME_HEIGHT - 10.0, float(entry["width"]), NAME_HEIGHT)   # a plate near the screen edge slides inside it, never off it
 		var original_y: float = rect.position.y
 		var found: bool = false
 		for step in 65:
@@ -370,6 +353,9 @@ func _draw_loot_names(font: Font) -> void:
 			draw_connector = true
 		elif rect.position.y > anchor.y + 12.0:   # moved below its item to clear the toast or a HUD panel
 			line_start = Vector2(rect.get_center().x, rect.position.y)
+			draw_connector = true
+		if not draw_connector and (anchor.x < rect.position.x - 4.0 or anchor.x > rect.end.x + 4.0):   # slid sideways to stay on screen: a line shows whose it is
+			line_start = Vector2(clampf(anchor.x, rect.position.x, rect.end.x), rect.get_center().y)
 			draw_connector = true
 		if draw_connector:
 			var line_bounds := Rect2(line_start, Vector2(0.001, 0.001)).expand(anchor)
