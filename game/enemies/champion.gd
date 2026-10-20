@@ -205,6 +205,7 @@ static func _blast(source: Enemy, actor: Actor, centre: Vector3, radius: float, 
 	var falloff: float = 1.0 - clampf(gap.length() / (radius + 0.01), 0.0, 1.0) * 0.5
 	var result: Dictionary = Combat.resolve(source, actor, damage * falloff, Combat.DamageType.PHYSICAL, false, 1.2)
 	result["secondary"] = true
+	result["aoe"] = true   # an explosion: never auto-blocked (ShieldGuard)
 	actor.receive(result, centre)
 
 # --- what it looks like ---------------------------------------------------------------------------------------------------------
@@ -249,6 +250,8 @@ func _telegraph_ring(scene: Node, centre: Vector3, radius: float, delay: float) 
 	var root := Node3D.new()
 	scene.add_child(root)
 	root.global_position = Vector3(centre.x, 0.08, centre.z)
+	root.add_to_group("aoe_tells")   # a blast is coming here (ShieldGuard keeps its shield down)
+	root.set_meta("aoe_radius", radius)
 	var disc := MeshInstance3D.new()
 	var cylinder := CylinderMesh.new()
 	cylinder.top_radius = radius

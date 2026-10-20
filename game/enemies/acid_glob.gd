@@ -79,6 +79,8 @@ func _land() -> void:
 		if gap.length() <= splash_radius + hero.body_radius * 0.5:
 			var result: Dictionary = Combat.resolve(source, hero, damage, Combat.DamageType.FIRE, false, 0.8)
 			result["secondary"] = true
+			result["projectile"] = true
+			result["aoe"] = true   # a splash: never auto-blocked (ShieldGuard)
 			hero.receive(result, to_pos)
 	var zone := HazardZone.new()
 	zone.radius = puddle_radius
