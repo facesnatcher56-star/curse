@@ -155,6 +155,19 @@ static func tooltip_box() -> StyleBoxTexture:
 	style.content_margin_bottom = 42
 	return style
 
+## An item card's panel: near-opaque dark so text never sits on busy scenery, with the theme border (the rarity colour and a glow for the
+## strong rarities: unique, set, legendary). The rarity band across its top is drawn by the card.
+static func card_box(accent: Color = BORDER, strong: bool = false) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.050, 0.040, 0.036, 0.985)
+	style.set_border_width_all(3 if strong else 2)
+	style.border_color = accent.lightened(0.1) if strong else BORDER
+	style.set_corner_radius_all(3)
+	if strong:
+		style.shadow_color = Color(accent.r, accent.g, accent.b, 0.55)
+		style.shadow_size = 12
+	return style
+
 ## Same restrained warm edge for item tiles and hand-drawn hotbar controls.
 static func draw_hover(ci: CanvasItem, rect: Rect2, focused: bool = false) -> void:
 	ci.draw_rect(rect.grow(-1), Color(ACCENT, 0.055))

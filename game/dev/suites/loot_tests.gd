@@ -381,18 +381,18 @@ func _test_item_card() -> void:
 	var downgrade := ItemTile.display_rows(leather, Items.compare(leather, plate, member), member)
 	var armor_row: Dictionary = {}
 	for row in downgrade:
-		if String(row["text"]).begins_with("Armor ") and String(row["text"]).contains("("):
+		if String(row["text"]).begins_with("Armor "):
 			armor_row = row
 	expect("a worse armour shows its change beside the stat: %s" % armor_row.get("text", ""),
-		String(armor_row.get("text", "")).ends_with("(-%d)" % int(float(plate["stats"]["armor"]) - float(leather["stats"]["armor"]))))
-	expect("a detrimental change is drawn red", armor_row.has("color") and (armor_row["color"] as Color).is_equal_approx(ItemTile._delta_color(-1)))
+		String(armor_row.get("delta", "")) == "%s %d" % [Items.DOWN, int(float(plate["stats"]["armor"]) - float(leather["stats"]["armor"]))])
+	expect("a detrimental change is drawn red", armor_row.has("delta_color") and (armor_row["delta_color"] as Color).is_equal_approx(ItemTile._delta_color(-1)))
 	var upgrade := ItemTile.display_rows(plate, Items.compare(plate, leather, member), member)
 	var better: Dictionary = {}
 	for row in upgrade:
 		if String(row["text"]).begins_with("Armor "):
 			better = row
-	expect("a better armour shows a plus beside the stat: %s" % better.get("text", ""), String(better.get("text", "")).contains("(+"))
-	expect("a beneficial change is drawn green", better.has("color") and (better["color"] as Color).is_equal_approx(ItemTile._delta_color(1)))
+	expect("a better armour shows an up arrow beside the stat: %s" % better.get("delta", ""), String(better.get("delta", "")).begins_with(Items.UP))
+	expect("a beneficial change is drawn green", better.has("delta_color") and (better["delta_color"] as Color).is_equal_approx(ItemTile._delta_color(1)))
 	var card := ItemTile.card(plate, leather, true)
 	var card_texts: Array[String] = []
 	for label in card.find_children("*", "Label", true, false):
@@ -431,7 +431,7 @@ func _test_item_card() -> void:
 		not max_compare.any(func(e: Dictionary) -> bool: return String(e["text"]) == "Same as what you wear"))
 	var max_rows := max_compare.filter(func(e: Dictionary) -> bool: return String(e["text"]).begins_with("Maximum fire damage"))
 	expect("the lower maximum is its own row, named and red: %s" % [max_compare],
-		max_rows.size() == 1 and String(max_rows[0]["text"]) == "Maximum fire damage 4 (-2)" and int(max_rows[0]["sign"]) < 0)
+		max_rows.size() == 1 and String(max_rows[0]["text"]) == "Maximum fire damage 4 %s 2" % Items.DOWN and int(max_rows[0]["sign"]) < 0)
 	# A card taller than its safe area scrolls with the mouse wheel: the wheel over the card moves its scroll position.
 	var tile := ItemTile.create(plate, null, 56.0)
 	tile.position = Vector2(120, 120)

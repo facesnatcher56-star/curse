@@ -153,6 +153,23 @@ static func describe(source: String, item_level: float, context: Dictionary) -> 
 	var joiner := " or " if String(result["operator"]) == "or" else " and "
 	return "Requires " + joiner.join(rendered)
 
+## The requirement as a card names it: "Requires Overbear 1 and Melee 5", with no "(have N)". `only_unmet` leaves out the terms the hero already
+## meets (an "or" requirement that is unmet still lists every alternative). "" when the item asks for nothing.
+static func describe_terms(source: String, item_level: float, context: Dictionary, only_unmet: bool = false) -> String:
+	var result := evaluate(source, item_level, context)
+	if not bool(result["valid"]):
+		return "Requires unsupported condition: %s" % String(result["error"])
+	if String(result["operator"]) == "none":
+		return ""
+	var rendered: PackedStringArray = []
+	for detail in result.get("terms", []):
+		if only_unmet and String(result["operator"]) != "or" and bool(detail["met"]):
+			continue
+		rendered.append("%s %s" % [_display_name(String((detail["term"] as Dictionary)["key"]), String((detail["term"] as Dictionary)["kind"])), _format_number(float(detail["required"]))])
+	if rendered.is_empty():
+		return ""
+	return "Requires " + (" or " if String(result["operator"]) == "or" else " and ").join(rendered)
+
 static func _display_name(key: String, kind: String) -> String:
 	if kind == "class":
 		match key:

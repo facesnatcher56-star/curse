@@ -9,12 +9,17 @@ extends RefCounted
 
 ## Each affix is one entry; add more here. Keys read by the affix code: speed (move speed multiplier); shield (fraction of its life it
 ## soaks before taking damage); summon_interval, summon_count, summon_max (adds per cast, seconds between casts, adds alive at once);
-## blast_delay, blast_radius, blast_mult (telegraph seconds, metres, and a multiple of its average blow for the hero).
+## blast_delay, blast_radius, blast_mult (telegraph seconds, metres, and a multiple of its average blow for the hero). `effect` is the one plain
+## line the target banner, the map-mode tooltip and the world marker show for the affix (ONE source; keep it true to the numbers above).
 const AFFIXES := {
-	"fast": {"title": "Swift", "color": Color(0.45, 0.85, 1.0), "speed": 1.5},
-	"shielded": {"title": "Warded", "color": Color(0.6, 0.75, 1.0), "shield": 0.35},
-	"summoner": {"title": "Summoning", "color": Color(0.7, 0.95, 0.35), "summon_interval": 10.0, "summon_count": 2, "summon_max": 4},
-	"explodes": {"title": "Volatile", "color": Color(1.0, 0.55, 0.15), "blast_delay": 1.3, "blast_radius": 3.0, "blast_mult": 1.8},
+	"fast": {"title": "Swift", "color": Color(0.45, 0.85, 1.0), "speed": 1.5,
+		"effect": "Moves 50% faster"},
+	"shielded": {"title": "Warded", "color": Color(0.6, 0.75, 1.0), "shield": 0.35,
+		"effect": "Shield absorbs damage. Break it with powers"},
+	"summoner": {"title": "Summoning", "color": Color(0.7, 0.95, 0.35), "summon_interval": 10.0, "summon_count": 2, "summon_max": 4,
+		"effect": "Calls zombies when the fight starts"},
+	"explodes": {"title": "Volatile", "color": Color(1.0, 0.55, 0.15), "blast_delay": 1.3, "blast_radius": 3.0, "blast_mult": 1.8,
+		"effect": "Explodes when it dies. Step away"},
 }
 
 ## Every champion is tougher than its kind: life and average blow multiplied by these.
@@ -32,6 +37,8 @@ const SUMMON_KIND := "zombie"
 
 var affix_id: String = ""
 var affix: Dictionary = {}
+## Further affixes beyond `affix_id` (a later Curse level may roll 2-3). Display only for now: the banner shows one chip per id in `affix_ids()`.
+var extra_ids: Array = []
 var shield: float = 0.0
 var shield_max: float = 0.0
 var summon_cd: float = 0.0
@@ -43,6 +50,19 @@ var has_summoned: bool = false
 var _bubble: MeshInstance3D = null
 ## Map mode only (MapModeRules): when a power last hit this champion, in MapMode.now() seconds.
 var last_power_hit: float = -1000.0
+
+## Every affix this champion shows, first the one it acts on.
+func affix_ids() -> Array:
+	return [affix_id] + extra_ids
+
+## The effect lines of `ids` as "Title: effect" text, one per line (map-mode tooltip).
+static func effect_text(ids: Array) -> String:
+	var lines: PackedStringArray = []
+	for id in ids:
+		if AFFIXES.has(id):
+			lines.append("%s: %s" % [AFFIXES[id].title, AFFIXES[id].effect])
+	return "
+".join(lines)
 
 ## Rolls one champion for a freshly spawned pack. Returns the champion's enemy, or null when this pack gets none.
 static func roll_pack(members: Array) -> Enemy:

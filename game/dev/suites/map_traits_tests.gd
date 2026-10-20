@@ -160,13 +160,13 @@ func _test_map_traits() -> void:
 	for id in expected_bases:
 		var sample: Dictionary = Items.build(ItemDb.get_def(id), 5, Items.Rarity.NORMAL)
 		var texts: Array = Items.lines(sample)
-		tip_ok = tip_ok and texts.has(MapModeTraits.line_for(id)) and texts.find(MapModeTraits.line_for(id)) == texts.size() - 2   # just above "Item level"
+		tip_ok = tip_ok and texts.has(MapModeTraits.line_for(id)) and (texts.find(MapModeTraits.line_for(id)) == texts.size() - 1 or (texts.find(MapModeTraits.line_for(id)) == texts.size() - 2 and String(texts[-1]).begins_with("Requires")))   # last, or just above the requirement line (the item level is in the card header)
 		var shown := false
 		for row in ItemTile.display_rows(sample, [], "hero"):
 			if row["text"] == MapModeTraits.line_for(id):
 				shown = row["color"] == MapModeTraits.LINE_COLOR
 		colour_ok = colour_ok and shown
-	expect("in map mode each of the 20 cards shows its trait line (above the item level) through the shared tooltip code", tip_ok)
+	expect("in map mode each of the 20 cards shows its trait line (above the requirement) through the shared tooltip code", tip_ok)
 	expect("the shared card builder draws the trait line in its own colour", colour_ok)
 	var no_trait: Dictionary = Items.build(ItemDb.get_def("band"), 8, Items.Rarity.NORMAL)
 	expect("a base without a trait has no extra line in map mode", MapModeTraits.rows_for(no_trait).is_empty())

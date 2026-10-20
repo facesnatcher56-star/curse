@@ -41,6 +41,7 @@ const SUITES := [
 	preload("res://game/dev/suites/hud_tests.gd"),
 	preload("res://game/dev/suites/loot_tests.gd"),
 	preload("res://game/dev/suites/loot_appraisal_tests.gd"),
+	preload("res://game/dev/suites/item_card_tests.gd"),
 	preload("res://game/dev/suites/progression_tests.gd"),
 	preload("res://game/dev/suites/level_up_vfx_tests.gd"),
 	preload("res://game/dev/suites/town_tests.gd"),
@@ -64,6 +65,7 @@ const SUITES := [
 	preload("res://game/dev/suites/barrel_chest_tests.gd"),
 	preload("res://game/dev/suites/champion_tests.gd"),
 	preload("res://game/dev/suites/champion_map_mode_tests.gd"),
+	preload("res://game/dev/suites/champion_affix_tests.gd"),
 	preload("res://game/dev/suites/map_traits_tests.gd"),
 	preload("res://game/dev/suites/power_charge_tests.gd"),
 	preload("res://game/dev/suites/click_band_tests.gd"),
@@ -241,6 +243,7 @@ const ONLY_TESTS := {
 "champions": "_test_champions", "questlogic": "_test_quest_logic", "monsters": "_test_monsters", "dodgecancel": "_test_dodge_cancels_attack", "fireballframes": "_test_fireball_frames", "monsterscene": "_test_monster_scene", "roadrules": "_test_road_rules", "questworld": "_test_quest_world", "lootnames": "_test_loot_names", "hotbar": "_test_hotbar", "knockdown": "_test_knockdown", "world": "_test_world", "townlayout": "_test_town_layout", "crypt": "_test_crypt_road", "weaponstyle": "_test_weapon_styles", "twohand": "_test_two_hand", "fists": "_test_fists", "autoattack": "_test_auto_attack", "items": "_test_items", "itemcard": "_test_item_card", "pickupnotice": "_test_pickup_notice", "swarm": "_test_swarm", "gibs": "_test_gibs",
 	"warden": "_test_warden", "balance": "_test_balance", "enemies": "_test_enemies", "enemyspeed": "_test_enemy_speed", "firstwave": "_test_first_wave", "gamepad": "_test_gamepad", "loading": "_test_loading", "uiblock": "_test_ui_block", "popupclick": "_test_popup_click_through", "behindcam": "_test_hover_behind_camera", "camera": "_test_camera_rotation", "startzoom": "_test_start_zoom", "deathragdoll": "_test_death_ragdoll", "enemyrun": "_test_enemy_run", "padmenus": "_test_pad_menus", "padtarget": "_test_pad_targeting", "padcamera": "_test_pad_camera_and_aim", "pausetest": "_test_pause_stops_game", "swordsound": "_test_sword_sound", "swordair": "_test_sword_miss_in_air", "fireballsound": "_test_fireball_sounds", "impact": "_test_impact", "fireblast": "_test_fire_blast", "loot": "_test_loot", "ownerfb1": "_test_owner_feedback_1", "bodyrecoil": "_test_body_recoil", "minimapfog": "_test_minimap_fog","destructibles": "_test_destructibles", "barrelschests": "_test_barrels_chests", "hitaggro": "_test_hit_aggro", "fireballcancel": "_test_fireball_cancel", "itemicons": "_test_item_icons", "lootui": "_test_loot_ui", "characterui": "_test_character_ui", "orbhud": "_test_orb_hud", "inventoryequip": "_test_inventory_equip", "townsim": "_test_town_sim", "townstate": "_test_town_state", "modifiers": "_test_run_modifiers", "townscene": "_test_town_scene", "hotkeys": "_test_hotkeys", "itemlab": "_test_item_lab", "itemlablayout": "_test_item_lab_layout", "itemlabdropdowns": "_test_item_lab_dropdowns", "equipmentintegration": "_test_equipment_integration",
 "lootappraisal": "_test_loot_appraisal",
+"itemcards": "_test_item_cards",
 "lootrewards": "_test_loot_rewards",
 "runrewards": "_test_run_rewards",
 "questrewards": "_test_quest_and_world_rewards",
@@ -254,7 +257,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits", "mmdrops": "_test_map_drops", "mmequip": "_test_map_equip", "mmroles": "_test_map_mode_roles", "mmrolesbench": "_test_map_mode_roles_bench",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "championaffixchips": "_test_champion_affix_chips", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits", "mmdrops": "_test_map_drops", "mmroles": "_test_map_mode_roles", "mmrolesbench": "_test_map_mode_roles_bench", "mmequip": "_test_map_equip",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus", "mmlegend": "_test_map_legendaries",
@@ -348,6 +351,7 @@ func _run_selftest() -> void:
 	await _run("_test_barrels_chests")
 	await _run("_test_loot_ui")
 	await _run("_test_loot_appraisal")
+	await _run("_test_item_cards")
 	await _run("_test_loot_rewards")
 	await _run("_test_town_sim")
 	await _run("_test_town_state")

@@ -259,6 +259,7 @@ func _draw() -> void:
 	# Small bars over every enemy that has been hurt (and stays hurt), and over the one the pointer is on.
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera != null:
+		_draw_affix_markers(camera, size_px)
 		for node in get_tree().get_nodes_in_group("enemies"):
 			var enemy := node as Actor
 			if enemy == null or enemy.dead or (enemy.health >= enemy.max_health - 0.01 and enemy.bar_timer <= 0.0 and enemy != player.hover_target):
@@ -274,6 +275,10 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(0, 0, 0, 0.85 * alpha))
 			_draw_chip(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w * clampf(enemy.health / enemy.max_health, 0.0, 1.0), 9)), Color(enemy_color, alpha))
+			var ward: Champion = (enemy as Enemy).champion if enemy is Enemy else null
+			if ward != null and ward.shield_max > 0.0:   # the Warded shield: a bright strip on top of the bar, a dark track once broken
+				draw_rect(Rect2(pos + Vector2(0, -4), Vector2(bar_w, 4)), Color(0.02, 0.05, 0.12, 0.85 * alpha))
+				draw_rect(Rect2(pos + Vector2(0, -4), Vector2(bar_w * clampf(ward.shield / ward.shield_max, 0.0, 1.0), 4)), Color(0.55, 0.85, 1.0, alpha))
 			_draw_hit_pulse(pos, bar_w, 9.0, enemy, alpha)
 			draw_rect(Rect2(pos, Vector2(bar_w, 9)), Color(1, 1, 1, 0.4 * alpha), false, 1.0)
 			# The monster's level, small, at the bar's left end (DS2 shows it with the name; here it is always readable over the body).
@@ -590,6 +595,23 @@ func _draw_ds2_runner_bar(size_px: Vector2, x0: float, _y0: float, total: float,
 	draw_arc(medal_pos, 10.5, 0.0, TAU, 28, Color(0.80, 0.64, 0.38, 0.95), 1.5)
 	draw_arc(medal_pos, 7.0, 0.0, TAU, 20, Color(0.55, 0.42, 0.24, 0.8), 1.0)
 	draw_circle(medal_pos, 3.5, Color(0.88, 0.70, 0.40, 0.95))
+
+## A small affix icon over every living champion (hurt or not), above where its overhead bar is, so a champion can be spotted in a pack.
+func _draw_affix_markers(camera: Camera3D, size_px: Vector2) -> void:
+	var radius: float = maxf(9.0, 8.0 / maxf(float(get_window().size.x) / size_px.x, 0.01))
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or enemy.champion == null:
+			continue
+		var head: Vector3 = enemy.get_global_transform_interpolated().origin + Vector3(0, enemy.body_height + 0.25, 0)
+		if camera.is_position_behind(head):
+			continue
+		var screen: Vector2 = camera.unproject_position(head)
+		var ids: Array = enemy.champion.affix_ids()
+		var span: float = radius * 2.4
+		var x0: float = screen.x - span * (ids.size() - 1) * 0.5
+		for i in ids.size():
+			AffixIcon.draw(self, String(ids[i]), Vector2(x0 + span * i, screen.y - 14.0 - radius), radius, Champion.AFFIXES[ids[i]].color)
 
 ## The life a body just lost, trailing behind its bar's fill and draining away (see Actor.chip_health).
 func _draw_chip(pos: Vector2, width: float, height: float, body: Actor, alpha: float) -> void:
