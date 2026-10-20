@@ -26,6 +26,7 @@ const SYNERGIES: Array[Dictionary] = [
 static var rooms: Array[Dictionary] = []
 static var _cur: Dictionary = {}
 static var _last_hp: float = -1.0
+static var _pos: Dictionary = {}   # enemy instance id -> position at the last sample (to tell a stuck one)
 static var _written: bool = false
 
 static func reset() -> void:
@@ -77,16 +78,82 @@ static func room_begin(m: MapMode) -> void:
 			champs += 1
 	_cur = {"kinds": kinds, "enemies": enemies.size(), "champions": champs, "hero_hp_begin": _hp(m.hero), "cutter_hp_begin": _hp(m.companion),
 		"hero_hp_min": _hp(m.hero), "cutter_hp_min": _hp(m.companion), "potions_begin": m.hero.stats.potions, "potions_min": m.hero.stats.potions,
-		"gear": gear_of(m), "dealt_begin": MapAutoTally.dealt_by.duplicate(), "node_kind": m.graph.kind_of(m._visit_node) if m.graph != null and m._visit_node >= 0 else "?"}
+		"gear": gear_of(m), "t0": m.now(), "timeline": [], "dealt_begin": MapAutoTally.dealt_by.duplicate(), "node_kind": m.graph.kind_of(m._visit_node) if m.graph != null and m._visit_node >= 0 else "?"}
 	MapAutoTally.take_hurt()
 
 ## About once a second during a fight.
-static func sample(m: MapMode) -> void:
+## Returns true when the fight is hung (no enemy has died for HANG_SECONDS): the report is written and the caller quits, so no window is left hanging.
+static func sample(m: MapMode) -> bool:
 	if _cur.is_empty():
-		return
+		return false
+	var t: float = m.now() - float(_cur.get("t0", m.now()))
+	if not _cur.has("cutter_dead_t") and is_instance_valid(m.companion) and m.companion.dead:
+		_cur["cutter_dead_t"] = t
+	var alive: Array[Enemy] = m.fight_enemies()
+	var seen_now: Dictionary = {}
+	var who: PackedStringArray = []
+	for e in alive:
+		var moved: float = e.global_position.distance_to(_pos.get(e.get_instance_id(), e.global_position))
+		seen_now[e.get_instance_id()] = e.global_position
+		who.append("%s d=%.1f mv=%.1f hp=%.0f" % [e.variant, e.flat_distance_to(m.hero), moved, e.health])
+	_pos = seen_now
+	_cur["last"] = "hero %.0f%%, Cutter %.0f%%, alive: %s" % [_hp(m.hero) * 100.0, _hp(m.companion) * 100.0, "; ".join(who)]
+	if int(t / 10.0) >= (_cur["timeline"] as Array).size():
+		(_cur["timeline"] as Array).append("%ds: %d alive, hero %.0f%%, Cutter %.0f%%, hero target %s, hero busy %s; %s" % [int(t), alive.size(), _hp(m.hero) * 100.0, _hp(m.companion) * 100.0,
+			(m.hero.attack_target.variant if m.hero.attack_target is Enemy else "none"), m.hero.skills.busy, "; ".join(who)])
 	_cur["hero_hp_min"] = minf(float(_cur["hero_hp_min"]), _hp(m.hero))
 	_cur["cutter_hp_min"] = minf(float(_cur["cutter_hp_min"]), _hp(m.companion))
 	_cur["potions_min"] = mini(int(_cur["potions_min"]), m.hero.stats.potions)
+	if alive.size() < int(_cur.get("alive_min", 999)):
+		_cur["alive_min"] = alive.size()
+		_cur["alive_min_t"] = t
+	var stuck_for: float = t - float(_cur.get("alive_min_t", 0.0))
+	if stuck_for > 60.0 and t - float(_cur.get("dump_t", -99.0)) > 60.0:
+		_cur["dump_t"] = t
+		dump_frozen(m)
+	if stuck_for > HANG_SECONDS:
+		print("[mapmode] HUNG: no enemy died for %d s; aborting the run" % int(stuck_for))
+		room_died(m)
+		finish(m._auto_dir, "HUNG fight (no kill for %d s) - stopped by the watchdog" % int(stuck_for), m)
+		return true
+	return false
+
+## Everything that tells why an enemy does not act: processing flags, velocity, target, behaviour state. Printed and kept in the room record.
+static func dump_frozen(m: MapMode) -> void:
+	var lines: PackedStringArray = []
+	for e in m.fight_enemies():
+		var beh: Variant = e.behavior
+		lines.append("%s#%d phys=%s proc=%s mode=%d in_tree=%s vel=%s target=%s tdist=%.1f aggro=%s dormant=%s stun=%.1f attacking=%s beh=%s state=%s active=%s alert=%.1f layer=%d mask=%d hp=%.0f pos=%s" % [
+			e.variant, e.get_instance_id() % 10000, e.is_physics_processing(), e.is_processing(), e.process_mode, e.is_inside_tree(), e.velocity,
+			(e.target.name if e.target != null else "none"), e.flat_distance_to(e.target) if e.target != null else -1.0, e.is_aggro(), e.dormant, e.stun_time, e._attacking,
+			beh.get_class() if beh != null else "null", beh.get("_state") if beh != null else "-", beh.get("_active") if beh != null else "-", e.alert_delay,
+			e.collision_layer, e.collision_mask, e.health, e.global_position])
+	for b in [m.hero, m.companion]:
+		if is_instance_valid(b):
+			lines.append("%s phys=%s dead=%s busy=%s vel=%s target=%s goal=%s pos=%s hp=%.0f" % [b.member_id, b.is_physics_processing(), b.dead, b.skills.busy, b.velocity,
+				(b.attack_target.variant if b.attack_target is Enemy else "none"), b.movement.has_goal, b.global_position, b.health])
+	for b in [m.hero, m.companion]:
+		if is_instance_valid(b) and b.attack_target is Actor:
+			var t: Actor = b.attack_target
+			var map: RID = Nav.map_of(b)
+			var path: PackedVector3Array = NavigationServer3D.map_get_path(map, b.global_position, t.global_position, true)
+			lines.append("%s -> %s: goal=%s dist=%.1f nav_path_points=%d path_end_gap=%.1f line_clear=%s target_off_navmesh=%.1f self_off_navmesh=%.1f nav_ready=%s" % [b.member_id, t.name,
+				b.movement.goal, b.flat_distance_to(t), path.size(), (path[-1].distance_to(t.global_position) if path.size() > 0 else -1.0), Nav.line_clear(b, t.global_position),
+				NavigationServer3D.map_get_closest_point(map, t.global_position).distance_to(t.global_position), NavigationServer3D.map_get_closest_point(map, b.global_position).distance_to(b.global_position), Nav.ready(b)])
+	for b in [m.hero, m.companion]:
+		if is_instance_valid(b):
+			var st: Dictionary = b.movement._nav_state
+			var path: PackedVector3Array = st.get("path", PackedVector3Array())
+			var idx: int = mini(int(st.get("index", 0)), maxi(path.size() - 1, 0))
+			var route: Dictionary = Nav.route(b, b.movement.goal, st.duplicate(true), 0.0)
+			lines.append("%s nav_state: route_status=%d (0 following? see Nav.Status) path=%d index=%d next=%s clearance_to_next=%s failed_time=%.1f failed_replans=%s blocked=%s queries=%s pending=%d" % [b.member_id,
+				int(route["status"]), path.size(), idx, str(path[idx]) if path.size() > 0 else "-", Nav.clearance(b, b.global_position, path[idx]) if path.size() > 0 else "-",
+				float(st.get("failed_time", 0.0)), st.get("failed_replans", 0), st.get("blocked", false), st.get("queries", 0), Nav._pending.size()])
+	for l in lines:
+		print("[mapmode] FROZEN-DUMP " + l)
+	(_cur["timeline"] as Array).append("DUMP: " + " || ".join(lines))
+
+const HANG_SECONDS := 150.0
 
 ## Any visit ends (MapMode._begin_collect). `row` is the fight-log row ({} for a chest or shrine without a fight).
 static func room_end(m: MapMode, row: Dictionary) -> void:
@@ -115,6 +182,8 @@ static func room_end(m: MapMode, row: Dictionary) -> void:
 	rec["cutter_dead"] = m.companion.dead
 	if not rec.has("gear"):
 		rec["gear"] = gear_of(m)
+		rec["hero_hp_begin"] = _last_hp if _last_hp >= 0.0 else rec["hero_hp_end"]
+		rec["cutter_hp_begin"] = rec["cutter_hp_end"]
 	rec["hero_hp_at_arrival"] = _last_hp
 	_last_hp = rec["hero_hp_end"]
 	rooms.append(rec)
@@ -144,6 +213,8 @@ static func room_died(m: MapMode) -> void:
 	rec["cutter_hp_end"] = 0.0
 	rec["potions_end"] = m.hero.stats.potions if is_instance_valid(m.hero) else 0
 	rec["cutter_dead"] = true
+	rec["hero_hp_end"] = 0.0
+	(rec["timeline"] as Array).append("last sample: " + String(rec.get("last", "?")))
 	rooms.append(rec)
 	print("[mapmode] ROOM %d %s: hurt by %s, hero min hp %.0f%%, cutter min hp %.0f%%" % [rooms.size(), rec["group"], rec["hurt_by"], float(rec.get("hero_hp_min", 0.0)) * 100.0, float(rec.get("cutter_hp_min", 0.0)) * 100.0])
 
@@ -235,7 +306,7 @@ static func build(outcome: String, m: Variant = null) -> String:
 				if _worn_together([t]).is_empty():
 					if dropped.has(t):
 						var e: Dictionary = (dropped[t] as Array)[0]
-						why.append("%s dropped (%s) but never worn: %s" % [t, e["name"], e["reason"]])
+						why.append("%s dropped (%s) but %s" % [t, e["name"], ("worn only outside a fight (after the last clear)" if String(e["who"]) != "" else "never worn: " + String(e["reason"]))])
 					else:
 						why.append("%s never dropped" % t)
 			if primary_rooms.is_empty() == false and why.is_empty():
@@ -294,14 +365,14 @@ static func build(outcome: String, m: Variant = null) -> String:
 	L.append("")
 	# Rooms
 	L.append("## Rooms")
-	L.append("| # | room | enemies | hero/cutter lvl | hp begin/min/end | cutter min | potions | length | damage taken | hurt by |")
+	L.append("| # | room | enemies | hero/cutter lvl | hero hp begin/min/end | cutter hp begin/min/end | potions | length | damage taken | hurt by |")
 	L.append("|---|---|---|---|---|---|---|---|---|---|")
 	var i: int = 0
 	for r in rooms:
 		i += 1
-		L.append("| %d | %s (%s) | %s | %d/%d | %.0f%%/%.0f%%/%.0f%% | %.0f%% | %s->%s | %.1fs | %.0f | %s |" % [i, r["group"], r["visit"], _fmt_map(r.get("kinds", {})) + (" +%d champion" % int(r.get("champions", 0)) if int(r.get("champions", 0)) > 0 else ""),
+		L.append("| %d | %s (%s) | %s | %d/%d | %.0f%%/%.0f%%/%.0f%% | %.0f%%/%.0f%%/%.0f%% | %s->%s | %.1fs | %.0f | %s |" % [i, r["group"], r["visit"], _fmt_map(r.get("kinds", {})) + (" +%d champion" % int(r.get("champions", 0)) if int(r.get("champions", 0)) > 0 else ""),
 			int(r["hero_level"]), int(r["cutter_level"]), float(r.get("hero_hp_begin", r["hero_hp_end"])) * 100.0, float(r.get("hero_hp_min", r["hero_hp_end"])) * 100.0, float(r["hero_hp_end"]) * 100.0,
-			float(r.get("cutter_hp_min", r["cutter_hp_end"])) * 100.0, r.get("potions_begin", "-"), r["potions_end"], float(r["length_s"]), float(r["damage_taken"]), _fmt_map(r["hurt_by"])])
+			float(r.get("cutter_hp_begin", r["cutter_hp_end"])) * 100.0, float(r.get("cutter_hp_min", r["cutter_hp_end"])) * 100.0, float(r["cutter_hp_end"]) * 100.0, r.get("potions_begin", "-"), r["potions_end"], float(r["length_s"]), float(r["damage_taken"]), _fmt_map(r["hurt_by"])])
 	L.append("")
 	var normal: Array = []
 	var champ: Array = []
@@ -317,7 +388,14 @@ static func build(outcome: String, m: Variant = null) -> String:
 	for r in rooms:
 		i += 1
 		var g: Dictionary = r.get("gear", {})
-		L.append("- %d %s: hero %s | cutter %s" % [i, r["group"], g.get("hero", {}).get("items", []), g.get("cutter", {}).get("items", [])])
+		L.append("- %d %s: hero %s | cutter %s" % [i, r["group"], ", ".join(g.get("hero", {}).get("items", [])), ", ".join(g.get("cutter", {}).get("items", []))])
+		if r.has("cutter_dead_t"):
+			L.append("  - the Cutter died %ds into this fight" % int(r["cutter_dead_t"]))
+		if float(r.get("length_s", 0.0)) > 30.0:
+			var tls: Array = r.get("timeline", [])
+			for k in tls.size():
+				if k % 3 == 0 or k >= tls.size() - 1:
+					L.append("  - " + String(tls[k]))
 	L.append("")
 	L.append("## Hurt by (whole run; * = champion)")
 	L.append("- " + _fmt_map(MapAutoTally.hurt_total))

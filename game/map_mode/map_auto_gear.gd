@@ -48,7 +48,7 @@ static func verdict(item: Dictionary, body: Player, place: int) -> Dictionary:
 			continue
 		lines.append("%s %s" % [line["text"], "(better)" if int(line["sign"]) > 0 else ("(worse)" if int(line["sign"]) < 0 else "")])
 		balance += int(line["sign"])
-	return {"balance": balance, "lines": lines, "vs": String(body.stats.equipment[place].get("name", "?"))}
+	return {"balance": balance, "lines": lines, "vs": String(body.stats.equipment[place].get("name", "?")), "vs_item": body.stats.equipment[place]}
 
 ## Runs after `MapMode._collect_rewards`: logs what the pickups wore at once, then equips bag upgrades until none is left. `rows` are the loot
 ## summary rows (HudLootCards.summary_rows) of this clear. Returns the equip records made (also in `equips` and the fight log).
@@ -150,10 +150,22 @@ static func _record(item: Dictionary, body: Player, place: int, v: Dictionary, h
 	seen[k]["reason"] = "worn"
 	var rec: Dictionary = _entry(item, how)
 	rec.merge({"who": body.display_name, "member": body.member_id, "place": place, "how": how, "replaces": String(v.get("vs", "")),
-		"lines": v.get("lines", []), "balance": int(v.get("balance", 0)), "hero_level": body.character.level}, true)
+		"lines": v.get("lines", []), "balance": int(v.get("balance", 0)), "hero_level": body.character.level, "lost": _lost_effects(v.get("vs_item"), item)}, true)
 	return rec
+
+## The trait or legendary effects the replaced piece carried that the new one does not (the comparison counts stat lines, not effects).
+static func _lost_effects(old: Variant, new: Dictionary) -> String:
+	if not old is Dictionary:
+		return ""
+	var gone: PackedStringArray = []
+	for key in ["trait", "legendary"]:
+		var o: String = String(MapModeTraits.trait_of(old).get("id", "")) if key == "trait" else MapModeLegendaries.id_of(old)
+		var n: String = String(MapModeTraits.trait_of(new).get("id", "")) if key == "trait" else MapModeLegendaries.id_of(new)
+		if o != "" and o != n:
+			gone.append(o)
+	return ", ".join(gone)
 
 static func line_of(rec: Dictionary) -> String:
 	var replaces: String = String(rec.get("replaces", ""))
-	return "[mapmode] EQUIP %s (%s, %s) on %s: %s%s; why: %s (balance %+d)" % [rec["name"], rec["rarity"], rec["slot"], rec["who"], rec["how"],
-		(", replaces " + replaces) if replaces != "" else "", ", ".join(rec["lines"]), int(rec["balance"])]
+	return "[mapmode] EQUIP %s (%s, %s) on %s (level %d): %s%s; why: %s (balance %+d)" % [rec["name"], rec["rarity"], rec["slot"], rec["who"], int(rec.get("hero_level", 0)), rec["how"],
+		(", replaces " + replaces) if replaces != "" else "", ", ".join(rec["lines"]), int(rec["balance"])] 		+ ((" [drops effect: %s]" % rec["lost"]) if String(rec.get("lost", "")) != "" else "")

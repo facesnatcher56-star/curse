@@ -468,7 +468,9 @@ func _auto_pick() -> void:
 		await get_tree().create_timer(1.5).timeout
 		await _shot("fight")
 		while state == State.FIGHT:   # powers on whatever the hero is hitting, once a second
-			MapAutoReport.sample(self)
+			if MapAutoReport.sample(self):
+				get_tree().quit()
+				return
 			for i in MapAutoPowers.fire(hero, companion, hero.attack_target):
 				log.note_power("auto")
 			if hero.health < hero.max_health * 0.5 and hero.stats.potions > 0:
