@@ -121,12 +121,12 @@ func _guards_and_labels() -> void:
 				var centre: Vector2 = n["pos"]
 				var spot := Vector2(chest.position.x, chest.position.z)
 				var dist: float = centre.distance_to(spot)
-				behind_ok = behind_ok and dist >= 5.0 and dist <= 13.0 and _in_room(id, spot)
+				behind_ok = behind_ok and dist >= 1.5 and dist <= 3.0 and _in_room(id, spot)
 		elif not (String(n["kind"]) in ["start", "shrine"]):
 			labels_ok = labels_ok and label.contains(String(plan["title"]))
 	expect("each chest guard has its Chest in the dungeon at spawn, of the planned kind (%d chests)" % chest_n, fixed_ok and chest_n >= 5)
 	expect("the node map's label names that kind: Guards: Iron chest, a shrine, a pile of gold ... (also after a new run seed)", labels_ok and snapshot == JSON.stringify(dungeon.node_plans))
-	expect("a group's chest stands 5 to 13 m behind it, inside its room", behind_ok)
+	expect("a group's chest stands 2 m behind it, inside its room", behind_ok)
 	var marker_ok: bool = false
 	for mk in m._graph_markers():
 		marker_ok = marker_ok or (String(mk["guard"]) != "" and mk["state"] == "reachable")
@@ -556,3 +556,87 @@ func _run_pays_out() -> void:
 	MapDrops.run_seed = 0
 	cutter.testing_disabled = cutter_was_disabled
 	expect("map mode is off again at the end", not MapMode.active and not MapDrops.enabled())
+
+
+# --- Developer capture (`-- --mmlootshot=<dir>`, 1080p on the second monitor): what the drop model looks like with the full HUD --------------
+
+func _shot(dir: String, label: String) -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, label])
+	print("[mmlootshot] ", label)
+
+
+func _map_loot_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	MapDrops.forced = true
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await _frames(3)
+	# 1. The node map with the chest kinds named in the tooltips.
+	var cutter: Player = game.companion
+	var m := MapMode.new()
+	var g: MapGraph = MapGraph.from_layout()
+	m.use_graph(g, {})
+	game.add_child(m)
+	m.setup(player, cutter, hud)
+	await _wait_state(m, MapMode.State.MAP, 200)
+	for id in [0, 1, 3, 4, 6, 9, 10, 14]:
+		g.mark_cleared(id)
+	m.overlay.open(m.markers(), Vector3.ZERO, false)
+	for id in [8, 12, 11, 13]:
+		m.overlay._focus = id
+		m.overlay._focus_shown = true
+		m.overlay.queue_redraw()
+		await _frames(4)
+		await _shot(dir, "map_node_%d" % id)
+	m.overlay.close()
+	m.queue_free()
+	await _frames(4)
+	# 2. The five chests, closed; then the Boss Hoard open (lid and spray).
+	var base: Vector3 = Nav.snap(player, player.global_position)
+	player.global_position = base
+	cutter.global_position = Nav.snap(player, base + Vector3(-2.5, 0.0, 1.5))
+	var kinds: Array[String] = ["wooden", "iron", "gilded", "cursed", "hoard"]
+	var chests: Array[Chest] = []
+	for i in kinds.size():
+		var chest := Chest.create(kinds[i], 4)
+		game.add_child(chest)
+		chest.global_position = Nav.snap(player, base + Vector3(-4.0 + 2.8 * float(i), 0.0, -3.0))
+		chest.rotation.y = PI
+		chests.append(chest)
+		var tag := Label3D.new()   # names the kind in the capture
+		tag.text = kinds[i].capitalize()
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.pixel_size = 0.006
+		tag.no_depth_test = true
+		tag.outline_size = 12
+		game.add_child(tag)
+		tag.global_position = chest.global_position + Vector3(0.0, 2.2, 0.0)
+	await _frames(20)
+	await _shot(dir, "chests_closed")
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	chests[4].open()
+	await get_tree().create_timer(0.35).timeout
+	await _shot(dir, "hoard_opening")
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "hoard_open")
+	# 3. The loot summary for it, then with the inventory open.
+	var tally := {"gold": 148, "health": 1, "mana": 0, "items": []}
+	for node in get_tree().get_nodes_in_group("loot"):
+		var drop := node as LootDrop
+		if drop != null:
+			(tally["items"] as Array).append(drop.item)
+	var rows: Array[Dictionary] = HudLootCards.summary_rows(tally, [player, cutter])
+	hud.loot_cards.show_summary("The Warden's Court", tally, rows, 600.0)
+	await _frames(6)
+	await _shot(dir, "summary_hoard")
+	hud._open_character()
+	await _frames(8)
+	await _shot(dir, "inventory_open_over_summary")
+	hud.close_character()
+	await _frames(6)
+	await _shot(dir, "summary_after_inventory_closed")
+	hud.loot_cards.hide_summary()
+	MapDrops.forced = false
+	get_tree().quit()

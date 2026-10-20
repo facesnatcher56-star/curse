@@ -257,11 +257,13 @@ func _draw_summary(size_px: Vector2, font: Font) -> void:
 	if Time.get_ticks_msec() > int(summary["until_ms"]):
 		hide_summary()
 		return
+	if hud.show_gear:   # the inventory or character screen is open: they show the same items, and nothing is drawn under them
+		return
 	var rows: Array = summary["rows"]
 	var pad := 16.0
 	var head_h := 58.0
 	var height: float = pad * 2.0 + head_h + SUMMARY_ROW * float(maxi(rows.size(), 1))
-	var origin := Vector2((size_px.x - SUMMARY_WIDTH) * 0.5, clampf(size_px.y * 0.2, 120.0, maxf(size_px.y - height - 160.0, 120.0)))
+	var origin := Vector2((size_px.x - SUMMARY_WIDTH) * 0.5, clampf(size_px.y * 0.12, 100.0, maxf(size_px.y - height - 160.0, 100.0)))
 	summary_rect = Rect2(origin, Vector2(SUMMARY_WIDTH, height))
 	hud.draw_set_transform(origin, 0.0, Vector2.ONE)
 	UiTheme.draw_panel(hud, Rect2(Vector2.ZERO, summary_rect.size), 0.97)

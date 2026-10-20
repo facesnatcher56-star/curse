@@ -99,7 +99,7 @@ func _user_arg_value(prefix: String) -> String:
 ## Returns true when a developer mode was started (so Main should not begin a normal run).
 func run_from_args() -> bool:
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().is_empty():
-		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--startbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture"):
+		if _user_arg_value("--levelupcapture=") != "" or _user_arg_value("--meleecapture=") != "" or OS.get_cmdline_user_args().has("--powerbarcapture") or OS.get_cmdline_user_args().has("--startbarcapture") or OS.get_cmdline_user_args().has("--damagecapture") or OS.get_cmdline_user_args().has("--brutalcrimsoncapture") or OS.get_cmdline_user_args().has("--takeaimcapture") or OS.get_cmdline_user_args().has("--whirlingcapture") or OS.get_cmdline_user_args().has("--takeaimlethal") or OS.get_cmdline_user_args().has("--thunderouscapture") or _user_arg_value("--mmlootshot=") != "":
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_size(Vector2i(1920, 1080))
 			if DisplayServer.get_screen_count() > 1:
@@ -112,7 +112,9 @@ func run_from_args() -> bool:
 			DisplayServer.window_set_size(Vector2i(1280, 720))
 			DisplayServer.window_set_position(DisplayServer.screen_get_position(1) + Vector2i(120, 100))
 		print("DEV_WINDOW screen=", DisplayServer.window_get_current_screen(), " position=", DisplayServer.window_get_position())
-	if OS.get_cmdline_user_args().has("--wardenshot"):
+	if _user_arg_value("--mmlootshot=") != "":
+		_run("_map_loot_shot", [_user_arg_value("--mmlootshot=")])
+	elif OS.get_cmdline_user_args().has("--wardenshot"):
 		_run("_warden_shots")
 	elif OS.get_cmdline_user_args().has("--skillshot=fireball"):
 		_run("_skill_shots", ["fireball"])

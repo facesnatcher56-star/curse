@@ -88,19 +88,17 @@ func _apply_guard_look() -> void:
 	var tint: Color = MapDrops.guard_color(guard)
 	var def: Dictionary = (MapDrops.T.guards as Dictionary).get(guard, {})
 	scale = Vector3.ONE * float(def.get("scale", 1.0))
-	if guard == "wooden":
-		return
 	for node in find_children("*", "MeshInstance3D", true, false):
 		var mesh: Mesh = (node as MeshInstance3D).mesh
 		for i in mesh.get_surface_count():
 			var mat := mesh.surface_get_material(i) as BaseMaterial3D
 			if mat != null:
 				var copy := mat.duplicate() as BaseMaterial3D
-				copy.albedo_color = copy.albedo_color * tint.lerp(Color.WHITE, 0.25)
-				if guard in ["gilded", "cursed", "hoard"]:
-					copy.emission_enabled = true
-					copy.emission = tint
-					copy.emission_energy_multiplier = 0.25 if guard == "gilded" else 0.5
+				copy.metallic = minf(copy.metallic, 0.12 if guard in ["wooden", "iron"] else 0.25)   # a metal chest is black without reflections to show
+				copy.albedo_color = copy.albedo_color.lerp(tint, 0.6)   # toward the kind's colour; the model's own shading still shows
+				copy.emission_enabled = true   # a little glow in the kind's colour so the dark body reads
+				copy.emission = tint
+				copy.emission_energy_multiplier = {"wooden": 0.12, "iron": 0.12, "gilded": 0.14}.get(guard, 0.22)
 				(node as MeshInstance3D).set_surface_override_material(i, copy)
 	if guard in ["cursed", "hoard", "gilded"]:
 		var light := OmniLight3D.new()

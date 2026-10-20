@@ -151,6 +151,8 @@ func _physics_process(delta: float) -> void:
 					var rows: Array[Dictionary] = HudLootCards.summary_rows(loot_tally, [hero, companion])   # compared before anything is worn
 					_collect_rewards()
 					_summary_up = _show_loot_summary(rows)
+					if _summary_up and _auto_dir != "":
+						_shot_later(0.4, "summary")
 					if _summary_up:
 						_collect_clock = float(MapDrops.T.summary_seconds)
 						return
@@ -430,7 +432,6 @@ func _finish_run() -> void:
 ## The developer autoplay: shoot the map, pick the nearest marker, shoot the dash and the fight, fire a power, repeat until nothing is left.
 func _auto_pick() -> void:
 	await get_tree().create_timer(0.8).timeout
-	await _shot("map")
 	var best: Dictionary = {}
 	var best_hops: int = 1 << 30
 	var hops: Dictionary = _hops_to_boss()
@@ -447,6 +448,10 @@ func _auto_pick() -> void:
 			best_hops = h
 	if best.is_empty():
 		return
+	overlay._focus = int(best["id"])   # the tooltip of the node about to be picked is in the map shot (what it guards)
+	overlay._focus_shown = true
+	overlay.queue_redraw()
+	await _shot("map")
 	select_marker(int(best["id"]))
 	await get_tree().create_timer(0.45).timeout
 	await _shot("dash")
@@ -500,6 +505,10 @@ func _hops_to_boss() -> Dictionary:
 func _wait_fight() -> void:
 	while state == State.DASH:
 		await get_tree().physics_frame
+
+func _shot_later(delay: float, label: String) -> void:
+	await get_tree().create_timer(delay).timeout
+	await _shot(label)
 
 func _shot(label: String) -> void:
 	await RenderingServer.frame_post_draw
@@ -802,6 +811,7 @@ func _begin_collect() -> void:
 		current_node = _visit_node
 	if _auto_dir != "":
 		_shot("clear")
+		_shot_later(0.8, "chest_open")
 	state = State.COLLECT
 	_collect_clock = COLLECT_DELAY if _visit_kind not in ["loot", "revisit"] else 0.1
 
@@ -862,6 +872,9 @@ func _settle_guard() -> void:
 				get_tree().current_scene.add_child(chest)
 				chest.global_position = Vector3(graph.pos_of(_visit_node).x, 0.0, graph.pos_of(_visit_node).y)
 				node_chests[_visit_node] = chest
+			if _auto_dir != "":
+				var cam: Camera3D = get_viewport().get_camera_3d()
+				print("[mapmode] chest %s at %s hero %s screen %s" % [plan["guard"], chest.global_position, hero.global_position, cam.unproject_position(chest.global_position)])
 			chest.open()
 
 ## Every cleared node pays at least gold, and an item or a potion: what the fight and the guard did not give is added.

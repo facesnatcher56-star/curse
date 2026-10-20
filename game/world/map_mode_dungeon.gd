@@ -145,7 +145,7 @@ func _stage_of(id: int) -> int:
 
 
 ## World (x, z) of a group's chest: against the far wall of its room, on the side away from the way in (the corridor that leads back toward the
-## start), 6 to 12 m behind the group's centre.
+## start), 2 m behind the group's centre: further back it is off the top of the screen when the party fights (see the comment below).
 static func guard_chest_spot(id: int) -> Vector2:
 	var node: Dictionary = {}
 	for n in MapModeLayout.NODES:
@@ -181,8 +181,6 @@ static func guard_chest_spot(id: int) -> Vector2:
 			best_hops = int(hops.get(other, 1 << 29))
 			best_toward = (next - centre).normalized()
 	var back: Vector2 = -best_toward
-	var rect: Array = node["rect"]
-	var half: float = (float(rect[2] - rect[0] + 1) if absf(back.x) > absf(back.y) else float(rect[3] - rect[1] + 1)) * 0.5
-	var cells: float = clampf(half - 1.5, 1.5, 3.0)
+	var cells: float = 0.5   # 2 m: the party fights 6 m short of the group's centre and the camera shows about 9 m ahead of it
 	var cell: Vector2 = centre + back * cells
 	return MapModeLayout.world(cell.x, cell.y)
