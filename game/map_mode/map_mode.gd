@@ -119,6 +119,8 @@ func _exit_tree() -> void:
 		print("[mapmode] RUN ENDED EARLY: the scene changed (party dead: %s) after %d fights" % [hero != null and is_instance_valid(hero) and hero.dead, log.fights.size()])
 		for line in log.summary_lines():
 			print(line)
+		MapAutoReport.room_died(self)
+		MapAutoReport.finish(_auto_dir, "RUN ENDED EARLY (party dead)")
 		if is_inside_tree():
 			get_tree().quit()
 
@@ -127,6 +129,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mapmode-auto="):
 			_auto_dir = arg.substr(15)
+			MapAutoReport.reset()
+			MapAutoTally.enabled = true   # dev counters for the synergy report (inert without the autoplay)
 			DirAccess.make_dir_recursive_absolute(_auto_dir)
 			_auto_started_ms = Time.get_ticks_msec()
 			_force_1080p()
@@ -153,7 +157,10 @@ func _physics_process(delta: float) -> void:
 				if not _rewards_collected and _visit_kind != "revisit":
 					_rewards_collected = true
 					var rows: Array[Dictionary] = HudLootCards.summary_rows(loot_tally, [hero, companion])   # compared before anything is worn
+					var worn_before: Dictionary = MapAutoGear.snapshot([hero, companion]) if _auto_dir != "" else {}
 					_collect_rewards()
+					if _auto_dir != "":
+						MapAutoGear.process(self, worn_before, rows)   # autoplay only: wear every upgrade (the shared comparison decides)
 					_summary_up = _show_loot_summary(rows)
 					if _summary_up and _auto_dir != "":
 						_shot_later(1.2, "summary")   # (after the map has reopened: the card shows over it)
@@ -425,6 +432,7 @@ func _finish_run() -> void:
 	print("Run complete: %d of %d nodes cleared" % [graph.cleared.size(), graph.nodes.size()])
 	hero.say_banner("Run complete")
 	if _auto_dir != "":
+		MapAutoReport.finish(_auto_dir, "Run complete", self)
 		await get_tree().create_timer(1.5).timeout
 		await _shot("run_complete")
 		get_tree().quit()
@@ -457,9 +465,13 @@ func _auto_pick() -> void:
 	await _shot("dash")
 	await _wait_fight()
 	if state == State.FIGHT:
+		MapAutoReport.room_begin(self)
 		await get_tree().create_timer(1.5).timeout
 		await _shot("fight")
 		while state == State.FIGHT:   # powers on whatever the hero is hitting, once a second
+			if MapAutoReport.sample(self):
+				get_tree().quit()
+				return
 			for i in MapAutoPowers.fire(hero, companion, hero.attack_target):
 				log.note_power("auto")
 			if hero.health < hero.max_health * 0.5 and hero.stats.potions > 0:
@@ -471,6 +483,7 @@ func _auto_pick() -> void:
 	if Time.get_ticks_msec() - _auto_started_ms > 900000:
 		for line in log.summary_lines():
 			print(line)
+		MapAutoReport.finish(_auto_dir, "time cap", self)
 		get_tree().quit()
 
 ## Autoplay only: the dev harness sizes the window 1280x720; the screenshots must be 1920x1080 on the second monitor.
@@ -854,6 +867,7 @@ func _begin_collect() -> void:
 		graph.mark_cleared(_visit_node)   # a group is cleared, a chest opened, a shrine used: the nodes behind it come into view
 		current_node = _visit_node
 	if _auto_dir != "":
+		MapAutoReport.room_end(self, row)
 		_shot("clear")
 		_shot_later(0.8, "chest_open")
 	state = State.COLLECT

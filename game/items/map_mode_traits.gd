@@ -152,11 +152,14 @@ static func recharge_bonus(body: Player) -> float:
 ## Power damage in percent (PlayerStats.power_damage_mult): the Woven Hood after a dash.
 static func power_damage_bonus(body: Player) -> float:
 	if MapMode.active and now() < float(_st(body)["power_until"]):
+		MapAutoTally.note("hood_power_query")
 		return value(body, "hood_power", "power")
 	return 0.0
 
 ## Stun duration multiplier on the hero (Player._gain_stun).
 static func stun_mult(body: Player) -> float:
+	if value(body, "helm_stun", "pct") > 0.0:
+		MapAutoTally.note("helm_stun_hit")
 	return maxf(1.0 - value(body, "helm_stun", "pct") / 100.0, 0.1)
 
 ## Opening chance in percent on top of the passive's (Openings.spot_chance), and against one target (Openings.on_melee_hit).
@@ -165,11 +168,15 @@ static func opening_bonus(body: Player) -> float:
 
 static func opening_bonus_vs(body: Player, target: Actor) -> float:
 	if target is Enemy and (target as Enemy).champion != null:
+		if value(body, "studded_champions", "opening") > 0.0:
+			MapAutoTally.note("studded_champion_roll")
 		return value(body, "studded_champions", "opening")
 	return 0.0
 
 ## An Opening execution's extra damage in percent (Openings.damage_bonus).
 static func execution_bonus(body: Player) -> float:
+	if value(body, "gauntlets_execute", "pct") > 0.0:
+		MapAutoTally.note("gauntlets_execution")
 	return value(body, "gauntlets_execute", "pct")
 
 ## Dash time divisor of the party (the best dash speed among the members).
@@ -199,17 +206,24 @@ static func modify_hit(target: Actor, result: Dictionary) -> Dictionary:
 	if not source is Player or int(result.get("outcome", 0)) < Combat.Outcome.HIT or float(result.get("damage", 0.0)) <= 0.0:
 		return result
 	var body: Player = source as Player
+	MapAutoTally.dealt(body.member_id, String(result.get("skill_id", "?")), float(result.get("damage", 0.0)))   # (dev autoplay counters; inert otherwise)
 	var pct: float = 0.0
 	if target.has_meta(MARK_META):
 		var mark: Dictionary = target.get_meta(MARK_META)
 		if now() < float(mark["until"]):
 			pct += gear(body, "marked_damage")
+			if gear(body, "marked_damage") > 0.0:
+				MapAutoTally.note("affix_marked_damage", float(result["damage"]) * gear(body, "marked_damage") / 100.0)
 			if String(mark["by"]) != body.member_id and body.member_id == "hero":   # the bonus is the warrior's only (owner decision)
 				pct += float(mark["pct"])
+				MapAutoTally.note("bow_mark_bonus", float(result["damage"]) * float(mark["pct"]) / 100.0)
+			elif String(mark["by"]) != body.member_id:
+				MapAutoTally.note("bow_mark_denied_to_cutter")   # the Cutter hit a mark the hero made: no bonus (warrior only)
 	if pct > 0.0:
 		result["damage"] = float(result["damage"]) * (1.0 + pct / 100.0)
 	if is_auto(result) and int(result["outcome"]) == Combat.Outcome.HIT and has(body, "dagger_swift") and _open_on(target):
 		result["outcome"] = Combat.Outcome.CRITICAL
+		MapAutoTally.note("dagger_open_crit")
 		result["damage"] = float(result["damage"]) * body.crit_mult
 	return result
 
@@ -230,18 +244,22 @@ static func on_dealt_hit(body: Player, target: Actor, result: Dictionary) -> voi
 	var share: float = value(body, "longsword_charge", "charge")
 	if share > 0.0:
 		body.on_party_damage(damage * share / 100.0, "basic")
+		MapAutoTally.note("longsword_charge", damage * share / 100.0)
 	# War Axe: bleed (Actor.bleed_time / bleed_dps, the existing damage over time).
 	if has(body, "axe_bleed") and not target.dead:
 		target.bleed_time = maxf(target.bleed_time, value(body, "axe_bleed", "secs"))
 		target.bleed_dps = maxf(target.bleed_dps, damage * value(body, "axe_bleed", "pct") / 100.0)
+		MapAutoTally.note("axe_bleed_applied", damage * value(body, "axe_bleed", "pct") / 100.0 * value(body, "axe_bleed", "secs"))
 	# Mace: armour shred, stacking up to a cap.
 	if has(body, "mace_shred") and not target.dead:
 		var cap: float = value(body, "mace_shred", "cap") / 100.0
 		target.armor_shred = maxf(target.armor_shred, minf(target.armor_shred + value(body, "mace_shred", "step") / 100.0, cap))
 		target.armor_shred_time = maxf(target.armor_shred_time, value(body, "mace_shred", "secs"))
+		MapAutoTally.note("mace_shred_applied")
 	# Short Bow: the auto marks its target.
 	if has(body, "bow_mark") and not target.dead:
 		target.set_meta(MARK_META, {"until": now() + value(body, "bow_mark", "secs"), "by": body.member_id, "pct": value(body, "bow_mark", "pct")})
+		MapAutoTally.note("bow_mark_applied")
 	# Falchion: every Nth auto cleaves to one more enemy.
 	if has(body, "falchion_cleave"):
 		var st: Dictionary = _st(body)
@@ -267,12 +285,15 @@ static func _cleave(body: Player, first: Actor) -> void:
 	var result: Dictionary = Combat.resolve(body, best, swing, Combat.DamageType.PHYSICAL, true, 0.6)
 	result["skill_id"] = "cleave"
 	result["secondary"] = true
+	MapAutoTally.note("falchion_cleave", swing)
 	best.receive(result, body.global_position)
 
 ## The wearer took a hit (Player._on_hurt): Mail Hauberk turns it into charge.
 static func on_hurt(body: Player, result: Dictionary) -> void:
+	MapAutoTally.hurt(result)
 	var pct: float = value(body, "hauberk_taken", "pct")
 	if pct > 0.0:
+		MapAutoTally.note("hauberk_charge", float(result.get("damage", 0.0)) * pct / 100.0)
 		charge_member(body, float(result.get("damage", 0.0)) * pct / 100.0)
 
 ## A party kill (Player.on_enemy_killed): Charm and the "charge on kill" modifier refill the wearer's powers.
@@ -283,6 +304,7 @@ static func on_kill() -> void:
 		var share: float = value(body, "charm_kills", "charge") + gear(body, "charge_on_kill")
 		if share > 0.0:
 			body.stats.refund_power_charge(share / 100.0)
+			MapAutoTally.note("charm_or_kill_charge", share)
 
 ## A member used a power (Player.power_activated): Signet gives the others charge.
 static func on_power(member_id: String, _power_id: String) -> void:
@@ -297,11 +319,14 @@ static func on_power(member_id: String, _power_id: String) -> void:
 	for body in _living():
 		if body.member_id != member_id:
 			body.stats.refund_power_charge(share / 100.0)
+			MapAutoTally.note("signet_share", share)
 
 ## The dash begins (MapMode._start_dash): Jerkin and "dash speed" shorten it.
 static func on_dash_started(m: MapMode) -> void:
 	if MapMode.active:
 		m._dash_time = maxf(m._dash_time / dash_speed_mult(m), 0.15)
+		if dash_speed_mult(m) > 1.0:
+			MapAutoTally.note("dash_speed")
 
 ## The party lands (MapMode._arrive): Woven Hood and Leather Boots start their timers, Iron Greaves knock enemies back.
 static func on_dash_arrived(m: MapMode) -> void:
@@ -313,8 +338,10 @@ static func on_dash_arrived(m: MapMode) -> void:
 		var st: Dictionary = _st(body)
 		if has(body, "hood_power"):
 			st["power_until"] = now() + value(body, "hood_power", "secs")
+			MapAutoTally.note("hood_window")
 		if has(body, "boots_burst"):
 			st["burst_until"] = now() + value(body, "boots_burst", "secs")
+			MapAutoTally.note("boots_window")
 		if has(body, "greaves_knock"):
 			_knock_back(body)
 
@@ -332,6 +359,7 @@ static func _knock_back(body: Player) -> void:
 			continue
 		e.knock += away.normalized() * sqrt(44.0 * metres)   # knock decays at 22 m/s^2: an impulse of v covers v^2 / 44 metres
 		e._gain_stun(stun)
+		MapAutoTally.note("greaves_knock")
 
 ## Leather Cap (MeleeBehavior): the enemy shows its telegraph `lead` seconds before it can swing again.
 static func pre_telegraph(e: Enemy, cooldown: float, distance: float) -> bool:
@@ -342,6 +370,7 @@ static func pre_telegraph(e: Enemy, cooldown: float, distance: float) -> bool:
 		lead = maxf(lead, value(body, "cap_telegraph", "lead"))
 	if lead > 0.0 and cooldown <= lead:
 		e.telegraph(0.3)
+		MapAutoTally.note("cap_telegraph")
 		return true
 	return false
 
