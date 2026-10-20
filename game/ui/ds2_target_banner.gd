@@ -38,12 +38,14 @@ static func status_of(target: Actor) -> String:
 		if target.def.tier == "strong": return "STRONG"
 	return ""
 
-## The tag line under an elite's or champion's name ("SUMMONING CHAMPION", "STRONG"); empty for a regular monster.
+## The tag line under a champion's, boss's or named monster's name ("SUMMONING CHAMPION", "BOSS"); empty for a regular monster. The DS2 tier names
+## ("MINIBOSS", "STRONG") are internal and not shown: they only colour the bar (status_color).
 static func tag_of(target: Actor) -> String:
 	var enemy := target as Enemy
 	if enemy != null and enemy.champion != null:
 		return "%s CHAMPION" % String(enemy.champion.affix.title).to_upper()
-	return status_of(target)
+	var status: String = status_of(target)
+	return "" if status in ["MINIBOSS", "STRONG"] else status
 
 ## The affix ids a banner shows chips for (empty for anything but a champion).
 static func affixes_of(target: Actor) -> Array:
