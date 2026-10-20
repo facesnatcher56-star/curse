@@ -16,6 +16,10 @@ func _init(character: Player) -> void:
 ## broke or is gone), and for an archer when the party has been more than 16 m from the nest for UNREACHABLE_AFTER (dropped with a
 ## word, like an order with no firing spot). While the party is away the order is not carried out (tick reads _away_time).
 func track_orders(delta: float) -> void:
+	# Map mode (issue #87): a shot or a swing is given up when the on-screen guard sends him back (walking supersedes it, SkillController.swing_cancellable_by_move);
+	# tick() is not reached while he is busy, so it is dropped here, and tick() then walks him to the guard's goal.
+	if MapMode.active and p.bow != null and p.bow.has_screen_goal() and p.skills.busy:
+		p.skills.cancel_action()
 	if p.attack_prop != null and (not is_instance_valid(p.attack_prop) or not p.attack_prop.is_hero_target()):
 		p.attack_prop = null
 	var party := PartyManager.current()
@@ -66,6 +70,10 @@ func tick(delta: float) -> void:
 	var prop: Destructible = null
 	if target == null and p.stats.is_ranged() and p.bow != null and p.attack_prop != null and _away_time == 0.0:
 		prop = p.attack_prop
+	# Map mode (issue #87): the Cutter off the safe screen area is walked back first, whatever he was doing (shooting position or dagger chase).
+	if MapMode.active and p.bow != null and p.bow.has_screen_goal():
+		if p.bow.follow_screen_goal(delta):
+			return
 	if target != null or prop != null:
 		leash_active = false
 		if p.stats.is_ranged() and p.bow != null:
