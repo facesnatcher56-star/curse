@@ -20,7 +20,8 @@ const DASH_REVISIT_MIN := 0.4     # s, dashing to the node the party already sta
 const ARRIVE_DISTANCE := 6.0      # m from the group's centre, on the side the party came from
 const ARRIVE_AT_POINT := 1.2      # m short of a chest or shrine
 const COMPANION_SIDE := 2.0       # m the companion stands beside the hero on arrival
-const COLLECT_DELAY := 1.4        # s after the last kill before drops are collected (they have to land)
+const COLLECT_RADIUS := 16.0      # m round the visited node: drops this close are collected (a room is about 10-12 m across)
+const COLLECT_DELAY := 1.4       # s after the last kill before drops are collected (they have to land)
 const TRAIL_STEP := 0.04          # s between afterimages during the dash
 const TRAIL_LIFE := 0.35
 const SUMMON_REACH := 25.0        # m: summoned adds this close and awake belong to the fight
@@ -121,6 +122,7 @@ func _exit_tree() -> void:
 			get_tree().quit()
 
 func _ready() -> void:
+	add_child(CutterThreatLines.new())   # the red line from an enemy that dives the Cutter (issue #81)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mapmode-auto="):
 			_auto_dir = arg.substr(15)
@@ -613,6 +615,9 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	if graph == null:
 		var spot: Vector3 = arrival_spot()
 		var side: Vector3 = (spot - hero.global_position).cross(Vector3.UP).normalized() * COMPANION_SIDE
+		if body_index == 1 and _visit_kind == "group":   # dash formation (issue #81): the Cutter lands 8-10 m behind the warrior, away from the group
+			goals.append(EnemyRoles.cutter_spot(companion, spot, spot - _visit_pos))
+			return goals
 		goals.append(spot if body_index == 0 else Nav.snap(companion, spot + side))
 		return goals
 	var short: float = ARRIVE_DISTANCE if _visit_kind == "group" else (ARRIVE_AT_POINT if _visit_kind in ["chest", "shrine"] else 0.0)
@@ -620,6 +625,19 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 	var y: float = hero.global_position.y
 	for p in pts:
 		goals.append(Nav.snap(hero, Vector3(p.x, y, p.y)))
+	if body_index == 1 and goals.size() >= 1 and _visit_kind == "group":   # dash formation (issue #81): see EnemyRoles.cutter_spot
+		var hero_spot: Vector3 = goals[goals.size() - 1]
+		var back_pts: Array[Vector2] = trim_route(_route, short + EnemyRoles.BACK)
+		var back_goals: Array[Vector3] = []
+		for p in back_pts:
+			back_goals.append(Nav.snap(companion, Vector3(p.x, y, p.y)))
+		var corridor: Vector3 = back_goals[back_goals.size() - 1] if not back_goals.is_empty() else Vector3.INF
+		var spot: Vector3 = EnemyRoles.cutter_spot(companion, hero_spot, hero_spot - _visit_pos, corridor)
+		if not back_goals.is_empty():
+			back_goals[back_goals.size() - 1] = spot
+		else:
+			back_goals.append(spot)
+		return back_goals
 	if body_index == 1 and goals.size() >= 1:
 		var last: Vector3 = goals[goals.size() - 1]
 		var before: Vector3 = goals[goals.size() - 2] if goals.size() >= 2 else hero.global_position
@@ -632,6 +650,10 @@ func _goals_for(body_index: int) -> Array[Vector3]:
 func _start_dash() -> void:
 	if hud != null:
 		hud.loot_cards.hide_summary()
+	# The pad's A both picked the node and is the alt-skill button: the press that chose it must not also start an attack after the dash.
+	for body in [hero, companion]:
+		if is_instance_valid(body):
+			body.skills.swallow_alt = Input.is_action_pressed("alt_skill")
 	state = State.DASH
 	_dash_t = 0.0
 	_trail_clock = 0.0
@@ -820,13 +842,13 @@ func _begin_collect() -> void:
 func _collect_rewards() -> void:
 	for node in get_tree().get_nodes_in_group("loot"):
 		var drop := node as LootDrop
-		if drop == null or drop.is_queued_for_deletion():
+		if drop == null or drop.is_queued_for_deletion() or not _in_collect_area(drop.global_position):
 			continue
 		if hero.stats.pickup(drop.item) != "":
 			drop.queue_free()
 	for node in get_tree().get_nodes_in_group("orbs"):
 		var orb := node as Node3D
-		if orb != null and not orb.is_queued_for_deletion():
+		if orb != null and not orb.is_queued_for_deletion() and _in_collect_area(orb.global_position):
 			orb.global_position = hero.global_position + Vector3(0, 0.6, 0)
 
 # --- Drops (MapDrops): the guard of a cleared group, the top-up, the loot summary ------------------------------------------------------------
@@ -905,3 +927,6 @@ func _show_loot_summary(rows: Array[Dictionary]) -> bool:
 	hud.loot_cards.show_summary(title, loot_tally, rows, float(MapDrops.T.summary_seconds))
 	return true
 
+## Only what lies in the area just visited (the cleared room, the chest, the pile dashed to) is collected, not the whole level.
+func _in_collect_area(at: Vector3) -> bool:
+	return Vector2(at.x - _visit_pos.x, at.z - _visit_pos.z).length() <= COLLECT_RADIUS

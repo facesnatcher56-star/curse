@@ -139,8 +139,8 @@ func _ready() -> void:
 		_mark("location populated")
 		if (MapMode.requested() or location is MapModeDungeon) and location is CryptDungeon:   # `-- --crypt01 --mapmode`: pick on the map, dash, auto-attack (issue #79)
 			var map_mode := MapMode.new()
+			map_mode.setup(player, companion, hud)   # before add_child: _ready connects the members' power signals
 			add_child(map_mode)
-			map_mode.setup(player, companion, hud)
 	else:
 		director.start_wave()
 		_mark("first wave spawned")

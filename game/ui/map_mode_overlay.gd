@@ -13,7 +13,8 @@ extends Control
 signal selected(id: int)
 signal closed()
 
-const TOP_INSET := 110.0          # keeps the top-left party panel readable
+const TOP_INSET := 24.0
+const PARTY_CARDS_WIDTH := 252.0  # the left strip the Hero and Cutter cards use (the same figure the shared windows reserve)
 const MARGIN := 16.0
 const ICON_PAD := 34.0            # room between the graph's outermost icon and the panel edge
 const ICON_GAP := 6.0             # clear space kept between any two icons
@@ -95,7 +96,9 @@ func panel_rect() -> Rect2:
 	if hud != null:
 		bottom = minf(bottom, hud.hotbar_rect(s).position.y - 8.0)
 	bottom -= 26.0   # the help line sits under the panel
-	return Rect2(Vector2(MARGIN, TOP_INSET), Vector2(s.x - MARGIN * 2.0, maxf(bottom - TOP_INSET, 64.0)))
+	# The party cards (Hero and Cutter, top left) stay fully visible: the panel starts to their right, as the shared windows do (ui_theme 'reserve_party_cards').
+	var left: float = PARTY_CARDS_WIDTH + MARGIN
+	return Rect2(Vector2(left, TOP_INSET), Vector2(s.x - left - MARGIN, maxf(bottom - TOP_INSET, 64.0)))
 
 func is_graph_view() -> bool:
 	return not _links.is_empty()
