@@ -31,6 +31,9 @@ func _physics_process(delta: float) -> void:
 	if not hit.is_empty():
 		var victim := hit.collider as Actor
 		if victim != null and not victim.dead:
-			victim.receive(Combat.resolve(source, victim, damage, Combat.DamageType.PHYSICAL, false, 0.5), global_position)
+			var result: Dictionary = Combat.resolve(source, victim, damage, Combat.DamageType.PHYSICAL, false, 0.5)
+			result["projectile"] = true        # a single projectile: the map-mode shield guard (ShieldGuard) may catch it
+			result["shot_dir"] = _direction
+			victim.receive(result, global_position)
 		queue_free()
 	else: global_position = next
