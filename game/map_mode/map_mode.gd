@@ -816,7 +816,10 @@ func _sample_frozen() -> void:
 			print("[mapmode] FROZEN? %s group %d aggro=%s dormant=%s stun=%.1f dist=%.1f line=%s champion=%s busy=%s" % [e.variant, e.group_id, e.is_aggro(),
 				e.dormant, e.stun_time, near, Nav.line_clear(e, hero.global_position), e.champion != null, e.behavior.is_attacking()]
 				+ " | state=%s active=%s timer=%s cool=%s attacking=%s alert=%.1f fear=%.1f snare=%s" % [e.behavior.get("_state"), e.behavior.get("_active"), e.behavior.get("_timer"),
-				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")])
+				e.behavior.get("_pounce_cool"), e._attacking, e.alert_delay, e.fear_time, e.get("snare_time")]
+				+ " | phys=%s processing=%s target=%s tdist=%.1f vel=%s layer=%d mask=%d speed_mult=%s hp=%.0f/%.0f" % [e.is_physics_processing(), e.can_process(),
+				e.target.member_id if e.target is Player else str(e.target), e.flat_distance_to(e.target) if e.target != null else -1.0, e.velocity, e.collision_layer, e.collision_mask,
+				e.get("speed_mult"), e.health, e.max_health])
 
 func _begin_collect() -> void:
 	MapModeRules.note_fight_end()
