@@ -717,7 +717,6 @@ func _start_dash() -> void:
 			total += pts[k - 1].distance_to(pts[k])
 			lengths.append(total)
 		_dash_paths.append({"body": body, "points": pts, "lengths": lengths, "total": total})
-	MapModeTraits.on_dash_started(self)   # item traits: dash speed
 
 func _tick_dash(delta: float) -> void:
 	_dash_t += delta
@@ -780,6 +779,7 @@ func _arrive() -> void:
 			_last_progress = 0.0
 			_last_count = 0
 			MapModeRules.note_fight_start(now())
+			MapModeTraits.on_fight_start(self)   # item traits: the Jerkin's first-hit shield
 			_fight_level = 1
 			for e in group_members():   # only this group: neighbouring groups stay asleep
 				_fight_level = maxi(_fight_level, e.level)
@@ -940,6 +940,7 @@ func _begin_collect() -> void:
 		_settle_guard()   # the chest opens (loot spray), the shrine blesses, the cache spills: before the log row closes, so its loot is counted
 	if _visit_kind not in ["revisit", "loot"]:
 		_top_up()
+	MapModeTraits.on_room_clear(self)   # item traits: shields end, "Heal on room clear"
 	var row: Dictionary = log.end_fight(now())
 	if not row.is_empty():
 		log.emit_line(row)

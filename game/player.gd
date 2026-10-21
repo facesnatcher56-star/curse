@@ -1125,4 +1125,4 @@ func _popup_tint() -> Color:
 
 ## Map mode: a single projectile from the front is caught by the raised shield (ShieldGuard); everything else is as ever.
 func _filter_incoming(result: Dictionary) -> Dictionary:
-	return shield_guard.filter(result) if MapMode.active else result
+	return MapModeTraits.absorb(self, shield_guard.filter(result)) if MapMode.active else result
