@@ -15,6 +15,20 @@ func _wait_state(m: MapMode, wanted: MapMode.State, max_frames: int) -> void:
 
 func _test_map_mode() -> void:
 	expect("with the flag off map mode does not exist (no hooks, no flag)", not MapMode.active and not MapMode.requested())
+	# A run starts with every power empty: charged ones are spent, and they charge from damage again.
+	player.stats.brutal_reload_remaining = 0.0
+	var learned: Array[String] = []
+	for id in PowerController.LIVE:
+		if PowerDb.hero_rank(id, player.member_id) > 0:
+			learned.append(id)
+	MapMode.start_uncharged(player)
+	var all_empty: bool = player.stats.ult_fraction("brutal_attack") < 1.0 or player.stats.is_ranged()
+	for id in learned:
+		all_empty = all_empty and player.powers.fraction(id) < 1.0
+	expect("a map-mode run starts with Brutal Attack and every learned power empty (%d powers)" % learned.size(), all_empty)
+	player.powers.gain(1.0e9)
+	player.stats.gain_brutal_charge(1.0e9)
+	expect("and they fill from damage dealt", player.stats.ult_fraction("brutal_attack") >= 1.0 or player.stats.is_ranged())
 	var cutter: Player = game.companion
 	var cutter_was_disabled: bool = cutter.testing_disabled
 	cutter.testing_disabled = false

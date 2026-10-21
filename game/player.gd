@@ -1025,6 +1025,8 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 ## All party damage feeds every power except the power that produced it.
 func on_party_damage(damage: float, skill_id: String = "") -> void:
 	for body in PartyManager.current().living():
+		if MapMode.active and body != self:
+			continue   # map mode (owner rule): each member's powers fill only from his own damage
 		if body != self or skill_id != "brutal_attack": body.stats.gain_brutal_charge(damage)
 		body.powers.gain(damage, skill_id if body == self else "")
 		if body.bow != null and (body != self or skill_id != "take_aim"):
@@ -1135,4 +1137,4 @@ func _popup_tint() -> Color:
 
 ## Map mode: a single projectile from the front is caught by the raised shield (ShieldGuard); everything else is as ever.
 func _filter_incoming(result: Dictionary) -> Dictionary:
-	return shield_guard.filter(result) if MapMode.active else result
+	return MapModeTraits.absorb(self, shield_guard.filter(result)) if MapMode.active else result

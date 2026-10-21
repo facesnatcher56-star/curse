@@ -1,4 +1,4 @@
-extends DevSuite
+﻿extends DevSuite
 ## Map mode enemy roles + dash formation (issue #81): each role picks its target, Provoke overrides them, the Cutter lands 8-10 m behind the warrior,
 ## a ghoul dives the Cutter, and with the flag off targeting is exactly the default game's (closest, sticky).
 
@@ -54,17 +54,17 @@ func _test_map_mode_roles() -> void:
 	expect("ghoul: the hero when the Cutter is down", EnemyRoles.choose(ghoul, [player], 100.0) == player)
 	expect("rock thrower: closest (no opinion) before anyone hit it", EnemyRoles.choose(thrower, members, 100.0) == null)
 	EnemyRoles.note_hit(thrower, _hit(player, 5.0), thrower.global_position + Vector3(1.0, 0.0, 0.0), 100.0)   # a melee blow
-	expect("rock thrower: a melee hit does not count", EnemyRoles.choose(thrower, members, 100.5) == null)
-	EnemyRoles.note_hit(thrower, _hit(cutter, 5.0), thrower.global_position + Vector3(12.0, 0.0, 0.0), 101.0)   # an arrow
-	expect("rock thrower: whoever last hit it from range (the Cutter)", EnemyRoles.choose(thrower, members, 102.0) == cutter)
-	EnemyRoles.note_hit(thrower, _hit(player, 5.0), thrower.global_position + Vector3(8.0, 0.0, 0.0), 103.0)
-	expect("rock thrower: the latest ranged hitter wins (the hero)", EnemyRoles.choose(thrower, members, 103.5) == player)
-	expect("rock thrower: forgotten after its memory runs out", EnemyRoles.choose(thrower, members, 103.0 + float(EnemyRoles.ROLES["rock_thrower"]["memory"]) + 1.0) == null)
-	EnemyRoles.note_hit(brute, _hit(player, 40.0), brute.global_position, 200.0)
-	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position, 200.5)
-	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position, 201.0)
+	expect("rock thrower: a melee blow forces it onto the attacker for a while (the threat rule)", EnemyRoles.choose(thrower, members, 100.5) == player)
+	EnemyRoles.note_hit(thrower, _hit(cutter, 5.0), thrower.global_position + Vector3(12.0, 0.0, 0.0), 110.0)   # an arrow (after the melee force has run out)
+	expect("rock thrower: whoever last hit it from range (the Cutter)", EnemyRoles.choose(thrower, members, 112.0) == cutter)
+	EnemyRoles.note_hit(thrower, _hit(player, 5.0), thrower.global_position + Vector3(8.0, 0.0, 0.0), 113.0)
+	expect("rock thrower: the latest ranged hitter wins (the hero)", EnemyRoles.choose(thrower, members, 113.5) == player)
+	expect("rock thrower: forgotten after its memory runs out", EnemyRoles.choose(thrower, members, 113.0 + float(EnemyRoles.ROLES["rock_thrower"]["memory"]) + 1.0) == null)
+	EnemyRoles.note_hit(brute, _hit(player, 40.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 200.0)   # (from 5 m: the role rule alone; the melee threat rule has its own checks in mmthreat)
+	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 200.5)
+	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 201.0)
 	expect("brute: the biggest damage dealer in the last 5 s (the hero, 40 against 30)", EnemyRoles.choose(brute, members, 201.5) == player)
-	EnemyRoles.note_hit(brute, _hit(cutter, 30.0), brute.global_position, 202.0)
+	EnemyRoles.note_hit(brute, _hit(cutter, 30.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 202.0)
 	expect("brute: it only re-checks every 2 s (no new opinion at +0.5 s)", EnemyRoles.choose(brute, members, 202.0) == null)
 	expect("brute: after the re-check the Cutter leads (60 against 40)", EnemyRoles.choose(brute, members, 203.6) == cutter)
 	expect("brute: damage older than 5 s counts for nothing", EnemyRoles.choose(brute, members, 215.0) == null)
@@ -265,3 +265,4 @@ func _test_map_mode_roles_bench() -> void:
 	m.queue_free()
 	await _frames(2)
 	cutter.testing_disabled = cutter_was_disabled
+

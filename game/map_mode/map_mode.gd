@@ -145,6 +145,21 @@ func _ready() -> void:
 	for body in [hero, companion]:
 		if body != null:
 			body.power_activated.connect(func(_id: String, power_id: String) -> void: log.note_power(power_id))
+			start_uncharged(body)
+
+## A run starts with every power empty (owner rule): they charge from the damage the party deals, like after any use. Only powers the member
+## has learned and can use with his weapon; the rest are untouched.
+static func start_uncharged(body: Player) -> void:
+	if body == null or body.stats == null:
+		return
+	for id in PowerController.LIVE:
+		if PowerDb.hero_rank(id, body.member_id) > 0 and body.powers.required(id) > 0.0:
+			body.powers._spend(id)
+	if PowerDb.hero_rank("brutal_attack", body.member_id) > 0 and not body.stats.is_ranged():
+		body.stats.spend_brutal_attack()
+	if body.bow != null and PowerDb.hero_rank("take_aim", body.member_id) > 0:
+		body.bow.reload_required = body.stats.ult_cost("take_aim")
+		body.bow.reload_remaining = body.bow.reload_required
 
 # --- Flow -----------------------------------------------------------------------------------------------------------------------------
 
@@ -223,10 +238,17 @@ static func read_input(p: Player, cursor: Vector3) -> void:
 
 func set_focus(target: Actor) -> void:
 	if state == State.FIGHT and is_instance_valid(target) and not target.dead and target.is_in_group("enemies"):
+		var changed: bool = focus != target and is_instance_valid(hero) and hero.attack_target != target
 		focus = target
 		for body in [hero, companion]:   # at once, even mid-swing: the Cutter's own loop only re-picks between shots
 			if is_instance_valid(body) and not body.dead:
 				body.attack_target = target
+		# A click on another enemy sends the character he controls after it NO MATTER WHAT he was doing: the swing, shot or cast in progress
+		# (any that can still be called off) is dropped and the queue cleared; the next frame he walks and fights the new target.
+		if changed and is_instance_valid(hero) and not hero.dead and hero.is_controlled():
+			hero.skills.clear_queue()
+			if hero.skills.busy and hero.skills.swing_cancellable_by_move():
+				hero.skills.cancel_action()
 		log.note_input(now(), "focus")
 
 ## The enemy `body` should attack now (PartyCharacterAI and the hero's own loop both ask).
@@ -717,7 +739,6 @@ func _start_dash() -> void:
 			total += pts[k - 1].distance_to(pts[k])
 			lengths.append(total)
 		_dash_paths.append({"body": body, "points": pts, "lengths": lengths, "total": total})
-	MapModeTraits.on_dash_started(self)   # item traits: dash speed
 
 func _tick_dash(delta: float) -> void:
 	_dash_t += delta
@@ -780,6 +801,7 @@ func _arrive() -> void:
 			_last_progress = 0.0
 			_last_count = 0
 			MapModeRules.note_fight_start(now())
+			MapModeTraits.on_fight_start(self)   # item traits: the Jerkin's first-hit shield
 			_fight_level = 1
 			for e in group_members():   # only this group: neighbouring groups stay asleep
 				_fight_level = maxi(_fight_level, e.level)
@@ -940,6 +962,7 @@ func _begin_collect() -> void:
 		_settle_guard()   # the chest opens (loot spray), the shrine blesses, the cache spills: before the log row closes, so its loot is counted
 	if _visit_kind not in ["revisit", "loot"]:
 		_top_up()
+	MapModeTraits.on_room_clear(self)   # item traits: shields end, "Heal on room clear"
 	var row: Dictionary = log.end_fight(now())
 	if not row.is_empty():
 		log.emit_line(row)
