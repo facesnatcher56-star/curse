@@ -38,6 +38,13 @@ class State extends RefCounted:
 	var next_recheck: float = 0.0
 	var next_special: float = -1.0
 	var special_until: float = -1.0
+	var forced_by: Actor        # a party member who hit it in melee: it must fight him (threat), whatever its role says
+	var forced_until: float = -1.0
+
+## A melee blow (the attacker is no archer and stands within this many metres) forces the enemy onto the attacker for FORCE_SECONDS, refreshed by
+## every further melee blow: a ghoul diving the Cutter, a thrower or a brute turns on the warrior who is cutting it down.
+const MELEE_HIT_MAX := 3.5
+const FORCE_SECONDS := 6.0
 
 static func role_of(e: Enemy) -> Dictionary:
 	return ROLES.get(e.variant, DEFAULT_ROLE)
@@ -64,6 +71,10 @@ static func note_hit(e: Enemy, result: Dictionary, source_pos: Vector3, now: flo
 	st.hits.append([t, source, float(result.get("damage", 0.0)), gap >= RANGED_HIT_MIN])
 	while st.hits.size() > 40:
 		st.hits.pop_front()
+	var attacker := source as Player
+	if gap <= MELEE_HIT_MAX and attacker.stats != null and not attacker.stats.is_ranged():
+		st.forced_by = attacker
+		st.forced_until = t + FORCE_SECONDS
 
 ## The member farthest back: the Cutter while she lives, otherwise whoever is farthest from `from`.
 static func cutter_of(members: Array, from: Vector3) -> Player:
@@ -99,6 +110,8 @@ static func choose(e: Enemy, members: Array, now: float) -> Actor:
 	var role: Dictionary = role_of(e)
 	var st: State = state_of(e)
 	var chosen: Actor = null
+	if st.forced_until > now and is_instance_valid(st.forced_by) and not st.forced_by.dead and members.has(st.forced_by):
+		return st.forced_by   # struck in melee: it fights that member for a while, before any role rule
 	match String(role.get("rule", "closest")):
 		"flanker":
 			chosen = cutter_of(members, e.global_position)

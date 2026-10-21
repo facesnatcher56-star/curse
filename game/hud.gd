@@ -37,7 +37,8 @@ var banner_time: float = 0.0
 ## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
 ## Seconds over which a party member's small bars fade once they are unhurt and out of combat (see the bars drawn under them).
 const PARTY_BAR_FADE := 2.0
-const METAL_WARMTH := Color(1.32, 1.04, 0.80, 1.0)
+const UNLIT_SLOT_DARKEN := 0.55   # black laid over the whole slot square (frame and backing) while its power is not ready
+const METAL_WARMTH :=Color(1.32, 1.04, 0.80, 1.0)
 var health_orb: Control
 var _busts: Array[TextureRect] = []
 var _plinths: Array[TextureRect] = []
@@ -664,6 +665,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 	var skill: Dictionary = SkillDb.all()[id]
 	var caster := PartyManager.current().bodies.get(caster_id) as Player
 	var slot_player: Player = caster if is_instance_valid(caster) and not caster.dead else player
+	var caster_down: bool = caster_id != "" and not (is_instance_valid(caster) and not caster.dead)   # his slots keep their place but never light
+	var lit: bool = slot_lit(slot_player, id, caster_down)
 	var icon: Texture2D = _icon(id)
 	var ult_cost: float = slot_player.stats.ult_cost(id)
 	var active_bezel: Texture2D = bezel
@@ -677,6 +680,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		draw_style_box(slot_style, rect.grow(3))
 	else:
 		draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
+	if not lit:   # the whole button goes dark, not just the art, so a small icon in a big square still reads as unavailable
+		draw_rect(rect.grow(3.0), Color(0.0, 0.0, 0.0, UNLIT_SLOT_DARKEN))
 	if icon != null:
 		if not (ult_cost > 0.0 and is_instance_valid(forge)):   # a power's icon is drawn by its own hotkey effect (dark, filling as it charges)
 			draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
@@ -696,12 +701,14 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		draw_rect(rect, Color(0.12, 0.2, 0.42, 0.5))
 
 	# Powers recharge from dealt damage, independently of ordinary cooldowns.
-	var ult_filling: bool = ult_cost > 0.0 and slot_player.stats.ult_fraction(id) < 1.0
+	var ult_filling: bool = ult_cost > 0.0 and not lit
 	# Ready flash: the moment a cooldown ends (or the ultimate is full) the slot pulses white.
 	var was_on_cooldown: bool = _was_cooling.get(id, false)
-	if was_on_cooldown and remaining <= 0.0 and not ult_filling:
+	if was_on_cooldown and lit:
 		_ready_flash[id] = 0.35
-	_was_cooling[id] = remaining > 0.0 or ult_filling
+	_was_cooling[id] = not lit
+	if not lit:
+		_ready_flash[id] = 0.0
 	var flash: float = float(_ready_flash.get(id, 0.0))
 	if flash > 0.0 and ult_cost <= 0.0:
 		draw_rect(rect, Color(1, 1, 1, 0.55 * flash / 0.35))
@@ -714,17 +721,17 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		draw_string(font, Vector2(pos.x, pos.y + size_px * 0.62), text, HORIZONTAL_ALIGNMENT_CENTER, size_px, 26, Color(0, 0, 0, 0.9))
 		draw_string(font, Vector2(pos.x, pos.y + size_px * 0.6), text, HORIZONTAL_ALIGNMENT_CENTER, size_px, 26, Color(1, 0.95, 0.85))
 
-	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if remaining <= 0.0 and affordable else Color(0.4, 0.4, 0.45, 0.9)
+	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if lit else Color(0.24, 0.24, 0.27, 0.9)
 	if ult_cost > 0.0:
-		var charge: float = slot_player.stats.ult_fraction(id)
+		var charge: float = 0.0 if caster_down else slot_player.stats.ult_fraction(id)
 		if is_instance_valid(forge):
-			forge.present(icon, rect, charge, _power_frame_available(slot_player, id), remaining > 0.0, use_ds2_ui)
-		border = Color(0.55, 0.4, 0.25, 0.9) if ult_filling else Color(0.85, 0.72, 0.45)
+			forge.present(icon, rect, charge, not caster_down and _power_frame_available(slot_player, id), remaining > 0.0, use_ds2_ui, lit)
+		border = Color(0.85, 0.72, 0.45) if lit else Color(0.26, 0.20, 0.14, 0.9)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
 	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel
 	# here would cover the ability art; status is already conveyed by overlays.
-	draw_rect(rect.grow(1.0), METAL_WARMTH if remaining <= 0.0 and affordable else Color(0.60, 0.52, 0.46), false, 1.0)
+	draw_rect(rect.grow(1.0), METAL_WARMTH if lit else Color(0.34, 0.30, 0.27), false, 1.0)
 	# Key hint (follows rebinding) and mana cost. Consumables live only in the
 	# dedicated DS2 dock and never render as ability-slot content.
 	var key_text: String = GameSettings.short_binding_text(action)
@@ -805,7 +812,20 @@ func _on_power_activated(_member_id: String, _power_id: String) -> void:
 	queue_redraw()
 
 ## Charging remains visible while a power is recharging; only its unlock and weapon stance gate the frame.
-func _power_frame_available(body: Player, id: String) -> bool:
+## The one "is this slot lit" decision. Every lit effect on a hotbar slot (full-colour icon, ready pulse and burst, gold border and rim,
+## white flash) follows it: a dead or absent caster is never lit; a power is lit only when learned and usable, fully charged, off cooldown
+## and affordable; an ordinary skill when off cooldown and affordable.
+static func slot_lit(body: Player, id: String, caster_down: bool = false) -> bool:
+	if caster_down or body == null or id == "":
+		return false
+	var st: PlayerStats = body.stats
+	if float(st.cooldowns.get(id, 0.0)) > 0.0 or st.mana < st.mana_cost(id):
+		return false
+	if st.ult_cost(id) > 0.0:
+		return _power_frame_available(body, id) and st.ult_fraction(id) >= 0.999
+	return true
+
+static func _power_frame_available(body: Player, id: String) -> bool:
 	if PowerController.LIVE.has(id):
 		var def := PowerDb.get_def(id)
 		return def != null and PowerDb.hero_rank(id, body.member_id) > 0 and body.powers.stance_ok(def.stance)
