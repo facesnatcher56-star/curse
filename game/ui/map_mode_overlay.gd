@@ -244,8 +244,14 @@ func choose_focused() -> void:
 
 # ---- input ------------------------------------------------------------------------------------------------------------------------------
 
+## True while the character / inventory / skills window is open over the map: the window gets every click and key (equipping, moving items,
+## closing it), and the map waits underneath. Without this the map swallowed every mouse event and the inventory could be opened but not used.
+func yields_to_window() -> bool:
+	var hud := get_parent() as Hud
+	return hud != null and hud.show_gear
+
 func _input(event: InputEvent) -> void:
-	if not _open:
+	if not _open or yields_to_window():
 		return
 	if event is InputEventMouse and yield_rect.has_point((event as InputEventMouse).position):
 		return   # over the reward panel: its own controls take it
