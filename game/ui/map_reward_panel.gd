@@ -229,7 +229,7 @@ static func headline_key(item: Dictionary) -> String:
 		return "damage"
 	if stats.has("armor"):
 		return "armor"
-	for row in Items.rows(item):
+	for row in ItemTile.display_rows(item, [], "hero"):   # (the card's own lines: the one builder)
 		if String(row["section"]) == "mods" and String(row["key"]) != "":
 			return String(row["key"])
 	return ""
@@ -255,7 +255,7 @@ static func headline(item: Dictionary, body: Player) -> Dictionary:
 	var sign: int = 0
 	if current == null:
 		sign = 1   # nothing worn there: it is all gain, shown as the item's own number
-		for row in Items.rows(item, body.member_id):
+		for row in ItemTile.display_rows(item, [], body.member_id):
 			if String(row["key"]) != hk or hk == "":
 				continue
 			var line: String = String(row["text"])
