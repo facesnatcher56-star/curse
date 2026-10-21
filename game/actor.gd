@@ -510,7 +510,11 @@ func set_highlighted(on: bool) -> void:
 func _refresh_overlay() -> void:
 	if _flash > 0.0 or model == null:
 		return
-	model.set_overlay((highlight_override if highlight_override != null else get_highlight_material()) if highlighted else null)
+	model.set_overlay((highlight_override if highlight_override != null else get_highlight_material()) if highlighted else _base_overlay())
+
+## What the body wears when nothing else is on it: nothing, except a party member's outline (Player overrides).
+func _base_overlay() -> Material:
+	return null
 
 ## Speed multiplier from slows (1.0 when not slowed).
 func speed_factor() -> float:

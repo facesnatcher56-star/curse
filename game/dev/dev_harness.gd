@@ -1,4 +1,4 @@
-class_name DevHarness
+﻿class_name DevHarness
 extends DevSuite
 ## Developer tooling kept out of the game proper: the headless `--selftest` suite and the screenshot / pose tools.
 ## Main creates one of these and calls run_from_args(); when a dev flag is present it takes over the run.
@@ -25,6 +25,7 @@ const SUITES := [
 	preload("res://game/dev/suites/ui_audit_tests.gd"),
 	preload("res://game/dev/suites/inventory_tests.gd"),
 	preload("res://game/dev/suites/power_ui_tests.gd"),
+	preload("res://game/dev/suites/party_look_tests.gd"),
 	preload("res://game/dev/suites/hotbar_ready_tests.gd"),
 	preload("res://game/dev/suites/power_audio_tests.gd"),
 	preload("res://game/dev/suites/combat_detail_tests.gd"),
@@ -237,6 +238,7 @@ const ONLY_TESTS := {
 "inventoryrotate": "_test_inventory_rotation",
 "classnotice": "_test_class_notice",
 "powerui": "_test_power_ui",
+"partylook": "_test_party_look",
 "hotbarready": "_test_hotbar_ready",
 "damagenumbers": "_test_damage_number_presentation",
 "crimsonfx": "_test_crimson_fx",

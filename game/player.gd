@@ -106,6 +106,11 @@ func _init() -> void:
 var _grip_index: int = 3
 var _held_path: String = SWORD_PATH
 
+var _party_ring: MeshInstance3D   # the coloured ring on the ground at this member's feet (PartyLook)
+
+func _base_overlay() -> Material:
+	return PartyLook.xray_material(member_id)
+
 func _ready() -> void:
 	add_to_group("player")
 	power_activated.connect(MapModeTraits.on_power)   # map-mode Signet (inert outside map mode)
@@ -128,6 +133,9 @@ func _ready() -> void:
 	var modular: bool = ModularAppearance.enabled_for(member_id)
 	_build_model(folder, clips, 1.8, 0.4, not modular)
 	CharacterPresentation.share_combat_clips(model)
+	_party_ring = PartyLook.make_ring(member_id)
+	add_child(_party_ring)
+	_refresh_overlay.call_deferred()   # the party's outline pass, once the body and weapon exist (a flash or highlight takes over for its moment)
 	if modular:
 		appearance = ModularAppearance.new(model)
 	model.loop("idle_alert")
@@ -170,6 +178,7 @@ func _ready() -> void:
 func refresh_appearance() -> void:
 	if appearance != null:
 		appearance.sync(stats.equipment)
+		_refresh_overlay()   # new armour meshes get the outline too
 
 ## The hero holds the model of the weapon that is equipped (the same models the weapons lie on the ground as), at a size that
 ## follows the weapon; a base with no model keeps the old sword.
@@ -516,6 +525,7 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 				best = e
 	return best
 func _process(_delta: float) -> void:
+	if _party_ring != null: _party_ring.visible = not dead   # always on while alive; enemies have none
 	if bow != null and not skills.busy: bow._release = maxf(bow._release - _delta, 0.0)
 	if skills.fire_orb != null and is_instance_valid(skills.fire_orb):
 		skills.fire_orb.global_position = skills.orb_home()
@@ -1123,7 +1133,7 @@ func _on_blocked() -> void:
 	openings.on_block(last_hit_by)
 
 func _popup_tint() -> Color:
-	return Color(1.0, 0.35, 0.3)
+	return PartyLook.DAMAGE_TAKEN
 
 ## Map mode: a single projectile from the front is caught by the raised shield (ShieldGuard); everything else is as ever.
 func _filter_incoming(result: Dictionary) -> Dictionary:
