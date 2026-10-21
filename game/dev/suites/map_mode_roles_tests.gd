@@ -1,4 +1,4 @@
-﻿extends DevSuite
+extends DevSuite
 ## Map mode enemy roles + dash formation (issue #81): each role picks its target, Provoke overrides them, the Cutter lands 8-10 m behind the warrior,
 ## a ghoul dives the Cutter, and with the flag off targeting is exactly the default game's (closest, sticky).
 

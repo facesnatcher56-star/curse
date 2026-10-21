@@ -1007,6 +1007,9 @@ func _act(delta: float, cursor: Vector3) -> void:
 		return
 	movement.move(delta)
 
+## False turns the idle auto-engage off. The selftest harness switches it off for every suite that needs an idle hero (swarm and monster
+## measurements, input and sound checks) and on for the suites about the engagement itself; the game never touches it.
+static var auto_engage_enabled: bool = true
 var _chasing: bool = false   # the walk goal is the auto-chase of an enemy (not a clicked point), so it ends with the chase
 
 ## How far an idle hero looks for something awake to fight (a bow reaches further than a blade).
@@ -1017,7 +1020,7 @@ const AUTO_ENGAGE_RANGED := 17.0
 ## walking to a clicked point, going for loot, a chest or a nest, steering with the stick, or is in map mode's own fight/dash (map mode picks
 ## its targets itself). Clicking an enemy still chooses the target; nothing needs to be clicked or held to fight.
 func _auto_engage(ctrl: bool) -> Actor:
-	if ctrl or dead or not is_controlled() or (movement.has_goal and not _chasing) or attack_prop != null or pickup_target != null or chest_target != null:
+	if not auto_engage_enabled or ctrl or dead or not is_controlled() or (movement.has_goal and not _chasing) or attack_prop != null or pickup_target != null or chest_target != null:
 		return null
 	if click_mode == 4 or Gamepad.move_vector().length() > 0.0:
 		return null

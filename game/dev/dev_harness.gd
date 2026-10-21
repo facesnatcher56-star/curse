@@ -86,7 +86,11 @@ func _init() -> void:
 	harness = self
 
 ## Calls a check or tool by name on the suite that defines it (suites are created on first use).
+## Suites about the idle auto-engage itself; every other suite runs with it off, so the hero stays idle where a test needs him idle.
+const AUTO_ENGAGE_SUITES: Array[String] = ["_test_auto_attack"]
+
 func _run(method: String, args: Array = []) -> Variant:
+	Player.auto_engage_enabled = AUTO_ENGAGE_SUITES.has(method)
 	if _suites.is_empty():
 		for script: GDScript in SUITES:
 			var suite: DevSuite = script.new()

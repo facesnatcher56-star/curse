@@ -290,7 +290,7 @@ func _test_swarm() -> void:
 	expect("at most max_tokens enemies swing at once", max_swinging <= Enemy.max_tokens)
 	var cap: float = Enemy.max_tokens * zs[0].average_hit() / maxf(zs[0].attack_time, 0.1)
 	expect("swarm damage is no more than max_tokens attackers' DS2 blows (%.1f/s, cap %.1f/s)" % [taken / 8.0, cap], taken > 0.0 and taken / 8.0 <= cap)
-	expect("hero never acts or animates by itself in a swarm", not autos.any(func(l: String) -> bool: return "busy skill" in l or "-> walk" in l or "-> run" in l))
+	expect("with the idle auto-engage off (the control for the damage numbers) the hero stays idle in a swarm", not autos.any(func(l: String) -> bool: return "busy skill" in l or "-> walk" in l or "-> run" in l))
 	print("  swarm: hero took ", int(taken), " in 8 s (", snappedf(taken / 8.0, 0.1),
 		" dmg/s); attackers swinging at once: max ", max_swinging, ", average ", snappedf(swinging_total / frames, 0.1))
 	for line in autos:
@@ -307,6 +307,17 @@ func _test_swarm() -> void:
 		cast += 1.0 / 60.0
 	expect("a Fireball cast in the middle of a swarm runs to the end", cast >= 1.0 and player.stun_time == 0.0)
 	print("  Fireball inside the swarm: lasted ", snappedf(cast, 0.01), " s of ", snappedf(player.skills.busy_time, 0.01), " expected, stun at end=", player.stun_time)
+	# The owner's rule (no click-to-engage): with the auto-engage ON the same hero in the same swarm fights by himself.
+	Player.auto_engage_enabled = true
+	player.skills.cancel_action()
+	player.attack_target = null
+	player.movement.has_goal = false
+	var fought: bool = false
+	for i in 120:
+		await get_tree().physics_frame
+		fought = fought or player.skills.busy or player.attack_target != null
+	Player.auto_engage_enabled = false
+	expect("with the auto-engage on, the hero fights back in a swarm by himself", fought)
 	player.max_health = saved_max
 	player.health = saved_max
 	for z in zs:
