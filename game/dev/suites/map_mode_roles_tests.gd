@@ -1,4 +1,4 @@
-﻿extends DevSuite
+extends DevSuite
 ## Map mode enemy targeting + dash formation (issues #81, #109): threat picks each target, Provoke overrides it, the Cutter lands 8-10 m behind the warrior,
 ## a ghoul stays on the warrior, and with the flag off targeting is exactly the default game's (closest, sticky).
 
