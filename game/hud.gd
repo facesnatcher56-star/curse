@@ -37,7 +37,8 @@ var banner_time: float = 0.0
 ## The baked iron of the tray and the slot bezels is neutral grey; this warms it toward tarnished bronze-brown so the HUD is not one tone.
 ## Seconds over which a party member's small bars fade once they are unhurt and out of combat (see the bars drawn under them).
 const PARTY_BAR_FADE := 2.0
-const METAL_WARMTH := Color(1.32, 1.04, 0.80, 1.0)
+const UNLIT_SLOT_DARKEN := 0.55   # black laid over the whole slot square (frame and backing) while its power is not ready
+const METAL_WARMTH :=Color(1.32, 1.04, 0.80, 1.0)
 var health_orb: Control
 var _busts: Array[TextureRect] = []
 var _plinths: Array[TextureRect] = []
@@ -679,6 +680,8 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		draw_style_box(slot_style, rect.grow(3))
 	else:
 		draw_texture_rect(active_bezel, rect.grow(3.0), false, METAL_WARMTH)
+	if not lit:   # the whole button goes dark, not just the art, so a small icon in a big square still reads as unavailable
+		draw_rect(rect.grow(3.0), Color(0.0, 0.0, 0.0, UNLIT_SLOT_DARKEN))
 	if icon != null:
 		if not (ult_cost > 0.0 and is_instance_valid(forge)):   # a power's icon is drawn by its own hotkey effect (dark, filling as it charges)
 			draw_texture_rect(icon, rect.grow(-6.0 if use_ds2_ui else -3.0), false)
@@ -718,19 +721,17 @@ func _slot(pos: Vector2, size_px: float, action: String, id: String, font: Font,
 		draw_string(font, Vector2(pos.x, pos.y + size_px * 0.62), text, HORIZONTAL_ALIGNMENT_CENTER, size_px, 26, Color(0, 0, 0, 0.9))
 		draw_string(font, Vector2(pos.x, pos.y + size_px * 0.6), text, HORIZONTAL_ALIGNMENT_CENTER, size_px, 26, Color(1, 0.95, 0.85))
 
-	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if lit else Color(0.4, 0.4, 0.45, 0.9)
+	var border: Color = Color(0.85, 0.72, 0.45, 0.9) if lit else Color(0.24, 0.24, 0.27, 0.9)
 	if ult_cost > 0.0:
 		var charge: float = 0.0 if caster_down else slot_player.stats.ult_fraction(id)
 		if is_instance_valid(forge):
 			forge.present(icon, rect, charge, not caster_down and _power_frame_available(slot_player, id), remaining > 0.0, use_ds2_ui, lit)
-		border = Color(0.85, 0.72, 0.45) if lit else Color(0.55, 0.4, 0.25, 0.9)
-	if caster_down:
-		draw_rect(rect, Color(0, 0, 0, 0.55))
+		border = Color(0.85, 0.72, 0.45) if lit else Color(0.26, 0.20, 0.14, 0.9)
 	draw_rect(rect.grow(1.0), Color(0, 0, 0, 0.9), false, 2.0)
 	draw_rect(rect, border, false, 2.0)
 	# Keep only the line work above the icon. Re-drawing the opaque DS2 bezel
 	# here would cover the ability art; status is already conveyed by overlays.
-	draw_rect(rect.grow(1.0), METAL_WARMTH if lit else Color(0.60, 0.52, 0.46), false, 1.0)
+	draw_rect(rect.grow(1.0), METAL_WARMTH if lit else Color(0.34, 0.30, 0.27), false, 1.0)
 	# Key hint (follows rebinding) and mana cost. Consumables live only in the
 	# dedicated DS2 dock and never render as ability-slot content.
 	var key_text: String = GameSettings.short_binding_text(action)
