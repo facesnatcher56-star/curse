@@ -442,7 +442,13 @@ func unequip(place: int) -> Variant:
 
 ## Whether `item` would be put on at once when picked up: only into an empty place, if he may wear it and it pushes nothing off. Rarity
 ## never decides it, because a rarer piece may not fit the build; everything else goes to the bag and the player chooses.
+##
+## Map mode (`--mapmode`) never wears a pickup: every drop goes to the shared bag and the player chooses who wears it on the reward panel
+## (MapRewardPanel). `fits_empty_slot` is the plain rule, which the appraisal still uses to call such a piece a clear upgrade.
 func takes_empty_slot(item: Dictionary) -> bool:
+	return not MapMode.active and fits_empty_slot(item)
+
+func fits_empty_slot(item: Dictionary) -> bool:
 	return not equipment.has(place_for(item)) and Items.hero_can_wear(item, p.member_id) \
 		and (_hand_conflict(item) < 0 or not equipment.has(_hand_conflict(item)))
 

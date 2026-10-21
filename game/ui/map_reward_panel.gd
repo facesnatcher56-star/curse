@@ -3,15 +3,22 @@ extends PanelContainer
 ## Map mode's reward screen after a clear (issue #87): a panel docked to one side of the reopened map (never over the party), not modal. A header
 ## (the node's name and its chest's icon), the gold and potions with a quick count-up, and every item as a tile: its icon on a rarity frame with a
 ## glow, its name in the rarity colour, its slot, its one most important line (a legendary's effect in full on an orange band, else the trait, else
-## the best modifier) and a verdict badge. Hovering or focusing a tile shows the shared item card (ItemTile.focus_card, #85). An upgrade has an
-## Equip button that wears it on the right member (PlayerStats.equip_from_bag, as the autoplay's MapAutoGear does). Continue closes it (Space, or A
+## the best modifier) and a verdict badge. Hovering or focusing a tile shows the shared item card (ItemTile.focus_card, #85). Nothing is worn by picking it up: an "Equip on" selector
+## (one button per member) says who the verdicts, cards and Equip are for, and Equip wears the item on that member only (PlayerStats.equip_from_bag). Continue closes it (Space, or A
 ## while it has the controller focus); picking the next node fades it. The verdict is the shared comparison (Items.hero_can_wear, LootAppraisal.trend,
 ## Items.compare), never a copy of it.
 
 signal continued()
 signal equipped(item: Dictionary, member_id: String)
+signal member_selected(member_id: String)
 
-enum State { WORN, UPGRADE, SIDEGRADE, DOWNGRADE, LOCKED, FULL }
+## WORN: worn by the selected member. WORN_OTHER: worn by the other one. CONFLICT: wearable, but it would push the other hand's piece off (a
+## two-handed weapon over a shield, or the reverse).
+enum State { WORN, UPGRADE, SIDEGRADE, DOWNGRADE, LOCKED, FULL, CONFLICT, WORN_OTHER }
+
+const MEMBERS: Array[String] = ["hero", "cutter"]   # the party, in selector order
+const MEMBER_COLORS := {"hero": Color(0.96, 0.78, 0.26), "cutter": Color(0.32, 0.82, 0.78)}   # gold and teal (no shared party colours exist yet)
+const EQUIP_WIDTH := 132.0
 
 const WIDTH := 470.0
 const MARGIN := 16.0
@@ -35,7 +42,11 @@ var gold: int = 0
 var potions: int = 0
 var tiles: Array[Dictionary] = []   # [{item, info, panel, icon, equip, badge}] what is on the panel now
 var continue_button: Button
+var selected: String = "hero"                    # the member every verdict, card and Equip on this panel is for; picking one never wears anything
+var selector_buttons: Dictionary = {}            # member id -> Button
+var equipped_log: Dictionary = {}                # item key -> {member, replaced}: what Equip did on this panel
 var side: String = "right"
+var _selector_note: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _gold_label: Label
@@ -98,6 +109,85 @@ static func classify(item: Dictionary, party: Array) -> Dictionary:
 	var place: int = _best_place(item, best)
 	return {"state": state, "who": best.display_name, "member": best.member_id, "body": best, "place": place, "bag_index": index, "need": ""}
 
+## The party member with this id (the first member when none matches, so a one-member party still works).
+static func member_body(party: Array, member_id: String) -> Player:
+	var first: Player = null
+	for body in party:
+		var b := body as Player
+		if b == null or not is_instance_valid(b) or b.stats == null:
+			continue
+		if b.member_id == member_id:
+			return b
+		if first == null:
+			first = b
+	return first
+
+## What `item` is for ONE member (the selector's choice), same fields as classify: worn by them (WORN) or by the other (WORN_OTHER), in the bag
+## and unwearable by them (LOCKED, `need` says what is lacking; "Can't use" when nobody can), or wearable: UPGRADE / SIDEGRADE / DOWNGRADE by the
+## shared comparison, CONFLICT when it would push the other hand's piece off. `place` is where Equip puts it on them.
+static func classify_for(item: Dictionary, party: Array, member_id: String) -> Dictionary:
+	var sel: Player = member_body(party, member_id)
+	var key: String = MapAutoGear.key_of(item)
+	for body in party:
+		var b := body as Player
+		if b == null or not is_instance_valid(b) or b.stats == null:
+			continue
+		for place in b.stats.equipment:
+			if MapAutoGear.key_of(b.stats.equipment[place]) == key:
+				return {"state": State.WORN if b == sel else State.WORN_OTHER, "who": b.display_name, "member": b.member_id, "body": b, "place": int(place), "bag_index": -1, "need": ""}
+	var index: int = -1
+	if sel != null:
+		for i in sel.stats.bag.size():   # (the bag is the party's one backpack)
+			if MapAutoGear.key_of(sel.stats.bag[i]) == key:
+				index = i
+	if index < 0 or sel == null:
+		return {"state": State.FULL, "who": "", "member": "", "body": null, "place": -1, "bag_index": -1, "need": ""}
+	if not Items.hero_can_wear(item, sel.member_id):
+		var nobody: bool = true
+		for body in party:
+			var b := body as Player
+			if b != null and is_instance_valid(b) and b != sel and Items.hero_can_wear(item, b.member_id):
+				nobody = false
+		var need: String = Items.requirement_card_text(item, sel.member_id).replace("Requires ", "Needs ")
+		return {"state": State.LOCKED, "who": sel.display_name, "member": sel.member_id, "body": sel, "place": -1, "bag_index": index, "need": ("Can't use: " + need) if nobody else need}
+	var place: int = _best_place(item, sel)
+	var hc: int = sel.stats._hand_conflict(item)
+	var state: int
+	var slot_name: String = ""
+	if hc >= 0 and sel.stats.equipment.has(hc):
+		state = State.CONFLICT
+		slot_name = String(Items.SLOT_NAMES[hc])
+	else:
+		var t: int = LootAppraisal.trend(item, sel.stats)
+		state = State.UPGRADE if t > 0 else (State.SIDEGRADE if t == 0 else State.DOWNGRADE)
+	return {"state": state, "who": sel.display_name, "member": sel.member_id, "body": sel, "place": place, "bag_index": index, "need": "", "displaces": slot_name}
+
+## Whether Equip is offered for this verdict (any wearable item in the bag; the verdict is advice, the player decides).
+static func can_equip(info: Dictionary) -> bool:
+	return int(info["state"]) in [State.UPGRADE, State.SIDEGRADE, State.DOWNGRADE, State.CONFLICT]
+
+## The member the clear is best for: the one who gains the most upgrades from the items (the shared trend), the warrior on a tie. Selecting it
+## wears nothing.
+static func default_member(items: Array, party: Array) -> String:
+	var best_id: String = MEMBERS[0]
+	var best_count: int = -1
+	for id in MEMBERS:
+		var b: Player = null
+		for body in party:
+			var c := body as Player
+			if c != null and is_instance_valid(c) and c.stats != null and c.member_id == id:
+				b = c
+		if b == null:
+			continue
+		var count: int = 0
+		for item in items:
+			if Items.hero_can_wear(item, id) and LootAppraisal.trend(item, b.stats) > 0:
+				count += 1
+		if count > best_count:
+			best_count = count
+			best_id = id
+	return best_id
+
 ## The place of the item's slot where it beats what is worn by most on the item card's own comparison (a free place first).
 static func _best_place(item: Dictionary, body: Player) -> int:
 	var best_place: int = Items.places(int(item["slot"]))[0]
@@ -112,12 +202,15 @@ static func _best_place(item: Dictionary, body: Player) -> int:
 ## The badge: {text, color}.
 static func badge_of(info: Dictionary) -> Dictionary:
 	match int(info["state"]):
-		State.UPGRADE: return {"text": "%s Upgrade: %s" % [Items.UP, String(info["who"])], "color": GREEN}
+		State.UPGRADE: return {"text": "%s Upgrade for %s" % [Items.UP, String(info["who"])], "color": GREEN}
 		State.SIDEGRADE: return {"text": "Sidegrade", "color": NEUTRAL}
 		State.DOWNGRADE: return {"text": "Downgrade", "color": DIM}
 		State.LOCKED: return {"text": String(info["need"]), "color": RED}
 		State.FULL: return {"text": "Inventory full", "color": AMBER}
-	return {"text": "Worn: %s" % String(info["who"]), "color": NEUTRAL}
+		State.CONFLICT: return {"text": "Replaces %s" % String(info.get("displaces", "")), "color": AMBER}
+	if bool(info.get("fresh", false)):
+		return {"text": "Equipped on %s" % String(info["who"]), "color": GREEN}
+	return {"text": "Worn by %s" % String(info["who"]), "color": NEUTRAL}
 
 ## An item's one most important line: a legendary's effect, else its map-mode trait, else its best (first) modifier, else its base stat.
 static func key_line(item: Dictionary, member_id: String) -> Dictionary:
@@ -142,6 +235,8 @@ static func create(for_title: String, for_guard: String, tally: Dictionary, part
 	panel.gold = int(tally.get("gold", 0))
 	panel.potions = int(tally.get("health", 0)) + int(tally.get("mana", 0))
 	panel.items = (tally.get("items", []) as Array).duplicate()
+	var first: Player = member_body(party, default_member(panel.items, party))
+	panel.selected = first.member_id if first != null else "hero"
 	return panel
 
 func _ready() -> void:
@@ -159,6 +254,8 @@ func _ready() -> void:
 	add_child(root)
 	root.add_child(_header())
 	root.add_child(_currency())
+	if bodies.size() > 1:
+		root.add_child(_selector())
 	root.add_child(_divider())
 	_scroll = ScrollContainer.new()
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -233,6 +330,93 @@ func _currency() -> Control:
 		row.add_child(potion_box)
 	return row
 
+## "Equip on": one button per party member (portrait and name in the member's colour), exactly one selected, and a line saying what the panel is
+## doing for them. Everything below it (badges, cards, Equip) reads for the selected member.
+func _selector() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Selector"
+	box.add_theme_constant_override("separation", 4)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	var caption := Label.new()
+	caption.text = "Equip on"
+	caption.add_theme_font_size_override("font_size", 15)
+	caption.add_theme_color_override("font_color", ItemTile.HINT_COLOR)
+	row.add_child(caption)
+	for id in MEMBERS:
+		var body: Player = null
+		for candidate in bodies:
+			var c := candidate as Player
+			if c != null and is_instance_valid(c) and c.member_id == id:
+				body = c
+		if body == null:
+			continue
+		var button := Button.new()
+		button.name = "Member_" + id
+		button.text = " " + body.display_name
+		button.icon = Ds2PartyFrame.KNIGHT_PORTRAIT if id == "hero" else Ds2PartyFrame.ARCHER_PORTRAIT
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 34)
+		button.add_theme_font_size_override("font_size", 18)
+		button.custom_minimum_size = Vector2(0, 46)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.focus_mode = Control.FOCUS_NONE   # LB / RB, Left / Right, Tab and 1 / 2 switch it
+		button.pressed.connect(select_member.bind(id))
+		row.add_child(button)
+		selector_buttons[id] = button
+	_selector_note = Label.new()
+	_selector_note.name = "Note"
+	_selector_note.add_theme_font_size_override("font_size", 14)
+	box.add_child(_selector_note)
+	_refresh_selector()
+	return box
+
+func _refresh_selector() -> void:
+	for id in selector_buttons:
+		var colour: Color = MEMBER_COLORS.get(id, NEUTRAL)
+		var on: bool = id == selected
+		var button: Button = selector_buttons[id]
+		for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
+			var style := StyleBoxFlat.new()
+			style.bg_color = Color(colour.r * 0.34, colour.g * 0.34, colour.b * 0.34, 0.98) if on else Color(0.07, 0.06, 0.05, 0.96).lerp(Color(colour.r * 0.25, colour.g * 0.25, colour.b * 0.25, 0.96), 0.35 if state.begins_with("hover") else 0.0)
+			style.border_color = colour if on else colour.darkened(0.55)
+			style.set_border_width_all(4 if on else 1)
+			style.set_corner_radius_all(5)
+			style.content_margin_left = 8
+			style.content_margin_right = 8
+			button.add_theme_stylebox_override(state, style)
+		var text_colour: Color = colour.lightened(0.45) if on else colour.darkened(0.2)
+		for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+			button.add_theme_color_override(key, text_colour)
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.modulate = Color.WHITE if on else Color(0.75, 0.75, 0.75)
+		button.set_pressed_no_signal(false)
+	if _selector_note != null:
+		var body: Player = member_body(bodies, selected)
+		_selector_note.text = "Comparing and equipping for %s" % (body.display_name if body != null else selected)
+		_selector_note.add_theme_color_override("font_color", (MEMBER_COLORS.get(selected, NEUTRAL) as Color).lightened(0.25))
+
+## Makes `member_id` the member the whole panel is for. It only changes what is shown and who Equip targets; nothing is worn or moved.
+func select_member(member_id: String) -> void:
+	if member_id == selected or member_body(bodies, member_id) == null or member_body(bodies, member_id).member_id != member_id:
+		return
+	selected = member_id
+	_refresh_selector()
+	_rebuild()
+	member_selected.emit(member_id)
+
+## The next (or previous) member in the party's order, wrapping.
+func cycle_member(step: int) -> void:
+	var ids: Array[String] = []
+	for id in MEMBERS:
+		var b: Player = member_body(bodies, id)
+		if b != null and b.member_id == id:
+			ids.append(id)
+	if ids.size() < 2:
+		return
+	select_member(ids[posmod(ids.find(selected) + step, ids.size())])
+
 func _count_label() -> Label:
 	var label := Label.new()
 	label.text = "0"
@@ -245,7 +429,9 @@ func _footer() -> Control:
 	row.add_theme_constant_override("separation", 10)
 	var hint := Label.new()
 	hint.name = "Hint"
-	hint.text = "LB / RB select   A equip" if Gamepad.active else "Hover an item for its card"
+	hint.text = "LB / RB member   Y items   A equip" if Gamepad.active else "Tab / 1 / 2 member   hover an item for its card"
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = 120.0
 	hint.add_theme_font_size_override("font_size", 14)
 	hint.add_theme_color_override("font_color", ItemTile.HINT_COLOR)
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -283,7 +469,10 @@ func _fill() -> void:
 		_list.add_child(entry["panel"])
 
 func _tile(item: Dictionary) -> Dictionary:
-	var info: Dictionary = classify(item, bodies)
+	var info: Dictionary = classify_for(item, bodies, selected)
+	var done: Dictionary = equipped_log.get(MapAutoGear.key_of(item), {})
+	if not done.is_empty() and int(info["state"]) == State.WORN and String(info["member"]) == String(done["member"]):
+		info["fresh"] = true   # worn through Equip on this panel: "Equipped on X", and what it replaced
 	var legendary: bool = MapModeLegendaries.id_of(item) != ""
 	var rarity: int = int(item["rarity"])
 	var colour: Color = LEGENDARY if legendary else Items.RARITY_COLORS[rarity]
@@ -291,15 +480,15 @@ func _tile(item: Dictionary) -> Dictionary:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _tile_style(colour, rarity, legendary, false))
 	var body: Player = info["body"] as Player
-	var member: String = String(info["member"]) if String(info["member"]) != "" else "hero"
+	var member: String = selected
 	var worn: Variant = null
-	if body != null and int(info["state"]) != State.WORN:
+	if body != null and int(info["place"]) >= 0 and int(info["state"]) not in [State.WORN, State.WORN_OTHER]:
 		worn = body.stats.equipment.get(int(info["place"]))
 	var icon_px: float = ICON_LEGENDARY if legendary else ICON
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
-	var icon := IconBox.new(item, worn, icon_px, colour)
+	var icon := IconBox.new(item, worn, icon_px, colour, member)
 	icon.focus_entered.connect(func() -> void: panel.add_theme_stylebox_override("panel", _tile_style(colour, rarity, legendary, true)))
 	icon.focus_exited.connect(func() -> void: panel.add_theme_stylebox_override("panel", _tile_style(colour, rarity, legendary, false)))
 	row.add_child(icon)
@@ -324,19 +513,30 @@ func _tile(item: Dictionary) -> Dictionary:
 	# the item's one important line (a legendary's effect in full on its band), with Equip at the end of it for an upgrade
 	var line: Dictionary = key_line(item, member)
 	var equip: Button = null
-	if int(info["state"]) == State.UPGRADE:
+	var other_wears: bool = int(info["state"]) == State.WORN_OTHER
+	if can_equip(info) or other_wears:
 		equip = Button.new()
 		equip.name = "Equip"
-		equip.text = "Equip"
-		equip.custom_minimum_size = Vector2(76, 30)
+		equip.text = "Equip on %s" % _display(selected)
+		equip.custom_minimum_size = Vector2(EQUIP_WIDTH, 30)
+		if other_wears:
+			equip.disabled = true
+			equip.tooltip_text = "Worn by %s. Take it off there first." % String(info["who"])
 		equip.focus_mode = Control.FOCUS_NONE   # the controller selects the tile and presses A
 		equip.pressed.connect(_equip.bind(item))
 	var line_row := HBoxContainer.new()
 	line_row.add_theme_constant_override("separation", 8)
 	col.add_child(line_row)
-	if String(line["text"]) != "":
+	if bool(info.get("fresh", false)) and String(done.get("replaced", "")) != "":
+		var was := _wrapped("Replaced %s (now in the bag)" % String(done["replaced"]), 15, DIM, 0.0)
+		was.autowrap_mode = TextServer.AUTOWRAP_OFF
+		was.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		was.custom_minimum_size.x = 60.0
+		was.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line_row.add_child(was)
+	elif String(line["text"]) != "":
 		if String(line["section"]) == "legendary":
-			var band: Control = _effect_band(String(line["text"]), text_width - (84.0 if equip != null else 0.0))
+			var band: Control = _effect_band(String(line["text"]), text_width - (EQUIP_WIDTH + 8.0 if equip != null else 0.0))
 			band.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			line_row.add_child(band)
 		else:
@@ -551,26 +751,39 @@ func _exit_tree() -> void:
 
 # ---- Equip --------------------------------------------------------------------------------------------------------------------------------------------
 
-## Wears the item on the member the verdict names, through PlayerStats.equip_from_bag (the autoplay's own call). False when it cannot.
+## Wears the item on the SELECTED member, through PlayerStats.equip_from_bag (the autoplay's own call); what it replaces goes to the bag. False
+## when it cannot (not in the bag, not wearable by them, already worn, bag full).
 func equip_item(item: Dictionary) -> bool:
-	var info: Dictionary = classify(item, bodies)
-	if int(info["state"]) != State.UPGRADE:
+	var info: Dictionary = classify_for(item, bodies, selected)
+	if not can_equip(info):
 		return false
 	var body: Player = info["body"]
+	var old: Variant = body.stats.equipment.get(int(info["place"]))
 	if not body.stats.equip_from_bag(int(info["bag_index"]), int(info["place"])):
 		return false
+	equipped_log[MapAutoGear.key_of(item)] = {"member": body.member_id, "replaced": String(old["name"]) if old is Dictionary else ""}
 	equipped.emit(item, body.member_id)
 	return true
 
+func _display(member_id: String) -> String:
+	var b: Player = member_body(bodies, member_id)
+	return b.display_name if b != null else member_id
+
 func _equip(item: Dictionary) -> void:
 	if equip_item(item):
-		var keep: float = _scroll.scroll_vertical
-		_fill()
-		_scroll.scroll_vertical = int(keep)
-		if _focus_index >= 0:
-			_focus(_focus_index)
+		_rebuild()
 
-# ---- input: the controller selects a tile (LB / RB), A equips it or presses Continue; Space continues ---------------------------------
+## Builds the tiles again (another member was selected, or something was worn), keeping the scroll and the controller's tile.
+func _rebuild() -> void:
+	var keep: float = _scroll.scroll_vertical
+	_fill()
+	_scroll.scroll_vertical = int(keep)
+	if _focus_index >= 0:
+		_focus(_focus_index)
+	if is_inside_tree() and not _closing:
+		_fit.call_deferred()
+
+# ---- input: LB / RB, Left / Right, Tab and 1 / 2 pick the member; Y enters the list, Up / Down pick a tile, A equips it or presses Continue; Space continues ---------------------------------
 
 func _focus_targets() -> Array[Control]:
 	var out: Array[Control] = []
@@ -599,15 +812,37 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadButton and event.pressed:
 		var button: int = (event as InputEventJoypadButton).button_index
 		if button == JOY_BUTTON_LEFT_SHOULDER or button == JOY_BUTTON_RIGHT_SHOULDER:
-			_focus(_focus_index + (-1 if button == JOY_BUTTON_LEFT_SHOULDER else 1))
+			cycle_member(-1 if button == JOY_BUTTON_LEFT_SHOULDER else 1)   # who the panel is for (nothing is worn)
 			get_viewport().set_input_as_handled()
 			return
-	if event is InputEventKey and event.pressed and not event.is_echo() and (event as InputEventKey).keycode == KEY_SPACE:
-		close()
-		get_viewport().set_input_as_handled()
-		return
+		if button == JOY_BUTTON_Y and not _owns_focus():
+			_focus(maxi(_focus_index, 0))   # into the item list; the map keeps the D-pad until then
+			get_viewport().set_input_as_handled()
+			return
+	if event is InputEventKey and event.pressed and not event.is_echo():
+		var code: int = (event as InputEventKey).keycode
+		if code == KEY_SPACE:
+			close()
+			get_viewport().set_input_as_handled()
+			return
+		if code == KEY_TAB:
+			cycle_member(-1 if (event as InputEventKey).shift_pressed else 1)
+			get_viewport().set_input_as_handled()
+			return
+		if code in [KEY_1, KEY_KP_1, KEY_2, KEY_KP_2]:
+			var number: int = 1 if code in [KEY_1, KEY_KP_1] else 2
+			if number <= MEMBERS.size():
+				select_member(MEMBERS[number - 1])
+			get_viewport().set_input_as_handled()
+			return
 	if _owns_focus():
-		if event.is_action_pressed("ui_accept"):
+		if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+			cycle_member(-1 if event.is_action_pressed("ui_left") else 1)
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+			_focus(_focus_index + (1 if event.is_action_pressed("ui_down") else -1))
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_accept"):
 			var owner: Control = get_viewport().gui_get_focus_owner()
 			if owner == continue_button:
 				close()
@@ -630,7 +865,7 @@ class IconBox extends Control:
 	var colour: Color
 	var legendary: bool
 
-	func _init(for_item: Dictionary, worn: Variant, px: float, for_colour: Color) -> void:
+	func _init(for_item: Dictionary, worn: Variant, px: float, for_colour: Color, for_member: String = "") -> void:
 		item = for_item
 		colour = for_colour
 		legendary = MapModeLegendaries.id_of(for_item) != ""
@@ -640,7 +875,7 @@ class IconBox extends Control:
 		focus_mode = Control.FOCUS_ALL
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		ItemTile.focus_card(self, for_item, worn, true, true)
+		ItemTile.focus_card(self, for_item, worn, true, true, false, "", for_member)
 		mouse_entered.connect(queue_redraw)
 		mouse_exited.connect(queue_redraw)
 		focus_entered.connect(queue_redraw)

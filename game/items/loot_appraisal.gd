@@ -15,8 +15,8 @@ static func of(item: Dictionary, stats: PlayerStats) -> int:
 	var member_id: String = stats.p.member_id
 	if not Items.hero_can_wear(item, member_id):
 		return Verdict.LOCKED
-	if stats.takes_empty_slot(item):
-		return Verdict.UPGRADE   # walking over it wears it
+	if stats.fits_empty_slot(item):
+		return Verdict.UPGRADE   # walking over it wears it (map mode: it goes to the bag and the reward panel offers it)
 	var places: Array[int] = Items.places(int(item["slot"]))   # a ring may replace either of its two
 	for place in places:
 		if not stats.equipment.has(place):

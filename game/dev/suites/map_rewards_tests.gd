@@ -12,6 +12,12 @@ func _weapon(damage_scale: float, level: int = 1, name: String = "") -> Dictiona
 	it["name"] = name if name != "" else "Test blade x%.1f" % damage_scale
 	return it
 
+func _helm(armor: float, item_name: String) -> Dictionary:
+	var it: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.NORMAL)
+	it["stats"] = {"armor": armor}
+	it["name"] = item_name
+	return it
+
 func _balance(item: Dictionary, current: Variant, member_id: String) -> int:
 	var b: int = 0
 	for line in Items.compare(item, current, member_id):
@@ -62,8 +68,8 @@ func _test_map_rewards() -> void:
 		int(lock_info["state"]) == State.LOCKED and String(lock_info["need"]) == Items.requirement_card_text(locked, String(lock_info["member"])).replace("Requires ", "Needs ")
 		and String(lock_info["need"]).begins_with("Needs ") and not String(lock_info["need"]).contains("have"))
 	expect("an item left on the ground is Inventory full, whatever it would be", int(full_info["state"]) == State.FULL)
-	expect("the badge words: Upgrade: Hero (green), Worn (neutral), Downgrade, the unmet part (red), Inventory full (amber)",
-		String(MapRewardPanel.badge_of(up_info)["text"]) == "%s Upgrade: %s" % [Items.UP, hero.display_name] and MapRewardPanel.badge_of(up_info)["color"] == MapRewardPanel.GREEN
+	expect("the badge words: Upgrade for Hero (green), Worn by (neutral), Downgrade, the unmet part (red), Inventory full (amber)",
+		String(MapRewardPanel.badge_of(up_info)["text"]) == "%s Upgrade for %s" % [Items.UP, hero.display_name] and MapRewardPanel.badge_of(up_info)["color"] == MapRewardPanel.GREEN
 		and String(MapRewardPanel.badge_of(down_info)["text"]) == "Downgrade" and MapRewardPanel.badge_of(lock_info)["color"] == MapRewardPanel.RED
 		and String(MapRewardPanel.badge_of(full_info)["text"]) == "Inventory full" and MapRewardPanel.badge_of(full_info)["color"] == MapRewardPanel.AMBER)
 	var twin: Dictionary = weak.duplicate(true)
@@ -85,7 +91,9 @@ func _test_map_rewards() -> void:
 	var equips: int = 0
 	for entry in panel.tiles:
 		equips += 1 if entry["equip"] != null else 0
-	expect("only the upgrade has an Equip button", equips == 1 and panel.tiles[0]["equip"] != null)
+	expect("every wearable piece in the bag has an Equip button (upgrade and downgrade), the unwearable and the left-over one have none; the verdict is advice, the player decides",
+		equips == 2 and panel.tiles[0]["equip"] != null and panel.tiles[1]["equip"] != null and panel.tiles[2]["equip"] == null and panel.tiles[3]["equip"] == null)
+	expect("the Equip button names who it equips (%s)" % (panel.tiles[0]["equip"] as Button).text, (panel.tiles[0]["equip"] as Button).text == "Equip on %s" % hero.display_name)
 	expect("gold and potions count up from zero to the totals", panel.shown_counts().x < 148 and panel.shown_counts().y < 3)
 	panel.finish_count()
 	expect("and end on them", panel.shown_counts() == Vector2i(148, 3))
@@ -95,7 +103,7 @@ func _test_map_rewards() -> void:
 	await get_tree().process_frame
 	expect("pressing Equip wears the upgrade on the warrior (%s -> %s)" % [before_name, String(hero.stats.equipment[Items.Slot.WEAPON]["name"])],
 		String(hero.stats.equipment[Items.Slot.WEAPON]["name"]) == String(strong["name"]) and String(cutter.stats.equipment[Items.Slot.WEAPON]["name"]) == "Unbeatable blade")
-	expect("the replaced piece goes to the bag, and the tile now reads Worn", hero.stats.bag.any(func(i: Dictionary) -> bool: return String(i["name"]) == before_name)
+	expect("the replaced piece goes to the bag, and the tile now reads Equipped on the warrior", hero.stats.bag.any(func(i: Dictionary) -> bool: return String(i["name"]) == before_name)
 		and int(panel.tiles[0]["info"]["state"]) == State.WORN and panel.tiles[0]["equip"] == null)
 	expect("equipping again does nothing", not panel.equip_item(strong))
 	hud.loot_cards.hide_summary()
@@ -215,6 +223,140 @@ func _test_map_rewards() -> void:
 	expect("a plate over an item at the top edge stays on screen too (%d placed)" % top_plates.size(), top_ok)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
+
+	# --- map mode never wears a pickup, and the selector says who the panel is for -----------------------------------------------------------------
+	hero.stats.equipment.clear()
+	cutter.stats.equipment.clear()
+	hero.stats.bag.clear()
+	var empty_helm: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.NORMAL)
+	expect("setup: both members can wear the cap", Items.hero_can_wear(empty_helm, "hero") and Items.hero_can_wear(empty_helm, "cutter"))
+	var flag_off: String = hero.stats.pickup(empty_helm.duplicate(true))
+	expect("flag off (the default game): a pickup into an empty slot is worn at once, as before (%s)" % flag_off, hero.stats.equipment.has(Items.Slot.HELM) and flag_off.begins_with("Equipped"))
+	hero.stats.equipment.erase(Items.Slot.HELM)
+	hero.stats.bag.clear()
+	MapMode.current = MapMode.new()
+	expect("map mode on: the loot appraisal still calls a piece for an empty slot an upgrade", LootAppraisal.of(empty_helm, hero.stats) == LootAppraisal.Verdict.UPGRADE and not hero.stats.takes_empty_slot(empty_helm))
+	hero.stats.pickup(empty_helm.duplicate(true))
+	cutter.stats.pickup(empty_helm.duplicate(true))
+	expect("map mode on: an empty slot is NOT filled by a pickup, for the warrior or the Cutter; both go to the shared bag",
+		not hero.stats.equipment.has(Items.Slot.HELM) and not cutter.stats.equipment.has(Items.Slot.HELM) and hero.stats.bag.size() == 2 and cutter.stats.bag.size() == 2)
+	hero.stats.bag.clear()
+	var helm_old_hero: Dictionary = _helm(10, "Hero old cap")
+	var helm_old_cutter: Dictionary = _helm(30, "Cutter old cap")
+	var helm_mid: Dictionary = _helm(20, "Middling cap")
+	hero.stats.equipment[Items.Slot.HELM] = helm_old_hero
+	cutter.stats.equipment[Items.Slot.HELM] = helm_old_cutter
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	hero.stats.add_to_bag(helm_mid)
+	var tally3 := {"gold": 1, "health": 0, "mana": 0, "items": [helm_mid]}
+	hud.loot_cards.show_summary("Selector", tally3, [], 60.0, "wooden")
+	var sp: MapRewardPanel = hud.loot_cards.reward_panel
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect("default selection: the member the clear helps most (the warrior: an upgrade for him, a downgrade for the Cutter), and the selector has both buttons",
+		MapRewardPanel.default_member([helm_mid], party) == "hero" and sp.selected == "hero" and sp.selector_buttons.size() == 2)
+	expect("nothing is worn just because it is selected", String(hero.stats.equipment[Items.Slot.HELM]["name"]) == "Hero old cap" and String(cutter.stats.equipment[Items.Slot.HELM]["name"]) == "Cutter old cap")
+	expect("warrior selected: Upgrade for Hero, Equip on Hero", String(MapRewardPanel.badge_of(sp.tiles[0]["info"])["text"]).ends_with("Upgrade for %s" % hero.display_name)
+		and (sp.tiles[0]["equip"] as Button).text == "Equip on %s" % hero.display_name)
+	sp.select_member("cutter")
+	await get_tree().process_frame
+	expect("switching to the Cutter re-reads the same item for her: Downgrade, Equip on Cutter",
+		sp.selected == "cutter" and String(MapRewardPanel.badge_of(sp.tiles[0]["info"])["text"]) == "Downgrade" and (sp.tiles[0]["equip"] as Button).text == "Equip on %s" % cutter.display_name and sp.tiles.size() == 1)
+	expect("and still wore nothing", String(hero.stats.equipment[Items.Slot.HELM]["name"]) == "Hero old cap" and String(cutter.stats.equipment[Items.Slot.HELM]["name"]) == "Cutter old cap" and hero.stats.bag.size() == 1)
+	# keyboard: Tab, 1 and 2
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	sp._input(tab)
+	var ok_tab: bool = sp.selected == "hero"
+	var key2 := InputEventKey.new()
+	key2.keycode = KEY_2
+	key2.pressed = true
+	sp._input(key2)
+	var ok_two: bool = sp.selected == "cutter"
+	var key1 := InputEventKey.new()
+	key1.keycode = KEY_1
+	key1.pressed = true
+	sp._input(key1)
+	expect("keyboard: Tab cycles, 2 picks the Cutter, 1 picks the warrior", ok_tab and ok_two and sp.selected == "hero")
+	# controller: LB / RB, and Left / Right once the list has the focus
+	var rb := InputEventJoypadButton.new()
+	rb.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	rb.pressed = true
+	sp._input(rb)
+	var ok_rb: bool = sp.selected == "cutter"
+	var lb := InputEventJoypadButton.new()
+	lb.button_index = JOY_BUTTON_LEFT_SHOULDER
+	lb.pressed = true
+	sp._input(lb)
+	var ok_lb: bool = sp.selected == "hero"
+	sp._focus(0)
+	var right := InputEventAction.new()
+	right.action = "ui_right"
+	right.pressed = true
+	sp._input(right)
+	var ok_right: bool = sp.selected == "cutter"
+	var left := InputEventAction.new()
+	left.action = "ui_left"
+	left.pressed = true
+	sp._input(left)
+	expect("controller: RB / LB switch member, and Right / Left do too while the list has the focus", ok_rb and ok_lb and ok_right and sp.selected == "hero")
+	get_viewport().gui_release_focus()
+	# Equip goes to the selected member only; the old piece goes to the bag; the tile says so; the other member sees it as worn by the warrior
+	(sp.tiles[0]["equip"] as Button).pressed.emit()
+	await get_tree().process_frame
+	expect("Equip wore it on the selected warrior only, the Cutter is untouched",
+		String(hero.stats.equipment[Items.Slot.HELM]["name"]) == "Middling cap" and String(cutter.stats.equipment[Items.Slot.HELM]["name"]) == "Cutter old cap")
+	expect("the replaced cap went to the bag and the tile reads Equipped on Hero",
+		hero.stats.bag.any(func(i: Dictionary) -> bool: return String(i["name"]) == "Hero old cap") and String(MapRewardPanel.badge_of(sp.tiles[0]["info"])["text"]) == "Equipped on %s" % hero.display_name
+		and sp.tiles[0]["equip"] == null)
+	sp.select_member("cutter")
+	await get_tree().process_frame
+	var other_equip: Button = sp.tiles[0]["equip"]
+	expect("for the Cutter it is Worn by Hero, with Equip disabled and explained, and equipping it fails",
+		String(MapRewardPanel.badge_of(sp.tiles[0]["info"])["text"]) == "Worn by %s" % hero.display_name and other_equip != null and other_equip.disabled and other_equip.tooltip_text.contains("Worn by") and not sp.equip_item(helm_mid))
+	hud.loot_cards.hide_summary()
+
+	# default selection when the other member gains more
+	hero.stats.equipment[Items.Slot.HELM] = _helm(40, "Hero great cap")
+	cutter.stats.equipment[Items.Slot.HELM] = _helm(5, "Cutter poor cap")
+	hero.stats.refresh()
+	cutter.stats.refresh()
+	expect("default selection: the Cutter when the clear helps her most, the warrior on a tie",
+		MapRewardPanel.default_member([helm_mid], party) == "cutter" and MapRewardPanel.default_member([], party) == "hero")
+
+	# a two-handed weapon against a worn shield, and an item neither can use
+	var saved_ranks: Dictionary = hero.character.passive_ranks.duplicate()
+	hero.character.passive_ranks["overbear"] = 1   # (DS2: a two-handed weapon needs Overbear)
+	var two: Dictionary = {}
+	for id in ["axe_2h", "greatsword", "hammer_2h"]:
+		var cand: Dictionary = Items.build(ItemDb.get_def(id), 1, Items.Rarity.NORMAL)
+		if Items.hero_can_wear(cand, "hero"):
+			two = cand
+			break
+	var shield: Dictionary = Items.build(ItemDb.get_def("heater_shield"), 1, Items.Rarity.NORMAL)
+	if not two.is_empty() and Items.hero_can_wear(shield, "hero"):
+		hero.stats.equipment.clear()
+		hero.stats.equipment[Items.Slot.SHIELD] = shield
+		hero.stats.refresh()
+		hero.stats.bag.clear()
+		hero.stats.add_to_bag(two)
+		var conflict: Dictionary = MapRewardPanel.classify_for(two, party, "hero")
+		expect("a two-handed weapon over a worn shield is a CONFLICT that says what it replaces, and it can still be equipped",
+			int(conflict["state"]) == State.CONFLICT and String(MapRewardPanel.badge_of(conflict)["text"]) == "Replaces Shield" and MapRewardPanel.can_equip(conflict))
+	else:
+		expect("setup: a two-handed weapon and a shield the warrior can wear exist (two %s, shield %s, needs: %s)" % [not two.is_empty(), Items.hero_can_wear(shield, "hero"), Items.requirement_text(Items.build(ItemDb.get_def("axe_2h"), 1, Items.Rarity.NORMAL), "hero")], false)
+	hero.character.passive_ranks = saved_ranks
+	var nobody: Dictionary = _weapon(10.0, 40, "Beyond both")
+	hero.stats.bag.clear()
+	hero.stats.add_to_bag(nobody)
+	var nb: Dictionary = MapRewardPanel.classify_for(nobody, party, "cutter")
+	expect("an item neither can use reads Can't use: Needs ... in red, for either selection",
+		int(nb["state"]) == State.LOCKED and String(nb["need"]).begins_with("Can't use: Needs ") and MapRewardPanel.badge_of(nb)["color"] == MapRewardPanel.RED and not MapRewardPanel.can_equip(nb)
+		and String(MapRewardPanel.classify_for(nobody, party, "hero")["need"]).begins_with("Can't use: Needs "))
+	MapMode.current.free()
+	MapMode.current = null
 
 	# --- clean up ---------------------------------------------------------------------------------------------------------------------------------
 	hero.stats.equipment.clear()
