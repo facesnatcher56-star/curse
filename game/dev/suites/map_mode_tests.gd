@@ -1,4 +1,4 @@
-﻿extends DevSuite
+extends DevSuite
 ## Map mode, Step 1 (`-- --crypt01 --mapmode`, issue #79): the map lists live groups and drops cleared ones, a selection dashes both party members to the
 ## group, auto-attack starts on arrival and follows the focus target, a cleared group collects its loot and reopens the map, the fight is logged,
 ## and with the flag off nothing is hooked. (A full Crypt run is played by hand; this drives the same MapMode on the self-test arena.)
@@ -43,6 +43,16 @@ func _test_map_mode() -> void:
 	player.powers.gain(1.0e9)
 	player.stats.gain_brutal_charge(1.0e9)
 	expect("and they fill from damage dealt", player.stats.ult_fraction("brutal_attack") >= 1.0 or player.stats.is_ranged())
+	# After the party falls and gets up again every power is empty again.
+	var fallen := MapMode.new()
+	fallen.hero = player
+	fallen.companion = game.companion
+	player.stats.brutal_reload_required = player.stats.ult_cost("brutal_attack")
+	player.stats.brutal_reload_remaining = 0.0
+	fallen._start_again()
+	expect("after a fall the powers are empty again", player.stats.ult_fraction("brutal_attack") < 1.0 or player.stats.is_ranged())
+	fallen.free()
+	player.stats.brutal_reload_remaining = 0.0
 	var cutter: Player = game.companion
 	var cutter_was_disabled: bool = cutter.testing_disabled
 	cutter.testing_disabled = false
