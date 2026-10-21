@@ -355,7 +355,7 @@ func _test_map_rewards() -> void:
 		int(nb["state"]) == State.LOCKED and String(nb["need"]).begins_with("Can't use: Needs ") and String(MapRewardPanel.headline(nobody, cutter)["plain"]).begins_with(MapRewardPanel.cross()) and not MapRewardPanel.can_equip(nb)
 		and String(MapRewardPanel.classify_for(nobody, party, "hero")["need"]).begins_with("Can't use: Needs "))
 
-	# --- headlines on the selector buttons, the marks, no verdict badges, expanding in place -----------------------------------------------------
+	# --- headlines on the selector buttons, no verdict badges, expanding in place -----------------------------------------------------
 	hero.stats.equipment.clear()
 	cutter.stats.equipment.clear()
 	hero.stats.bag.clear()
@@ -411,12 +411,6 @@ func _test_map_rewards() -> void:
 	var far_hero_tip: String = (hp.selector_buttons["hero"] as Button).tooltip_text
 	expect("hovering or focusing the second item moves the summary to it; the member who cannot use it gets the cross, and the tooltip carries the reason (%s)" % far_hero_tip.replace("\n", " / "),
 		hero_summary.text.contains(MapRewardPanel.cross()) and hero_summary.text.contains("Damage") and far_hero_tip.contains("Needs "))
-	var first_marks: Node = hp.tiles[0]["panel"].find_child("Marks", true, false)
-	var second_marks: Node = hp.tiles[1]["panel"].find_child("Marks", true, false)
-	expect("each tile carries two small marks, one per member: up / down for the cap, a red cross for the unusable blade",
-		first_marks != null and second_marks != null and first_marks.get_child_count() == 2
-		and (first_marks.find_child("Mark_hero", true, false).get_node("Glyph") as Label).text == Items.UP and (first_marks.find_child("Mark_cutter", true, false).get_node("Glyph") as Label).text == Items.DOWN
-		and (second_marks.find_child("Mark_hero", true, false).get_node("Glyph") as Label).text == MapRewardPanel.cross())
 	expect("the verdict badges are gone: an unworn tile has no badge at all, and Equip stays (enabled for the cap, disabled and explained for the unusable blade)",
 		hp.tiles[0]["badge"] == null and hp.tiles[1]["badge"] == null and not (hp.tiles[0]["equip"] as Button).disabled and (hp.tiles[1]["equip"] as Button).disabled and (hp.tiles[1]["equip"] as Button).tooltip_text.contains("Needs "))
 	# expanding in place
@@ -452,6 +446,47 @@ func _test_map_rewards() -> void:
 	hp._input(accept)
 	await get_tree().process_frame
 	expect("and A on the Equip button wears it on the selected member", String(hero.stats.equipment[Items.Slot.HELM]["name"]) == "Fresh cap" and String(cutter.stats.equipment[Items.Slot.HELM]["name"]) == "Cutter cap")
+	hud.loot_cards.hide_summary()
+	await get_tree().create_timer(MapRewardPanel.FADE_SECONDS + 0.2).timeout
+
+	# --- the key line is never cut; the panel has no permanent key hints ------------------------------------------------------------------------
+	var trait_items: Array = []
+	for base in MapModeTraits.TABLE:
+		trait_items.append(Items.build(ItemDb.get_def(String(base)), 1, Items.Rarity.NORMAL))
+	for id in MapModeLegendaries.DEFS:
+		trait_items.append(MapModeLegendaries.item(String(id)))
+	hud.loot_cards.show_summary("Long lines", {"gold": 0, "health": 0, "mana": 0, "items": trait_items}, [], 60.0, "iron")
+	var lp: MapRewardPanel = hud.loot_cards.reward_panel
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var uncut: int = 0
+	var checked_lines: int = 0
+	var longest: String = ""
+	for entry in lp.tiles:
+		var expected: String = String(MapRewardPanel.key_line(entry["item"], "hero")["text"])
+		if expected == "":
+			continue
+		var found: Label = null
+		for lab in (entry["panel"] as Node).find_children("*", "Label", true, false):
+			if (lab as Label).text == expected:
+				found = lab
+		checked_lines += 1
+		if found != null and found.autowrap_mode == TextServer.AUTOWRAP_WORD_SMART and found.text_overrun_behavior == TextServer.OVERRUN_NO_TRIMMING and found.custom_minimum_size.x >= 150.0:
+			uncut += 1
+		if expected.length() > longest.length():
+			longest = expected
+	expect("every trait and legendary key line wraps in full (word wrap, no trimming): %d of %d, longest \"%s\"" % [uncut, checked_lines, longest], checked_lines >= 10 and uncut == checked_lines)
+	var signet_line: String = MapModeTraits.line_for("signet")
+	var signet_label: Label = MapRewardPanel.key_label(signet_line, MapRewardPanel.NEUTRAL, 322.0)
+	expect("the Signet's trait line is not trimmed", signet_line.contains("When you use a power") and signet_label.text == signet_line and signet_label.text_overrun_behavior == TextServer.OVERRUN_NO_TRIMMING and signet_label.autowrap_mode == TextServer.AUTOWRAP_WORD_SMART)
+	signet_label.free()
+	var tile_equip: Button = null
+	for entry in lp.tiles:
+		if entry["equip"] != null:
+			tile_equip = entry["equip"]
+	expect("Equip is on a row of its own under the text, not beside it", tile_equip == null or tile_equip.get_parent() is VBoxContainer)
+	expect("the footer is just the Continue button: no permanent key hint, no member marks, no 'for X' note",
+		lp.find_child("Hint", true, false) == null and lp.find_child("Marks", true, false) == null and lp.find_child("Note", true, false) == null and lp.continue_button != null)
 	hud.loot_cards.hide_summary()
 	await get_tree().create_timer(MapRewardPanel.FADE_SECONDS + 0.2).timeout
 	MapMode.current.free()

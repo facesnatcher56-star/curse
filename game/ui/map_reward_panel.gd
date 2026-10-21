@@ -49,7 +49,6 @@ var side: String = "right"
 var subject: Dictionary = {}                     # the item the selector buttons summarise: the hovered or focused one, the first by default
 var expanded_key: String = ""                    # the tile opened to its full details (one at a time)
 var selector_summaries: Dictionary = {}          # member id -> RichTextLabel
-var _selector_note: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _gold_label: Label
@@ -203,7 +202,7 @@ static func _best_place(item: Dictionary, body: Player) -> int:
 	return best_place
 
 ## The tile's STATE badge: {text, color}; text is "" when there is none. The verdict (upgrade / sidegrade / downgrade / cannot use) is not a badge:
-## it is the headline on each member's selector button and the two small marks on the tile.
+## it is the headline on each member's selector button.
 static func badge_of(info: Dictionary) -> Dictionary:
 	match int(info["state"]):
 		State.UPGRADE, State.SIDEGRADE, State.DOWNGRADE, State.LOCKED: return {"text": "", "color": NEUTRAL}
@@ -429,11 +428,6 @@ func _selector() -> Control:
 	caption.add_theme_font_size_override("font_size", 16)
 	caption.add_theme_color_override("font_color", ItemTile.HINT_COLOR)
 	head_row.add_child(caption)
-	_selector_note = Label.new()
-	_selector_note.name = "Note"
-	_selector_note.add_theme_font_size_override("font_size", 14)
-	_selector_note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head_row.add_child(_selector_note)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	box.add_child(row)
@@ -505,10 +499,6 @@ func _refresh_selector() -> void:
 			button.add_theme_stylebox_override(state, style)
 		(button.find_child("Name", true, false) as Label).add_theme_color_override("font_color", colour.lightened(0.45) if on else colour.darkened(0.2))
 		button.modulate = Color.WHITE if on else Color(0.8, 0.8, 0.8)
-	if _selector_note != null:
-		var body: Player = member_body(bodies, selected)
-		_selector_note.text = "for %s" % (body.display_name if body != null else selected)
-		_selector_note.add_theme_color_override("font_color", (MEMBER_COLORS.get(selected, NEUTRAL) as Color).lightened(0.25))
 	_refresh_summaries()
 
 ## The headline of the subject item on each member's button (and its tooltip: the full line, with the requirement when they cannot use it).
@@ -523,7 +513,8 @@ func _refresh_summaries() -> void:
 			continue
 		var head: Dictionary = headline(subject, body)
 		summary.text = headline_bbcode(head)
-		button.tooltip_text = "%s: %s%s" % [body.display_name, String(head["plain"]), ("\n%s" % String(head["need"])) if String(head["need"]) != "" else ""]
+		button.tooltip_text = "%s: %s%s\n%s" % [body.display_name, String(head["plain"]), ("\n%s" % String(head["need"])) if String(head["need"]) != "" else "",
+			"LB / RB to switch" if Gamepad.active else "Tab, or 1 / 2, to switch"]
 
 ## The item the buttons summarise (hover and controller focus move it; it stays on the last one).
 func set_subject(item: Dictionary) -> void:
@@ -562,15 +553,9 @@ func _count_label() -> Label:
 func _footer() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	var hint := Label.new()
-	hint.name = "Hint"
-	hint.text = "LB / RB member   Y items   A equip" if Gamepad.active else "Tab / 1 / 2 member   hover an item for its card"
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size.x = 120.0
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", ItemTile.HINT_COLOR)
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(hint)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
 	continue_button = Button.new()
 	continue_button.text = "Continue  (A)" if Gamepad.active else "Continue  (Space)"
 	continue_button.custom_minimum_size = Vector2(150, 34)
@@ -656,7 +641,6 @@ func _tile(item: Dictionary) -> Dictionary:
 	slot_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	slot_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	kind_row.add_child(slot_label)
-	kind_row.add_child(_marks(item))
 	var badge: Dictionary = badge_of(info)
 	var badge_panel: Control = null
 	if String(badge["text"]) != "":
@@ -681,34 +665,18 @@ func _tile(item: Dictionary) -> Dictionary:
 			equip.tooltip_text = "%s cannot use it: %s" % [String(info["who"]), String(info["need"])]
 		equip.focus_mode = Control.FOCUS_ALL if (is_open and not equip.disabled) else Control.FOCUS_NONE   # the controller selects the tile; A opens it, then A on Equip wears it
 		equip.pressed.connect(_equip.bind(item))
-	var line_row := HBoxContainer.new()
-	line_row.add_theme_constant_override("separation", 8)
+	var line_row := VBoxContainer.new()   # the key line, in full on as many lines as it needs, then Equip on a row of its own
+	line_row.add_theme_constant_override("separation", 4)
 	col.add_child(line_row)
 	if bool(info.get("fresh", false)) and String(done.get("replaced", "")) != "":
-		var was := _wrapped("Replaced %s (now in the bag)" % String(done["replaced"]), 15, DIM, 0.0)
-		was.autowrap_mode = TextServer.AUTOWRAP_OFF
-		was.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		was.custom_minimum_size.x = 60.0
-		was.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		line_row.add_child(was)
+		line_row.add_child(key_label("Replaced %s (now in the bag)" % String(done["replaced"]), DIM, text_width))
 	elif String(line["text"]) != "":
 		if String(line["section"]) == "legendary":
-			var band: Control = _effect_band(String(line["text"]), text_width - (EQUIP_WIDTH + 8.0 if equip != null else 0.0))
-			band.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			line_row.add_child(band)
+			line_row.add_child(_effect_band(String(line["text"]), text_width))
 		else:
-			var label := _wrapped(String(line["text"]), 15, ItemTile.MOD_COLOR if String(line["section"]) == "mods" else NEUTRAL, 0.0)
-			label.autowrap_mode = TextServer.AUTOWRAP_OFF
-			label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			label.custom_minimum_size.x = 60.0
-			label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			line_row.add_child(label)
-	else:
-		var pad := Control.new()
-		pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		line_row.add_child(pad)
+			line_row.add_child(key_label(String(line["text"]), ItemTile.MOD_COLOR if String(line["section"]) == "mods" else NEUTRAL, text_width))
 	if equip != null:
-		equip.size_flags_vertical = Control.SIZE_SHRINK_END
+		equip.size_flags_horizontal = Control.SIZE_SHRINK_END
 		line_row.add_child(equip)
 	if is_open:   # the shared item card in place, its compare lines against what the SELECTED member wears there
 		var card: Control = ItemTile.card(item, worn, true, false, "", Color(0, 0, 0, 0), member)
@@ -717,45 +685,6 @@ func _tile(item: Dictionary) -> Dictionary:
 		card.name = "Details"
 		stack.add_child(card)
 	return {"item": item, "info": info, "panel": panel, "icon": icon, "equip": equip, "badge": badge_panel, "open": is_open}
-
-## The two small marks on a tile, one per member in the member's colour: the headline's arrow (green up, red down, grey equal), a red cross when
-## they cannot use it, a check when they already wear it. Hovering one gives the full headline.
-func _marks(item: Dictionary) -> Control:
-	var box := HBoxContainer.new()
-	box.name = "Marks"
-	box.add_theme_constant_override("separation", 8)
-	for id in MEMBERS:
-		var body: Player = member_body(bodies, id)
-		if body == null or body.member_id != id:
-			continue
-		var head: Dictionary = headline(item, body)
-		var chip := HBoxContainer.new()
-		chip.name = "Mark_" + id
-		chip.add_theme_constant_override("separation", 3)
-		chip.mouse_filter = Control.MOUSE_FILTER_PASS
-		chip.tooltip_text = "%s: %s%s" % [body.display_name, String(head["plain"]), ("\n%s" % String(head["need"])) if String(head["need"]) != "" else ""]
-		var dot := ColorRect.new()
-		dot.color = MEMBER_COLORS.get(id, NEUTRAL)
-		dot.custom_minimum_size = Vector2(8, 8)
-		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_child(dot)
-		var glyph := Label.new()
-		glyph.name = "Glyph"
-		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		glyph.add_theme_font_size_override("font_size", 14)
-		if bool(head["worn"]):
-			glyph.text = "\u2713"
-			glyph.add_theme_color_override("font_color", DIM)
-		elif not bool(head["usable"]):
-			glyph.text = cross()
-			glyph.add_theme_color_override("font_color", RED)
-		else:
-			glyph.text = String(head["text"]).substr(0, 1)
-			glyph.add_theme_color_override("font_color", headline_color(head))
-		chip.add_child(glyph)
-		box.add_child(chip)
-	return box
 
 ## Opens the tile in place to the full details, or closes it again (one open at a time).
 func toggle_expand(item: Dictionary) -> void:
@@ -779,6 +708,19 @@ func _tile_style(colour: Color, rarity: int, legendary: bool, focused: bool) -> 
 		style.shadow_color = Color(colour.r, colour.g, colour.b, 0.6 if legendary else 0.32)
 		style.shadow_size = 14 if legendary else 6
 	return style
+
+## A line of text that is never cut: it wraps at word boundaries to as many lines as it needs (no ellipsis, no clipping).
+static func key_label(text: String, colour: Color, width: float) -> Label:
+	var label := Label.new()
+	label.name = "KeyLine"
+	label.text = text
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", colour)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	label.custom_minimum_size.x = width
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return label
 
 func _wrapped(text: String, size: int, colour: Color, width: float) -> Label:
 	var label := Label.new()
