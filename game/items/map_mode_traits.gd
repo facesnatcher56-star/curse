@@ -20,7 +20,7 @@ const TABLE := {
 		"numbers": {"step": 3.0, "cap": 15.0, "secs": 4.0}},
 	"short_bow": {"id": "bow_mark", "text": "Autos mark the target for {secs} s: the rest of the party deals +{pct}% to marked enemies",
 		"numbers": {"secs": 6.0, "pct": 15.0}},
-	"leather_jerkin": {"id": "jerkin_dash", "text": "+{dash}% dash speed", "numbers": {"dash": 25.0}},
+	"leather_jerkin": {"id": "jerkin_shield", "text": "A shield absorbs the first {pct}% of your max life in damage each fight", "numbers": {"pct": 20.0}},
 	"apprentice_robe": {"id": "robe_recharge", "text": "Powers charge {recharge}% faster", "numbers": {"recharge": 10.0}},
 	"mail_hauberk": {"id": "hauberk_taken", "text": "Damage taken also charges your powers ({pct}% of it)", "numbers": {"pct": 50.0}},
 	"leather_cap": {"id": "cap_telegraph", "text": "Enemy wind-up telegraphs show {lead} s earlier", "numbers": {"lead": 0.5}},
@@ -50,13 +50,13 @@ const AFFIXES: Array[Dictionary] = [
 	{"id": "mm_charge_kill_2", "family": "mm_charge_kill", "stat": "charge_on_kill", "title": "Bloodied", "position": "prefix", "level": 10, "value": 4.0, "ceiling": 7.0, "slots": ["ring", "amulet", "helm", "body"]},
 	{"id": "mm_marked_1", "family": "mm_marked", "stat": "marked_damage", "title": "Hunter's", "position": "prefix", "level": 1, "value": 5.0, "ceiling": 10.0, "slots": ["weapon", "ring", "amulet", "gloves"]},
 	{"id": "mm_marked_2", "family": "mm_marked", "stat": "marked_damage", "title": "Hunter's", "position": "prefix", "level": 10, "value": 10.0, "ceiling": 18.0, "slots": ["weapon", "ring", "amulet", "gloves"]},
-	{"id": "mm_dash_1", "family": "mm_dash", "stat": "dash_speed", "title": "of the Gale", "position": "suffix", "level": 1, "value": 8.0, "ceiling": 15.0, "slots": ["boots", "body"]},
-	{"id": "mm_dash_2", "family": "mm_dash", "stat": "dash_speed", "title": "of the Gale", "position": "suffix", "level": 10, "value": 15.0, "ceiling": 25.0, "slots": ["boots", "body"]},
+	{"id": "mm_heal_1", "family": "mm_heal", "stat": "room_heal", "title": "of Mending", "position": "suffix", "level": 1, "value": 4.0, "ceiling": 8.0, "slots": ["boots", "body"]},
+	{"id": "mm_heal_2", "family": "mm_heal", "stat": "room_heal", "title": "of Mending", "position": "suffix", "level": 10, "value": 8.0, "ceiling": 12.0, "slots": ["boots", "body"]},
 	{"id": "mm_auto_1", "family": "mm_auto", "stat": "auto_speed", "title": "Quick", "position": "prefix", "level": 1, "value": 4.0, "ceiling": 8.0, "slots": ["weapon", "gloves", "boots"]},
 	{"id": "mm_auto_2", "family": "mm_auto", "stat": "auto_speed", "title": "Quick", "position": "prefix", "level": 10, "value": 8.0, "ceiling": 14.0, "slots": ["weapon", "gloves", "boots"]},
 ]
 ## The stats the modifiers above add that the base game does not know (name on the card; all are percentages).
-const NEW_STAT_NAMES := {"charge_on_kill": "Power charge on kill", "marked_damage": "Damage to marked enemies", "dash_speed": "Dash speed", "auto_speed": "Auto-attack speed"}
+const NEW_STAT_NAMES := {"charge_on_kill": "Power charge on kill", "marked_damage": "Damage to marked enemies", "room_heal": "Heal on room clear", "auto_speed": "Auto-attack speed"}
 
 ## The skill ids that are "autos" (the basic melee blow, the Cutter's and a bow's arrow).
 const AUTO_IDS: Array[String] = ["basic", "companion_arrow"]
@@ -64,7 +64,7 @@ const MARK_META := "mm_marked"
 
 static var time_override: float = -1.0       # tests set the clock
 static var _affix_defs: Dictionary = {}      # id -> AffixDef (built on first use)
-static var _state: Dictionary = {}           # body instance id -> {power_until, burst_until, autos}
+static var _state: Dictionary = {}           # body instance id -> {power_until, burst_until, autos, shield}
 
 static func now() -> float:
 	return time_override if time_override >= 0.0 else Time.get_ticks_msec() / 1000.0
@@ -128,7 +128,7 @@ static func _living() -> Array[Player]:
 static func _st(body: Player) -> Dictionary:
 	var id: int = body.get_instance_id()
 	if not _state.has(id):
-		_state[id] = {"power_until": -1.0, "burst_until": -1.0, "autos": 0}
+		_state[id] = {"power_until": -1.0, "burst_until": -1.0, "autos": 0, "shield": 0.0}
 	return _state[id]
 
 static func is_auto(result: Dictionary) -> bool:
@@ -178,14 +178,6 @@ static func execution_bonus(body: Player) -> float:
 	if value(body, "gauntlets_execute", "pct") > 0.0:
 		MapAutoTally.note("gauntlets_execution")
 	return value(body, "gauntlets_execute", "pct")
-
-## Dash time divisor of the party (the best dash speed among the members).
-static func dash_speed_mult(m: MapMode) -> float:
-	var best: float = 0.0
-	for body in [m.hero, m.companion]:
-		if body != null and is_instance_valid(body):
-			best = maxf(best, value(body, "jerkin_dash", "dash") + gear(body, "dash_speed"))
-	return 1.0 + best / 100.0
 
 # --- Charge helpers --------------------------------------------------------------------------------------------------------------
 
@@ -321,12 +313,56 @@ static func on_power(member_id: String, _power_id: String) -> void:
 			body.stats.refund_power_charge(share / 100.0)
 			MapAutoTally.note("signet_share", share)
 
-## The dash begins (MapMode._start_dash): Jerkin and "dash speed" shorten it.
-static func on_dash_started(m: MapMode) -> void:
-	if MapMode.active:
-		m._dash_time = maxf(m._dash_time / dash_speed_mult(m), 0.15)
-		if dash_speed_mult(m) > 1.0:
-			MapAutoTally.note("dash_speed")
+## A fight begins (MapMode._arrive, group visit): the Jerkin's shield fills for each living wearer (a fresh pool every fight).
+static func on_fight_start(m: MapMode) -> void:
+	if not MapMode.active:
+		return
+	for body in [m.hero, m.companion]:
+		if body == null or not is_instance_valid(body):
+			continue
+		_st(body)["shield"] = 0.0 if body.dead else body.max_health * value(body, "jerkin_shield", "pct") / 100.0
+		if float(_st(body)["shield"]) > 0.0:
+			MapAutoTally.note("jerkin_shield_up", float(_st(body)["shield"]))
+
+## A room is cleared (MapMode._begin_collect after a fight): the shields are gone, and "Heal on room clear" restores the living wearers.
+static func on_room_clear(m: MapMode) -> void:
+	if not MapMode.active:
+		return
+	for body in [m.hero, m.companion]:
+		if body == null or not is_instance_valid(body):
+			continue
+		_st(body)["shield"] = 0.0
+		var pct: float = gear(body, "room_heal")
+		if pct <= 0.0 or body.dead or body.health <= 0.0:
+			continue
+		var amount: float = minf(body.max_health * pct / 100.0, body.max_health - body.health)
+		if amount <= 0.0:
+			continue
+		body.health += amount
+		MapAutoTally.note("room_heal", amount)
+		if body.is_inside_tree() and body.get_tree().current_scene != null:
+			Fx.text_at(body, body.global_position + Vector3(0, body.body_height + 0.4, 0), "+%d" % int(round(amount)), Color(0.45, 1.0, 0.5), 44)
+
+## Player._filter_incoming: the Jerkin's shield soaks damage (AoE and ticks included) until its pool is used up or the fight ends.
+static func absorb(body: Player, result: Dictionary) -> Dictionary:
+	if not MapMode.active or int(result.get("outcome", 0)) < Combat.Outcome.HIT:
+		return result
+	var damage: float = float(result.get("damage", 0.0))
+	var st: Dictionary = _st(body)
+	var pool: float = float(st["shield"])
+	if damage <= 0.0 or pool <= 0.0:
+		return result
+	var soaked: float = minf(damage, pool)
+	st["shield"] = pool - soaked
+	result["damage"] = damage - soaked
+	result["shield_absorbed"] = soaked
+	MapAutoTally.note("jerkin_shield_absorbed", soaked)
+	if float(result["damage"]) <= 0.0:
+		result["outcome"] = Combat.Outcome.BLOCK   # fully soaked: no recoil, like the guard
+		result["guard"] = true
+	if body.is_inside_tree() and body.get_tree().current_scene != null:
+		Fx.ring(body, body.global_position, 1.2, Color(0.55, 0.8, 1.0))
+	return result
 
 ## The party lands (MapMode._arrive): Woven Hood and Leather Boots start their timers, Iron Greaves knock enemies back.
 static func on_dash_arrived(m: MapMode) -> void:

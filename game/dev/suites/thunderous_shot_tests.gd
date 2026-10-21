@@ -51,6 +51,22 @@ func _test_thunderous_shot() -> void:
 	archer.stats.refresh()
 	expect("with the passive and his bow it is ready", PowerDb.hero_rank("thunderous_shot", "cutter") == 1 and archer.powers.stance_ok("bow") and archer.powers.ready("thunderous_shot"))
 	expect("a sword is not a bow: the hero's stance check fails", not player.powers.stance_ok("bow"))
+	# A lit button must work: the Cutter is nearly always mid-shot, and an ordinary shot must not swallow the press (only another power does).
+	archer.skills.busy = true
+	archer.skills.busy_def = {"kind": "ranged", "charged": false}
+	archer.skills.busy_skill = "basic"
+	Input.action_press("skill_2")
+	archer.skills.handle_aimed_key("skill_2", "thunderous_shot", lane + Vector3(8.0, 0.0, 0.0))
+	expect("pressing it mid-shot still starts the aim", archer.skills.aiming_id == "thunderous_shot")
+	archer.skills.clear_aim()
+	archer.skills.busy_def = {"kind": "power"}
+	archer.skills.busy_skill = "flame_nexus"
+	archer.skills.handle_aimed_key("skill_2", "thunderous_shot", lane + Vector3(8.0, 0.0, 0.0))
+	expect("but not while another power is under way", archer.skills.aiming_id == "")
+	Input.action_release("skill_2")
+	archer.skills.busy = false
+	archer.skills.busy_def = {}
+	archer.skills.busy_skill = ""
 
 	# The line: three on it (8, 11.5, 15 m), one off to the side, one beyond the 17 m reach, one a wall's width behind.
 	var first := _foe(lane + Vector3(8.0, 0.0, 0.0), 100000.0)

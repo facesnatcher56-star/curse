@@ -1,4 +1,4 @@
-extends DevSuite
+﻿extends DevSuite
 ## Map mode, Step 1 (`-- --crypt01 --mapmode`, issue #79): the map lists live groups and drops cleared ones, a selection dashes both party members to the
 ## group, auto-attack starts on arrival and follows the focus target, a cleared group collects its loot and reopens the map, the fight is logged,
 ## and with the flag off nothing is hooked. (A full Crypt run is played by hand; this drives the same MapMode on the self-test arena.)
@@ -29,6 +29,20 @@ func _test_map_mode() -> void:
 	probe.free()
 	expect("map mode: a level-up leaves the power charges alone", kept)
 	player.stats.brutal_reload_remaining = 0.0
+	# A run starts with every power empty: charged ones are spent, and they charge from damage again.
+	player.stats.brutal_reload_remaining = 0.0
+	var learned: Array[String] = []
+	for id in PowerController.LIVE:
+		if PowerDb.hero_rank(id, player.member_id) > 0:
+			learned.append(id)
+	MapMode.start_uncharged(player)
+	var all_empty: bool = player.stats.ult_fraction("brutal_attack") < 1.0 or player.stats.is_ranged()
+	for id in learned:
+		all_empty = all_empty and player.powers.fraction(id) < 1.0
+	expect("a map-mode run starts with Brutal Attack and every learned power empty (%d powers)" % learned.size(), all_empty)
+	player.powers.gain(1.0e9)
+	player.stats.gain_brutal_charge(1.0e9)
+	expect("and they fill from damage dealt", player.stats.ult_fraction("brutal_attack") >= 1.0 or player.stats.is_ranged())
 	var cutter: Player = game.companion
 	var cutter_was_disabled: bool = cutter.testing_disabled
 	cutter.testing_disabled = false

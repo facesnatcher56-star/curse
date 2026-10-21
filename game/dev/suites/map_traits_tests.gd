@@ -187,13 +187,20 @@ func _test_map_traits() -> void:
 
 	# --- The map-mode modifiers --------------------------------------------------------------------------------------------------------------
 	var pool_ok: bool = true
-	for stat in ["opening", "charge_on_kill", "marked_damage", "dash_speed", "auto_speed"]:
+	for stat in ["opening", "charge_on_kill", "marked_damage", "room_heal", "auto_speed"]:
 		var found: bool = false
 		for kind in ["weapon", "body", "ring", "helm", "gloves", "boots", "amulet"]:
 			for a in AffixDb.eligible(kind, 0, 50, ""):
 				found = found or (a.stat == stat and (a.id as String).begins_with("mm_"))
 		pool_ok = pool_ok and found
-	expect("map mode adds +Opening chance, +charge on kill, +damage to marked, +dash speed and +auto-attack speed to the modifier pool", pool_ok)
+	expect("map mode adds +Opening chance, +charge on kill, +damage to marked, +heal on room clear and +auto-attack speed to the modifier pool", pool_ok)
+	_off()
+	var heal_in_default: bool = false
+	for kind in ["body", "boots"]:
+		for a in AffixDb.eligible(kind, 0, 50, ""):
+			heal_in_default = heal_in_default or a.stat == "room_heal"
+	_on()
+	expect("the default game's modifier pool has no heal on room clear", not heal_in_default)
 	var rolled: Dictionary = {}
 	var kinds: Array = [Items.Slot.WEAPON, Items.Slot.GLOVES, Items.Slot.BOOTS, Items.Slot.RING, Items.Slot.AMULET, Items.Slot.HELM, Items.Slot.ARMOR]
 	for i in 1500:
@@ -319,22 +326,63 @@ func _test_map_traits() -> void:
 	MapModeTraits.time_override = -1.0
 	_strip(_cutter)
 
-	# --- Leather Jerkin (and the dash speed modifier) ----------------------------------------------------------------------------------------
+	# --- Leather Jerkin: first-hit shield ----------------------------------------------------------------------------------------------------
+	_hero.health = _hero.max_health
 	_wear(_hero, "leather_jerkin", 3)
-	_m._dash_time = 1.0
-	MapModeTraits.on_dash_started(_m)
-	expect("Leather Jerkin: a 1.0 s dash takes 0.8 s (+25%% speed): %.2f" % _m._dash_time, _near(_m._dash_time, 0.8))
+	var pool: float = _hero.max_health * 0.2
+	expect("Leather Jerkin tooltip reads the first-hit shield", MapModeTraits.line_for("leather_jerkin") == "A shield absorbs the first 20% of your max life in damage each fight")
+	var hit := func(dmg: float, extra: Dictionary = {}) -> Dictionary:
+		var r: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": dmg, "weight": 1.0}
+		r.merge(extra, true)
+		return _hero._filter_incoming(r)
+	expect("Jerkin shield is empty before a fight starts", _near(float(hit.call(10.0)["damage"]), 10.0))
+	MapModeTraits.on_fight_start(_m)
+	var h1: Dictionary = hit.call(pool * 0.5)
+	var h2: Dictionary = hit.call(pool * 0.4, {"aoe": true})   # AoE is absorbed too
+	var h3: Dictionary = hit.call(pool * 0.3)                  # 0.1 of the pool is left: 0.2 gets through
+	var h4: Dictionary = hit.call(25.0)
+	expect("Jerkin shield soaks 20%% of max life (%.1f) over several hits (%.1f, %.1f, %.1f taken) and then stops (%.1f)" % [pool, h1["damage"], h2["damage"], h3["damage"], h4["damage"]],
+		_near(float(h1["damage"]), 0.0) and _near(float(h2["damage"]), 0.0) and _near(float(h3["damage"]), pool * 0.2, 0.01) and _near(float(h4["damage"]), 25.0)
+		and _near(float(h1["shield_absorbed"]) + float(h2["shield_absorbed"]) + float(h3["shield_absorbed"]), pool, 0.01))
+	var zero: Dictionary = hit.call(0.0)
+	expect("the shield never heals or goes below the pool on a zero hit", _near(float(zero["damage"]), 0.0))
+	MapModeTraits.on_fight_start(_m)
+	var fresh: float = float(hit.call(1.0)["damage"])
+	expect("the shield is fresh at the next fight (1.0 hit -> %.1f taken)" % fresh, _near(fresh, 0.0))
+	MapModeTraits.on_fight_start(_m)
+	MapModeTraits.on_room_clear(_m)
+	expect("the shield is gone when the fight ends", _near(float(hit.call(30.0)["damage"]), 30.0))
+	MapModeTraits.on_fight_start(_m)
+	_off()
+	var shield_off: Dictionary = hit.call(30.0)
+	_on()
+	expect("with map mode off the shield does nothing", _near(float(shield_off["damage"]), 30.0) and not shield_off.has("shield_absorbed"))
 	_strip(_hero)
-	var gale: Dictionary = Items.build(ItemDb.get_def("leather_boots"), 5, Items.Rarity.MAGIC, ["mm_dash_1"], "", {"mm_dash_1": 10.0})
-	_hero.stats.equipment[Items.Slot.BOOTS] = gale
+	MapModeTraits.on_fight_start(_m)
+	expect("without the Jerkin there is no shield", _near(float(hit.call(30.0)["damage"]), 30.0))
+
+	# --- "of Mending": heal on room clear -------------------------------------------------------------------------------------------------------
+	var mending: Dictionary = Items.build(ItemDb.get_def("leather_boots"), 5, Items.Rarity.MAGIC, ["mm_heal_1"], "", {"mm_heal_1": 8.0})
+	_hero.stats.equipment[Items.Slot.BOOTS] = mending
 	_hero.stats.refresh()
-	_m._dash_time = 1.0
-	MapModeTraits.on_dash_started(_m)
-	expect("modifier +dash speed: +10%% shortens a 1.0 s dash to %.3f s" % _m._dash_time, _near(_m._dash_time, 1.0 / 1.1))
+	_hero.health = _hero.max_health * 0.5
+	MapModeTraits.on_room_clear(_m)
+	expect("Heal on room clear: +8%% of max life (%.1f of %.1f)" % [_hero.health, _hero.max_health], _near(_hero.health, _hero.max_health * 0.58, 0.01))
+	_hero.health = _hero.max_health * 0.95
+	MapModeTraits.on_room_clear(_m)
+	expect("Heal on room clear stops at max life", _near(_hero.health, _hero.max_health, 0.01))
+	_hero.health = _hero.max_health * 0.5
+	_off()
+	MapModeTraits.on_room_clear(_m)
+	_on()
+	expect("Heal on room clear is inert with map mode off", _near(_hero.health, _hero.max_health * 0.5, 0.01))
+	_hero.dead = true
+	_hero.health = 0.0
+	MapModeTraits.on_room_clear(_m)
+	expect("Heal on room clear does not raise the dead", _hero.health == 0.0)
+	_hero.dead = false
+	_hero.health = _hero.max_health
 	_strip(_hero)
-	_m._dash_time = 1.0
-	MapModeTraits.on_dash_started(_m)
-	expect("with no dash gear the dash time is unchanged", _near(_m._dash_time, 1.0))
 
 	# --- Apprentice Robe ----------------------------------------------------------------------------------------------------------------------
 	var plain_recharge: float = _hero.stats.power_recharge_damage(10.0, "melee")
