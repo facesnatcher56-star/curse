@@ -182,6 +182,23 @@ func _overlay_checks() -> void:
 	click.position = ov.marker_screen_pos(1)
 	ov._input(click)
 	expect("clicking a cleared node selects it (dash back)", picked == [3, 1])
+	# With the inventory / character window open over the map the map waits: the window must get the clicks (equipping between nodes).
+	var ov_hud := MapModeOverlay.new()
+	ov_hud.screen_override = Vector2(1920, 1080) / 1.2
+	hud.add_child(ov_hud)
+	ov_hud.set_links(g.link_rows())
+	ov_hud.set_frame(g.bounds())
+	ov_hud.open(marks, Vector3.ZERO, false)
+	var picked_hud: Array = []
+	ov_hud.selected.connect(func(id: int) -> void: picked_hud.append(id))
+	click.position = ov_hud.marker_screen_pos(3)
+	hud.show_gear = true
+	ov_hud._input(click)
+	var swallowed: bool = ov_hud.yields_to_window() and picked_hud.is_empty()
+	hud.show_gear = false
+	ov_hud._input(click)
+	expect("with the inventory open the map ignores clicks (they reach the window), and takes them again once it closes", swallowed and picked_hud == [3])
+	ov_hud.queue_free()
 	# The tooltip of a node at the screen edge stays inside the screen.
 	var edge_ok: bool = true
 	for id in [0, 1, 2, 3, 4]:
