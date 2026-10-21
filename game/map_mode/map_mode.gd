@@ -145,6 +145,21 @@ func _ready() -> void:
 	for body in [hero, companion]:
 		if body != null:
 			body.power_activated.connect(func(_id: String, power_id: String) -> void: log.note_power(power_id))
+			start_uncharged(body)
+
+## A run starts with every power empty (owner rule): they charge from the damage the party deals, like after any use. Only powers the member
+## has learned and can use with his weapon; the rest are untouched.
+static func start_uncharged(body: Player) -> void:
+	if body == null or body.stats == null:
+		return
+	for id in PowerController.LIVE:
+		if PowerDb.hero_rank(id, body.member_id) > 0 and body.powers.required(id) > 0.0:
+			body.powers._spend(id)
+	if PowerDb.hero_rank("brutal_attack", body.member_id) > 0 and not body.stats.is_ranged():
+		body.stats.spend_brutal_attack()
+	if body.bow != null and PowerDb.hero_rank("take_aim", body.member_id) > 0:
+		body.bow.reload_required = body.stats.ult_cost("take_aim")
+		body.bow.reload_remaining = body.bow.reload_required
 
 # --- Flow -----------------------------------------------------------------------------------------------------------------------------
 
