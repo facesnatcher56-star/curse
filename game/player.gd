@@ -1021,6 +1021,13 @@ func _auto_engage(ctrl: bool) -> Actor:
 		return null
 	if click_mode == 4 or Gamepad.move_vector().length() > 0.0:
 		return null
+	# An ability is being set up (an aim key held, Take Aim waiting for its target click, a queued skill, or a power under way): the hero
+	# waits for the player and neither swings nor walks off, for any member of the party (the click that picks a target belongs to the ability).
+	if skills.queued_skill != "" or skills.busy:
+		return null
+	for member in PartyManager.current().bodies.values():
+		if is_instance_valid(member) and (member.skills.take_aim_targeting or member.skills.aiming_id != ""):
+			return null
 	if MapMode.active:   # map mode picks every target itself (MapMode.target_for): the fight's group, wherever it stands
 		return null
 	var reach: float = AUTO_ENGAGE_RANGED if (stats.is_ranged() and bow != null) else AUTO_ENGAGE_MELEE

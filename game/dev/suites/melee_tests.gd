@@ -164,6 +164,24 @@ func _test_held_click_keeps_target() -> void:
 	player.cursor_override = Vector3(-6.0, 0.0, -6.0)
 	await _click_ground(Vector3(-6.0, 0.0, -6.0))
 	expect("a ground click sends him away from it and he does not turn back at once", player.attack_target == null and player.movement.has_goal)
+	# Setting up an ability (Take Aim waiting for its target click, an aim key held) holds the auto-engage back.
+	player.movement.has_goal = false
+	player.attack_target = null
+	first._aggro = true
+	player.skills.take_aim_targeting = true
+	for i in 6:
+		await get_tree().physics_frame
+	expect("while Take Aim waits for its target click the hero does not auto-engage", player.attack_target == null and not player.skills.busy)
+	player.skills.take_aim_targeting = false
+	player.skills.aiming_id = "fireball"
+	for i in 6:
+		await get_tree().physics_frame
+	expect("nor while an aimed ability's key is held", player.attack_target == null and not player.skills.busy)
+	player.skills.aiming_id = ""
+	for i in 6:
+		await get_tree().physics_frame
+	expect("and he engages again as soon as the ability is done", player.attack_target == first)
+	player.attack_target = null
 	first._aggro = false
 	# The Cutter engages an awake enemy well beyond the old 12 m from the hero (an archer or thrower stands back), with nothing clicked.
 	var cutter: Player = game.companion
