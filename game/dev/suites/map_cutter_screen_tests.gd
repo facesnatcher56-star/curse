@@ -1,4 +1,4 @@
-extends DevSuite
+﻿extends DevSuite
 ## Map mode, issue #87 part 1: the Cutter stays on screen. Unit checks of the safe area and the clamp, then the real thing on the dedicated map
 ## (MapModeDungeon, "The Sunken Way"): the party dashes to a narrow room, a big pit, a champion room and the boss court through MapMode's own click
 ## path, the Cutter is projected through the real camera at arrival and every second of a simulated fight, and must stay inside the safe area.
@@ -132,6 +132,7 @@ func _room(m: MapMode, graph: MapGraph, cutter: Player, room: int) -> void:
 	var rect: Rect2 = MapModeScreen.safe_rect(get_viewport().get_visible_rect().size, hud)
 	var landed: bool = MapModeScreen.inside_now(cutter, cutter.global_position, MapModeScreen.camera_shift(cutter, player.global_position))   # the landing spot, judged as the camera will frame it
 	expect("%s: the Cutter lands inside the safe area (as the camera will frame the warrior)" % label, landed)
+	var pulls_before: int = m.guard_pulls
 	await _frames(SETTLE_FRAMES)
 	var worst: String = ""
 	var bad: int = 0
@@ -153,6 +154,7 @@ func _room(m: MapMode, graph: MapGraph, cutter: Player, room: int) -> void:
 			print("[mmcutterscreen] %s t=%d s: Cutter feet %s head %s, %.1f m behind the warrior (warrior feet %s, rig %s vs warrior %s), %s" % [label, second, feet, head, player.flat_distance_to(cutter), camera.unproject_position(player.global_position), rig.global_position, player.global_position, "inside" if ok else "OUTSIDE"])
 		await _frames(60)
 	print("[mmcutterscreen] %s: %d samples, %d outside, nearest %.1f m, guard pulled %d times" % [label, samples, bad, lowest_gap, m.guard_pulls])
+	expect("%s: the guard does not pull him back and forth (%d pulls in the fight; a tug every few frames cancelled every shot, the glitching hands at the first fight)" % [label, m.guard_pulls - pulls_before], m.guard_pulls - pulls_before <= 15)
 	expect("%s: the Cutter was inside the safe area at arrival (the first sample)" % label, first_ok)
 	expect("%s: and at every one-second sample of the fight (%d of %d outside; last %s)" % [label, bad, samples, worst], bad == 0)
 	# End the fight.
@@ -185,3 +187,4 @@ func _path(graph: MapGraph, from_id: int, to_id: int) -> Array:
 		out.push_front(at)
 		at = int(came[at])
 	return out
+

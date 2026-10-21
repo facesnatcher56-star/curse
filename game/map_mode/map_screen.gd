@@ -14,6 +14,7 @@ const GUARD_EVERY := 0.05       # s between the checks of the guard (one project
 const GUARD_TRIGGER_INSET := 45.0   # canvas units: the guard acts when he gets this close to the edge, before he is over it
 const GUARD_HOLD := 2.5         # s the guard's goal is followed, instead of any firing-position goal, at most
 const GUARD_ARRIVE := 0.8       # m: the guard's goal counts as reached
+const GUARD_MIN_MOVE := 1.6     # m: a goal nearer than this to where he stands is not worth interrupting a shot for
 const SEARCH_STEP := 0.75       # m between rings of candidate spots round the preferred one
 const SEARCH_RINGS := 20
 const SEARCH_ANGLES := 16
@@ -145,6 +146,10 @@ static func guard_goal(body: Node3D, warrior_at: Vector3) -> Vector3:
 	if inside_now(body, body.global_position, Vector3.ZERO, GUARD_TRIGGER_INSET):
 		return Vector3.INF
 	var spot: Vector3 = clamp_spot(body, body.global_position, warrior_at)
+	# A goal that is (nearly) where he already stands is no goal: following it cancels his shot for nothing, and it comes back every check,
+	# so he never got a shot off (draw, cancel, draw, cancel: the glitching hands at the first fight).
+	if spot.distance_to(body.global_position) <= GUARD_MIN_MOVE and inside_now(body, body.global_position):
+		return Vector3.INF   # (a body that is really over the edge is pulled in however short the step)
 	if inside_now(body, spot, Vector3.ZERO, GUARD_TRIGGER_INSET):
 		return spot
 	return Vector3.INF
