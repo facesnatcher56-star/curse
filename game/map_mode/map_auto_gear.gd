@@ -3,6 +3,8 @@ extends RefCounted
 ## Dev autoplay helper (`--mapmode-auto`): after each clear's collection, puts on every drop that is an upgrade for the warrior or the Cutter.
 ## The decision is the game's own shared item comparison and nothing else: Items.hero_can_wear (requirements), LootAppraisal.trend (the loot
 ## summary's green arrow) and Items.compare (the item card's numbers); the equip is PlayerStats.equip_from_bag. Only the autoplay calls it.
+## This bot is the ONLY thing that wears map-mode loot by itself: a real player's pickups go to the bag and the reward panel's "Equip on" selector
+## (MapRewardPanel) decides who wears them, so the "picked up into an empty slot" branch of `process` no longer fires; empty slots are filled from the bag.
 
 const MAX_SWAPS := 40   # a safety stop: a swap only happens for a strictly better piece, but the card's balance is not a total order
 

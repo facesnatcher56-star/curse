@@ -54,8 +54,8 @@ const DELTA_WIDTH := 110.0
 ## item level) under a rarity-coloured band, then the "vs <worn item>" line, then sections split by dividers (base stats, modifiers, trait,
 ## legendary effect, set bonuses, requirements), then one action hint. Each stat carries its change beside it as an up or down arrow.
 ## `with_action_hint` is a bag item's or a ground drop's line of what to do; it is coloured `hint_color` when that is opaque.
-static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "", hint_color: Color = Color(0, 0, 0, 0)) -> Control:
-	var member: String = PartyManager.current().active_id
+static func card(it: Dictionary, worn: Variant, with_compare: bool = true, with_equip_hint: bool = false, with_action_hint: String = "", hint_color: Color = Color(0, 0, 0, 0), for_member: String = "") -> Control:
+	var member: String = for_member if for_member != "" else PartyManager.current().active_id   # (`for_member`: the reward panel compares for the member it has selected)
 	var rarity: int = int(it["rarity"])
 	var legendary: bool = MapModeLegendaries.id_of(it) != ""
 	var accent: Color = LEGENDARY_COLOR if legendary else Items.RARITY_COLORS[rarity]
@@ -284,7 +284,7 @@ static func name_label(it: Dictionary, worn: Variant, compare: bool = true, with
 
 ## The details card shown beside `control`: with a controller while it has focus, and with `on_hover` the moment the mouse is over it (an
 ## item's picture shows its card at once, like the item on the ground does; its buttons do not).
-static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false, with_action_hint: String = "") -> void:
+static func focus_card(control: Control, it: Dictionary, worn: Variant, compare: bool = true, on_hover: bool = false, with_equip_hint: bool = false, with_action_hint: String = "", for_member: String = "") -> void:
 	var holder := Control.new()
 	holder.name = "ItemDetails"
 	holder.add_user_signal("hover_resolved")   # emitted each time a hover close is decided (see _close_when_unhovered)
@@ -357,7 +357,7 @@ static func focus_card(control: Control, it: Dictionary, worn: Variant, compare:
 	var open: Callable = func() -> void:
 		for child in holder.get_children():
 			child.free()
-		var detail := card(it, worn, compare, with_equip_hint, with_action_hint)
+		var detail := card(it, worn, compare, with_equip_hint, with_action_hint, Color(0, 0, 0, 0), for_member)
 		var scroll := ScrollContainer.new()   # a card taller than the screen scrolls instead of clipping or shrinking
 		scroll.name = "DetailScroll"
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
