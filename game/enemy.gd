@@ -22,7 +22,7 @@ var champion: Champion = null
 var def: EnemyDef
 var behavior: EnemyBehavior
 var target: Actor
-## Provoke keeps the enemy on the hero until this time (Time.get_ticks_msec); map-mode enemy roles (EnemyRoles) never override it.
+## Provoke keeps the enemy on the hero until this time (Time.get_ticks_msec); map-mode threat (EnemyRoles) never overrides it.
 var provoked_until_ms: int = 0
 var move_speed: float = 2.4
 var aggro_range: float = 7.0
@@ -167,7 +167,7 @@ func _physics_process(delta: float) -> void:
 		move_with(Vector3.ZERO)
 		return
 	if MapMode.active and not dead:
-		EnemyRoles.retarget(self)   # map mode only: the kind's role picks who it goes for (Provoke still wins)
+		EnemyRoles.retarget(self)   # map mode only: the highest threat is who it goes for (Provoke still wins)
 	if not dead and (not is_instance_valid(target) or target.dead):
 		var closest: Player = null
 		var distance: float = INF
@@ -204,6 +204,7 @@ func _physics_process(delta: float) -> void:
 			_notice_timer = 0.25
 			# Close by it just notices; farther off it needs a clear line (a wall or a tree hides the hero).
 			if dist < aggro_range * 0.45 or has_line_to(target):
+				EnemyRoles.note_noticed(self)   # map mode: the member who came within its range pulls the whole group
 				wake()
 	if not _aggro:
 		_idle_tick(delta)
@@ -232,7 +233,7 @@ func _physics_process(delta: float) -> void:
 ## Anything the hero hits turns on them at once, however far away it was and whether or not it had noticed them.
 func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if MapMode.active and not dead:
-		EnemyRoles.note_hit(self, result, source_pos)   # who hit it, for the rock thrower's and the brute's roles
+		EnemyRoles.note_hit(self, result, source_pos)   # map mode: the blow is threat for whoever dealt it (and the first one pulls the group)
 	if not dead and result.get("source") is Player:
 		alert_delay = 0.0
 		wake()
@@ -380,7 +381,7 @@ func walk_to(point: Vector3, delta: float, speed_mult: float = 1.0, _use_nav: bo
 
 ## Closes in on the target.
 func advance_on_target(delta: float, dist: float) -> void:
-	walk_to(EnemyRoles.route_goal(self, target.global_position), delta)   # (map mode flankers go round the party; otherwise the target itself)
+	walk_to(target.global_position, delta)
 
 ## Backs straight away from a point (keeping its face to the target) at `speed_mult` of its walking speed.
 func back_away_from(point: Vector3, speed_mult: float = 1.0) -> void:

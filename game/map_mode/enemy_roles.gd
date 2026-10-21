@@ -1,56 +1,58 @@
 class_name EnemyRoles
 extends RefCounted
-## Map-mode enemy roles (issue #81): who each kind of enemy goes for, and where the Cutter lands. ONE table (ROLES) holds every rule and number.
+## Map-mode enemy targeting (issue #109): MMO-style THREAT. Every number lives in this file.
 ## Nothing here runs unless `MapMode.active`: Enemy asks `retarget` only behind that flag, so the default game's "closest living party member,
-## sticky until it dies" targeting is untouched. There is no threat system yet (real threat-from-damage comes later); a role is a fixed rule.
+## sticky until it dies" targeting is untouched.
 ##
 ## Rules:
-##   closest        today's rule (the sticky nearest member). The role returns "no opinion" and Enemy keeps its own target.
-##   flanker        the Cutter (the member farthest back), and the route to her goes AROUND the other members (route_goal).
-##   ranged_hitter  whoever last hit it from range (within `memory` s); otherwise closest.
-##   top_damage     whoever dealt it the most damage in the last `window` s, re-checked every `recheck` s; otherwise closest.
-## `special_*` (the Warden): closest, but every `special_every` s its next attack goes for the farthest member for `special_window` s.
-## Provoke overrides every role while it holds (Enemy.provoked_until_ms, set by the power).
-## A champion keeps its kind's `variant`, so it follows its kind's rule.
+##   Each enemy has a threat table (party member -> threat) and goes for the member with the most.
+##   Damage is 1 threat per point (basic attacks, powers and procs alike); a TANK member's threat (damage, healing) is multiplied (WARRIOR_THREAT_MULT).
+##   Healing: the HEALER (who cast it or drank the potion) gets HEAL_THREAT per point healed, split evenly across every enemy in combat with the party.
+##   Taking aggro (WoW): a member takes an enemy from its current holder only above TAKE_MELEE (110%) of the holder's threat when he stands within
+##   MELEE_HIT_MAX of the enemy, above TAKE_RANGED (130%) otherwise. A member nobody has threat on yet is simply the top.
+##   Pulls: the first member to come within a group's aggro range, or to hit any of it (or the one closest to it when the fight starts), gets
+##   PULL_THREAT on EVERY enemy of that group.
+##   Provoke is a taunt (`taunt`): the tank's threat becomes the top plus TAUNT_BONUS (110%) and Enemy.provoked_until_ms locks the enemy on him.
+##   A dead member's threat is wiped from every table. No decay, no threat display.
+## The Warden's special (`ROLES["warden"]`): every `special_every` s its next attack goes for the farthest member for `special_window` s. It
+## overrides the table only for that window.
+## Nothing here knows how many members the party has, or their ids: who is a tank is `is_tank` (TANK_MEMBERS), the one place that names a member.
 
+## The kinds with a special; every other kind just follows threat.
 const ROLES := {
-	"zombie": {"rule": "closest"},                                        # the frontline
-	"ghoul": {"rule": "flanker", "clear": 2.4, "side": 3.4},              # dives the Cutter; `clear`: how close to its line a member counts as in the way
-	"rock_thrower": {"rule": "ranged_hitter", "memory": 6.0},
-	"brute": {"rule": "top_damage", "window": 5.0, "recheck": 2.0},
-	"warden": {"rule": "closest", "special_every": 10.0, "special_window": 5.0},
+	"warden": {"special_every": 10.0, "special_window": 5.0},
 }
-const DEFAULT_ROLE := {"rule": "closest"}   # every kind not listed (spitter, bloater, priest ...)
+const DEFAULT_ROLE := {}
+
+## Threat numbers.
+const WARRIOR_THREAT_MULT := 2.0   # a tank's damage and healing threat are multiplied by this
+const HEAL_THREAT := 0.5           # per point healed, split across the enemies in combat
+const PULL_THREAT := 10.0          # each enemy of a group the first member pulls
+const TAKE_MELEE := 1.1            # 110% of the holder's threat, for a challenger within MELEE_HIT_MAX of the enemy
+const TAKE_RANGED := 1.3           # 130% for one farther away
+const TAUNT_BONUS := 1.1           # Provoke: the top threat times this
+## Who holds the TANK flag (member ids; the only member names in the threat code).
+const TANK_MEMBERS: Array[String] = ["hero"]
+## A challenger this close (flat metres) to the enemy counts as in melee range.
+const MELEE_HIT_MAX := 3.5
 
 ## Dash formation: on arrival the warrior stands at the group's edge and the Cutter this far behind him, on the side away from the group.
 const BACK_MIN := 8.0
 const BACK_MAX := 10.0
 const BACK := 9.0
-## A hit from at least this far away counts as "from range" for the rock thrower's rule.
-const RANGED_HIT_MIN := 4.0
 const CUTTER_ID := "cutter"
 
 ## False restores the old targeting inside map mode (for before/after measurements). The default game never asks.
 static var enabled: bool = true
 
 class State extends RefCounted:
-	var hits: Array = []        # [time, source Actor, amount, from_range]
-	var next_recheck: float = 0.0
+	var threat: Dictionary = {}   # Player -> float
+	var pulled: bool = false      # a member has already pulled it (the first one gets the pull threat; later ones do not)
 	var next_special: float = -1.0
 	var special_until: float = -1.0
-	var forced_by: Actor        # a party member who hit it in melee: it must fight him (threat), whatever its role says
-	var forced_until: float = -1.0
-
-## A melee blow (the attacker is no archer and stands within this many metres) forces the enemy onto the attacker for FORCE_SECONDS, refreshed by
-## every further melee blow: a ghoul diving the Cutter, a thrower or a brute turns on the warrior who is cutting it down.
-const MELEE_HIT_MAX := 3.5
-const FORCE_SECONDS := 6.0
 
 static func role_of(e: Enemy) -> Dictionary:
 	return ROLES.get(e.variant, DEFAULT_ROLE)
-
-static func rule_of(e: Enemy) -> String:
-	return String(role_of(e).get("rule", "closest"))
 
 static func state_of(e: Enemy) -> State:
 	if not e.has_meta("role_state"):
@@ -60,37 +62,96 @@ static func state_of(e: Enemy) -> State:
 static func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
-## Records a blow the enemy took, for the rules that look at who hit it (rock thrower, brute). Map mode only; called from Enemy.receive.
-static func note_hit(e: Enemy, result: Dictionary, source_pos: Vector3, now: float = -1.0) -> void:
-	var source: Actor = result.get("source") as Actor
-	if source == null or not (source is Player):
-		return
-	var t: float = _now() if now < 0.0 else now
-	var st: State = state_of(e)
-	var gap: float = Vector2(source_pos.x - e.global_position.x, source_pos.z - e.global_position.z).length()
-	st.hits.append([t, source, float(result.get("damage", 0.0)), gap >= RANGED_HIT_MIN])
-	while st.hits.size() > 40:
-		st.hits.pop_front()
-	var attacker := source as Player
-	if gap <= MELEE_HIT_MAX and attacker.stats != null and not attacker.stats.is_ranged():
-		st.forced_by = attacker
-		st.forced_until = t + FORCE_SECONDS
+static func is_tank(p: Actor) -> bool:
+	var pl := p as Player
+	return pl != null and TANK_MEMBERS.has(pl.member_id)
 
-## The member farthest back: the Cutter while she lives, otherwise whoever is farthest from `from`.
-static func cutter_of(members: Array, from: Vector3) -> Player:
-	var farthest: Player = null
-	var far_gap: float = -1.0
-	for m in members:
-		var p := m as Player
-		if p == null or p.dead:
+static func threat_of(e: Enemy, member: Actor) -> float:
+	return float(state_of(e).threat.get(member, 0.0))
+
+## Adds `amount` of threat for `member` on `e` (a tank's is multiplied).
+static func add_threat(e: Enemy, member: Actor, amount: float) -> void:
+	if amount <= 0.0 or member == null:
+		return
+	var st: State = state_of(e)
+	st.threat[member] = float(st.threat.get(member, 0.0)) + amount * (WARRIOR_THREAT_MULT if is_tank(member) else 1.0)
+
+## `member` pulls `e` and every enemy of its group that has not been pulled yet: PULL_THREAT on each, whole group at once.
+static func pull(e: Enemy, member: Actor) -> void:
+	if member == null or not e.is_inside_tree():
+		return
+	var mates: Array = [e]
+	if e.group_id >= 0:
+		for node in e.get_tree().get_nodes_in_group("enemies"):
+			var mate := node as Enemy
+			if mate != null and mate != e and mate.group_id == e.group_id:
+				mates.append(mate)
+	for m: Enemy in mates:
+		var st: State = state_of(m)
+		if m.dead or st.pulled:
 			continue
-		if p.member_id == CUTTER_ID:
-			return p
-		var gap: float = Vector2(p.global_position.x - from.x, p.global_position.z - from.z).length()
-		if gap > far_gap:
-			far_gap = gap
-			farthest = p
-	return farthest
+		st.pulled = true
+		st.threat[member] = float(st.threat.get(member, 0.0)) + PULL_THREAT
+
+## Enemy._physics_process: `e` has just noticed the party. The closest member within its aggro range is the one who came into it.
+static func note_noticed(e: Enemy) -> void:
+	if not MapMode.active or not enabled:
+		return
+	var inside: Array = PartyManager.current().living().filter(func(p: Player) -> bool: return e.flat_distance_to(p) <= e.aggro_range)
+	pull(e, closest_of(inside, e.global_position))
+
+## MapMode: the fight starts and the group wakes together. The member closest to it (the warrior arrives first in the dash) pulls all of it.
+static func pull_group(enemies: Array, members: Array) -> void:
+	if enemies.is_empty():
+		return
+	var sum := Vector3.ZERO
+	for e in enemies:
+		sum += (e as Enemy).global_position
+	var puller: Player = closest_of(members, sum / float(enemies.size()))
+	for e in enemies:
+		pull(e as Enemy, puller)
+
+## A blow `e` took (Enemy.receive, map mode only): the first member to hit the group pulls it, and every point is threat for the one who dealt it.
+static func note_hit(e: Enemy, result: Dictionary, _source_pos: Vector3 = Vector3.ZERO, _now_s: float = -1.0) -> void:
+	var source: Player = result.get("source") as Player
+	if source == null:
+		return
+	pull(e, source)
+	if int(result.get("outcome", Combat.Outcome.HIT)) >= Combat.Outcome.HIT:
+		add_threat(e, source, float(result.get("damage", 0.0)))
+
+## Life restored to `healer` or by him (a heal, a potion, life steal): HEAL_THREAT per point, split evenly across every enemy in combat with the party.
+static func note_heal(healer: Actor, amount: float) -> void:
+	if not MapMode.active or not enabled or amount <= 0.0 or healer == null or not healer.is_inside_tree():
+		return
+	var engaged: Array[Enemy] = []
+	for node in healer.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and e.is_aggro():
+			engaged.append(e)
+	for e in engaged:
+		add_threat(e, healer, amount * HEAL_THREAT / float(engaged.size()))
+
+## Provoke hit `e`: the taunter's threat becomes the top plus TAUNT_BONUS (at least a pull). The lock itself is Enemy.provoked_until_ms.
+static func taunt(e: Enemy, taunter: Actor) -> void:
+	if not MapMode.active or not enabled:
+		return
+	var st: State = state_of(e)
+	var top: float = 0.0
+	for who in st.threat:
+		if who != taunter:
+			top = maxf(top, float(st.threat[who]))
+	st.pulled = true
+	st.threat[taunter] = maxf(maxf(float(st.threat.get(taunter, 0.0)), top * TAUNT_BONUS), PULL_THREAT)
+
+## Removes a member from every table (he died).
+static func wipe(member: Actor) -> void:
+	if not is_instance_valid(member) or not member.is_inside_tree():
+		return
+	for node in member.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and e.has_meta("role_state"):
+			state_of(e).threat.erase(member)
 
 static func farthest_of(members: Array, from: Vector3) -> Player:
 	var best: Player = null
@@ -105,52 +166,6 @@ static func farthest_of(members: Array, from: Vector3) -> Player:
 			best = p
 	return best
 
-## The member `e` should go for now, or null for "keep the current target" (Enemy's own sticky closest). Pure apart from the enemy's history.
-static func choose(e: Enemy, members: Array, now: float) -> Actor:
-	var role: Dictionary = role_of(e)
-	var st: State = state_of(e)
-	var chosen: Actor = null
-	if st.forced_until > now and is_instance_valid(st.forced_by) and not st.forced_by.dead and members.has(st.forced_by):
-		return st.forced_by   # struck in melee: it fights that member for a while, before any role rule
-	match String(role.get("rule", "closest")):
-		"flanker":
-			chosen = cutter_of(members, e.global_position)
-		"ranged_hitter":
-			var memory: float = float(role.get("memory", 6.0))
-			for i in range(st.hits.size() - 1, -1, -1):
-				var h: Array = st.hits[i]
-				if now - float(h[0]) > memory:
-					break
-				var who: Actor = h[1] as Actor
-				if bool(h[3]) and is_instance_valid(who) and not who.dead and members.has(who):
-					chosen = who
-					break
-		"top_damage":
-			if now >= st.next_recheck:
-				st.next_recheck = now + float(role.get("recheck", 2.0))
-				var window: float = float(role.get("window", 5.0))
-				var totals: Dictionary = {}
-				for h: Array in st.hits:
-					if now - float(h[0]) <= window and is_instance_valid(h[1]) and not (h[1] as Actor).dead and members.has(h[1]):
-						totals[h[1]] = float(totals.get(h[1], 0.0)) + float(h[2])
-				var best: float = 0.0
-				for who in totals:
-					if float(totals[who]) > best:
-						best = float(totals[who])
-						chosen = who
-	if role.has("special_every"):
-		if st.next_special < 0.0:
-			st.next_special = now + float(role["special_every"])
-		if now >= st.next_special:
-			st.next_special = now + float(role["special_every"])
-			st.special_until = now + float(role.get("special_window", 5.0))
-		if now < st.special_until:
-			return farthest_of(members, e.global_position)
-		if st.special_until > 0.0:
-			st.special_until = -1.0
-			return closest_of(members, e.global_position)   # the telegraphed strike is over: back to the nearest
-	return chosen
-
 static func closest_of(members: Array, from: Vector3) -> Player:
 	var best: Player = null
 	var near: float = INF
@@ -164,65 +179,59 @@ static func closest_of(members: Array, from: Vector3) -> Player:
 			best = p
 	return best
 
+## The member with the most threat on `e`, unless the holder keeps it by the 110% / 130% rule; null when nobody has any.
+static func _by_threat(e: Enemy, st: State, members: Array) -> Actor:
+	var best: Actor = null
+	var best_threat: float = 0.0
+	for m in members:
+		var p := m as Player
+		if p == null or p.dead:
+			continue
+		var t: float = float(st.threat.get(p, 0.0))
+		if t > best_threat:
+			best_threat = t
+			best = p
+	if best == null:
+		return null
+	var holder: Actor = e.target if (e.target != null and members.has(e.target) and not e.target.dead) else null
+	if holder == null or holder == best:
+		return best
+	var held: float = float(st.threat.get(holder, 0.0))
+	if held <= 0.0:
+		return best
+	var melee: bool = e.flat_distance_to(best) <= MELEE_HIT_MAX
+	return best if best_threat > held * (TAKE_MELEE if melee else TAKE_RANGED) else holder
+
+## The member `e` should go for now, or null for "keep the current target" (Enemy's own sticky closest). Pure apart from the enemy's own table.
+static func choose(e: Enemy, members: Array, now: float) -> Actor:
+	var role: Dictionary = role_of(e)
+	var st: State = state_of(e)
+	for who in st.threat.keys():
+		if not is_instance_valid(who) or (who as Actor).dead:
+			st.threat.erase(who)   # a dead member's threat is wiped
+	if role.has("special_every"):
+		if st.next_special < 0.0:
+			st.next_special = now + float(role["special_every"])
+		if now >= st.next_special:
+			st.next_special = now + float(role["special_every"])
+			st.special_until = now + float(role.get("special_window", 5.0))
+		if now < st.special_until:
+			return farthest_of(members, e.global_position)
+		if st.special_until > 0.0:
+			st.special_until = -1.0
+			var after: Actor = _by_threat(e, st, members)   # the telegraphed strike is over: back to the table (the nearest when it is empty)
+			return after if after != null else closest_of(members, e.global_position)
+	return _by_threat(e, st, members)
+
 ## Called by Enemy every physics frame in map mode (never in the default game).
 static func retarget(e: Enemy) -> void:
 	if not enabled or e.dead:
 		return
 	if Time.get_ticks_msec() < e.provoked_until_ms:
-		return   # Provoke holds: it overrides every role
+		return   # Provoke holds: it locks the enemy on the taunter
 	var pick: Actor = choose(e, PartyManager.current().living(), _now())
 	if pick != null and pick != e.target:
 		e.target = pick
-
-## True when `e` is awake and going for the Cutter: the readability marker (a red line) is drawn for it.
-static func targets_cutter(e: Enemy) -> bool:
-	var p := e.target as Player
-	return p != null and p.member_id == CUTTER_ID and not p.dead and not e.dead and e.is_aggro()
-
-## Within this many metres of its detour point a flanker counts as having arrived there (it then heads for the real goal).
-const ARRIVED_AT_DETOUR := 1.2
-
-## For a flanker: the next point to head for on the way to `goal`, going AROUND any other party member standing on the straight line.
-## Everything else (and the default game) gets `goal` back unchanged.
-static func route_goal(e: Enemy, goal: Vector3) -> Vector3:
-	if not MapMode.active or not enabled or rule_of(e) != "flanker":
-		return goal
-	if e.has_meta(PASS_META) and Time.get_ticks_msec() < int(e.get_meta(PASS_META)):
-		return goal   # just went round him: no new detour yet
-	var role: Dictionary = role_of(e)
-	var a := Vector2(e.global_position.x, e.global_position.z)
-	var b := Vector2(goal.x, goal.z)
-	var ab: Vector2 = b - a
-	var length: float = ab.length()
-	if length < 0.5:
-		return goal
-	var dir: Vector2 = ab / length
-	for m in PartyManager.current().living():
-		if m == e.target:
-			continue
-		var c := Vector2(m.global_position.x, m.global_position.z)
-		var along: float = (c - a).dot(dir)
-		if along < 0.0 or along > length:
-			continue
-		var off: float = (c - a).cross(dir)   # signed side of the line the member stands on
-		if absf(off) > float(role.get("clear", 2.4)):
-			continue
-		var perp := Vector2(-dir.y, dir.x)
-		# Pass on the side the line already leans to; dead centre, on the enemy's own side (its random orbit direction).
-		var sign_side: float = signf(off) if absf(off) > 0.05 else e._orbit_dir
-		var via: Vector2 = c + perp * sign_side * float(role.get("side", 3.4))
-		var spot: Vector3 = Nav.snap(e, Vector3(via.x, goal.y, via.y))
-		# Standing on the detour point (or just past it): go on to the real goal for a moment. Without this the line from there still passes near him,
-		# the same point is handed back, the path reports "arrived", and the ghoul waits there, not moving, until the fight moves on.
-		if a.distance_to(Vector2(spot.x, spot.z)) <= ARRIVED_AT_DETOUR:
-			e.set_meta(PASS_META, Time.get_ticks_msec() + int(PASS_SECONDS * 1000.0))
-			return goal
-		return spot
-	return goal
-
-## A flanker that has reached its detour point heads straight for the goal for this long, whatever the line to it passes near.
-const PASS_SECONDS := 1.5
-const PASS_META := "flank_pass_until_ms"
 
 # --- Dash formation -------------------------------------------------------------------------------------------------------------------
 

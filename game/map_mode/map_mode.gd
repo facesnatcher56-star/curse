@@ -257,6 +257,12 @@ func target_for(body: Player) -> Actor:
 		return null
 	if is_instance_valid(focus) and not focus.dead:
 		return focus
+	# Every member but the tank assists: the tank's current target, else the nearest awake enemy (below).
+	if not EnemyRoles.is_tank(body):
+		var tank: Player = _tank()
+		var assist: Enemy = (tank.attack_target as Enemy) if tank != null and tank != body else null
+		if assist != null and not assist.dead and assist.is_in_group("enemies") and not _is_skipped(assist):
+			return assist
 	# Stick to one target until it dies (the nearest one changes as everybody moves, and the party would flap between them).
 	var kept: Actor = _kept_target.get(body.member_id) as Actor if _kept_target.has(body.member_id) else null
 	if is_instance_valid(kept) and not kept.dead and kept.is_in_group("enemies") and not _is_skipped(kept):
@@ -273,6 +279,12 @@ func target_for(body: Player) -> Actor:
 			best_clear = clear
 	_kept_target[body.member_id] = best
 	return best
+
+func _tank() -> Player:
+	for m in PartyManager.current().living():
+		if EnemyRoles.is_tank(m):
+			return m
+	return null
 
 ## An enemy the party could not reach (its path was blocked for UNSTICK_PARTY_AFTER s) is left alone for SKIP_SECONDS and another target is chosen.
 func _is_skipped(e: Actor) -> bool:
@@ -803,6 +815,7 @@ func _arrive() -> void:
 			MapModeRules.note_fight_start(now())
 			MapModeTraits.on_fight_start(self)   # item traits: the Jerkin's first-hit shield
 			_fight_level = 1
+			EnemyRoles.pull_group(group_members(), PartyManager.current().living())   # threat: the member closest to the group pulls all of it
 			for e in group_members():   # only this group: neighbouring groups stay asleep
 				_fight_level = maxi(_fight_level, e.level)
 				e.alert_delay = 0.0
