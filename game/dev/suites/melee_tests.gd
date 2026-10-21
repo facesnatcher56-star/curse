@@ -115,6 +115,13 @@ func _test_auto_attack() -> void:
 	await get_tree().process_frame
 	await _test_held_click_keeps_target()
 	await _test_hit_bar_feedback()
+	# Leave nothing behind for the next suite: no swing in progress, target, walk goal or chase.
+	player.skills.cancel_action()
+	player.skills.clear_queue()
+	player.attack_target = null
+	player.movement.has_goal = false
+	player._chasing = false
+	player.click_mode = 0
 
 ## Holding the click on an enemy keeps attacking that enemy while the button stays down, wherever the pointer goes (another enemy,
 ## empty ground); only letting go (or its death) ends it.
@@ -201,6 +208,13 @@ func _test_held_click_keeps_target() -> void:
 		second._aggro = false
 		cutter.attack_target = null
 		cutter.testing_disabled = was_disabled
+	# Leave nothing behind for the next suite: no walk goal, chase, target or queued action.
+	player.movement.has_goal = false
+	player._chasing = false
+	player.attack_target = null
+	player.skills.cancel_action()
+	player.skills.clear_queue()
+	player.click_mode = 0
 	Gamepad.active = was_pad
 	for e in [first, second]:
 		e.queue_free()
