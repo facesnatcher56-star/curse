@@ -54,7 +54,8 @@ static func theme_of(texture: Texture2D) -> Color:
 	_themes[texture] = result
 	return result
 
-func present(icon: Texture2D, rect: Rect2, charge: float, available: bool, cooling: bool, ds2_style: bool) -> void:
+## `lit` is the HUD's single ready decision (Hud.slot_lit); a full charge that is not lit (no mana, caster down) stays dark.
+func present(icon: Texture2D, rect: Rect2, charge: float, available: bool, cooling: bool, ds2_style: bool, lit: bool = true) -> void:
 	visible = icon != null
 	if not visible:
 		return
@@ -68,8 +69,10 @@ func present(icon: Texture2D, rect: Rect2, charge: float, available: bool, cooli
 		_theme = theme_of(icon)
 		_icon_material.set_shader_parameter("theme", _theme)
 	var usable: bool = available and not cooling
+	var is_ready: bool = usable and lit and charge >= 0.999
 	var fill: float = clampf(charge, 0.0, 1.0) if usable else 0.0
-	var is_ready: bool = usable and charge >= 0.999
+	if charge >= 0.999 and not is_ready:
+		fill = 0.0
 	if is_ready and not _ready_now and not changed:
 		_burst_left = BURST_SECONDS   # it just filled: no burst for a power that was already full when it was put here
 	if not is_ready:

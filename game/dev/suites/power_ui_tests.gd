@@ -117,6 +117,27 @@ func _test_power_ui() -> void:
 	expect("spending the power stops the pulse", not forge_a._ready_now and forge_a._burst_left == 0.0)
 	forge_b.present(brutal_icon, Rect2(Vector2(64, 0), Vector2(56, 56)), 1.0, true, false, true)
 	expect("a power already full when assigned pulses without a burst", forge_b._ready_now and forge_b._burst_left == 0.0)
+	# One shared ready decision: a slot is lit only for a learned, usable, fully charged power, and never for a dead caster.
+	forge_a.present(flame_icon, Rect2(Vector2.ZERO, Vector2(56, 56)), 1.0, true, false, true, false)
+	expect("a full charge that is not lit (no mana, caster down) draws no pulse, no burst and a dark icon",
+		not forge_a._ready_now and forge_a._burst_left == 0.0 and is_zero_approx(float(forge_a._icon_material.get_shader_parameter("fill"))))
+	var cost: float = player.stats.ult_cost("brutal_attack")
+	var learned: bool = Hud._power_frame_available(player, "brutal_attack")
+	player.stats.brutal_reload_required = cost
+	player.stats.brutal_reload_remaining = cost * 0.4
+	expect("an uncharged power is not lit", not Hud.slot_lit(player, "brutal_attack"))
+	player.stats.brutal_reload_remaining = 0.0
+	expect("a full, learned, affordable power is lit", Hud.slot_lit(player, "brutal_attack") == learned)
+	expect("a dead or absent caster's slot is never lit, even with the full charge", not Hud.slot_lit(player, "brutal_attack", true))
+	player.stats.brutal_reload_remaining = cost * 0.4
+	await _settle()
+	var slot_rect: Rect2 = hud._slot_hits[0]["rect"]
+	hud.mouse_override = slot_rect.get_center()
+	await _settle()
+	expect("a mouse resting on a charging slot does not make it look ready",
+		not forge_a._ready_now and is_equal_approx(float((hud._power_hotkey_vfx[0] as PowerHotkeyVfx)._icon_material.get_shader_parameter("fill")), 0.6))
+	hud.mouse_override = Vector2(-1, -1)
+	player.stats.brutal_reload_remaining = 0.0
 	forge_a.hide()
 	forge_b.hide()
 	var saved_slot: String = player.skills.hotbar[0]
