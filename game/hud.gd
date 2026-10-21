@@ -296,14 +296,18 @@ func _draw() -> void:
 			if camera.is_position_behind(feet):
 				continue
 			var foot_screen: Vector2 = camera.unproject_position(feet)
-			var party_w: float = 72.0
-			var party_pos := Vector2(foot_screen.x - party_w * 0.5, foot_screen.y + 6.0)
-			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(0, 0, 0, 0.85 * fade))
-			_draw_chip(party_pos, party_w, 8.0, body, fade)
-			draw_rect(Rect2(party_pos, Vector2(party_w * clampf(body.health / body.max_health, 0.0, 1.0), 8)), Color(0.78, 0.14, 0.12, fade))
-			_draw_hit_pulse(party_pos, party_w, 8.0, body, fade)
-			draw_rect(Rect2(party_pos, Vector2(party_w, 8)), Color(1, 1, 1, 0.4 * fade), false, 1.0)
-			var mana_pos := party_pos + Vector2(0, 9)
+			# Party bars are green, larger than an enemy's red one, and carry the member's class icon in their colour (PartyLook).
+			var party_w: float = 84.0
+			var party_h: float = 11.0
+			var party_pos := Vector2(foot_screen.x - party_w * 0.5 + 8.0, foot_screen.y + 6.0)
+			var member_color: Color = PartyLook.color_of(body.member_id)
+			draw_rect(Rect2(party_pos, Vector2(party_w, party_h)), Color(0, 0, 0, 0.85 * fade))
+			_draw_chip(party_pos, party_w, party_h, body, fade)
+			draw_rect(Rect2(party_pos, Vector2(party_w * clampf(body.health / body.max_health, 0.0, 1.0), party_h)), Color(PartyLook.HEALTH_GREEN, fade))
+			_draw_hit_pulse(party_pos, party_w, party_h, body, fade)
+			draw_rect(Rect2(party_pos, Vector2(party_w, party_h)), Color(member_color, 0.75 * fade), false, 1.5)
+			_draw_class_icon(party_pos + Vector2(-9.0, party_h * 0.5), PartyLook.class_icon(body.member_id), Color(member_color, fade))
+			var mana_pos := party_pos + Vector2(0, party_h + 1.0)
 			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(0, 0, 0, 0.85 * fade))
 			draw_rect(Rect2(mana_pos, Vector2(party_w * clampf(body.stats.mana / maxf(body.stats.max_mana, 1.0), 0.0, 1.0), 5)), Color(0.2, 0.4, 0.95, fade))
 			draw_rect(Rect2(mana_pos, Vector2(party_w, 5)), Color(1, 1, 1, 0.35 * fade), false, 1.0)
@@ -637,6 +641,19 @@ func _draw_hit_pulse(pos: Vector2, width: float, height: float, body: Actor, alp
 	if body.hit_pulse_outcome != Combat.Outcome.MISS:
 		draw_rect(rect, Color(tint, clampf(0.55 * pulse, 0.0, 0.8) * alpha))
 	draw_rect(rect, Color(tint, clampf(pulse, 0.0, 1.0) * alpha), false, 1.5)
+
+## A small class icon centred on `at`: a sword (the warrior) or a bow (the Cutter), line work in the member's colour.
+func _draw_class_icon(at: Vector2, kind: String, color: Color) -> void:
+	var dark := Color(0, 0, 0, color.a * 0.8)
+	if kind == "sword":
+		draw_line(at + Vector2(-5, 5), at + Vector2(5, -5), dark, 4.0)
+		draw_line(at + Vector2(-5, 5), at + Vector2(5, -5), color, 2.0)
+		draw_line(at + Vector2(-5, -1), at + Vector2(1, 5), dark, 4.0)
+		draw_line(at + Vector2(-5, -1), at + Vector2(1, 5), color, 2.0)
+	else:
+		draw_arc(at + Vector2(-2, 0), 6.0, -PI * 0.45, PI * 0.45, 10, dark, 4.0)
+		draw_arc(at + Vector2(-2, 0), 6.0, -PI * 0.45, PI * 0.45, 10, color, 2.0)
+		draw_line(at + Vector2(-2, -4.5), at + Vector2(-2, 4.5), color, 1.0)
 
 func _bar(pos: Vector2, size_px: Vector2, fraction: float, color: Color, label: String, font: Font) -> void:
 	UiTheme.draw_bar(self, Rect2(pos, size_px), fraction, color, label, font)
