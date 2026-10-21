@@ -333,7 +333,15 @@ func handle_aimed_key(action: String, id: String, cursor: Vector3) -> void:
 				if Input.is_action_just_pressed(action):
 					p._say(why)   # not open, not a bow, or still recharging: no casting area, nothing to aim
 				return
-			if p.skills.busy or p.dead:
+			if p.dead:
+				return
+			# An ordinary swing or shot never blocks a power (the release cancels it, as every other power does); only another power
+			# under way does. The Cutter is almost always mid-shot, so a tap used to be lost here without a word.
+			if p.bow != null and p.bow.thunder_power:   # the shot is already being drawn
+				return
+			if p.skills.busy and String(p.skills.busy_def.get("kind", "")) == "power":
+				if Input.is_action_just_pressed(action):
+					p._say("%s is already under way" % PowerDb.get_def(p.skills.busy_skill).display_name)
 				return
 		aiming_id = id
 		aiming_action = action
