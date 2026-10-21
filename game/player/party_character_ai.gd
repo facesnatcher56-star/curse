@@ -1,6 +1,10 @@
 class_name PartyCharacterAI
 extends RefCounted
 ## AI chooses orders; the common character's existing skills and movement execute them.
+## An AI member engages any awake enemy within this many metres of the member he follows (an archer or a thrower stands well back), and
+## keeps a target until it is this far off. Nothing has to be clicked.
+const ENGAGE_FROM_LEADER := 20.0
+const KEEP_TARGET_FROM_LEADER := 24.0
 var p: Player
 var leash_active: bool = false
 var _leader_id: int = 0
@@ -52,11 +56,11 @@ func tick(delta: float) -> void:
 	if try_rescue(leader): return
 	# Cast only a live target: an enemy freed at the end of the last frame is still held by attack_target.
 	var target: Enemy = (p.attack_target as Enemy) if is_instance_valid(p.attack_target) else null
-	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > 16.0:
+	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > KEEP_TARGET_FROM_LEADER:
 		target = null
 		for node in p.get_tree().get_nodes_in_group("enemies"):
 			var enemy := node as Enemy
-			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < 12.0:
+			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < ENGAGE_FROM_LEADER:
 				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
 	if MapMode.active and MapMode.current.state == MapMode.State.FIGHT:   # `--mapmode`: the fight's nearest or focus target, wherever the leader is
 		target = MapMode.current.target_for(p)
