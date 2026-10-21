@@ -238,10 +238,17 @@ static func read_input(p: Player, cursor: Vector3) -> void:
 
 func set_focus(target: Actor) -> void:
 	if state == State.FIGHT and is_instance_valid(target) and not target.dead and target.is_in_group("enemies"):
+		var changed: bool = focus != target and is_instance_valid(hero) and hero.attack_target != target
 		focus = target
 		for body in [hero, companion]:   # at once, even mid-swing: the Cutter's own loop only re-picks between shots
 			if is_instance_valid(body) and not body.dead:
 				body.attack_target = target
+		# A click on another enemy sends the character he controls after it NO MATTER WHAT he was doing: the swing, shot or cast in progress
+		# (any that can still be called off) is dropped and the queue cleared; the next frame he walks and fights the new target.
+		if changed and is_instance_valid(hero) and not hero.dead and hero.is_controlled():
+			hero.skills.clear_queue()
+			if hero.skills.busy and hero.skills.swing_cancellable_by_move():
+				hero.skills.cancel_action()
 		log.note_input(now(), "focus")
 
 ## The enemy `body` should attack now (PartyCharacterAI and the hero's own loop both ask).
