@@ -844,6 +844,8 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	health = max_health
 	stats.mana = stats.max_mana
 	stats.cooldowns.clear()
+	if MapMode.active:
+		return   # map mode (owner rule): a level-up never fills the power charges; they charge from damage dealt only
 	stats.brutal_reload_remaining = 0.0
 	powers.reset()
 	if bow != null: bow.reload_remaining = 0.0

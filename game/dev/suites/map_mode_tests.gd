@@ -1,4 +1,4 @@
-extends DevSuite
+﻿extends DevSuite
 ## Map mode, Step 1 (`-- --crypt01 --mapmode`, issue #79): the map lists live groups and drops cleared ones, a selection dashes both party members to the
 ## group, auto-attack starts on arrival and follows the focus target, a cleared group collects its loot and reopens the map, the fight is logged,
 ## and with the flag off nothing is hooked. (A full Crypt run is played by hand; this drives the same MapMode on the self-test arena.)
@@ -15,6 +15,20 @@ func _wait_state(m: MapMode, wanted: MapMode.State, max_frames: int) -> void:
 
 func _test_map_mode() -> void:
 	expect("with the flag off map mode does not exist (no hooks, no flag)", not MapMode.active and not MapMode.requested())
+	# A level-up never fills the power charges in map mode (the default game still recharges everything, as DS2).
+	player.stats.brutal_reload_required = player.stats.ult_cost("brutal_attack")
+	player.stats.brutal_reload_remaining = player.stats.brutal_reload_required
+	player._on_leveled(1, 2, 0)
+	expect("default game: a level-up recharges the powers", player.stats.brutal_reload_remaining == 0.0)
+	player.stats.brutal_reload_remaining = player.stats.brutal_reload_required
+	var probe := MapMode.new()
+	MapMode.current = probe
+	player._on_leveled(2, 3, 0)
+	var kept: bool = player.stats.brutal_reload_remaining == player.stats.brutal_reload_required
+	MapMode.current = null
+	probe.free()
+	expect("map mode: a level-up leaves the power charges alone", kept)
+	player.stats.brutal_reload_remaining = 0.0
 	# A run starts with every power empty: charged ones are spent, and they charge from damage again.
 	player.stats.brutal_reload_remaining = 0.0
 	var learned: Array[String] = []
