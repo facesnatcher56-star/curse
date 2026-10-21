@@ -338,12 +338,11 @@ func _physics_process(delta: float) -> void:
 		if input_locked:
 			if skills.busy: skills.tick_busy(delta)
 			return
-	if Input.is_action_just_released("click") and not MapMode.active:   # (map mode attacks by itself: letting go ends nothing)
-		# No auto-attack: the hero fights only while the click is held on the target. Letting go ends the engagement, even
-		# mid-swing (the swing finishes, nothing follows it; a skill's own queued target is not affected).
-		attack_target = null
+	if Input.is_action_just_released("click") and not MapMode.active:
+		# Owner rule: no click-to-engage. A click only picks the target; letting go ends nothing, the hero keeps fighting it until it falls
+		# (or a ground click, a skill or Ctrl sends him elsewhere), and an idle hero engages what is awake near him by himself (_auto_engage).
 		attack_prop = null
-		if click_mode != 4:
+		if click_mode != 4 and not (is_instance_valid(attack_target) and not attack_target.dead):
 			click_mode = 0
 	if move_click:
 		if stun_time > 0.0 or knockdown.active():
@@ -643,6 +642,7 @@ func _read_input(cursor: Vector3) -> void:
 	if Input.is_action_just_pressed("click") and not _ui_click:
 		if _confirm_party_take_aim(cursor):
 			return
+		_chasing = false   # any click is a new order: the auto-chase goal no longer belongs to him
 		var hover: Actor = _hover_pick(cursor)
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
 		var chest: Chest = Chest.near(get_tree(), cursor, 0.35) if loot == null else null
@@ -928,6 +928,7 @@ func _read_interrupt_move_click(cursor: Vector3) -> bool:
 	if Destructible.near(get_tree(), cursor, 0.35, Destructible.HERO) != null or Chest.near(get_tree(), cursor, 0.35) != null:
 		return false
 	click_mode = 0
+	_chasing = false
 	pickup_target = null
 	chest_target = null
 	attack_prop = null
@@ -976,7 +977,13 @@ func _act(delta: float, cursor: Vector3) -> void:
 		target = attack_target
 	else:
 		skills.clear_queue()
-		attack_target = null
+		if _chasing:   # the target he was chasing is gone: the chase goal goes with it (a ground click clears _chasing first)
+			_chasing = false
+			movement.has_goal = false
+		attack_target = _auto_engage(ctrl)
+		if attack_target != null:
+			skill_id = "basic"
+			target = attack_target
 
 	# An archer's manual attack on an enemy takes the same firing-position decision as the companion's (sight, range, separation).
 	if skill_id == "basic" and target != null and stats.is_ranged() and bow != null:
@@ -1004,12 +1011,52 @@ func _act(delta: float, cursor: Vector3) -> void:
 		if Gamepad.move_vector().length() == 0.0 or MapMode.active:   # with the left stick in use the player steers; no auto-chase
 			movement.goal = target.global_position
 			movement.has_goal = true
+			_chasing = true
 
 	if ctrl:
 		face(cursor, 0.4)
 		move_with(Vector3.ZERO)
 		return
 	movement.move(delta)
+
+## False turns the idle auto-engage off. The selftest harness switches it off for every suite that needs an idle hero (swarm and monster
+## measurements, input and sound checks) and on for the suites about the engagement itself; the game never touches it.
+static var auto_engage_enabled: bool = true
+var _chasing: bool = false   # the walk goal is the auto-chase of an enemy (not a clicked point), so it ends with the chase
+
+## How far an idle hero looks for something awake to fight (a bow reaches further than a blade).
+const AUTO_ENGAGE_MELEE := 9.0
+const AUTO_ENGAGE_RANGED := 17.0
+
+## The nearest awake enemy an idle, player-controlled hero should engage by himself, or null: nothing when he was told to stand still, is
+## walking to a clicked point, going for loot, a chest or a nest, steering with the stick, or is in map mode's own fight/dash (map mode picks
+## its targets itself). Clicking an enemy still chooses the target; nothing needs to be clicked or held to fight.
+func _auto_engage(ctrl: bool) -> Actor:
+	if not auto_engage_enabled or ctrl or dead or not is_controlled() or (movement.has_goal and not _chasing) or attack_prop != null or pickup_target != null or chest_target != null:
+		return null
+	if click_mode == 4 or Gamepad.move_vector().length() > 0.0:
+		return null
+	# An ability is being set up (an aim key held, Take Aim waiting for its target click, a queued skill, or a power under way): the hero
+	# waits for the player and neither swings nor walks off, for any member of the party (the click that picks a target belongs to the ability).
+	if skills.queued_skill != "" or skills.busy:
+		return null
+	for member in PartyManager.current().bodies.values():
+		if is_instance_valid(member) and (member.skills.take_aim_targeting or member.skills.aiming_id != ""):
+			return null
+	if MapMode.active:   # map mode picks every target itself (MapMode.target_for): the fight's group, wherever it stands
+		return null
+	var reach: float = AUTO_ENGAGE_RANGED if (stats.is_ranged() and bow != null) else AUTO_ENGAGE_MELEE
+	var best: Actor = null
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.dead or not enemy.is_aggro():
+			continue
+		var gap: float = flat_distance_to(enemy) - enemy.body_radius
+		if gap > reach:
+			continue
+		if best == null or gap < flat_distance_to(best) - best.body_radius:
+			best = enemy
+	return best
 
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	if MapMode.active:
