@@ -509,6 +509,43 @@ func _test_map_traits() -> void:
 	far_foe.queue_free()
 	_strip(_hero)
 
+	# --- A dodge roll fires the dash traits too, with map mode off (the walking game; owner 2026-10-21) ------------------------------------
+	_off()
+	_wear(_hero, "leather_boots", 3)
+	_hero.stats.equipment[Items.Slot.HELM] = Items.build(ItemDb.get_def("woven_hood"), 3, Items.Rarity.NORMAL)
+	_hero.stats.refresh()
+	MapModeTraits.time_override = 400.0
+	var roll_speed_before: float = _hero.stats.attack_speed()
+	var roll_power_before: float = MapModeTraits.power_damage_bonus(_hero)
+	MapModeTraits.on_roll_end(_hero)
+	expect("map mode off: a roll starts the Leather Boots' +30%% (x%.2f -> x%.2f) and the Woven Hood's +15%% power damage (%.0f -> %.0f)" % [roll_speed_before, _hero.stats.attack_speed(), roll_power_before, MapModeTraits.power_damage_bonus(_hero)],
+		_near(_hero.stats.attack_speed(), roll_speed_before * 1.3) and _near(MapModeTraits.power_damage_bonus(_hero), 15.0) and _near(roll_power_before, 0.0))
+	MapModeTraits.reset()
+	_strip(_hero)
+	_wear(_hero, "iron_greaves", 5)
+	var roll_foe := _foe(Vector3(5, 0, 0))
+	roll_foe.knock = Vector3.ZERO
+	MapModeTraits.on_roll_end(_hero)
+	expect("map mode off: Iron Greaves knock an enemy back where the roll lands (%.1f m/s)" % roll_foe.knock.x, roll_foe.knock.x > 5.0)
+	roll_foe.queue_free()
+	_strip(_hero)
+	# The real roll: its end (PlayerMovement.tick_roll) is what fires them.
+	_wear(_hero, "leather_boots", 3)
+	MapModeTraits.time_override = 500.0
+	var walk_speed: float = _hero.stats.attack_speed()
+	_hero.stats.cooldowns.erase("dodge")
+	_hero.stats.stamina = _hero.stats.max_stamina
+	_hero.skills.busy = false
+	_hero.movement.try_roll(_hero.global_position + Vector3(4, 0, 0))
+	var roll_started: bool = _hero.movement.rolling
+	_hero.movement.tick_roll(PlayerMovement.ROLL_TIME + 0.01)
+	expect("a real dodge roll, at its end, starts the Leather Boots' burst (x%.2f -> x%.2f)" % [walk_speed, _hero.stats.attack_speed()], roll_started and not _hero.movement.rolling and _near(_hero.stats.attack_speed(), walk_speed * 1.3))
+	MapModeTraits.reset()
+	_hero.invulnerable_time = 0.0
+	_hero.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
+	_strip(_hero)
+	_on()
+
 	# --- Signet -------------------------------------------------------------------------------------------------------------------------------
 	_wear(_hero, "signet", 3)
 	_charge(_hero)

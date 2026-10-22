@@ -167,5 +167,6 @@ func tick_roll(delta: float) -> void:
 	p.move_with(roll_dir * ROLL_SPEED * p.stats.armor_stat("roll_speed", 1.0) * (1.0 - 0.6 * u))
 	if roll_t >= ROLL_TIME:
 		rolling = false
+		MapModeTraits.on_roll_end(p)   # Woven Hood, Leather Boots, Iron Greaves fire where the roll lands
 		p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
 		p.model.loop("idle_alert")
