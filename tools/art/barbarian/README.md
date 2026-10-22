@@ -15,12 +15,12 @@ Scripts:
 1. `paint_skin.py`: tan, beard shadow, woad war paint, tattoos and the scar, written into `barbarian_basecolor.png`;
    also the beard strand texture `barbarian_beard.png`.
 2. With `barbarian_mpfb_editable.blend` open, `rebuild_after_open.py` runs the rest:
-   - `pose_to_knight.py`: pose the MPFB rig so every limb points as the knight2 bone does, and close the hands in the grip.
-   - `build_game_rig.py`: freeze the meshes in that pose and build the game skeleton: knight2 names and rest rotations,
+   - `../hero/pose_to_knight.py` (shared by every playable character): pose the MPFB rig so every limb points as the knight2 bone does, and close the hands in the grip.
+   - `../hero/build_game_rig.py` (shared): freeze the meshes in that pose and build the game skeleton: knight2 names and rest rotations,
      these joint positions, three Mixamo-named joints per finger; weights moved over.
    - `export_prep.py`: plain image materials glTF can carry (hair tint baked, leather briefs), mouth parts reduced.
    - joins the head parts into `body_skin`, names the base pieces, exports, saves `barbarian.blend`.
-3. `ground_and_export.py` (with `barbarian.blend` open): stands the rig on the ground (lowest sole at 0) and exports.
+3. `../hero/ground_and_export.py` (shared) (with `barbarian.blend` open): stands the rig on the ground (lowest sole at 0) and exports.
 
 After exporting, Godot must import the new GLB (focus the editor, or a headless `--import`).
 

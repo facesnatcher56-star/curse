@@ -23,6 +23,16 @@
           "grip_at": 0.11
         }
       }
+    },
+    "res://assets/models/elf": {
+      "_doc": "The wood elf (Cutter). Same rules as the barbarian: item models are built for him one by one (item_models); every other item shows nothing on him. His own meshes body_skin, body_hair and clt_briefs are his base.",
+      "equipment_pieces": false,
+      "base": [
+        "body_skin",
+        "body_hair",
+        "clt_briefs"
+      ],
+      "item_models": {}
     }
   },
   "items": {

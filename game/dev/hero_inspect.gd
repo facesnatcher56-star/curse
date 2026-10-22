@@ -5,6 +5,7 @@ extends Node3D
 ## Open res://game/dev/hero_inspect.tscn and run it (F6); it quits when done. Saving and the town file are untouched.
 
 const OUT := "user://hero_inspect"
+const MEMBERS := ["hero", "cutter"]
 const VIEWS := {   # name -> [camera position, look-at point, fov]
 	"front": [Vector3(0, 1.1, 3.4), Vector3(0, 1.0, 0), 45.0],   # the rig faces +Z
 	"back": [Vector3(0, 1.1, -3.4), Vector3(0, 1.0, 0), 45.0],
@@ -47,13 +48,23 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.make_current()
 
+	await _frames(4)
+	for member in MEMBERS:
+		await _inspect(member)
+	print("HERO INSPECT DONE")
+	get_tree().quit()
+
+## One party member (CharacterPresentation id), bare as he is shown now (no item models but those built for him):
+## every view, face and hand close-ups, and a few clips. Files are named <member>_<shot>.png.
+func _inspect(member: String) -> void:
 	var clips: Array[String] = []
 	clips.assign(Player.CLIPS)
-	_model = CharacterModel.build(CharacterPresentation.folder("hero"), clips, false)
+	_model = CharacterModel.build(CharacterPresentation.folder(member), clips, false)
 	add_child(_model)
 	CharacterPresentation.share_combat_clips(_model)
 	_look = ModularAppearance.new(_model)
-	var built: Dictionary = ModularAppearance.rig(_model.folder)["item_models"].get("longsword", {})   # his starting sword, as Player mounts it
+	_look.sync({})
+	var built: Dictionary = ModularAppearance.rig(_model.folder)["item_models"].get("longsword", {})   # a sword built for him, as Player mounts it
 	var grip: Array = _model.finger_grip("Right")
 	if not built.is_empty() and not grip.is_empty():
 		var measured: Node3D = (load(String(built["model"])) as PackedScene).instantiate()
@@ -61,37 +72,24 @@ func _ready() -> void:
 		measured.free()
 		_model.attach_weapon(String(built["model"]), "RightHand", grip[0], length, float(built["grip_at"]), grip[1])
 		_model.show_weapon(true)
-	else:
-		_model.attach_weapon(Player.SWORD_PATH, "RightHand", Player.GRIPS[3], 1.25, 0.12, Player.HAND_GRIP_POINT, 1.7)
-	print("HERO INSPECT rig ", _model.folder, " -> ", ProjectSettings.globalize_path(OUT))
-
-	var outfits := {
-		"bare": {},
-		"start": _starting(),
-		"plate": {Items.Slot.ARMOR: _item(Items.Slot.ARMOR, "Plate Cuirass"), Items.Slot.HELM: _item(Items.Slot.HELM, "Iron Helm"),
-			Items.Slot.GLOVES: _item(Items.Slot.GLOVES, "Iron Gauntlets"), Items.Slot.BOOTS: _item(Items.Slot.BOOTS, "Iron Greaves"),
-			Items.Slot.SHIELD: _item(Items.Slot.SHIELD, "Kite Shield")},
-		"mage": {Items.Slot.ARMOR: _item(Items.Slot.ARMOR, "Apprentice Robe"), Items.Slot.HELM: _item(Items.Slot.HELM, "Woven Hood"),
-			Items.Slot.BOOTS: _item(Items.Slot.BOOTS, "Sorcerer Boots")},
-	}
-	await _shot("_warmup", VIEWS["front"])   # the first capture after the window resize comes out blank
-	for outfit in outfits:
-		_look.sync(outfits[outfit])
-		await _pose("idle_alert", 0.0)
-		for view in VIEWS:
-			await _shot("%s_%s" % [outfit, view], VIEWS[view])
-	_look.sync({})
+	print("HERO INSPECT ", member, " rig ", _model.folder, " -> ", ProjectSettings.globalize_path(OUT))
+	await _shot("_warmup", VIEWS["front"])   # the first capture after a model change can come out stale
 	await _pose("idle_alert", 0.0)
+	for view in VIEWS:
+		await _shot("%s_%s" % [member, view], VIEWS[view])
 	var head: Vector3 = _bone("Head") + Vector3(0, 0.12, 0)
-	await _shot("bare_face", [head + Vector3(0.2, 0.0, 0.75), head, 35.0])
+	await _shot(member + "_face", [head + Vector3(0.2, 0.0, 0.75), head, 35.0])
 	var hand: Vector3 = _bone("RightHand")
-	await _shot("bare_hand", [hand + Vector3(-0.45, 0.1, 0.45), hand, 35.0])
-	_look.sync(outfits["start"])
-	for clip in ["walk", "run", "atk_slash", "atk_thrust", "hit"]:
+	await _shot(member + "_hand", [hand + Vector3(-0.45, 0.1, 0.45), hand, 35.0])
+	for clip in ["walk", "run", "atk_slash", "hit"]:
 		await _pose(clip, 0.4)
-		await _shot("start_%s" % clip, [Vector3(2.4, 1.6, 2.6), Vector3(0, 1.0, 0), 45.0])
-	print("HERO INSPECT DONE")
-	get_tree().quit()
+		await _shot("%s_%s" % [member, clip], [Vector3(2.4, 1.6, 2.6), Vector3(0, 1.0, 0), 45.0])
+	_model.queue_free()
+	await _frames(2)
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
 
 func _bone(bone: String) -> Vector3:
 	return _look.skeleton.global_transform * _look.skeleton.get_bone_global_pose(_look.skeleton.find_bone(bone)).origin
