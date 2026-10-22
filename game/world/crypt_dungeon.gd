@@ -52,6 +52,21 @@ func start_position() -> Vector3:
 	return Vector3(start.x, 0.0, start.y)
 
 
+## Every walkable cell of the plan (rooms and corridors) as a world rectangle (x, z), for the minimap (MinimapMap paints them as the floor).
+func floor_rects() -> Array[Rect2]:
+	return plan_floor_rects(CryptLayout.W, CryptLayout.H, CryptLayout.CELL, CryptLayout.space_at, CryptLayout.world)
+
+
+static func plan_floor_rects(w: int, h: int, cell: float, space_at: Callable, world: Callable) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for r in h:
+		for c in w:
+			if String(space_at.call(c, r)) != "":
+				var centre: Vector2 = world.call(float(c), float(r))
+				out.append(Rect2(centre - Vector2.ONE * cell * 0.5, Vector2.ONE * cell))
+	return out
+
+
 func build(for_arena: Arena) -> void:
 	arena = for_arena
 	in_world = false

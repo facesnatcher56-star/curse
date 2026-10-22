@@ -208,6 +208,34 @@ func _test_map_mode_dungeon() -> void:
 				walled = walled and MapModeLayout.space_at(ca.x, ca.y) != MapModeLayout.space_at(cb.x, cb.y)
 	expect("no group can wake another, whoever stands where (tightest margin %.1f m, %s)" % [tightest, tight_note], isolated)
 	expect("no two groups share a room, and the nearest two homes are %.0f m apart (40 m and more)" % nearest, walled and nearest >= 40.0)
+	# --- the minimap (the walking game, #112): the plan's rooms and corridors are the floor, nothing else ----------------------------
+	var plan := MapModeDungeon.new()
+	var floor_rects: Array[Rect2] = plan.floor_rects()
+	plan.free()
+	var on_floor := func(p: Vector2) -> bool:
+		return floor_rects.any(func(r: Rect2) -> bool: return r.grow(0.01).has_point(p))
+	var covered: bool = not floor_rects.is_empty()
+	for n in nodes:
+		covered = covered and on_floor.call(n["pos"])
+	for link in links:
+		for w in link["waypoints"]:
+			covered = covered and on_floor.call(w)
+	expect("the minimap floor covers every room centre and corridor waypoint (%d cells)" % floor_rects.size(), covered)
+	var probe_map := MinimapMap.new()
+	probe_map.origin = Vector2(-MapModeLayout.half_x(), -MapModeLayout.half_z())
+	probe_map.cols = ceili(MapModeLayout.half_x() * 2.0 / MinimapMap.CELL)
+	probe_map.rows = ceili(MapModeLayout.half_z() * 2.0 / MinimapMap.CELL)
+	probe_map.kinds.resize(probe_map.cols * probe_map.rows)
+	probe_map.kinds.fill(MinimapMap.K_GROUND)
+	var host := MapModeDungeon.new()
+	probe_map._paint_floor(host)
+	host.free()
+	probe_map.terrain = Image.create(1, 1, false, Image.FORMAT_RGBA8)   # (kind_at only needs a built map)
+	var start_pos: Vector2 = by_id[0]["pos"]
+	var outside := Vector2(-MapModeLayout.half_x() + 2.0, -MapModeLayout.half_z() + 2.0)
+	expect("the minimap paints the start room as floor and leaves the rock between rooms empty",
+		probe_map.kind_at(Vector3(start_pos.x, 0, start_pos.y)) == MinimapMap.K_ROAD and probe_map.kind_at(Vector3(outside.x, 0, outside.y)) == MinimapMap.K_VOID)
+
 	# --- run time -----------------------------------------------------------------------------------------------------------------------
 	var fast_min: float = float(fastest["seconds"]) / 60.0
 	var full_min: float = _full_clear_seconds(nodes, links, adj, by_id) / 60.0

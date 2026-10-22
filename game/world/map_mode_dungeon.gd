@@ -36,6 +36,10 @@ func zone_title() -> String:
 	return "The Sunken Way"
 
 
+func floor_rects() -> Array[Rect2]:
+	return plan_floor_rects(MapModeLayout.W, MapModeLayout.H, MapModeLayout.CELL, MapModeLayout.space_at, MapModeLayout.world)
+
+
 func banner_text(_job: Dictionary) -> String:
 	return "The Sunken Way\nPick Your Road"
 

@@ -106,10 +106,11 @@ func _paint_map_content() -> void:
 	var params: Dictionary = map_view_params(get_viewport_rect().size)
 	map_data.draw(_map_content, MinimapMap.transform_for(params["origin"], Gamepad.view_yaw, float(params["scale"]), _map_content.size * 0.5))
 
-## How the map is framed: a window round the hero in the connected world (and on any long arena), the whole arena otherwise.
+## How the map is framed: a window round the hero in the connected world, on any long arena and on anything bigger than the plain arena (a
+## dungeon); the whole arena otherwise.
 func map_view_params(size_px: Vector2) -> Dictionary:
 	var bounds: Vector2 = Arena.bounds_of(get_tree())
-	var windowed: bool = hud.force_window or bounds.y > bounds.x * 1.6
+	var windowed: bool = hud.force_window or bounds.y > bounds.x * 1.6 or maxf(bounds.x, bounds.y) > Arena.HALF + 1.0
 	var half: float = 45.0 if windowed else Arena.HALF
 	var origin: Vector3 = hud.player.global_position if windowed and hud.player != null else Vector3.ZERO
 	return {"windowed": windowed, "half": half, "origin": origin, "scale": Hud.minimap_rect(size_px, hud.use_ds2_ui).size.x * (0.66 if hud.use_ds2_ui else 1.0) / (half * 2.0)}
@@ -192,6 +193,14 @@ func _draw_minimap(t: CanvasItem, size_px: Vector2, font: Font) -> void:
 		var qat: Vector2 = centre + Vector2(qrel.x, qrel.y).limit_length(half) * scale_px
 		t.draw_circle(qat, 5.5, Color(0, 0, 0, 0.85))
 		t.draw_arc(qat, 4.0, 0.0, TAU, 14, Color(1.0, 0.8, 0.3), 2.0)
+	# The other party members: a dot in their ring colour (gold warrior, teal Cutter), pinned to the edge when out of the window.
+	for member in PartyManager.current().living():
+		if member == hud.player:
+			continue
+		var mp: Vector3 = member.global_position - origin
+		var mat: Vector2 = centre + Vector2(mp.x, mp.z).limit_length(half).rotated(Gamepad.view_yaw) * scale_px
+		t.draw_circle(mat, 4.6, Color(0, 0, 0, 0.85))
+		t.draw_circle(mat, 3.4, PartyLook.color_of(member.member_id))
 	# The hero: a white arrow pointing the way they face.
 	var pp: Vector3 = hud.player.global_position - origin
 	var me: Vector2 = centre + Vector2(pp.x, pp.z).rotated(Gamepad.view_yaw) * scale_px
