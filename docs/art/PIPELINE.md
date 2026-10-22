@@ -66,13 +66,12 @@ built. Until then, prototype enemies keep their current rig and their clips must
 - **Armatures:** `Armature` for player rigs, matching knight2; `Rig_<Name>` for enemy and other rigs.
 - **Bones:** the names in the player skeleton table above for player equipment; enemy rigs name their own bones.
 - **Materials:** lowercase snake_case, no prefix: `iron`, `dark_steel`, `leather_dark`, `wood`, `bone`, `moss`.
-- **Textures (only if used):** `<asset>_atlas.png`, one per asset.
+- **Textures:** `<asset>_<map>.png`, for example `barbarian_basecolor.png`, `barbarian_normal.png`.
 
 ## Materials
 
-- **Flat or limited palette.** Prefer flat colours and vertex colours. Use at most **4 materials** per asset.
-- **One texture atlas at most** per asset, at 1024 px or 512 px, only when a vertex-colour look cannot carry the detail. Do not add
-  separate normal, roughness or metallic maps; roughness and metallic are set per material as flat values.
+- **No fixed limit on materials or textures** (owner, 2026-10-22). Use as many materials and texture maps (base colour,
+  normal, roughness, metallic, and so on) at whatever resolution the asset needs to look right.
 - **Matte by default.** Roughness is high (about 0.7 to 1.0) for cloth, leather, stone, wood and moss. Metals use a high
   roughness with a worn look (about 0.4 to 0.6); no mirror-polished chrome. Metallic is 1.0 only on steel and iron parts.
 - **Palette:** muted steel, charcoal, leather, burgundy, brown, bone and moss. One or two warm accents at most (embers, torches,
@@ -105,7 +104,7 @@ category.
 1. Visible triangle count is within its class guideline, or the overage is justified in the commit.
 2. Origin at the feet (or the base for props), scale in metres, transforms applied.
 3. Player equipment follows the player skeleton table above, rest pose A-pose, under one armature. Enemy rigs follow the Enemy rigs section.
-4. Names follow the conventions above; at most 4 materials and at most one atlas.
+4. Names follow the conventions above.
 5. Reads as a silhouette from the far zoom-out.
 
 ## Open items
