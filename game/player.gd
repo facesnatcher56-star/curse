@@ -306,6 +306,7 @@ func _physics_process(delta: float) -> void:
 	knockdown.tick(delta)
 	hit_reaction.tick(delta)
 	shield_guard.tick(delta)   # the raised shield while closing on a ranged attacker (issue #88)
+	MapModeTraits.tick(self, delta)   # the Jerkin's pool refills out of combat
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
 	if model != null and model.weapon != null:

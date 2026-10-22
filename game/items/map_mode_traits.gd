@@ -2,7 +2,8 @@ class_name MapModeTraits
 extends RefCounted
 ## Item traits (issue #82; the normal game too since #112): every level 1-5 base carries a built-in trait, plus the drop gaps (Battle Axe and
 ## Buckler from item level 3) and extra magic/rare modifiers. They act in every mode; the few that need a map-mode event (a dash, a fight start
-## or a room clear: on_dash_arrived, on_fight_start, on_room_clear) are called by MapMode only. All the numbers are in TABLE and AFFIXES.
+## or a room clear: on_dash_arrived, on_fight_start, on_room_clear) are called by MapMode only; the dash ones also fire at the end of a roll
+## (on_roll_end, owner 2026-10-21). All the numbers are in TABLE and AFFIXES.
 ##
 ## A trait is active while the item is worn by any party member; an effect that needs "the equipped member" uses that member.
 
@@ -19,17 +20,17 @@ const TABLE := {
 		"numbers": {"step": 3.0, "cap": 15.0, "secs": 4.0}},
 	"short_bow": {"id": "bow_mark", "text": "Autos mark the target for {secs} s: the rest of the party deals +{pct}% to marked enemies",
 		"numbers": {"secs": 6.0, "pct": 15.0}},
-	"leather_jerkin": {"id": "jerkin_shield", "text": "A shield absorbs the first {pct}% of your max life in damage each fight", "numbers": {"pct": 20.0}},
+	"leather_jerkin": {"id": "jerkin_shield", "text": "A shield absorbs the first {pct}% of your max life in damage; it refills out of combat", "numbers": {"pct": 20.0}},
 	"apprentice_robe": {"id": "robe_recharge", "text": "Powers charge {recharge}% faster", "numbers": {"recharge": 10.0}},
 	"mail_hauberk": {"id": "hauberk_taken", "text": "Damage taken also charges your powers ({pct}% of it)", "numbers": {"pct": 50.0}},
 	"leather_cap": {"id": "cap_telegraph", "text": "Enemy wind-up telegraphs show {lead} s earlier", "numbers": {"lead": 0.5}},
 	"iron_helm": {"id": "helm_stun", "text": "-{pct}% stun duration when hit", "numbers": {"pct": 25.0}},
-	"woven_hood": {"id": "hood_power", "text": "+{power}% power damage for {secs} s after a dash", "numbers": {"power": 15.0, "secs": 3.0}},
+	"woven_hood": {"id": "hood_power", "text": "+{power}% power damage for {secs} s after a dash or a roll", "numbers": {"power": 15.0, "secs": 3.0}},
 	"leather_gloves": {"id": "gloves_speed", "text": "+{speed}% auto-attack speed", "numbers": {"speed": 10.0}},
 	"iron_gauntlets": {"id": "gauntlets_execute", "text": "Opening executions hit {pct}% harder", "numbers": {"pct": 25.0}},
 	"studded_gloves": {"id": "studded_champions", "text": "+{opening}% Opening chance against champions", "numbers": {"opening": 15.0}},
-	"leather_boots": {"id": "boots_burst", "text": "+{speed}% attack speed for {secs} s after a dash", "numbers": {"speed": 30.0, "secs": 3.0}},
-	"iron_greaves": {"id": "greaves_knock", "text": "A dash knocks back enemies at the landing spot", "numbers": {"knock": 3.0, "radius": 7.0, "stun": 0.5}},
+	"leather_boots": {"id": "boots_burst", "text": "+{speed}% attack speed for {secs} s after a dash or a roll", "numbers": {"speed": 30.0, "secs": 3.0}},
+	"iron_greaves": {"id": "greaves_knock", "text": "A dash or a roll knocks back enemies where you land", "numbers": {"knock": 3.0, "radius": 7.0, "stun": 0.5}},
 	"signet": {"id": "signet_share", "text": "When you use a power, the other party members gain {charge}% charge", "numbers": {"charge": 10.0}},
 	"charm": {"id": "charm_kills", "text": "Kills refill {charge}% of your power charge", "numbers": {"charge": 5.0}},
 }
@@ -49,13 +50,18 @@ const AFFIXES: Array[Dictionary] = [
 	{"id": "mm_charge_kill_2", "family": "mm_charge_kill", "stat": "charge_on_kill", "title": "Bloodied", "position": "prefix", "level": 10, "value": 4.0, "ceiling": 7.0, "slots": ["ring", "amulet", "helm", "body"]},
 	{"id": "mm_marked_1", "family": "mm_marked", "stat": "marked_damage", "title": "Hunter's", "position": "prefix", "level": 1, "value": 5.0, "ceiling": 10.0, "slots": ["weapon", "ring", "amulet", "gloves"]},
 	{"id": "mm_marked_2", "family": "mm_marked", "stat": "marked_damage", "title": "Hunter's", "position": "prefix", "level": 10, "value": 10.0, "ceiling": 18.0, "slots": ["weapon", "ring", "amulet", "gloves"]},
-	{"id": "mm_heal_1", "family": "mm_heal", "stat": "room_heal", "title": "of Mending", "position": "suffix", "level": 1, "value": 4.0, "ceiling": 8.0, "slots": ["boots", "body"]},
-	{"id": "mm_heal_2", "family": "mm_heal", "stat": "room_heal", "title": "of Mending", "position": "suffix", "level": 10, "value": 8.0, "ceiling": 12.0, "slots": ["boots", "body"]},
+	{"id": "mm_gale_1", "family": "mm_gale", "stat": "party_speed", "title": "of the Gale", "position": "suffix", "level": 1, "value": 8.0, "ceiling": 15.0, "slots": ["boots", "body"]},
+	{"id": "mm_gale_2", "family": "mm_gale", "stat": "party_speed", "title": "of the Gale", "position": "suffix", "level": 10, "value": 15.0, "ceiling": 25.0, "slots": ["boots", "body"]},
 	{"id": "mm_auto_1", "family": "mm_auto", "stat": "auto_speed", "title": "Quick", "position": "prefix", "level": 1, "value": 4.0, "ceiling": 8.0, "slots": ["weapon", "gloves", "boots"]},
 	{"id": "mm_auto_2", "family": "mm_auto", "stat": "auto_speed", "title": "Quick", "position": "prefix", "level": 10, "value": 8.0, "ceiling": 14.0, "slots": ["weapon", "gloves", "boots"]},
 ]
 ## The stats the modifiers above add that the base game does not know (name on the card; all are percentages).
-const NEW_STAT_NAMES := {"charge_on_kill": "Power charge on kill", "marked_damage": "Damage to marked enemies", "room_heal": "Heal on room clear", "auto_speed": "Auto-attack speed"}
+const NEW_STAT_NAMES := {"charge_on_kill": "Power charge on kill", "marked_damage": "Damage to marked enemies", "party_speed": "Party movement speed", "auto_speed": "Auto-attack speed"}
+
+## "of the Gale" (issue #112): every member's Party movement speed adds up and speeds up the whole party, to at most this many percent.
+const PARTY_SPEED_CAP := 30.0
+## The Jerkin's pool refills once the party has been out of combat (no awake enemy going for a member) this many seconds (issue #112).
+const SHIELD_REFILL_CALM := 5.0
 
 ## The skill ids that are "autos" (the basic melee blow, the Cutter's and a bow's arrow).
 const AUTO_IDS: Array[String] = ["basic", "companion_arrow"]
@@ -127,7 +133,7 @@ static func _living() -> Array[Player]:
 static func _st(body: Player) -> Dictionary:
 	var id: int = body.get_instance_id()
 	if not _state.has(id):
-		_state[id] = {"power_until": -1.0, "burst_until": -1.0, "autos": 0, "shield": 0.0}
+		_state[id] = {"power_until": -1.0, "burst_until": -1.0, "autos": 0, "shield": 0.0, "calm": 0.0}
 	return _state[id]
 
 static func is_auto(result: Dictionary) -> bool:
@@ -141,6 +147,13 @@ static func speed_mult(body: Player) -> float:
 	if now() < float(_st(body)["burst_until"]):
 		pct += value(body, "boots_burst", "speed")
 	return 1.0 + pct / 100.0
+
+## Walking speed multiplier of every party member (PlayerMovement._travel_speed): the members' Party movement speed, added up and capped.
+static func party_speed_mult() -> float:
+	var pct: float = 0.0
+	for body in _living():
+		pct += gear(body, "party_speed")
+	return 1.0 + minf(pct, PARTY_SPEED_CAP) / 100.0
 
 ## Power recharge in percent (PlayerStats.power_recharge_damage).
 static func recharge_bonus(body: Player) -> float:
@@ -317,7 +330,7 @@ static func on_fight_start(m: MapMode) -> void:
 		if float(_st(body)["shield"]) > 0.0:
 			MapAutoTally.note("jerkin_shield_up", float(_st(body)["shield"]))
 
-## A room is cleared (MapMode._begin_collect after a fight): the shields are gone, and "Heal on room clear" restores the living wearers.
+## A room is cleared (MapMode._begin_collect after a fight): the shields are gone.
 static func on_room_clear(m: MapMode) -> void:
 	if not MapMode.active:
 		return
@@ -325,18 +338,27 @@ static func on_room_clear(m: MapMode) -> void:
 		if body == null or not is_instance_valid(body):
 			continue
 		_st(body)["shield"] = 0.0
-		var pct: float = gear(body, "room_heal")
-		if pct <= 0.0 or body.dead or body.health <= 0.0:
-			continue
-		var amount: float = minf(body.max_health * pct / 100.0, body.max_health - body.health)
-		if amount <= 0.0:
-			continue
-		body.health += amount
-		MapAutoTally.note("room_heal", amount)
-		if body.is_inside_tree() and body.get_tree().current_scene != null:
-			Fx.text_at(body, body.global_position + Vector3(0, body.body_height + 0.4, 0), "+%d" % int(round(amount)), Color(0.45, 1.0, 0.5), 44)
 
-## Player._filter_incoming: the Jerkin's shield soaks damage (AoE and ticks included) until its pool is used up or the fight ends.
+## Every physics frame of a living member (Player): once the party has been out of combat SHIELD_REFILL_CALM s, the Jerkin's pool is full again.
+static func tick(body: Player, delta: float) -> void:
+	var pool: float = body.max_health * value(body, "jerkin_shield", "pct") / 100.0
+	if pool <= 0.0:
+		return
+	var st: Dictionary = _st(body)
+	st["calm"] = 0.0 if in_combat(body) else float(st["calm"]) + delta
+	if float(st["calm"]) >= SHIELD_REFILL_CALM and float(st["shield"]) < pool:
+		st["shield"] = pool
+		MapAutoTally.note("jerkin_shield_up", pool)
+
+## In combat: an awake enemy is going for a living party member.
+static func in_combat(body: Node) -> bool:
+	for node in body.get_tree().get_nodes_in_group("enemies"):
+		var e := node as Enemy
+		if e != null and not e.dead and e.is_aggro() and e.target is Player and not (e.target as Player).dead:
+			return true
+	return false
+
+## Player._filter_incoming: the Jerkin's shield soaks damage (AoE and ticks included) until its pool is used up; it refills out of combat (tick).
 static func absorb(body: Player, result: Dictionary) -> Dictionary:
 	if int(result.get("outcome", 0)) < Combat.Outcome.HIT:
 		return result
@@ -364,15 +386,24 @@ static func on_dash_arrived(m: MapMode) -> void:
 	for body in [m.hero, m.companion]:
 		if body == null or not is_instance_valid(body) or body.dead:
 			continue
-		var st: Dictionary = _st(body)
-		if has(body, "hood_power"):
-			st["power_until"] = now() + value(body, "hood_power", "secs")
-			MapAutoTally.note("hood_window")
-		if has(body, "boots_burst"):
-			st["burst_until"] = now() + value(body, "boots_burst", "secs")
-			MapAutoTally.note("boots_window")
-		if has(body, "greaves_knock"):
-			_knock_back(body)
+		_landed(body)
+
+## A member's dodge roll ends (PlayerMovement.tick_roll), in either mode: the same as a dash landing (owner, issue #112).
+static func on_roll_end(body: Player) -> void:
+	if body != null and is_instance_valid(body) and not body.dead:
+		_landed(body)
+
+## Woven Hood and Leather Boots start their timers, Iron Greaves knock enemies back.
+static func _landed(body: Player) -> void:
+	var st: Dictionary = _st(body)
+	if has(body, "hood_power"):
+		st["power_until"] = now() + value(body, "hood_power", "secs")
+		MapAutoTally.note("hood_window")
+	if has(body, "boots_burst"):
+		st["burst_until"] = now() + value(body, "boots_burst", "secs")
+		MapAutoTally.note("boots_window")
+	if has(body, "greaves_knock"):
+		_knock_back(body)
 
 static func _knock_back(body: Player) -> void:
 	var radius: float = value(body, "greaves_knock", "radius")

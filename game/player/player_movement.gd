@@ -42,12 +42,12 @@ func update_locomotion_anim() -> void:
 		return
 	idle_time = 0.0
 
-## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
+## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat. "of the Gale" speeds up the whole party.
 func _travel_speed(delta: float) -> float:
-	var speed: float = p.stats.run_speed
+	var speed: float = p.stats.run_speed * MapModeTraits.party_speed_mult()
 	if PlayerStats.STAMINA_ON and p.combat_timer > 0.0:
 		if p.stats.stamina <= 0.0:
-			speed = p.stats.run_speed * 0.6
+			speed *= 0.6
 		else:
 			p.stats.stamina = maxf(p.stats.stamina - 16.0 * delta, 0.0)
 	return speed
@@ -167,5 +167,6 @@ func tick_roll(delta: float) -> void:
 	p.move_with(roll_dir * ROLL_SPEED * p.stats.armor_stat("roll_speed", 1.0) * (1.0 - 0.6 * u))
 	if roll_t >= ROLL_TIME:
 		rolling = false
+		MapModeTraits.on_roll_end(p)   # Woven Hood, Leather Boots, Iron Greaves fire where the roll lands
 		p.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
 		p.model.loop("idle_alert")

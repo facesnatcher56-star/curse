@@ -989,7 +989,7 @@ func _begin_collect() -> void:
 		_settle_guard()   # the chest opens (loot spray), the shrine blesses, the cache spills: before the log row closes, so its loot is counted
 	if _visit_kind not in ["revisit", "loot"]:
 		_top_up()
-	MapModeTraits.on_room_clear(self)   # item traits: shields end, "Heal on room clear"
+	MapModeTraits.on_room_clear(self)   # item traits: the Jerkin shields end
 	var row: Dictionary = log.end_fight(now())
 	if not row.is_empty():
 		log.emit_line(row)

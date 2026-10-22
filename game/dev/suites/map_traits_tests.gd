@@ -175,13 +175,13 @@ func _test_map_traits() -> void:
 
 	# --- The map-mode modifiers --------------------------------------------------------------------------------------------------------------
 	var pool_ok: bool = true
-	for stat in ["opening", "charge_on_kill", "marked_damage", "room_heal", "auto_speed"]:
+	for stat in ["opening", "charge_on_kill", "marked_damage", "party_speed", "auto_speed"]:
 		var found: bool = false
 		for kind in ["weapon", "body", "ring", "helm", "gloves", "boots", "amulet"]:
 			for a in AffixDb.eligible(kind, 0, 50, ""):
 				found = found or (a.stat == stat and (a.id as String).begins_with("mm_"))
 		pool_ok = pool_ok and found
-	expect("map mode adds +Opening chance, +charge on kill, +damage to marked, +heal on room clear and +auto-attack speed to the modifier pool", pool_ok)
+	expect("map mode adds +Opening chance, +charge on kill, +damage to marked, +Party movement speed and +auto-attack speed to the modifier pool", pool_ok)
 	_off()
 	var pool_off: Array = []
 	for kind in ["body", "boots"]:
@@ -322,7 +322,7 @@ func _test_map_traits() -> void:
 	_hero.health = _hero.max_health
 	_wear(_hero, "leather_jerkin", 3)
 	var pool: float = _hero.max_health * 0.2
-	expect("Leather Jerkin tooltip reads the first-hit shield", MapModeTraits.line_for("leather_jerkin") == "A shield absorbs the first 20% of your max life in damage each fight")
+	expect("Leather Jerkin tooltip reads the first-hit shield", MapModeTraits.line_for("leather_jerkin") == "A shield absorbs the first 20% of your max life in damage; it refills out of combat")
 	var hit := func(dmg: float, extra: Dictionary = {}) -> Dictionary:
 		var r: Dictionary = {"outcome": Combat.Outcome.HIT, "damage": dmg, "weight": 1.0}
 		r.merge(extra, true)
@@ -353,28 +353,51 @@ func _test_map_traits() -> void:
 	MapModeTraits.on_fight_start(_m)
 	expect("without the Jerkin there is no shield", _near(float(hit.call(30.0)["damage"]), 30.0))
 
-	# --- "of Mending": heal on room clear -------------------------------------------------------------------------------------------------------
-	var mending: Dictionary = Items.build(ItemDb.get_def("leather_boots"), 5, Items.Rarity.MAGIC, ["mm_heal_1"], "", {"mm_heal_1": 8.0})
-	_hero.stats.equipment[Items.Slot.BOOTS] = mending
-	_hero.stats.refresh()
-	_hero.health = _hero.max_health * 0.5
-	MapModeTraits.on_room_clear(_m)
-	expect("Heal on room clear: +8%% of max life (%.1f of %.1f)" % [_hero.health, _hero.max_health], _near(_hero.health, _hero.max_health * 0.58, 0.01))
-	_hero.health = _hero.max_health * 0.95
-	MapModeTraits.on_room_clear(_m)
-	expect("Heal on room clear stops at max life", _near(_hero.health, _hero.max_health, 0.01))
-	_hero.health = _hero.max_health * 0.5
-	_off()
-	MapModeTraits.on_room_clear(_m)
+	# --- Leather Jerkin: the pool refills once the party has been out of combat 5 s (#112), map mode on and off -------------------------------
+	_wear(_hero, "leather_jerkin", 3)
+	var fighter := _foe(Vector3(6, 0, 0))
+	fighter.wake()
+	for mode_on in [true, false]:
+		if mode_on: _on()
+		else: _off()
+		MapModeTraits._st(_hero)["shield"] = 0.0
+		MapModeTraits._st(_hero)["calm"] = 0.0
+		fighter.target = _hero
+		MapModeTraits.tick(_hero, MapModeTraits.SHIELD_REFILL_CALM + 1.0)
+		var in_fight: float = float(MapModeTraits._st(_hero)["shield"])
+		for e in get_tree().get_nodes_in_group("enemies"):
+			(e as Enemy).target = null
+		MapModeTraits.tick(_hero, MapModeTraits.SHIELD_REFILL_CALM - 0.1)
+		var almost: float = float(MapModeTraits._st(_hero)["shield"])
+		MapModeTraits.tick(_hero, 0.2)
+		var calm: float = float(MapModeTraits._st(_hero)["shield"])
+		var label: String = "map mode on" if mode_on else "map mode off"
+		expect("%s: the Jerkin's pool does not refill while an awake enemy is going for a member" % label, _near(in_fight, 0.0))
+		expect("%s: it refills after %.0f s out of combat, not before (%.1f, then %.1f of %.1f)" % [label, MapModeTraits.SHIELD_REFILL_CALM, almost, calm, pool], _near(almost, 0.0) and _near(calm, pool, 0.01))
 	_on()
-	expect("Heal on room clear is inert with map mode off", _near(_hero.health, _hero.max_health * 0.5, 0.01))
-	_hero.dead = true
-	_hero.health = 0.0
-	MapModeTraits.on_room_clear(_m)
-	expect("Heal on room clear does not raise the dead", _hero.health == 0.0)
-	_hero.dead = false
-	_hero.health = _hero.max_health
+	fighter.free()
 	_strip(_hero)
+
+	# --- "of the Gale": Party movement speed, every member, capped (#112) --------------------------------------------------------------------
+	_hero.combat_timer = 0.0
+	_cutter.combat_timer = 0.0
+	var hero_walk: float = _hero.movement._travel_speed(0.0)
+	var cutter_walk: float = _cutter.movement._travel_speed(0.0)
+	_hero.stats.equipment[Items.Slot.BOOTS] = Items.build(ItemDb.get_def("leather_boots"), 5, Items.Rarity.MAGIC, ["mm_gale_1"], "", {"mm_gale_1": 12.0})
+	_hero.stats.refresh()
+	expect("of the Gale: the wearer's +12%% speeds up every member (hero x%.2f, Cutter x%.2f)" % [_hero.movement._travel_speed(0.0) / hero_walk, _cutter.movement._travel_speed(0.0) / cutter_walk],
+		_near(_hero.movement._travel_speed(0.0), hero_walk * 1.12, 0.001) and _near(_cutter.movement._travel_speed(0.0), cutter_walk * 1.12, 0.001))
+	_cutter.stats.equipment[Items.Slot.BOOTS] = Items.build(ItemDb.get_def("leather_boots"), 12, Items.Rarity.MAGIC, ["mm_gale_2"], "", {"mm_gale_2": 25.0})
+	_cutter.stats.refresh()
+	expect("bonuses from all members add up and stop at +%.0f%% (12 + 25 -> x%.2f)" % [MapModeTraits.PARTY_SPEED_CAP, MapModeTraits.party_speed_mult()],
+		_near(MapModeTraits.party_speed_mult(), 1.0 + MapModeTraits.PARTY_SPEED_CAP / 100.0) and _near(_cutter.movement._travel_speed(0.0), cutter_walk * 1.3, 0.001))
+	_off()
+	expect("the same with map mode off (the walking game)", _near(MapModeTraits.party_speed_mult(), 1.3))
+	_on()
+	expect("the card reads it as Party movement speed", Items.lines(_hero.stats.equipment[Items.Slot.BOOTS]).has("+12% Party movement speed"))
+	_strip(_hero)
+	_strip(_cutter)
+	expect("with no Gale worn the party walks at its own speed", _near(MapModeTraits.party_speed_mult(), 1.0))
 
 	# --- Apprentice Robe ----------------------------------------------------------------------------------------------------------------------
 	var plain_recharge: float = _hero.stats.power_recharge_damage(10.0, "melee")
@@ -485,6 +508,43 @@ func _test_map_traits() -> void:
 	near_foe.queue_free()
 	far_foe.queue_free()
 	_strip(_hero)
+
+	# --- A dodge roll fires the dash traits too, with map mode off (the walking game; owner 2026-10-21) ------------------------------------
+	_off()
+	_wear(_hero, "leather_boots", 3)
+	_hero.stats.equipment[Items.Slot.HELM] = Items.build(ItemDb.get_def("woven_hood"), 3, Items.Rarity.NORMAL)
+	_hero.stats.refresh()
+	MapModeTraits.time_override = 400.0
+	var roll_speed_before: float = _hero.stats.attack_speed()
+	var roll_power_before: float = MapModeTraits.power_damage_bonus(_hero)
+	MapModeTraits.on_roll_end(_hero)
+	expect("map mode off: a roll starts the Leather Boots' +30%% (x%.2f -> x%.2f) and the Woven Hood's +15%% power damage (%.0f -> %.0f)" % [roll_speed_before, _hero.stats.attack_speed(), roll_power_before, MapModeTraits.power_damage_bonus(_hero)],
+		_near(_hero.stats.attack_speed(), roll_speed_before * 1.3) and _near(MapModeTraits.power_damage_bonus(_hero), 15.0) and _near(roll_power_before, 0.0))
+	MapModeTraits.reset()
+	_strip(_hero)
+	_wear(_hero, "iron_greaves", 5)
+	var roll_foe := _foe(Vector3(5, 0, 0))
+	roll_foe.knock = Vector3.ZERO
+	MapModeTraits.on_roll_end(_hero)
+	expect("map mode off: Iron Greaves knock an enemy back where the roll lands (%.1f m/s)" % roll_foe.knock.x, roll_foe.knock.x > 5.0)
+	roll_foe.queue_free()
+	_strip(_hero)
+	# The real roll: its end (PlayerMovement.tick_roll) is what fires them.
+	_wear(_hero, "leather_boots", 3)
+	MapModeTraits.time_override = 500.0
+	var walk_speed: float = _hero.stats.attack_speed()
+	_hero.stats.cooldowns.erase("dodge")
+	_hero.stats.stamina = _hero.stats.max_stamina
+	_hero.skills.busy = false
+	_hero.movement.try_roll(_hero.global_position + Vector3(4, 0, 0))
+	var roll_started: bool = _hero.movement.rolling
+	_hero.movement.tick_roll(PlayerMovement.ROLL_TIME + 0.01)
+	expect("a real dodge roll, at its end, starts the Leather Boots' burst (x%.2f -> x%.2f)" % [walk_speed, _hero.stats.attack_speed()], roll_started and not _hero.movement.rolling and _near(_hero.stats.attack_speed(), walk_speed * 1.3))
+	MapModeTraits.reset()
+	_hero.invulnerable_time = 0.0
+	_hero.collision_mask = Actor.LAYER_WORLD | Actor.LAYER_ENEMY
+	_strip(_hero)
+	_on()
 
 	# --- Signet -------------------------------------------------------------------------------------------------------------------------------
 	_wear(_hero, "signet", 3)

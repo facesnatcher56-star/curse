@@ -53,7 +53,7 @@ func run() -> void:
 	var bag_items: Array[Dictionary] = [
 		Items.build(ItemDb.get_def("axe_1h"), 3, Items.Rarity.NORMAL),
 		Items.build(ItemDb.get_def("falchion"), 3, Items.Rarity.MAGIC, ["mm_auto_1"], "", {"mm_auto_1": 6.0}),
-		Items.build(ItemDb.get_def("leather_boots"), 3, Items.Rarity.MAGIC, ["mm_heal_1"], "", {"mm_heal_1": 12.0}),
+		Items.build(ItemDb.get_def("leather_boots"), 3, Items.Rarity.MAGIC, ["mm_gale_1"], "", {"mm_gale_1": 12.0}),
 		Items.build(ItemDb.get_def("axe_2h"), 3, Items.Rarity.NORMAL),
 		Items.build(ItemDb.get_def("buckler"), 3, Items.Rarity.NORMAL),
 		Items.build(ItemDb.get_def("charm"), 3, Items.Rarity.MAGIC, ["mm_charge_kill_1"], "", {"mm_charge_kill_1": 3.0}),
