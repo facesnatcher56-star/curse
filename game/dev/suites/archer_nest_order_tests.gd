@@ -6,7 +6,9 @@ extends DevSuite
 ## (ordinary enemy targeting) fighting while the order is held; and a distant nest the archer must walk to a firing spot for.
 ##
 ## The hero is made invulnerable for the whole test. He only points: the road's monsters killed him in some runs (a dead hero is
-## not controlled, so the hotkey did nothing), which made this suite fail on whichever press came next.
+## not controlled, so the hotkey did nothing), which made this suite fail on whichever press came next. The archer is too: with threat
+## (#109) she deals all the damage here, so the road's monsters rightly go for her, and in CI they killed her mid-test (a dead archer
+## carries out no order). The orders are what is checked, not whether she survives the road.
 
 ## Physics frames on the nest (not counting frames fighting monsters) allowed for an ordered nest (140 hp) to break, walking included.
 ## The bow needs about 22-29 shots at about 100-115 frames each; the measured runs took 2100-3000 frames on the nest.
@@ -141,6 +143,7 @@ func _test_archer_nest_order() -> void:
 	var hero: Player = town.player
 	var archer: ArcherCompanion = town.companion
 	hero.invulnerable_time = 1.0e9   # see the note at the top: the hero only points
+	archer.invulnerable_time = 1.0e9   # and the archer, who holds all the threat (see the note at the top)
 	archer.testing_disabled = false   # the party AI runs: this is the order's own path, not a direct call into the bow
 	cam = town.rig.camera
 	cam.make_current()
