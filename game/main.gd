@@ -237,6 +237,7 @@ func _build_world() -> void:
 			add_child(arena)
 			arena.build(false)
 			location = MapModeDungeon.new()
+			(location as MapModeDungeon).corridor_packs = not MapMode.requested()   # walking: packs along the corridors
 			add_child(location)
 			location.build(arena)
 	if hud != null:

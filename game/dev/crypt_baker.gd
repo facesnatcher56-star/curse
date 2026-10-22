@@ -298,6 +298,9 @@ func _walls() -> void:
 	var door: int = lib.find_item_by_name("wall_doorway")
 	var n_wall := 0
 	var n_door := 0
+	# A plan with wide corridors (MapModeLayout.OPEN_DOORWAYS) leaves its doorways open: the kit's doorway is one narrow door per 4 m cell, and
+	# two of them side by side would leave a pier in the middle of the way. The corner posts frame the opening.
+	var open_doorways: bool = bool((L as GDScript).get_script_constant_map().get("OPEN_DOORWAYS", false))
 	for r in L.H:
 		for c in L.W:
 			var space: String = L.space_at(c, r)
@@ -314,7 +317,8 @@ func _walls() -> void:
 				if other != "":
 					if space > other:
 						continue   # the other side places the doorway
-					grids[d].set_cell_item(Vector3i(c, 0, r), door, rot[d])
+					if not open_doorways:
+						grids[d].set_cell_item(Vector3i(c, 0, r), door, rot[d])
 					_doors.append(edge)
 					n_door += 1
 					continue
@@ -793,6 +797,23 @@ func _round_doors(space: String) -> Array:
 	return out
 
 
+const RIM_IN := 0.45    # m beyond the curve: the wall's outer face
+const RIM_OUT := 10.0   # m beyond the curve: more than a clipped cell can stick out (the rect corners reach farthest)
+
+
+func _rim_quad(st: SurfaceTool, ce: Vector2, rx: float, ry: float, a0: float, a1: float) -> void:
+	var steps: int = maxi(int((a1 - a0) / 0.05), 1)
+	for k in steps:
+		var t0: float = lerpf(a0, a1, float(k) / steps)
+		var t1: float = lerpf(a0, a1, float(k + 1) / steps)
+		var pts: Array[Vector3] = []
+		for t in [t0, t1]:
+			for grow in [RIM_IN, RIM_OUT]:
+				pts.append(Vector3(ce.x + cos(t) * (rx + grow), 0.06, ce.y + sin(t) * (ry + grow)))
+		for idx in [0, 1, 3, 0, 3, 2]:
+			st.add_vertex(pts[idx])
+
+
 func _rounds() -> void:
 	for space in L.ROUNDS:
 		var cfg: Dictionary = L.ROUNDS[space]
@@ -823,6 +844,11 @@ func _rounds() -> void:
 				slots.append([hi, lo + TAU])
 			else:
 				slots.append([lo, hi])
+		# The floor is laid in whole cells, so cells the curve only clips stick out beyond the wall: a strip of the void's black, laid just outside
+		# the wall on every piece of it (never across a doorway), hides them.
+		var rim := SurfaceTool.new()
+		rim.begin(Mesh.PRIMITIVE_TRIANGLES)
+		rim.set_normal(Vector3.UP)
 		for i in n:
 			var pieces: Array = [[TAU * float(i) / n, TAU * float(i + 1) / n]]
 			for slot in slots:
@@ -848,6 +874,7 @@ func _rounds() -> void:
 				var normal: Vector2 = Vector2((mid.x - ce.x) / (rx * rx), (mid.y - ce.y) / (ry * ry)).normalized()
 				var low: bool = normal.y > 0.35
 				_wall_seg(p0, p1, LOW_H if low else 4.0, "Curve")
+				_rim_quad(rim, ce, rx, ry, float(piece[0]), float(piece[1]))
 				if not low and float(piece[1]) - float(piece[0]) > TAU / float(n) * 0.9:
 					torch_n += 1
 					if torch_n % (4 if space == "rotunda" else 6) == 2:
@@ -869,6 +896,11 @@ func _rounds() -> void:
 				if side != 0.0 and t > 0.3:
 					_wall_seg(start, start - out * t, LOW_H if out.y > 0.5 else 4.0, "Stub")
 			_arch(hits[1], PI * 0.5 if absf(out.x) > 0.5 else 0.0, space == "arena" and out.y > 0.5)
+		var rim_mesh := MeshInstance3D.new()
+		rim_mesh.mesh = rim.commit()
+		rim_mesh.material_override = _flat_material(Color(0.01, 0.01, 0.012), 1.0)   # TestDungeon._black_out_ground's black
+		rim_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_add("Liners", rim_mesh, "VoidRim")
 		_counts["curve walls %s" % space] = n
 
 

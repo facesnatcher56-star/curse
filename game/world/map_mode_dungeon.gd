@@ -17,6 +17,15 @@ var node_chests: Dictionary = {}
 var node_shrines: Dictionary = {}
 var node_plans: Dictionary = {}           # node id -> what it guards (MapDrops.plan_for), decided when the groups spawn
 var _marker_nodes: Array[int] = []        # the node id of each enemy marker, in the order spawn_encounters walks them
+## The walking game (issue #112): small packs stand along the corridors, so no stretch is walked long with nothing in view (main.gd sets it when
+## the dungeon is walked; map mode, which dashes along the corridors, and the tests that build this dungeon leave it off).
+var corridor_packs: bool = false
+var corridor_homes: Array[Vector2] = []   # where the corridor packs stand (x, z)
+## Corridor packs: a pack stands where this many metres have been walked with nothing in view and the spot is a corridor (or far from every
+## fight), so even a short corridor in the middle of a long room-to-room walk gets one; with TestDungeon's PACK_VIEW_RANGE the longest walk with
+## nothing in view stays under TestDungeon.MAX_WALK_GAP. Each has this many bodies.
+const CORRIDOR_PACK_EVERY := TestDungeon.MAX_WALK_GAP - 2.0 * TestDungeon.PACK_VIEW_RANGE
+const CORRIDOR_PACK_SIZE := 3
 var _marker_champions: Array[Dictionary] = []
 
 
@@ -34,6 +43,10 @@ func scene_path() -> String:
 
 func zone_title() -> String:
 	return "The Sunken Way"
+
+
+func floor_rects() -> Array[Rect2]:
+	return plan_floor_rects(MapModeLayout.W, MapModeLayout.H, MapModeLayout.CELL, MapModeLayout.space_at, MapModeLayout.world)
 
 
 func banner_text(_job: Dictionary) -> String:
@@ -102,6 +115,78 @@ func spawn_encounters(for_director: RunDirector) -> void:
 			if e != null and e.group_id == gid and not e.dead and e.champion == null and e.def != null and e.def.id == String(plan["kind"]):
 				Champion.attach(e, String(plan["affix"]))
 				break
+	if corridor_packs:
+		_spawn_corridor_packs()
+
+
+## Small packs along every corridor (walking game only): walking each corridor from one room to the other, a pack is placed whenever
+## CORRIDOR_PACK_EVERY metres have passed with no pack (a room's group or an earlier corridor pack) within TestDungeon.PACK_VIEW_RANGE. A pack
+## stands on a corridor cell, or in a long room (the Ossuary's wings) at least two view ranges from every room's own group, never on a fight. Its bodies are the plain kinds of the two rooms it joins (no brute, no Warden), at the
+## lower of the two rooms' levels.
+func _spawn_corridor_packs() -> void:
+	corridor_homes = corridor_pack_homes()
+	var by_id: Dictionary = {}
+	for n in MapModeLayout.NODES:
+		by_id[int(n["id"])] = n
+	for home_row in corridor_homes_with_links():
+		var home: Vector2 = home_row["home"]
+		var a: Dictionary = by_id[int(home_row["a"])]
+		var b: Dictionary = by_id[int(home_row["b"])]
+		var level_here: int = mini(level_for_node(int(a["id"]), int(a["stage"])), level_for_node(int(b["id"]), int(b["stage"])))
+		var kinds: Array[String] = []
+		for n in [a, b]:
+			for pair in n["groups"]:
+				if String(pair[0]) in ["zombie", "ghoul", "rock_thrower"] and not kinds.has(String(pair[0])):
+					kinds.append(String(pair[0]))
+		if kinds.is_empty():
+			kinds.append("zombie")
+		var members: Array = []
+		for i in CORRIDOR_PACK_SIZE:
+			var kind: String = "zombie" if i == 0 else kinds[_rng.randi() % kinds.size()]
+			var spot: Vector2 = home + Vector2(_rng.randf_range(-1.5, 1.5), _rng.randf_range(-1.5, 1.5))
+			members.append([kind, spot.x, spot.y, level_here, String(KIND_TIER[kind])])
+		_enemy_group_id += 1
+		_group(_enemy_group_id, "wander", members, home, 2.5)
+
+
+## Where the corridor packs stand (x, z), without spawning anything (tests and tools read it).
+func corridor_pack_homes() -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	for row in corridor_homes_with_links():
+		out.append(row["home"])
+	return out
+
+
+## {home, a, b} for every corridor pack: see _spawn_corridor_packs.
+static func corridor_homes_with_links() -> Array[Dictionary]:
+	var seen: Array[Vector2] = []
+	for n in MapModeLayout.nodes():
+		if not (n["groups"] as Array).is_empty():
+			seen.append(n["pos"])
+	var room_groups: Array[Vector2] = seen.duplicate()
+	var out: Array[Dictionary] = []
+	for link in MapModeLayout.links():
+		var points: Array[Vector2] = link["waypoints"]
+		var unseen: float = 0.0
+		for i in points.size() - 1:
+			var leg: float = points[i].distance_to(points[i + 1])
+			var s: float = 0.0
+			while s < leg:
+				var here: Vector2 = points[i].lerp(points[i + 1], s / leg)
+				var in_view: bool = seen.any(func(h: Vector2) -> bool: return here.distance_to(h) <= TestDungeon.PACK_VIEW_RANGE)
+				unseen = 0.0 if in_view else unseen + 1.0
+				var far_from_fights: bool = room_groups.all(func(h: Vector2) -> bool: return here.distance_to(h) >= 2.0 * TestDungeon.PACK_VIEW_RANGE)
+				if unseen >= CORRIDOR_PACK_EVERY and (_is_corridor(here) or far_from_fights):
+					seen.append(here)
+					out.append({"home": here, "a": int(link["a"]), "b": int(link["b"])})
+					unseen = 0.0
+				s += 1.0
+	return out
+
+
+static func _is_corridor(point: Vector2) -> bool:
+	var cell: Vector2i = MapModeLayout.cell_of(point)
+	return MapModeLayout.space_at(cell.x, cell.y).begins_with("c")
 
 
 # --- Guarded chests (map-mode drop model, MapDrops) ------------------------------------------------------------------------------------------

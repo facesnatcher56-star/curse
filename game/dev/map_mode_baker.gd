@@ -31,9 +31,13 @@ func _prop_targets() -> Dictionary:
 	return targets
 
 
-## Solid furniture, laid before the props so they keep clear of it: braziers in the corners, sarcophagi along the north wall of the wide rooms,
-## pillars in the boss room, an altar in each shrine. The middle of every room stays empty: that is where the party arrives and fights.
+## Solid furniture, laid before the props so they keep clear of it: the plan's cover pillars, braziers in the corners, sarcophagi along the north
+## wall of the wide rooms, pillars in the boss room, an altar in each shrine. The middle of every room stays empty: that is where the party arrives.
 func _set_pieces() -> void:
+	# Cover: a pillar on every cell the plan names (MapModeLayout NODES `cover`), placed first-come so the braziers and props keep clear of them.
+	for n in MapModeLayout.NODES:
+		for cell in n.get("cover", []):
+			_solid("SetPieces", KK % "pillar_decorated", L.world((cell as Vector2).x, (cell as Vector2).y), 0.0, 4.0, 0.75, "Cover%d" % int(n["id"]))
 	for n in MapModeLayout.NODES:
 		var rect: Array = n["rect"]
 		var kind: String = String(n["kind"])
@@ -47,12 +51,12 @@ func _set_pieces() -> void:
 				for sy in [-1.0, 1.0]:
 					var corner := Vector2(float(rect[0]) if sx < 0.0 else float(rect[2]), float(rect[1]) if sy < 0.0 else float(rect[3]))
 					var spot: Vector2 = L.world(corner.x - sx * (inset - 0.5), corner.y - sy * (inset - 0.5))
-					if not _near_door(spot, 4.6) and not _near_route(spot, 3.4):   # nothing stands on a corridor's line or in a doorway
+					if not _near_door(spot, 4.6) and not _near_route(spot, 3.4) and _spot_free(spot, 1.2):   # nothing on a corridor's line, in a doorway or on cover
 						_brazier(spot, "Brazier%d" % id)
 		if cols >= 9 and kind in ["pack", "champion", "swarm"]:
 			for side in [-1.0, 1.0]:
 				var at: Vector2 = L.world(cx + side * 3.2, float(rect[1]) + 0.55)
-				if not _near_door(at, 4.6) and not _near_route(at, 3.4):
+				if not _near_door(at, 4.6) and not _near_route(at, 3.4) and _spot_free(at, 1.6):
 					_sarcophagus(at, 0.0, "N%d" % id)
 	# The boss room: two rows of pillars either side of the middle, as the Crypt's arena has.
 	var bc: Vector2 = Vector2.ZERO

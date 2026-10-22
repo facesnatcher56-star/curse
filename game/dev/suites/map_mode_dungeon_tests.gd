@@ -115,8 +115,25 @@ func _test_map_mode_dungeon() -> void:
 		var walls := level.get_node("Walls/Walls" + dir_name) as GridMap
 		for cell in walls.get_used_cells():
 			door_cells += 1 if walls.mesh_library.get_item_name(walls.get_cell_item(cell)).begins_with("wall_doorway") else 0
-	expect("the walls carry exactly two doorways per corridor (%d for %d links), so nothing is joined that the graph does not join" % [door_cells, links.size()],
-		door_cells == 2 * links.size())
+	var openings: int = 0   # cell edges where two different spaces meet: each is an opening in the wall
+	var walled_openings: int = 0
+	for r in MapModeLayout.H:
+		for c in MapModeLayout.W:
+			var here_space: String = MapModeLayout.space_at(c, r)
+			if here_space == "":
+				continue
+			for step in [Vector2i(1, 0), Vector2i(0, 1)]:
+				var there: String = MapModeLayout.space_at(c + step.x, r + step.y)
+				if there != "" and there != here_space:
+					openings += 1
+					var near_side := level.get_node("Walls/Walls" + ("E" if step.x == 1 else "S")) as GridMap   # either side may carry the piece
+					var far_side := level.get_node("Walls/Walls" + ("W" if step.x == 1 else "N")) as GridMap
+					if near_side.get_cell_item(Vector3i(c, 0, r)) != GridMap.INVALID_CELL_ITEM or far_side.get_cell_item(Vector3i(c + step.x, 0, r + step.y)) != GridMap.INVALID_CELL_ITEM:
+						walled_openings += 1
+	expect("the plan joins spaces only at the corridors' ends: %d openings, two per corridor end %d cells wide (%d links), so nothing is joined that the graph does not join" % [openings, MapModeLayout.CORRIDOR_WIDTH, links.size()],
+		openings == 2 * MapModeLayout.CORRIDOR_WIDTH * links.size())
+	expect("the corridor openings are open (8 m wide: no narrow door pieces, no wall across them; %d door pieces, %d walled openings)" % [door_cells, walled_openings],
+		door_cells == 0 and walled_openings == 0)
 	expect("the player starts at node 0", (level.get_node("PlayerStart") as Node3D).position.is_equal_approx(_v3(by_id[0]["pos"])))
 	# --- corridors are walkable ---------------------------------------------------------------------------------------------------------
 	var obstacles: Array = []   # {p (Vector2), r}
@@ -208,6 +225,67 @@ func _test_map_mode_dungeon() -> void:
 				walled = walled and MapModeLayout.space_at(ca.x, ca.y) != MapModeLayout.space_at(cb.x, cb.y)
 	expect("no group can wake another, whoever stands where (tightest margin %.1f m, %s)" % [tightest, tight_note], isolated)
 	expect("no two groups share a room, and the nearest two homes are %.0f m apart (40 m and more)" % nearest, walled and nearest >= 40.0)
+	# --- the minimap (the walking game, #112): the plan's rooms and corridors are the floor, nothing else ----------------------------
+	var plan := MapModeDungeon.new()
+	var floor_rects: Array[Rect2] = plan.floor_rects()
+	plan.free()
+	var on_floor := func(p: Vector2) -> bool:
+		return floor_rects.any(func(r: Rect2) -> bool: return r.grow(0.01).has_point(p))
+	var covered: bool = not floor_rects.is_empty()
+	for n in nodes:
+		covered = covered and on_floor.call(n["pos"])
+	for link in links:
+		for w in link["waypoints"]:
+			covered = covered and on_floor.call(w)
+	expect("the minimap floor covers every room centre and corridor waypoint (%d cells)" % floor_rects.size(), covered)
+	var probe_map := MinimapMap.new()
+	probe_map.origin = Vector2(-MapModeLayout.half_x(), -MapModeLayout.half_z())
+	probe_map.cols = ceili(MapModeLayout.half_x() * 2.0 / MinimapMap.CELL)
+	probe_map.rows = ceili(MapModeLayout.half_z() * 2.0 / MinimapMap.CELL)
+	probe_map.kinds.resize(probe_map.cols * probe_map.rows)
+	probe_map.kinds.fill(MinimapMap.K_GROUND)
+	var host := MapModeDungeon.new()
+	probe_map._paint_floor(host)
+	host.free()
+	probe_map.terrain = Image.create(1, 1, false, Image.FORMAT_RGBA8)   # (kind_at only needs a built map)
+	var start_pos: Vector2 = by_id[0]["pos"]
+	var outside := Vector2(-MapModeLayout.half_x() + 2.0, -MapModeLayout.half_z() + 2.0)
+	expect("the minimap paints the start room as floor and leaves the rock between rooms empty",
+		probe_map.kind_at(Vector3(start_pos.x, 0, start_pos.y)) == MinimapMap.K_ROAD and probe_map.kind_at(Vector3(outside.x, 0, outside.y)) == MinimapMap.K_VOID)
+
+	# --- walking pacing (#112): corridor packs keep every stretch under the walking-gap budget ------------------------------------
+	var pace_homes: Array[Vector2] = []
+	for n in nodes:
+		if not (n["groups"] as Array).is_empty():
+			pace_homes.append(n["pos"])
+	var corridor: Array[Vector2] = []
+	for row in MapModeDungeon.corridor_homes_with_links():
+		corridor.append(row["home"])
+	pace_homes.append_array(corridor)
+	var worst_gap: float = 0.0
+	var worst_link: String = ""
+	for link in links:
+		var points: Array[Vector2] = link["waypoints"]
+		var run: float = 0.0
+		for i in points.size() - 1:
+			var leg: float = points[i].distance_to(points[i + 1])
+			var s: float = 0.0
+			while s < leg:
+				var here: Vector2 = points[i].lerp(points[i + 1], s / leg)
+				run = 0.0 if pace_homes.any(func(h: Vector2) -> bool: return here.distance_to(h) <= TestDungeon.PACK_VIEW_RANGE) else run + 1.0
+				if run > worst_gap:
+					worst_gap = run
+					worst_link = "%d-%d" % [int(link["a"]), int(link["b"])]
+				s += 1.0
+	print("  corridor packs: %d, longest walk with nothing in view %.0f m (%s)" % [corridor.size(), worst_gap, worst_link])
+	expect("walking the Sunken Way, no corridor stretch is longer than %.1f m with no pack in view (%d corridor packs, longest %.0f m on %s)" % [TestDungeon.MAX_WALK_GAP, corridor.size(), worst_gap, worst_link],
+		worst_gap <= TestDungeon.MAX_WALK_GAP)
+	expect("corridor packs stand in a corridor, or in a room at least two view ranges from every room's own group (never on a fight)", corridor.all(func(h: Vector2) -> bool:
+		var cell: Vector2i = MapModeLayout.cell_of(h)
+		var far: bool = nodes.all(func(n: Dictionary) -> bool: return (n["groups"] as Array).is_empty() or h.distance_to(n["pos"]) >= 2.0 * TestDungeon.PACK_VIEW_RANGE)
+		return MapModeLayout.space_at(cell.x, cell.y).begins_with("c") or far))
+	expect("map mode's dungeon has no corridor packs (off unless the walking game sets it)", not MapModeDungeon.new().corridor_packs)
+
 	# --- run time -----------------------------------------------------------------------------------------------------------------------
 	var fast_min: float = float(fastest["seconds"]) / 60.0
 	var full_min: float = _full_clear_seconds(nodes, links, adj, by_id) / 60.0
