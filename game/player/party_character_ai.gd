@@ -54,6 +54,9 @@ func tick(delta: float) -> void:
 	var formation := Nav.snap(p, leader.global_position + Vector3(2.4, 0, 3.8).rotated(Vector3.UP, leader.visual.rotation.y))
 	if not Nav.clearance(p, formation, formation): formation = leader.global_position
 	if try_rescue(leader): return
+	if p.take_pickup_in_reach():   # Z (issue #112): picking up the loot near him comes before following and fighting, until he is hit
+		_travel(p.pickup_target.global_position, delta)
+		return
 	# Cast only a live target: an enemy freed at the end of the last frame is still held by attack_target.
 	var target: Enemy = (p.attack_target as Enemy) if is_instance_valid(p.attack_target) else null
 	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > KEEP_TARGET_FROM_LEADER:

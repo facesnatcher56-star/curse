@@ -26,6 +26,7 @@ const ACTIONS: Array = [
 	["use_mana_potion", "Use mana potion"],
 	["companion_attack", "Direct companion to target (A)"],
 	["party_switch", "Switch active party member"],
+	["pickup_nearby", "Pick up nearby loot"],
 	["dodge", "Dodge roll"],
 	["stand_still", "Stand still (hold)"],
 	["gear", "Open / close character and inventory"],
