@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "ziva-godot": {
+      "type": "stdio",
+      "command": "C:\\Users\\lloyd\\AppData\\Roaming\\ziva-local\\bin\\zivacode.exe",
+      "args": [
+        "--mcp-bridge",
+        "--godot-bin",
+        "C:/Users/lloyd/Downloads/Godot_v4.8-dev2_win64.exe/Godot_v4.8-dev2_win64.exe",
+        "--upstream",
+        "http://127.0.0.1:7012/api/mcp"
+      ],
+      "env": {}
+    },
+    "blender": {
+      "type": "stdio",
+      "command": "C:\\Users\\lloyd\\tools\\blender_mcp\\.venv\\Scripts\\blender-mcp.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}

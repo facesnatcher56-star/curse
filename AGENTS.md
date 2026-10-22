@@ -24,3 +24,20 @@ Standing owner instruction, including future tasks: whenever uncertainty remains
 owner before implementing the uncertain part. Do not guess. This applies to all agents.
 
 Dungeon Siege II combat is the baseline; follow [docs/COMBAT_REFERENCE.md](docs/COMBAT_REFERENCE.md).
+
+## Godot and Blender tools (owner instruction, 2026-10-22)
+
+`.mcp.json` registers two MCP servers for this project (owner's PC only):
+
+- **`ziva-godot`** talks to the Godot editor open on this project (Ziva plugin). Use it **by default** for
+  Godot editor work: project settings, input map, scene trees, opening and running scenes, screenshots,
+  editor errors. Prefer it over hand-editing `project.godot` or `.tscn` files. The Godot editor must be
+  open on this folder. Ziva takes the first free port from 7012; if calls fail with "Unable to
+  connect", find its port (`Get-NetTCPConnection -State Listen`, process `zivacode`) and fix
+  `--upstream` here and in the user config.
+- **`blender`** talks to the running Blender (MCP add-on on port 9876). Use it **by default** for model
+  and asset work in Blender (inspect the scene first, prefer operators, screenshot to check).
+  Blender must be running with the add-on connected. Don't modify an unrelated open scene without asking.
+
+Fall back to scripts or headless runs only when the tools can't do the job or the app isn't open, and say so.
+Codex: the same two servers are in `.codex/config.toml`. Other agents: register them in your own MCP config.
