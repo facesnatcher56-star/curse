@@ -2,7 +2,8 @@ class_name MapModeTraits
 extends RefCounted
 ## Item traits (issue #82; the normal game too since #112): every level 1-5 base carries a built-in trait, plus the drop gaps (Battle Axe and
 ## Buckler from item level 3) and extra magic/rare modifiers. They act in every mode; the few that need a map-mode event (a dash, a fight start
-## or a room clear: on_dash_arrived, on_fight_start, on_room_clear) are called by MapMode only. All the numbers are in TABLE and AFFIXES.
+## or a room clear: on_dash_arrived, on_fight_start, on_room_clear) are called by MapMode only; the dash ones also fire at the end of a roll
+## (on_roll_end, owner 2026-10-21). All the numbers are in TABLE and AFFIXES.
 ##
 ## A trait is active while the item is worn by any party member; an effect that needs "the equipped member" uses that member.
 
@@ -24,12 +25,12 @@ const TABLE := {
 	"mail_hauberk": {"id": "hauberk_taken", "text": "Damage taken also charges your powers ({pct}% of it)", "numbers": {"pct": 50.0}},
 	"leather_cap": {"id": "cap_telegraph", "text": "Enemy wind-up telegraphs show {lead} s earlier", "numbers": {"lead": 0.5}},
 	"iron_helm": {"id": "helm_stun", "text": "-{pct}% stun duration when hit", "numbers": {"pct": 25.0}},
-	"woven_hood": {"id": "hood_power", "text": "+{power}% power damage for {secs} s after a dash", "numbers": {"power": 15.0, "secs": 3.0}},
+	"woven_hood": {"id": "hood_power", "text": "+{power}% power damage for {secs} s after a dash or a roll", "numbers": {"power": 15.0, "secs": 3.0}},
 	"leather_gloves": {"id": "gloves_speed", "text": "+{speed}% auto-attack speed", "numbers": {"speed": 10.0}},
 	"iron_gauntlets": {"id": "gauntlets_execute", "text": "Opening executions hit {pct}% harder", "numbers": {"pct": 25.0}},
 	"studded_gloves": {"id": "studded_champions", "text": "+{opening}% Opening chance against champions", "numbers": {"opening": 15.0}},
-	"leather_boots": {"id": "boots_burst", "text": "+{speed}% attack speed for {secs} s after a dash", "numbers": {"speed": 30.0, "secs": 3.0}},
-	"iron_greaves": {"id": "greaves_knock", "text": "A dash knocks back enemies at the landing spot", "numbers": {"knock": 3.0, "radius": 7.0, "stun": 0.5}},
+	"leather_boots": {"id": "boots_burst", "text": "+{speed}% attack speed for {secs} s after a dash or a roll", "numbers": {"speed": 30.0, "secs": 3.0}},
+	"iron_greaves": {"id": "greaves_knock", "text": "A dash or a roll knocks back enemies where you land", "numbers": {"knock": 3.0, "radius": 7.0, "stun": 0.5}},
 	"signet": {"id": "signet_share", "text": "When you use a power, the other party members gain {charge}% charge", "numbers": {"charge": 10.0}},
 	"charm": {"id": "charm_kills", "text": "Kills refill {charge}% of your power charge", "numbers": {"charge": 5.0}},
 }
@@ -385,15 +386,24 @@ static func on_dash_arrived(m: MapMode) -> void:
 	for body in [m.hero, m.companion]:
 		if body == null or not is_instance_valid(body) or body.dead:
 			continue
-		var st: Dictionary = _st(body)
-		if has(body, "hood_power"):
-			st["power_until"] = now() + value(body, "hood_power", "secs")
-			MapAutoTally.note("hood_window")
-		if has(body, "boots_burst"):
-			st["burst_until"] = now() + value(body, "boots_burst", "secs")
-			MapAutoTally.note("boots_window")
-		if has(body, "greaves_knock"):
-			_knock_back(body)
+		_landed(body)
+
+## A member's dodge roll ends (PlayerMovement.tick_roll), in either mode: the same as a dash landing (owner, issue #112).
+static func on_roll_end(body: Player) -> void:
+	if body != null and is_instance_valid(body) and not body.dead:
+		_landed(body)
+
+## Woven Hood and Leather Boots start their timers, Iron Greaves knock enemies back.
+static func _landed(body: Player) -> void:
+	var st: Dictionary = _st(body)
+	if has(body, "hood_power"):
+		st["power_until"] = now() + value(body, "hood_power", "secs")
+		MapAutoTally.note("hood_window")
+	if has(body, "boots_burst"):
+		st["burst_until"] = now() + value(body, "boots_burst", "secs")
+		MapAutoTally.note("boots_window")
+	if has(body, "greaves_knock"):
+		_knock_back(body)
 
 static func _knock_back(body: Player) -> void:
 	var radius: float = value(body, "greaves_knock", "radius")
