@@ -15,11 +15,11 @@ func _wait_state(m: MapMode, wanted: MapMode.State, max_frames: int) -> void:
 
 func _test_map_mode() -> void:
 	expect("with the flag off map mode does not exist (no hooks, no flag)", not MapMode.active and not MapMode.requested())
-	# A level-up never fills the power charges in map mode (the default game still recharges everything, as DS2).
+	# A level-up never fills the power charges, in map mode and (since #112) in the walking game.
 	player.stats.brutal_reload_required = player.stats.ult_cost("brutal_attack")
 	player.stats.brutal_reload_remaining = player.stats.brutal_reload_required
 	player._on_leveled(1, 2, 0)
-	expect("default game: a level-up recharges the powers", player.stats.brutal_reload_remaining == 0.0)
+	expect("walking game: a level-up leaves the power charges alone", player.stats.brutal_reload_remaining == player.stats.brutal_reload_required)
 	player.stats.brutal_reload_remaining = player.stats.brutal_reload_required
 	var probe := MapMode.new()
 	MapMode.current = probe

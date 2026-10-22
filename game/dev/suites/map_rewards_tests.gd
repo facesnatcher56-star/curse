@@ -230,7 +230,7 @@ func _test_map_rewards() -> void:
 	var empty_helm: Dictionary = Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.NORMAL)
 	expect("setup: both members can wear the cap", Items.hero_can_wear(empty_helm, "hero") and Items.hero_can_wear(empty_helm, "cutter"))
 	var flag_off: String = hero.stats.pickup(empty_helm.duplicate(true))
-	expect("flag off (the default game): a pickup into an empty slot is worn at once, as before (%s)" % flag_off, hero.stats.equipment.has(Items.Slot.HELM) and flag_off.begins_with("Equipped"))
+	expect("flag off (the walking game): a pickup into an empty slot goes to the bag too, nothing is auto-equipped (%s)" % flag_off, not hero.stats.equipment.has(Items.Slot.HELM) and not flag_off.begins_with("Equipped"))
 	hero.stats.equipment.erase(Items.Slot.HELM)
 	hero.stats.bag.clear()
 	MapMode.current = MapMode.new()

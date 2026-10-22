@@ -271,8 +271,7 @@ func receive(result: Dictionary, source_pos: Vector3) -> void:
 	if float(result.get("damage", 0.0)) <= 0.0 and int(result.get("outcome", 0)) >= Combat.Outcome.HIT:
 		health = minf(max_health, health - float(result.get("damage", 0.0)))
 		return   # Immunity/absorption causes no hit recoil, leech, or recharge.
-	if MapMode.active:
-		result = MapModeTraits.modify_hit(self, result)   # map-mode item traits: marked enemies, the Dagger's crit
+	result = MapModeTraits.modify_hit(self, result)   # item traits: marked enemies, the Dagger's crit
 	result = _filter_incoming(result)
 	if result.get("quiet", false):
 		# Damage-over-time style tick: apply it, show the health bar, nothing else.

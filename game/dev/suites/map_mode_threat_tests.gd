@@ -12,7 +12,7 @@ func _test_map_mode_threat() -> void:
 	cutter.bow.reload_required = 1000.0
 	cutter.bow.reload_remaining = 1000.0
 	player.on_party_damage(100.0, "basic")
-	expect("default game: the warrior's damage also charges the Cutter's Take Aim", cutter.bow.reload_remaining < 1000.0)
+	expect("walking game: the warrior's damage charges only his own powers, not the Cutter's Take Aim", cutter.bow.reload_remaining == 1000.0)
 	cutter.bow.reload_remaining = 1000.0
 	player.stats.brutal_reload_remaining = player.stats.brutal_reload_required
 	MapMode.current = probe

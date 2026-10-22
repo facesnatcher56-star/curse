@@ -147,6 +147,13 @@ func _ready() -> void:
 			body.power_activated.connect(func(_id: String, power_id: String) -> void: log.note_power(power_id))
 			start_uncharged(body)
 
+## A new run (the walking game's start; map mode does the same in _enter_tree and _ready): the first champion's legendary is due again and every
+## member starts with his powers empty.
+static func start_run(bodies: Array) -> void:
+	MapModeLegendaries.reset_run()
+	for body in bodies:
+		start_uncharged(body as Player)
+
 ## A run starts with every power empty (owner rule): they charge from the damage the party deals, like after any use. Only powers the member
 ## has learned and can use with his weapon; the rest are untouched.
 static func start_uncharged(body: Player) -> void:

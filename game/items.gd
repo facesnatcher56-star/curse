@@ -429,7 +429,7 @@ static func pick_base(low: int, high: int, slot: int = -1) -> Dictionary:
 		var d := def as ItemDef
 		if slot >= 0 and d.slot != slot:
 			continue
-		for lvl in (MapModeTraits.drop_levels(d) if MapMode.active else d.levels):   # map mode also offers Battle Axe and Buckler from level 3
+		for lvl in MapModeTraits.drop_levels(d):   # Battle Axe and Buckler also from level 3 (issue #82)
 			if lvl >= low and lvl <= high:
 				if not by_slot.has(d.slot):
 					by_slot[d.slot] = []

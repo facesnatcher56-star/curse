@@ -1,9 +1,9 @@
 extends DevSuite
 ## Map-mode item traits (game/items/map_mode_traits.gd, issue #82): each of the 20 level 1-5 bases does what its trait says (asserted numerically),
-## the traits are inert with map mode off, the default item generation and tooltips are unchanged with it off, Battle Axe and Buckler join the
-## map-mode drop list from item level 3 (never the default one), and the extra map-mode modifiers roll only in map mode and work.
+## since #112 the traits, the item generation, the tooltips, the drop gaps (Battle Axe and Buckler from item level 3) and the extra modifiers are
+## the same with map mode off (the walking game) as on, and work.
 
-## Digest of 600 generated items in the DEFAULT game, taken from the tree before map-mode traits existed (seed 777, see _digest).
+## Digest of 600 generated items in the default game before map-mode traits existed (seed 777, see _digest). Since #112 generation differs from it.
 const GOLDEN_DIGEST := "356797020"
 
 var _hero: Player
@@ -111,47 +111,35 @@ func _test_map_traits() -> void:
 	expect("the table has the 20 trait bases of the issue, all existing bases with a level 1-5 variant", table_ok)
 	expect("every trait has a distinct id and a finished tooltip line (no unfilled {number})", lines_ok and unique_ids.size() == 20)
 
-	# --- Map mode off: every trait is inert --------------------------------------------------------------------------------------------------
-	var enemy_off := _foe(Vector3(2, 0, 0))
-	var inert: bool = true
+	# --- Map mode off (the walking game, #112): every trait is worn and shown the same ------------------------------------------------------
+	var traits_off: bool = true
 	for id in expected_bases:
 		var item: Dictionary = _wear(_hero, id, 5)
 		var tid: String = String(MapModeTraits.TABLE[id]["id"])
-		var hit: Dictionary = _auto()
-		var before: Dictionary = hit.duplicate()
-		inert = inert and not MapMode.active and not MapModeTraits.has(_hero, tid) and is_zero_approx(MapModeTraits.value(_hero, tid, "x")) \
-			and is_equal_approx(MapModeTraits.speed_mult(_hero), 1.0) and is_zero_approx(MapModeTraits.recharge_bonus(_hero)) \
-			and is_zero_approx(MapModeTraits.power_damage_bonus(_hero)) and is_equal_approx(MapModeTraits.stun_mult(_hero), 1.0) \
-			and is_zero_approx(MapModeTraits.opening_bonus(_hero)) and is_zero_approx(MapModeTraits.execution_bonus(_hero)) \
-			and MapModeTraits.modify_hit(enemy_off, hit) == before and MapModeTraits.rows_for(item).is_empty()
-		MapModeTraits.on_dealt_hit(_hero, enemy_off, _auto())
-	expect("with map mode off no trait has any effect (stats, hits, tooltip rows)", inert and enemy_off.armor_shred == 0.0 and enemy_off.bleed_time == 0.0
-		and not enemy_off.has_meta(MapModeTraits.MARK_META) and enemy_off.health == enemy_off.max_health)
+		traits_off = traits_off and not MapMode.active and MapModeTraits.has(_hero, tid) and MapModeTraits.rows_for(item).size() == 1
+	expect("with map mode off every trait is active on its wearer and shown on its card", traits_off)
 	_strip(_hero)
-	enemy_off.free()
 
-	# --- Default game unchanged: item generation, drops and tooltips ------------------------------------------------------------------------
-	expect("default item generation is byte-identical to the tree before map-mode traits (digest %s)" % GOLDEN_DIGEST, _digest() == GOLDEN_DIGEST)
+	# --- One item generation for both modes (#112): drops and tooltips are map mode's with it off too ------------------------------------
+	var off_digest: String = _digest()
 	_on()
 	var map_digest: String = _digest()
 	_off()
-	expect("map mode may change generation, and switching it off returns exactly to the default digest", map_digest != GOLDEN_DIGEST and _digest() == GOLDEN_DIGEST)
-	var plain_rows_ok: bool = true
+	expect("item generation is the same with map mode on and off, and no longer the pre-trait default (digest %s, was %s)" % [off_digest, GOLDEN_DIGEST], map_digest == off_digest and off_digest != GOLDEN_DIGEST)
+	var trait_rows_ok: bool = true
 	for id in expected_bases:
 		var sample: Dictionary = Items.build(ItemDb.get_def(id), 5, Items.Rarity.NORMAL)
+		var coloured: bool = false
 		for row in Items.rows(sample):
-			plain_rows_ok = plain_rows_ok and not row.has("color")
-	expect("default tooltips carry no trait line and no coloured extra row", plain_rows_ok)
-	var gaps_default: bool = true
-	for i in 300:
-		var w: Dictionary = Items.pick_base(3, 3, Items.Slot.WEAPON)
-		var s: Dictionary = Items.pick_base(3, 3, Items.Slot.SHIELD)
-		gaps_default = gaps_default and not ((w["def"] as ItemDef).id == "axe_2h" and int(w["level"]) == 3) and int(s["level"]) != 3
-	expect("Battle Axe and Buckler never appear from item level 3 in the default drop list", gaps_default)
-	var default_affixes: bool = true
+			coloured = coloured or row.get("color", Color.BLACK) == MapModeTraits.LINE_COLOR
+		trait_rows_ok = trait_rows_ok and coloured
+	expect("with map mode off each trait base's card carries its trait line", trait_rows_ok)
+	var shield_pick_off: Dictionary = Items.pick_base(3, 3, Items.Slot.SHIELD)
+	expect("with map mode off the Buckler is offered at item level 3 too", (shield_pick_off["def"] as ItemDef).id == "buckler" and int(shield_pick_off["level"]) == 3)
+	var new_affixes: bool = false
 	for a in AffixDb.eligible("weapon", 0, 50, ""):
-		default_affixes = default_affixes and not (a.id as String).begins_with("mm_")
-	expect("the default modifier pool has none of the map-mode modifiers", default_affixes and MapModeTraits.extra_affixes("weapon", 0, 50, "").is_empty())
+		new_affixes = new_affixes or (a.id as String).begins_with("mm_")
+	expect("with map mode off the modifier pool has the new modifiers too", new_affixes and not MapModeTraits.extra_affixes("weapon", 0, 50, "").is_empty())
 
 	# --- Tooltips in map mode ---------------------------------------------------------------------------------------------------------------
 	_on()
@@ -195,12 +183,16 @@ func _test_map_traits() -> void:
 		pool_ok = pool_ok and found
 	expect("map mode adds +Opening chance, +charge on kill, +damage to marked, +heal on room clear and +auto-attack speed to the modifier pool", pool_ok)
 	_off()
-	var heal_in_default: bool = false
+	var pool_off: Array = []
 	for kind in ["body", "boots"]:
 		for a in AffixDb.eligible(kind, 0, 50, ""):
-			heal_in_default = heal_in_default or a.stat == "room_heal"
+			pool_off.append(a.id)
 	_on()
-	expect("the default game's modifier pool has no heal on room clear", not heal_in_default)
+	var pool_on: Array = []
+	for kind in ["body", "boots"]:
+		for a in AffixDb.eligible(kind, 0, 50, ""):
+			pool_on.append(a.id)
+	expect("the modifier pool is the same with map mode off and on", pool_off == pool_on)
 	var rolled: Dictionary = {}
 	var kinds: Array = [Items.Slot.WEAPON, Items.Slot.GLOVES, Items.Slot.BOOTS, Items.Slot.RING, Items.Slot.AMULET, Items.Slot.HELM, Items.Slot.ARMOR]
 	for i in 1500:
@@ -224,7 +216,7 @@ func _test_map_traits() -> void:
 	_off()
 	var club_off: float = _hero.openings.spot_chance()
 	_on()
-	expect("Club: +8 Opening chance on top of the passive's 12 (20 with, 12 with map mode off)", _near(with_club, 20.0) and _near(club_off, 12.0))
+	expect("Club: +8 Opening chance on top of the passive's 12 (20 with map mode on and off)", _near(with_club, 20.0) and _near(club_off, 20.0))
 	_strip(_hero)
 
 	# --- Dagger -------------------------------------------------------------------------------------------------------------------------------
@@ -356,7 +348,7 @@ func _test_map_traits() -> void:
 	_off()
 	var shield_off: Dictionary = hit.call(30.0)
 	_on()
-	expect("with map mode off the shield does nothing", _near(float(shield_off["damage"]), 30.0) and not shield_off.has("shield_absorbed"))
+	expect("with map mode off (the walking game) the shield soaks too", shield_off.has("shield_absorbed") and float(shield_off["damage"]) < 30.0)
 	_strip(_hero)
 	MapModeTraits.on_fight_start(_m)
 	expect("without the Jerkin there is no shield", _near(float(hit.call(30.0)["damage"]), 30.0))
@@ -550,15 +542,15 @@ func _test_map_traits() -> void:
 	MapModeTraits.reset()
 	_strip(_hero)
 
-	# --- Map mode off again: the effects are gone though the gear is worn ------------------------------------------------------------------------
+	# --- Map mode off again: the effects stay while the gear is worn (#112) ------------------------------------------------------------------------
 	_wear(_hero, "leather_gloves", 3)
 	_hero.stats.equipment[Items.Slot.BOOTS] = Items.build(ItemDb.get_def("leather_boots"), 5, Items.Rarity.MAGIC, ["mm_auto_1"], "", {"mm_auto_1": 6.0})
 	_hero.stats.refresh()
 	var worn_on: float = _hero.stats.attack_speed()
 	_off()
 	var worn_off: float = _hero.stats.attack_speed()
-	expect("worn trait and modifier speed (x%.3f) vanish when map mode ends (x%.3f)" % [worn_on, worn_off], worn_on > worn_off and _near(worn_off, _hero.stats.weapon_stat("speed", 1.0)))
-	expect("the default digest still matches after all of it", _digest() == GOLDEN_DIGEST)
+	expect("worn trait and modifier speed (x%.3f) stay when map mode ends (x%.3f)" % [worn_on, worn_off], _near(worn_on, worn_off) and worn_off > _hero.stats.weapon_stat("speed", 1.0))
+	expect("the item generation digest still matches after all of it", _digest() == off_digest)
 
 	# --- Clean up -----------------------------------------------------------------------------------------------------------------------------
 	for e in [foe, foe2]:

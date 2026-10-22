@@ -1,7 +1,7 @@
 extends Node3D
 ## Main menu: the knight standing in the ruins with zombies watching from the dark, plus Play / Settings / Quit.
 
-## The menu is shown on normal launch; Play goes straight to the test dungeon.
+## The menu is shown on normal launch; Play goes straight to the Sunken Way (issue #112).
 const SKIP_MENU := false
 const DUNGEON_SCENE := "res://game/main.tscn"
 const TOWN_SCENE := "res://game/town.tscn"   # reachable via dev flag --town

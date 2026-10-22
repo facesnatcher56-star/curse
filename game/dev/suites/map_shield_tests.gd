@@ -101,7 +101,7 @@ func _test_map_shield() -> void:
 	var thrower: Enemy = _foe("rock_thrower", hero.global_position + front)
 	await _frames(3)
 
-	# --- Flag off: the default game is unchanged -------------------------------------------------------------------------------------
+	# --- Flag off: the walking game has the guard too (issue #112), on the target he is going for ---------------------------------------
 	expect("flag off at the start", not MapMode.active)
 	var idle_zombie: Enemy = _foe("zombie", hero.global_position - _fwd * 1.0 + Vector3(0, 0, 8.0))
 	expect("rock_thrower is a ranged attacker for the guard, a zombie is not", ShieldGuard.is_ranged_attacker(thrower) and not ShieldGuard.is_ranged_attacker(idle_zombie))
@@ -110,9 +110,21 @@ func _test_map_shield() -> void:
 	_closing()
 	_rock(thrower)
 	await _hold(70)
-	expect("flag off: the shield is never raised (amount %.2f)" % hero.shield_guard.amount, not hero.shield_guard.up and hero.shield_guard.amount == 0.0 and hero.shield_guard.blocked == 0)
-	expect("flag off: the rock hits him as ever (health %.1f / %.1f)" % [hero.health, hero.max_health], hero.health < hero.max_health)
-	expect("flag off: Player's filter leaves the result alone", hero._filter_incoming({"projectile": true, "shot_dir": -_fwd, "outcome": Combat.Outcome.HIT, "damage": 5.0})["outcome"] == Combat.Outcome.HIT)
+	expect("flag off, no target: the shield is not raised (amount %.2f)" % hero.shield_guard.amount, not hero.shield_guard.up and hero.shield_guard.amount == 0.0 and hero.shield_guard.blocked == 0)
+	expect("flag off, no target: the rock hits him (health %.1f / %.1f)" % [hero.health, hero.max_health], hero.health < hero.max_health)
+	expect("flag off, guard down: Player's filter leaves the result alone", hero._filter_incoming({"projectile": true, "shot_dir": -_fwd, "outcome": Combat.Outcome.HIT, "damage": 5.0})["outcome"] == Combat.Outcome.HIT)
+	hero.health = hero.max_health
+	hero.attack_target = thrower
+	_closing()
+	_rock(thrower)
+	await _hold(70)
+	expect("flag off, closing on the thrower he targets: the shield is raised and the rock blocked (blocked %d, health %.1f / %.1f)" % [hero.shield_guard.blocked, hero.health, hero.max_health],
+		hero.shield_guard.blocked >= 1 and hero.health >= hero.max_health)
+	hero.attack_target = null
+	hero.velocity = Vector3.ZERO
+	await _hold(30)
+	hero.shield_guard.blocked = 0
+	hero.health = hero.max_health
 
 	# --- Map mode on ------------------------------------------------------------------------------------------------------------------
 	_mm = MapMode.new()

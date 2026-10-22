@@ -1,15 +1,15 @@
 class_name MapDrops
 extends RefCounted
-## The drop model of map mode (issue #82): every fight pays out, most groups guard a chest, enemy drops are a small bonus. Map mode only: with
-## `enabled()` false every entry point here hands back exactly what the default game would (the DS2 tables in MonsterLoot, Champion and Items are
-## untouched; the selftest `mmdrops` compares them under a fixed seed).
+## The drop model (issue #82; the normal game too since #112): every fight pays out, most groups guard a chest, enemy drops are a small bonus.
+## With `ds2_tables` set (tests only) every entry point here hands back exactly DS2's own tables (MonsterLoot, Champion and Items are untouched;
+## the selftest `mmdrops` compares them under a fixed seed).
 ##
 ## ALL NUMBERS ARE IN `T` BELOW. The functions are rules only. They use the global random stream (randf / randi), like Items does, so a test that
 ## calls seed() first rolls the same run again; only the guard of a group is a pure function of (run seed, node), because it is decided when the
 ## group spawns and shown on the node map before it is fought.
 
-## Tests and tools switch the rules on without a MapMode node.
-static var forced: bool = false
+## Tests only: true hands back DS2's own tables (MonsterLoot.roll, Champion.loot, Items' windows) to compare against.
+static var ds2_tables: bool = false
 ## The run's seed: the guard of every group follows from it. 0 until new_run() is called.
 static var run_seed: int = 0
 
@@ -76,7 +76,7 @@ const T := {
 
 
 static func enabled() -> bool:
-	return forced or MapMode.active
+	return not ds2_tables
 
 
 ## Starts a run: the guards of every group follow from `seed_value` (a random one when it is 0). `--mapseed=N` pins it for a developer.
