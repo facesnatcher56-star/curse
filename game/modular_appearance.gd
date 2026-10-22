@@ -50,7 +50,7 @@ static func _entry(item: Variant) -> Dictionary:
 static func rig(folder: String) -> Dictionary:
 	var entry: Dictionary = table().get("rigs", {}).get(folder, {})
 	return {"model_dir": entry.get("model_dir", table().get("model_dir", "")), "base": entry.get("base", table().get("base", [])),
-		"equipment_pieces": entry.get("equipment_pieces", true)}
+		"equipment_pieces": entry.get("equipment_pieces", true), "item_models": entry.get("item_models", {})}
 
 ## The pieces that show for an equipment dictionary ({Items.Slot: item}) on a rig; the order is stable (sorted). A rig
 ## whose item models are not built yet shows only its base, whatever it wears.

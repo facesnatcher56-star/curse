@@ -214,13 +214,25 @@ func refresh_weapon_model() -> void:
 			_held_path = ""
 	var worn: Variant = stats.wielded_weapon()
 	var path: String = SWORD_PATH
-	if worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):
+	# a model built for this rig (data/appearance/equipment_visuals.json `item_models`) wins over the generic one
+	var built: Dictionary = {} if worn == null else ModularAppearance.rig(model.folder)["item_models"].get(String((worn as Dictionary)["def"]), {})
+	if not built.is_empty():
+		path = String(built["model"])
+	elif worn != null and ResourceLoader.exists(Items.model_path(worn as Dictionary)):
 		path = Items.model_path(worn as Dictionary)
 	if path == _held_path:
 		return
 	_held_path = path
 	model.clear_weapon()
-	if path == SWORD_PATH:
+	var grip: Array = model.finger_grip("Right")
+	if not built.is_empty() and not grip.is_empty():
+		# Built upright at real size, pommel at the origin; it sits in his closed fist at `grip_at` of its length.
+		var measured: Node3D = (load(path) as PackedScene).instantiate()
+		var bounds: AABB = CharacterModel._bounds_of(measured)
+		measured.free()   # only measured, never shown
+		model.attach_weapon(path, "RightHand", grip[0], bounds.size.y, float(built["grip_at"]), grip[1])
+		model.show_weapon(true)
+	elif path == SWORD_PATH:
 		model.attach_weapon(SWORD_PATH, "RightHand", GRIPS[_grip_index], 1.25, 0.12, HAND_GRIP_POINT, 1.7)
 	else:
 		# Built lying down with the pommel at -X and the point at +X: turn it upright. About 0.85 of its real length in the hand.

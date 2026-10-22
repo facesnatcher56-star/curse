@@ -71,8 +71,15 @@ func run() -> void:
 	check("starting gear shows only his own body", pieces(hero) == base)
 	check("only the pieces in the table are attached", attached(hero) == pieces(hero))
 	check("source knight mesh is gone", hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
-	check("the held weapon keeps its nodes but draws nothing (its model is hidden)", hero.model.weapon != null
+	# his starting Longsword has a model built for him (equipment_visuals.json item_models): it shows, in his right hand
+	check("his Longsword shows, built for him", hero.model.weapon != null and (hero.model.weapon.get_child(0) as Node3D).visible
+		and hero._held_path == "res://assets/models/barbarian/items/longsword.glb" and hero.model.weapon_tip != null)
+	# a weapon with no model built for him keeps its nodes but draws nothing
+	hero.stats.wear(Items.Slot.WEAPON, item(Items.Slot.WEAPON, "Falchion"))
+	check("a weapon not built for him draws nothing", hero.model.weapon != null
 		and not (hero.model.weapon.get_child(0) as Node3D).visible and hero.model.weapon_tip != null)
+	hero.stats.wear(Items.Slot.WEAPON, item(Items.Slot.WEAPON, "Longsword"))
+	check("back to the Longsword, it shows again", (hero.model.weapon.get_child(0) as Node3D).visible)
 
 	# --- equip / unequip
 	hero.stats.wear(Items.Slot.ARMOR, item(Items.Slot.ARMOR, "Plate Cuirass"))

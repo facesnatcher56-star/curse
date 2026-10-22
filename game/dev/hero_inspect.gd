@@ -29,6 +29,7 @@ func _ready() -> void:
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.55, 0.55, 0.6)
 	env.environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.environment.reflected_light_source = Environment.REFLECTION_SOURCE_BG   # metals reflect the room, not black
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 35, 0)
@@ -52,7 +53,16 @@ func _ready() -> void:
 	add_child(_model)
 	CharacterPresentation.share_combat_clips(_model)
 	_look = ModularAppearance.new(_model)
-	_model.attach_weapon(Player.SWORD_PATH, "RightHand", Player.GRIPS[3], 1.25, 0.12, Player.HAND_GRIP_POINT, 1.7)   # as Player does
+	var built: Dictionary = ModularAppearance.rig(_model.folder)["item_models"].get("longsword", {})   # his starting sword, as Player mounts it
+	var grip: Array = _model.finger_grip("Right")
+	if not built.is_empty() and not grip.is_empty():
+		var measured: Node3D = (load(String(built["model"])) as PackedScene).instantiate()
+		var length: float = CharacterModel._bounds_of(measured).size.y
+		measured.free()
+		_model.attach_weapon(String(built["model"]), "RightHand", grip[0], length, float(built["grip_at"]), grip[1])
+		_model.show_weapon(true)
+	else:
+		_model.attach_weapon(Player.SWORD_PATH, "RightHand", Player.GRIPS[3], 1.25, 0.12, Player.HAND_GRIP_POINT, 1.7)
 	print("HERO INSPECT rig ", _model.folder, " -> ", ProjectSettings.globalize_path(OUT))
 
 	var outfits := {

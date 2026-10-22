@@ -23,3 +23,12 @@ Scripts:
 3. `ground_and_export.py` (with `barbarian.blend` open): stands the rig on the ground (lowest sole at 0) and exports.
 
 After exporting, Godot must import the new GLB (focus the editor, or a headless `--import`).
+
+## His items
+
+Item models are built for him one by one and listed in `data/appearance/equipment_visuals.json` (`rigs` → `item_models`,
+keyed by item id). Built upright at real size, pommel at the origin; the game grips them with his own closed fingers
+(`CharacterModel.finger_grip`).
+- Longsword (his basic one-handed sword): `make_longsword.py` (geometry) then `make_longsword_tex.py` (UVs and
+  textures), source `assets/art_staging/items/longsword/source/longsword.blend`, export
+  `assets/models/barbarian/items/longsword.glb` (triangulated, tangents).

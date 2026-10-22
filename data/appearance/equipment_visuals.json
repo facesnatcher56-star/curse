@@ -9,14 +9,20 @@
   ],
   "rigs": {
     "res://assets/models/barbarian": {
-      "_doc": "The barbarian hero. No item pieces are shown on him (owner, 2026-10-22): every item model is to be rebuilt for him; until then equipment changes stats only. His own meshes body_skin, body_hair, body_beard and clt_briefs are his base (game/modular_appearance.gd).",
+      "_doc": "The barbarian hero. Item models are rebuilt for him one by one (owner, 2026-10-22): item_models lists the ones made, keyed by item def id (model: GLB built upright, pommel at the origin, real size; grip_at: fraction of its length where his fist closes). Every other item shows nothing on him and changes stats only. His own meshes body_skin, body_hair, body_beard and clt_briefs are his base (game/modular_appearance.gd).",
       "equipment_pieces": false,
       "base": [
         "body_skin",
         "body_hair",
         "body_beard",
         "clt_briefs"
-      ]
+      ],
+      "item_models": {
+        "longsword": {
+          "model": "res://assets/models/barbarian/items/longsword.glb",
+          "grip_at": 0.11
+        }
+      }
     }
   },
   "items": {
