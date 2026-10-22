@@ -79,6 +79,7 @@ const SUITES := [
 	preload("res://game/dev/suites/map_equip_tests.gd"),
 	preload("res://game/dev/suites/map_rewards_tests.gd"),
 	preload("res://game/dev/suites/map_shield_tests.gd"),
+	preload("res://game/dev/suites/walk_game_tests.gd"),
 ]
 
 var _suites: Array[DevSuite] = []
@@ -269,7 +270,7 @@ const ONLY_TESTS := {
 "archermoving": "_test_archer_moving",
 "archerstance": "_test_archer_stance",
 "whirlingfx": "_test_whirling_strike_fx",
-"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "championaffixchips": "_test_champion_affix_chips", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits", "mmdrops": "_test_map_drops", "mmroles": "_test_map_mode_roles", "mmthreat": "_test_map_mode_threat", "mmrolesbench": "_test_map_mode_roles_bench", "mmequip": "_test_map_equip", "mmshield": "_test_map_shield", "mmrewards": "_test_map_rewards", "mmcutterscreen": "_test_map_cutter_screen",
+"archernestorder": "_test_archer_nest_order", "dungeonscene": "_test_dungeon_scene", "crypt01": "_test_crypt_dungeon", "mapmode": "_test_map_mode", "mapgraph": "_test_map_graph", "championmm": "_test_champion_map_mode", "championaffixchips": "_test_champion_affix_chips", "mapdungeon": "_test_map_mode_dungeon", "mmtraits": "_test_map_traits", "mmdrops": "_test_map_drops", "mmroles": "_test_map_mode_roles", "mmthreat": "_test_map_mode_threat", "walkgame": "_test_walk_game", "mmrolesbench": "_test_map_mode_roles_bench", "mmequip": "_test_map_equip", "mmshield": "_test_map_shield", "mmrewards": "_test_map_rewards", "mmcutterscreen": "_test_map_cutter_screen",
 "roaddensity": "_test_road_density",
 "clickband": "_test_click_band",
 "portraitplus": "_test_portrait_plus", "mmlegend": "_test_map_legendaries",
@@ -410,6 +411,7 @@ func _run_selftest() -> void:
 
 	# (Death behaviour has its own check: _test_death_ragdoll.)
 
+	await _run("_test_walk_game")
 	# Last: the nest order replaces the arena with the real Crypt Road, so nothing that needs the arena may run after it.
 	await _run("_test_archer_nest_order")
 	await _run("_test_dungeon_scene")

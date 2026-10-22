@@ -156,7 +156,7 @@ func in_reach(hero: Node3D) -> bool:
 	offset.y = 0.0
 	return landed and offset.length() <= REACH
 
-## The hero takes it: worn if the slot is empty, otherwise into the bag.
+## The hero takes it into the bag (nothing is auto-equipped since #112; `takes_empty_slot` is false).
 func pick_up(hero: Player) -> void:
 	if is_queued_for_deletion(): return # A second member/click cannot collect a queued drop twice.
 	var worn_at_once: bool = hero.stats.takes_empty_slot(item)

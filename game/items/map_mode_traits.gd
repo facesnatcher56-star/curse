@@ -1,9 +1,8 @@
 class_name MapModeTraits
 extends RefCounted
-## Map-mode item traits (issue #82): every level 1-5 base carries a built-in trait that matters in auto-combat, plus the map-mode-only drop
-## gaps (Battle Axe and Buckler from item level 3) and extra magic/rare modifiers. Nothing here acts unless `MapMode.active`: the default
-## game's items, drops and tooltips are untouched (the hooks in Items, AffixDb, Player, Actor and the like test the flag, and every
-## function below returns the neutral value when it is off). All the numbers are in TABLE and AFFIXES, one place to tune.
+## Item traits (issue #82; the normal game too since #112): every level 1-5 base carries a built-in trait, plus the drop gaps (Battle Axe and
+## Buckler from item level 3) and extra magic/rare modifiers. They act in every mode; the few that need a map-mode event (a dash, a fight start
+## or a room clear: on_dash_arrived, on_fight_start, on_room_clear) are called by MapMode only. All the numbers are in TABLE and AFFIXES.
 ##
 ## A trait is active while the item is worn by any party member; an effect that needs "the equipped member" uses that member.
 
@@ -92,16 +91,16 @@ static func line_for(base_id: String) -> String:
 		text = text.replace("{%s}" % key, str(int(v)) if is_equal_approx(v, roundf(v)) else ("%.1f" % v))
 	return text
 
-## The shared tooltip hook (Items.rows): the item's trait line, only in map mode.
+## The shared tooltip hook (Items.rows): the item's trait line.
 static func rows_for(item: Dictionary) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	if MapMode.active and not trait_of(item).is_empty():
+	if not trait_of(item).is_empty():
 		out.append({"text": line_for(String(item.get("def", ""))), "key": "", "color": LINE_COLOR})
 	return out
 
-## One number of the trait `id`, summed over the pieces that body wears. 0 when map mode is off or the body wears none.
+## One number of the trait `id`, summed over the pieces that body wears. 0 when the body wears none.
 static func value(body: Variant, trait_id: String, key: String) -> float:
-	if not MapMode.active or body == null or not is_instance_valid(body) or not body is Player:
+	if body == null or not is_instance_valid(body) or not body is Player:
 		return 0.0
 	var total: float = 0.0
 	for item in (body as Player).stats.equipment.values():
@@ -111,7 +110,7 @@ static func value(body: Variant, trait_id: String, key: String) -> float:
 	return total
 
 static func has(body: Variant, trait_id: String) -> bool:
-	if not MapMode.active or body == null or not is_instance_valid(body) or not body is Player:
+	if body == null or not is_instance_valid(body) or not body is Player:
 		return false
 	for item in (body as Player).stats.equipment.values():
 		var entry: Dictionary = trait_of(item)
@@ -120,7 +119,7 @@ static func has(body: Variant, trait_id: String) -> bool:
 	return false
 
 static func gear(body: Player, stat: String) -> float:
-	return body.stats.gear_stat(stat) if MapMode.active and body != null and is_instance_valid(body) else 0.0
+	return body.stats.gear_stat(stat) if body != null and is_instance_valid(body) else 0.0
 
 static func _living() -> Array[Player]:
 	return PartyManager.current().living()
@@ -138,8 +137,6 @@ static func is_auto(result: Dictionary) -> bool:
 
 ## Auto-attack speed multiplier (PlayerStats.attack_speed).
 static func speed_mult(body: Player) -> float:
-	if not MapMode.active:
-		return 1.0
 	var pct: float = value(body, "dagger_swift", "speed") + value(body, "gloves_speed", "speed") + gear(body, "auto_speed")
 	if now() < float(_st(body)["burst_until"]):
 		pct += value(body, "boots_burst", "speed")
@@ -151,7 +148,7 @@ static func recharge_bonus(body: Player) -> float:
 
 ## Power damage in percent (PlayerStats.power_damage_mult): the Woven Hood after a dash.
 static func power_damage_bonus(body: Player) -> float:
-	if MapMode.active and now() < float(_st(body)["power_until"]):
+	if now() < float(_st(body)["power_until"]):
 		MapAutoTally.note("hood_power_query")
 		return value(body, "hood_power", "power")
 	return 0.0
@@ -227,7 +224,7 @@ static func _open_on(target: Actor) -> bool:
 
 ## After a landed blow (Player.on_dealt_hit): the auto-attack traits.
 static func on_dealt_hit(body: Player, target: Actor, result: Dictionary) -> void:
-	if not MapMode.active or not is_instance_valid(target) or not is_auto(result):
+	if not is_instance_valid(target) or not is_auto(result):
 		return
 	if int(result.get("outcome", 0)) < Combat.Outcome.HIT:
 		return
@@ -290,8 +287,6 @@ static func on_hurt(body: Player, result: Dictionary) -> void:
 
 ## A party kill (Player.on_enemy_killed): Charm and the "charge on kill" modifier refill the wearer's powers.
 static func on_kill() -> void:
-	if not MapMode.active:
-		return
 	for body in _living():
 		var share: float = value(body, "charm_kills", "charge") + gear(body, "charge_on_kill")
 		if share > 0.0:
@@ -300,8 +295,6 @@ static func on_kill() -> void:
 
 ## A member used a power (Player.power_activated): Signet gives the others charge.
 static func on_power(member_id: String, _power_id: String) -> void:
-	if not MapMode.active:
-		return
 	var share: float = 0.0
 	for body in _living():
 		if body.member_id == member_id:   # only the wearer's own power use shares charge (owner decision)
@@ -345,7 +338,7 @@ static func on_room_clear(m: MapMode) -> void:
 
 ## Player._filter_incoming: the Jerkin's shield soaks damage (AoE and ticks included) until its pool is used up or the fight ends.
 static func absorb(body: Player, result: Dictionary) -> Dictionary:
-	if not MapMode.active or int(result.get("outcome", 0)) < Combat.Outcome.HIT:
+	if int(result.get("outcome", 0)) < Combat.Outcome.HIT:
 		return result
 	var damage: float = float(result.get("damage", 0.0))
 	var st: Dictionary = _st(body)
@@ -399,7 +392,7 @@ static func _knock_back(body: Player) -> void:
 
 ## Leather Cap (MeleeBehavior): the enemy shows its telegraph `lead` seconds before it can swing again.
 static func pre_telegraph(e: Enemy, cooldown: float, distance: float) -> bool:
-	if not MapMode.active or cooldown <= 0.0 or distance > e.attack_range * 1.6:
+	if cooldown <= 0.0 or distance > e.attack_range * 1.6:
 		return false
 	var lead: float = 0.0
 	for body in _living():
@@ -412,7 +405,7 @@ static func pre_telegraph(e: Enemy, cooldown: float, distance: float) -> bool:
 
 # --- The drop gaps and the modifier pool (Items.pick_base, AffixDb) --------------------------------------------------------------
 
-## The item levels a base is offered at in map mode: Battle Axe and Buckler also from level 3.
+## The item levels a base is offered at: Battle Axe and Buckler also from level 3.
 static func drop_levels(def: ItemDef) -> Array[int]:
 	if not EXTRA_DROPS.has(def.id):
 		return def.levels
@@ -426,11 +419,9 @@ static func affix_def(id: String) -> AffixDef:
 	_build_affixes()
 	return _affix_defs.get(id) as AffixDef
 
-## The map-mode extra modifiers that fit this item kind and modifier-level window (the same filter as AffixDb.eligible).
+## The extra modifiers that fit this item kind and modifier-level window (the same filter as AffixDb.eligible).
 static func extra_affixes(kind: String, low: int, high: int, position: String) -> Array[AffixDef]:
 	var out: Array[AffixDef] = []
-	if not MapMode.active:
-		return out
 	_build_affixes()
 	for a in _affix_defs.values():
 		var def := a as AffixDef

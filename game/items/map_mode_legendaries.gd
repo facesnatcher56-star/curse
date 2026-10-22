@@ -1,7 +1,7 @@
 class_name MapModeLegendaries
 extends RefCounted
-## The first power legendaries of map mode (issue #82): existing bases that rewrite one power. Every effect is gated on `MapMode.active` and on the
-## item being worn by the member who casts (Hero's Amulet: either member), so the default game is unchanged. All numbers and texts live in DEFS.
+## The first power legendaries (issue #82; the normal game too since #112): existing bases that rewrite one power. Every effect is gated on the
+## item being worn by the member who casts (Hero's Amulet: any member). All numbers and texts live in DEFS.
 ## They are not in UniqueDb's drop pool (the default game never rolls them): UniqueDb.get_unique falls back to `def()` so an item built from one
 ## names itself, saves and loads; the first champion of a run drops one (`first_champion_drop`), and chests may hand them out via `random_item`.
 
@@ -72,14 +72,14 @@ static func id_of(it: Dictionary) -> String:
 	var id: String = String(it.get("unique", ""))
 	return id if DEFS.has(id) else ""
 
-## The tooltip line of a legendary, shown in map mode only ("" otherwise).
+## The tooltip line of a legendary ("" for anything else).
 static func tooltip_line(it: Dictionary) -> String:
 	var id: String = id_of(it)
-	return "Legendary: %s" % String(DEFS[id]["text"]) if id != "" and MapMode.active else ""
+	return "Legendary: %s" % String(DEFS[id]["text"]) if id != "" else ""
 
-## The shared gate: map mode is on and `who` wears the legendary (Hero's Amulet: it counts when either member wears it).
+## The shared gate: `who` wears the legendary (Hero's Amulet: it counts when any member wears it).
 static func active_for(who: Player, id: String) -> bool:
-	if not MapMode.active or who == null or not DEFS.has(id):
+	if who == null or not DEFS.has(id):
 		return false
 	if id == "heros_amulet":
 		for body in PartyManager.current().bodies.values():
@@ -196,13 +196,13 @@ static func bolt_damage_factor(p: Player) -> float:
 
 # --- The first champion --------------------------------------------------------------------------------------------------------------
 
-## The legendary the first champion of this map-mode run drops (an item, or {} for every later champion and outside map mode).
+## The legendary the first champion of this run drops (an item, or {} for every later champion).
 static func first_champion_drop() -> Dictionary:
-	if not MapMode.active or first_champion_dropped:
+	if first_champion_dropped:
 		return {}
 	first_champion_dropped = true
 	return random_item()
 
-## Whether a ground drop gets the legendary beam and sound (map mode only).
+## Whether a ground drop gets the legendary beam and sound.
 static func beam_for(it: Dictionary) -> bool:
-	return MapMode.active and id_of(it) != ""
+	return id_of(it) != ""

@@ -6,7 +6,7 @@ extends DevSuite
 
 ## A typical run skips the swarm pit (node 2) and the Reliquary (node 8: the Ghoul Warren and the Reliquary both lead to the Ossuary).
 const SKIPPED := [2, 8]
-const RUN_SEED := 20261019
+const RUN_SEED := 20262019   # #112: item generation now rolls the trait drop levels and extra modifiers in every mode, so the stream moved (was 20261019)
 const SIM_RUNS := 120
 
 func _frames(count: int) -> void:
@@ -33,10 +33,11 @@ func _test_map_drops() -> void:
 	await _run_pays_out()
 
 
-# --- Flag off: the default game's drops are exactly what they were ------------------------------------------------------------------------------
+# --- The DS2 tables are still exactly what they were (the drop model is on in every mode since #112) ------------------------------------------------------------------------------
 
 func _flag_off_unchanged() -> void:
-	expect("map-mode drops are off without the flag", not MapDrops.enabled() and not MapMode.active)
+	expect("the drop model is on in the normal game (map mode off)", MapDrops.enabled() and not MapMode.active)
+	MapDrops.ds2_tables = true   # the DS2 tables themselves are still what they were
 	expect("the DS2 monster tables are untouched", MonsterLoot.TABLES["normal"] == [0.6625, 0.12, 0.03, 0.06, 0.035] and MonsterLoot.TABLES["strong"] == [0.515, 0.14, 0.04, 0.08, 0.048]
 		and is_equal_approx(float(Items.DROPS["normal"]["item"]), 0.08) and Items.DROPS["normal"]["window"] == Vector2i(-5, 1))
 	var same: bool = true
@@ -50,7 +51,7 @@ func _flag_off_unchanged() -> void:
 		for i in 60:
 			b.append(MapDrops.enemy_loot(3, tier, 20.0, 1.0, 10.0))
 		same = same and JSON.stringify(a) == JSON.stringify(b)
-	expect("with the flag off MapDrops.enemy_loot is MonsterLoot.roll, roll for roll", same)
+	expect("with the DS2 tables switch on MapDrops.enemy_loot is MonsterLoot.roll, roll for roll", same)
 	seed(77)
 	var champ_a: Array = []
 	for i in 30:
@@ -59,8 +60,9 @@ func _flag_off_unchanged() -> void:
 	var champ_b: Array = []
 	for i in 30:
 		champ_b.append(MapDrops.champion_loot(3, "normal", 0.0))
-	expect("with the flag off a champion's drop is Champion.loot, roll for roll", JSON.stringify(champ_a) == JSON.stringify(champ_b))
-	expect("with the flag off a magic item's modifiers come from DS2's whole window (mean %.1f levels under the item)" % -_mod_offset(false, Items.Rarity.MAGIC), _mod_offset(false, Items.Rarity.MAGIC) < -6.0)
+	expect("with the DS2 tables switch on a champion's drop is Champion.loot, roll for roll", JSON.stringify(champ_a) == JSON.stringify(champ_b))
+	expect("with the DS2 tables switch on a magic item's modifiers come from DS2's whole window (mean %.1f levels under the item)" % -_mod_offset(false, Items.Rarity.MAGIC), _mod_offset(false, Items.Rarity.MAGIC) < -6.0)
+	MapDrops.ds2_tables = false
 
 
 # --- Guards ---------------------------------------------------------------------------------------------------------------------------------
@@ -151,7 +153,7 @@ func _in_room(id: int, spot: Vector2) -> bool:
 # --- What a chest holds ---------------------------------------------------------------------------------------------------------------------
 
 func _chest_contents() -> void:
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	seed(31)
 	var ok: Dictionary = {"wooden": true, "iron": true, "gilded": true, "cursed": true, "hoard": true}
 	var sizes: Dictionary = {}
@@ -199,13 +201,13 @@ func _chest_contents() -> void:
 	print("  enemy drops per %d kills: %d items, %d gold, %d potions" % [enemy_n, enemy_items, enemy_gold, enemy_potions])
 	expect("a normal enemy drops gold often (~35%), an item ~5%, a potion sometimes", float(enemy_gold) / enemy_n > 0.3 and float(enemy_gold) / enemy_n < 0.4
 		and float(enemy_items) / enemy_n > 0.035 and float(enemy_items) / enemy_n < 0.065 and enemy_potions > enemy_n / 25 and enemy_potions < enemy_n / 6)
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 
 
 # --- Party fit ------------------------------------------------------------------------------------------------------------------------------
 
 func _party_fit() -> void:
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	seed(5150)
 	var fit: int = 0
 	var total: int = 1500
@@ -221,14 +223,14 @@ func _party_fit() -> void:
 	expect("a level-2 sword and a level-2 bow fit the party; a level-40 sword and a robe (no Combat skill) do not",
 		MapDrops.fits_party(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Longsword")) and MapDrops.fits_party(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 2, "Short Bow"))
 		and not MapDrops.fits_party(Items.make(Items.Slot.WEAPON, Items.Rarity.NORMAL, 40, "Longsword")) and not MapDrops.fits_party(Items.build(ItemDb.get_def("apprentice_robe"), 4, Items.Rarity.NORMAL)))
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 
 
 # --- Upgrades roll high ---------------------------------------------------------------------------------------------------------------------
 
 ## The mean level of an item's modifiers relative to the item's own level (a higher modifier tier is a bigger number).
 func _mod_offset(on: bool, rarity: int) -> float:
-	MapDrops.forced = on
+	MapDrops.ds2_tables = not on
 	seed(8)
 	var sum: float = 0.0
 	var n: int = 0
@@ -237,7 +239,7 @@ func _mod_offset(on: bool, rarity: int) -> float:
 		for id in item["mods"]:
 			sum += float(AffixDb.get_def(String(id)).level) - float(item["level"])
 			n += 1
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 	return sum / maxf(float(n), 1.0)
 
 
@@ -248,13 +250,13 @@ func _value_bias() -> void:
 		print("  %s modifier level vs item level: %.1f flag off, %.1f in map mode" % [Items.RARITY_NAMES[rarity], off, on])
 		expect("map mode: %s modifiers come from the top of the window (%.1f levels vs %.1f under the item with the flag off)" % [Items.RARITY_NAMES[rarity], on, off], on > off + 3.0)
 	# a modifier that has a value range (magic find) rolls in the top part of it
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	var low: float = 1.0
 	var affix: AffixDef = AffixDb.get_def("magic_find_3")
 	seed(3)
 	for i in 200:
 		low = minf(low, (MapDrops.roll_value(affix, Items.Rarity.RARE) - affix.value) / (affix.value_ceiling - affix.value))
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 	expect("a ranged modifier never rolls below its floor in map mode (lowest %.2f of its range)" % low, low >= 0.5 - 0.01)
 
 
@@ -333,7 +335,7 @@ func _roll_run(dungeon: MapModeDungeon, visited: Array) -> Array[Dictionary]:
 
 
 func _simulated_runs() -> void:
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	var dungeon := MapModeDungeon.new()
 	var all_ids: Array = []
 	var typical: Array = []
@@ -383,19 +385,19 @@ func _simulated_runs() -> void:
 	for chest in dungeon.node_chests.values():
 		(chest as Node).free()
 	dungeon.free()
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 	MapDrops.run_seed = 0
 
 
 # --- Champions (live) -----------------------------------------------------------------------------------------------------------------------
 
 func _champion_drops() -> void:
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	seed(2)
 	var all_magic: bool = true
 	for i in 300:
 		all_magic = all_magic and int(MapDrops.champion_loot(3, "normal")["rarity"]) >= Items.Rarity.MAGIC
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 	expect("a champion's drop is magic or better, 300 rolls", all_magic)
 	for node in get_tree().get_nodes_in_group("loot"):
 		node.queue_free()
@@ -558,7 +560,7 @@ func _run_pays_out() -> void:
 	await _frames(3)
 	MapDrops.run_seed = 0
 	cutter.testing_disabled = cutter_was_disabled
-	expect("map mode is off again at the end", not MapMode.active and not MapDrops.enabled())
+	expect("map mode is off again at the end, and the drop model stays on (the normal game)", not MapMode.active and MapDrops.enabled())
 
 
 # --- Developer capture (`-- --mmlootshot=<dir>`, 1080p on the second monitor): what the drop model looks like with the full HUD --------------
@@ -571,7 +573,7 @@ func _shot(dir: String, label: String) -> void:
 
 func _map_loot_shot(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
-	MapDrops.forced = true
+	MapDrops.ds2_tables = false
 	for node in get_tree().get_nodes_in_group("enemies"):
 		node.queue_free()
 	await _frames(3)
@@ -641,5 +643,5 @@ func _map_loot_shot(dir: String) -> void:
 	await _frames(6)
 	await _shot(dir, "summary_after_inventory_closed")
 	hud.loot_cards.hide_summary()
-	MapDrops.forced = false
+	MapDrops.ds2_tables = false
 	get_tree().quit()

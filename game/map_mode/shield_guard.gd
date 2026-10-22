@@ -1,12 +1,11 @@
 class_name ShieldGuard
 extends RefCounted
-## Map mode only (issue #88): the warrior raises his shield and blocks every single projectile from his front while he closes in on a
-## ranged attacker. ONE instance per Player (`Player.shield_guard`); every number lives in the constants below. Nothing here runs unless
-## `MapMode.active` (Player ticks and filters behind that flag), so the default game is untouched.
+## Issue #88 (the normal game too since #112): the warrior raises his shield and blocks every single projectile from his front while he closes
+## in on a ranged attacker. ONE instance per Player (`Player.shield_guard`); every number lives in the constants below.
 ##
 ## Raised while ALL hold:
 ##   1. a shield is worn (and the member is not an archer);
-##   2. the current or focus target (`MapMode.target_for`) is a ranged attacker;
+##   2. the current target is a ranged attacker (map mode: `MapMode.target_for` during a fight; walking: `Player.attack_target`);
 ##   3. he is closing in: walking toward it and not yet in melee range;
 ##   4. nothing but single projectiles can hit him now: no melee attacker on him, no AoE or explosive coming, no power or swing running.
 ## Raised, he blocks 100% of the single (non-AoE) projectiles arriving inside ARC_DEG in front of him (no damage, no knock-back, a ring
@@ -55,9 +54,12 @@ func wants_up() -> bool:
 		return false
 	if not p.stats.equipment.has(Items.Slot.SHIELD) or p.stats.is_ranged():
 		return false
-	if MapMode.current == null or MapMode.current.state != MapMode.State.FIGHT:
-		return false
-	_target = MapMode.current.target_for(p)
+	if MapMode.current != null:   # map mode: the fight's target, only during a fight
+		if MapMode.current.state != MapMode.State.FIGHT:
+			return false
+		_target = MapMode.current.target_for(p)
+	else:   # the walking game: whatever he is going for
+		_target = p.attack_target
 	if not is_ranged_attacker(_target) or in_melee_range(_target):
 		return false
 	_target_ok = not melee_attacker_on_me() and not aoe_incoming()

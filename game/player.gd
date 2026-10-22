@@ -305,8 +305,7 @@ func _physics_process(delta: float) -> void:
 		return
 	knockdown.tick(delta)
 	hit_reaction.tick(delta)
-	if MapMode.active:
-		shield_guard.tick(delta)   # map mode: the raised shield while closing on a ranged attacker (issue #88)
+	shield_guard.tick(delta)   # the raised shield while closing on a ranged attacker (issue #88)
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	skills.update_blade_blood(delta)
 	if model != null and model.weapon != null:
@@ -834,7 +833,7 @@ func _member_passives_changed(id: String) -> void:
 func _on_xp_changed(_old_xp: int, _new_xp: int) -> void:
 	stats.refresh()
 
-## DS2's level-up: full life and mana, and every power and skill ready again (Brutal Attack, Earthshatter, Cutter's Take Aim, cooldowns).
+## DS2's level-up: full life and mana, and the cooldowns ready again. The power charges are not refilled (owner rule, #105/#112).
 func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	stats.refresh()
 	if dead:
@@ -844,11 +843,6 @@ func _on_leveled(_old_level: int, _new_level: int, _new_xp: int) -> void:
 	health = max_health
 	stats.mana = stats.max_mana
 	stats.cooldowns.clear()
-	if MapMode.active:
-		return   # map mode (owner rule): a level-up never fills the power charges; they charge from damage dealt only
-	stats.brutal_reload_remaining = 0.0
-	powers.reset()
-	if bow != null: bow.reload_remaining = 0.0
 
 func _exit_tree() -> void:
 	if get_tree() != null and get_tree().root.window_input.is_connected(_latch_ui_click):
@@ -1061,7 +1055,7 @@ func _auto_engage(ctrl: bool) -> Actor:
 func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	if MapMode.active:
 		MapMode.note_hit()
-		MapModeTraits.on_dealt_hit(self, target, result)
+	MapModeTraits.on_dealt_hit(self, target, result)
 	var outcome: int = result.get("outcome", 0)
 	if outcome == Combat.Outcome.CRITICAL or float(result.get("weight", 1.0)) >= HEAVY_BLOW_WEIGHT:
 		Gamepad.rumble(0.15, 0.55, 0.14)
@@ -1071,15 +1065,15 @@ func on_dealt_hit(target: Actor, result: Dictionary) -> void:
 	_steal_resources(result)
 	_passive_on_hit(target, result)
 
-## All party damage feeds every power except the power that produced it.
+## A member's own damage feeds every one of his powers except the power that produced it (owner rule, #106/#112: each member's powers fill
+## only from his own damage).
 func on_party_damage(damage: float, skill_id: String = "") -> void:
-	for body in PartyManager.current().living():
-		if MapMode.active and body != self:
-			continue   # map mode (owner rule): each member's powers fill only from his own damage
-		if body != self or skill_id != "brutal_attack": body.stats.gain_brutal_charge(damage)
-		body.powers.gain(damage, skill_id if body == self else "")
-		if body.bow != null and (body != self or skill_id != "take_aim"):
-			body.bow.reload_remaining = maxf(body.bow.reload_remaining - maxf(damage, 0.0), 0.0)
+	if dead:
+		return
+	if skill_id != "brutal_attack": stats.gain_brutal_charge(damage)
+	powers.gain(damage, skill_id)
+	if bow != null and skill_id != "take_aim":
+		bow.reload_remaining = maxf(bow.reload_remaining - maxf(damage, 0.0), 0.0)
 
 ## DS2 rules.skrit 1730-1767: weapons and direct spells qualify; DoT/secondary events do not.
 func _steal_resources(result: Dictionary) -> void:
@@ -1156,7 +1150,7 @@ func _say(text: String) -> void:
 func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	if MapMode.active:
 		MapMode.note_damage(self, float(result.get("damage", 0.0)))
-		MapModeTraits.on_hurt(self, result)
+	MapModeTraits.on_hurt(self, result)
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0
@@ -1186,6 +1180,6 @@ func _on_blocked() -> void:
 func _popup_tint() -> Color:
 	return PartyLook.DAMAGE_TAKEN
 
-## Map mode: a single projectile from the front is caught by the raised shield (ShieldGuard); everything else is as ever.
+## A single projectile from the front is caught by the raised shield (ShieldGuard), then the Jerkin's pool soaks what is left.
 func _filter_incoming(result: Dictionary) -> Dictionary:
-	return MapModeTraits.absorb(self, shield_guard.filter(result)) if MapMode.active else result
+	return MapModeTraits.absorb(self, shield_guard.filter(result))

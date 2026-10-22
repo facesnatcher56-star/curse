@@ -1,8 +1,8 @@
 extends DevSuite
-## The first map-mode legendaries (game/items/map_mode_legendaries.gd, issue #82): each rewrites one power, only while MapMode.active and only for the
-## member who wears it (Hero's Amulet: either member). Every effect is compared with the same power and the same item with map mode off, and with
-## the plain base in map mode. Also: the first champion of a run always drops one (the second does not guarantee one), the drop gets a beam,
-## the tooltip line shows in map mode only, and the default unique pool is untouched.
+## The first legendaries (game/items/map_mode_legendaries.gd, issue #82): each rewrites one power, only for the member who wears it (Hero's
+## Amulet: either member), with map mode on and, since #112, off (the walking game) alike. Every effect is compared with the same item with map
+## mode off, and with the plain base. Also: the first champion of a run always drops one (the second does not guarantee one), the drop gets a
+## beam, the tooltip line shows in both modes, and the default unique pool is untouched.
 
 const DELTA := 1.0 / 60.0
 
@@ -95,8 +95,8 @@ func _test_map_legendaries() -> void:
 		expect("%s survives a save and load" % id, not loaded.is_empty() and loaded["unique"] == id and loaded["name"] == built["name"])
 	expect("Hero's Amulet is the existing level-5 charm unique", UniqueDb.get_unique("heros_amulet").base == "charm" and UniqueDb.get_unique("heros_amulet").level == 5
 		and MapModeLegendaries.DEFS.has("heros_amulet"))
-	expect("no legendary line on any card with map mode off", MapModeLegendaries.tooltip_line(MapModeLegendaries.item("splitbow")) == ""
-		and not Items.lines(MapModeLegendaries.item("splitbow")).any(func(l: String) -> bool: return l.begins_with("Legendary")))
+	expect("with map mode off (the walking game) the card has its legendary line too", MapModeLegendaries.tooltip_line(MapModeLegendaries.item("splitbow")) != ""
+		and Items.lines(MapModeLegendaries.item("splitbow")).any(func(l: String) -> bool: return l.begins_with("Legendary")))
 
 	var maul: Dictionary = MapModeLegendaries.item("gravecaller_maul")
 	var plain_axe: Dictionary = Items.build(ItemDb.get_def("axe_2h"), 6, Items.Rarity.NORMAL, [])
@@ -123,8 +123,8 @@ func _test_map_legendaries() -> void:
 		near.queue_free()
 		far.queue_free()
 		await get_tree().process_frame
-	expect("map mode off: the maul changes nothing (the far enemy is not hit and does not move)", results["off"]["near"] > 0.0 and results["off"]["far"] == 0.0
-		and is_equal_approx(results["off"]["gap"], results["off"]["before"]))
+	expect("map mode off: the maul pulls in the far enemy and hits it too (to %.2f m)" % results["off"]["gap"], results["off"]["near"] > 0.0 and results["off"]["far"] > 0.0
+		and results["off"]["gap"] <= radius + 0.2 and results["off"]["gap"] < results["off"]["before"])
 	expect("map mode on: the enemy %.1f m away is pulled in (to %.2f m) and then hit" % [far_d, results["on"]["gap"]], results["on"]["far"] > 0.0
 		and results["on"]["gap"] <= radius + 0.2 and results["on"]["gap"] < results["on"]["before"])
 	expect("the pulled enemy takes the same hit as the one already in reach (pull comes before the damage)", absf(results["on"]["far"] - results["on"]["near"]) < results["on"]["near"] * 0.6 + 1.0
@@ -166,7 +166,7 @@ func _test_map_legendaries() -> void:
 			if is_instance_valid(e):
 				e.queue_free()
 		await get_tree().process_frame
-	expect("map mode off: the Brutal Attack kills only its target (%d dead)" % chain["off"]["dead"], chain["off"]["dead"] == 1)
+	expect("map mode off: the kill jumps three times too (%d dead)" % chain["off"]["dead"], chain["off"]["dead"] == 4 and chain["off"]["fourth"] and not chain["off"]["fifth"])
 	expect("map mode on: the kill jumps three times (target + 3 = %d dead) and no further" % chain["on"]["dead"], chain["on"]["dead"] == 4 and chain["on"]["fourth"] and not chain["on"]["fifth"])
 	expect("a plain Longsword in map mode does not chain", chain["plain_sword"]["dead"] == 1)
 	expect("the chain stops when a hit does not kill (the tough enemy is hurt, nothing after it dies)", chain["tough"]["dead"] == 2 and chain["tough"]["third_hurt"] and not chain["tough"]["fourth"])
@@ -214,7 +214,7 @@ func _test_map_legendaries() -> void:
 		shots["on_open"]["take_aim"] and shots["on_open"]["crit"] and is_equal_approx(shots["on_open"]["left"], 0.5) and shots["on_open"]["required"] > 0.0)
 	expect("on a target without an Opening it is an ordinary Take Aim (no forced crit, full charge to earn)", shots["on_closed"]["take_aim"] and not shots["on_closed"]["crit"]
 		and is_equal_approx(shots["on_closed"]["left"], 1.0))
-	expect("map mode off: the same bow and the same Opening change nothing", shots["off"]["take_aim"] and not shots["off"]["crit"] and is_equal_approx(shots["off"]["left"], 1.0))
+	expect("map mode off: the same bow on the same Opening crits and refunds half too", shots["off"]["take_aim"] and shots["off"]["crit"] and is_equal_approx(shots["off"]["left"], 0.5))
 	expect("a plain Short Bow in map mode changes nothing", not shots["plain_bow"]["crit"] and is_equal_approx(shots["plain_bow"]["left"], 1.0))
 	# The forced crit itself: a fixed-damage arrow, with and without it, lands for exactly the critical multiplier.
 	var damage_of := {}
@@ -261,10 +261,10 @@ func _test_map_legendaries() -> void:
 	expect("they hit the centre and both flank enemies, and not the one outside the cone", bolts["on"]["count"] == 3 and bolts["on"]["lost"][0] > 0.0
 		and bolts["on"]["lost"][1] > 0.0 and bolts["on"]["lost"][2] > 0.0 and bolts["on"]["lost"][3] == 0.0)
 	expect("the flank bolts hit about as hard as the centre one (each at the same 60%% share)", bolts["on"]["lost"][1] > bolts["on"]["lost"][0] * 0.5 and bolts["on"]["lost"][1] < bolts["on"]["lost"][0] * 2.0)
-	expect("the damage factor is 0.6 with the Splitbow and 1.0 without", is_equal_approx(bolts["on"]["factor"], 0.6) and is_equal_approx(bolts["off"]["factor"], 1.0)
+	expect("the damage factor is 0.6 with the Splitbow (map mode on and off) and 1.0 without", is_equal_approx(bolts["on"]["factor"], 0.6) and is_equal_approx(bolts["off"]["factor"], 0.6)
 		and is_equal_approx(bolts["plain_bow"]["factor"], 1.0))
-	expect("map mode off: one bolt, centre only", bolts["off"]["dirs"] == 1 and bolts["off"]["count"] == 1 and bolts["off"]["lost"][0] > 0.0
-		and bolts["off"]["lost"][1] == 0.0 and bolts["off"]["lost"][2] == 0.0)
+	expect("map mode off: three bolts too, centre and both flanks", bolts["off"]["dirs"] == 3 and bolts["off"]["count"] == 3 and bolts["off"]["lost"][0] > 0.0
+		and bolts["off"]["lost"][1] > 0.0 and bolts["off"]["lost"][2] > 0.0 and bolts["off"]["lost"][3] == 0.0)
 	expect("a plain Short Bow in map mode fires one bolt", bolts["plain_bow"]["dirs"] == 1 and bolts["plain_bow"]["count"] == 1)
 
 	# --- Hero's Amulet: when one member uses a power, the other gains 25% charge --------------------------------------------------------------------
@@ -301,12 +301,12 @@ func _test_map_legendaries() -> void:
 	expect("the user's own charge is not given the bonus by his own use", is_equal_approx(gains["hero_wears"]["hero_own"], 1000.0))
 	expect("and the other way round: when Cutter uses a power the hero gains 25%% (%.0f)" % gains["hero_wears"]["hero_after_cutter"], is_equal_approx(gains["hero_wears"]["hero_after_cutter"], 750.0))
 	expect("either member may wear it (Cutter wears it, the hero uses a power: Cutter gains 25%%)", is_equal_approx(gains["cutter_wears"]["cutter"], 750.0))
-	expect("map mode off: the amulet gives no charge", is_equal_approx(gains["off"]["cutter"], 1000.0) and is_equal_approx(gains["off"]["hero_after_cutter"], 1000.0))
+	expect("map mode off: the amulet gives the same 25%% charge (%.0f, %.0f)" % [gains["off"]["cutter"], gains["off"]["hero_after_cutter"]], is_equal_approx(gains["off"]["cutter"], 750.0) and is_equal_approx(gains["off"]["hero_after_cutter"], 750.0))
 	expect("nobody wears it: no charge", is_equal_approx(gains["nobody"]["cutter"], 1000.0))
 	hero.stats.unequip(Items.Slot.AMULET)
 	archer.stats.unequip(Items.Slot.AMULET)
 
-	# --- The tooltip line: map mode only ------------------------------------------------------------------------------------------------------------
+	# --- The tooltip line: both modes ------------------------------------------------------------------------------------------------------------
 	await _map_mode(true)
 	for id in MapModeLegendaries.DEFS:
 		var it: Dictionary = MapModeLegendaries.item(id)
@@ -315,7 +315,7 @@ func _test_map_legendaries() -> void:
 		expect("%s shows its legendary line on the card in map mode" % id, shown)
 	expect("an ordinary unique has no legendary line", MapModeLegendaries.tooltip_line(Items.unique(UniqueDb.get_unique("assailing_talisman"))) == "")
 	await _map_mode(false)
-	expect("with map mode off the amulet's card has no legendary line", not Items.lines(MapModeLegendaries.item("heros_amulet")).any(func(l: String) -> bool: return l.begins_with("Legendary")))
+	expect("with map mode off the amulet's card has its legendary line too", Items.lines(MapModeLegendaries.item("heros_amulet")).any(func(l: String) -> bool: return l.begins_with("Legendary")))
 
 	# --- The first champion of a run always drops one; the second does not guarantee one ---------------------------------------------------------
 	_clear_loot()
@@ -325,8 +325,11 @@ func _test_map_legendaries() -> void:
 		Champion.attach(z, "shielded")
 		z.health = 0.0
 		champs.append(z)
+	MapModeLegendaries.reset_run()   # a walking run starts (main.gd: MapMode.start_run)
 	game.director._drop_loot(champs[0])
-	expect("map mode off: a champion drops no legendary and the run flag is untouched", _count_legendaries() == 0 and not MapModeLegendaries.first_champion_dropped)
+	expect("map mode off (the walking game): the first champion drops a legendary too (%d)" % _count_legendaries(), _count_legendaries() == 1 and MapModeLegendaries.first_champion_dropped)
+	_clear_loot()
+	await get_tree().process_frame
 	await _map_mode(true)
 	expect("a new map-mode run resets the flag", not MapModeLegendaries.first_champion_dropped)
 	game.director._drop_loot(champs[1])
@@ -345,7 +348,7 @@ func _test_map_legendaries() -> void:
 	await _map_mode(false)
 	var plain_drop: LootDrop = game.director.drop_item(hero.global_position + Vector3(4, 0, 0), MapModeLegendaries.item("splitbow"))
 	await get_tree().process_frame
-	expect("with map mode off even a legendary lies without a beam (the default game is unchanged)", plain_drop._column == null and plain_drop._pool == null)
+	expect("with map mode off a legendary lies under its beam and pool too", plain_drop._column != null and plain_drop._pool != null)
 	_clear_loot()
 	for e in champs:
 		if is_instance_valid(e):

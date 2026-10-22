@@ -166,10 +166,12 @@ func _test_loot_rewards() -> void:
 	zombie.aggro_range = 0.0
 	zombie.level = 18
 	await get_tree().process_frame
-	def.tier = "miniboss"   # a miniboss always drops
+	def.tier = "miniboss"   # a miniboss always drops (DS2's tables; since #112 the game uses MapDrops, where a miniboss pays through its chest)
+	MapDrops.ds2_tables = true
 	zombie.receive({"outcome": Combat.Outcome.HIT, "damage": 99999.0, "source": player, "skill_id": "basic", "weight": 1.0, "type": Combat.DamageType.PHYSICAL}, player.global_position)
 	await get_tree().create_timer(LootDrop.LAND_TIME + 0.6).timeout
 	def.tier = old_tier
+	MapDrops.ds2_tables = false
 	var drops: Array = get_tree().get_nodes_in_group("loot")
 	expect("one kill leaves exactly one reward (no duplicates)", drops.size() == 1)
 	if drops.size() == 1:

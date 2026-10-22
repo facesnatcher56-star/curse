@@ -137,10 +137,12 @@ func _ready() -> void:
 		await location.wait_for_navigation()
 		director.start_location(location)
 		_mark("location populated")
-		if (MapMode.requested() or location is MapModeDungeon) and location is CryptDungeon:   # `-- --crypt01 --mapmode`: pick on the map, dash, auto-attack (issue #79)
+		if MapMode.requested() and location is CryptDungeon:   # `-- --mapmode` (or `--crypt01 --mapmode`): pick on the map, dash, auto-attack (issue #79)
 			var map_mode := MapMode.new()
 			map_mode.setup(player, companion, hud)   # before add_child: _ready connects the members' power signals
 			add_child(map_mode)
+		else:
+			MapMode.start_run(PartyManager.current().living())   # the walking game starts a run as map mode does (issue #112)
 	else:
 		director.start_wave()
 		_mark("first wave spawned")
@@ -202,42 +204,58 @@ func _build_world() -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	add_child(sun)
 
-	if OS.get_cmdline_user_args().has("--crypt"):
-		arena = CryptRoad.make_arena()
-		add_child(arena)
-		arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
-		location = CryptRoad.new()
-		add_child(location)
-		location.build(arena)
-		environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
-		environment.fog_density *= CryptRoad.FOG_MULT
-	elif OS.get_cmdline_user_args().has("--crypt01"):   # the hand-built Crypt (docs/CRYPT_DUNGEON.md); opt-in, Menu -> Play stays on the test dungeon
-		arena = CryptDungeon.make_arena()
-		add_child(arena)
-		arena.build(false)
-		location = CryptDungeon.new()
-		add_child(location)
-		location.build(arena)
-	elif OS.get_cmdline_user_args().has("--mapmode"):   # the dedicated map-mode dungeon (docs/MAP_MODE_DUNGEON.md); `--crypt01 --mapmode` is the Crypt, above
-		arena = MapModeDungeon.make_arena()
-		add_child(arena)
-		arena.build(false)
-		location = MapModeDungeon.new()
-		add_child(location)
-		location.build(arena)
-	elif OS.get_cmdline_user_args().has("--selftest") or OS.get_cmdline_user_args().has("--shot"):
-		arena = Arena.new()
-		add_child(arena)
-		arena.build()
-	else:
-		arena = TestDungeon.make_arena()
-		add_child(arena)
-		arena.build(false)
-		location = TestDungeon.new()
-		add_child(location)
-		location.build(arena)
+	match location_kind(OS.get_cmdline_user_args()):
+		"crypt":
+			arena = CryptRoad.make_arena()
+			add_child(arena)
+			arena.build(false)   # the location puts its props down first, then bakes the navigation mesh itself
+			location = CryptRoad.new()
+			add_child(location)
+			location.build(arena)
+			environment.ambient_light_energy *= CryptRoad.AMBIENT_MULT
+			environment.fog_density *= CryptRoad.FOG_MULT
+		"crypt01":   # the hand-built Crypt (docs/CRYPT_DUNGEON.md), the test dungeon
+			arena = CryptDungeon.make_arena()
+			add_child(arena)
+			arena.build(false)
+			location = CryptDungeon.new()
+			add_child(location)
+			location.build(arena)
+		"arena":
+			arena = Arena.new()
+			add_child(arena)
+			arena.build()
+		"testdungeon":   # `--dungeon`: the old test dungeon, kept for the dev tools that walk it
+			arena = TestDungeon.make_arena()
+			add_child(arena)
+			arena.build(false)
+			location = TestDungeon.new()
+			add_child(location)
+			location.build(arena)
+		_:   # the Sunken Way (docs/MAP_MODE_DUNGEON.md): walked in the normal game (issue #112), on the node map with `--mapmode`
+			arena = MapModeDungeon.make_arena()
+			add_child(arena)
+			arena.build(false)
+			location = MapModeDungeon.new()
+			add_child(location)
+			location.build(arena)
 	if hud != null:
 		hud.arena = arena
+
+## Which world a launch builds, from its user args: Menu -> Play and a launch with no flag are the Sunken Way ("sunken", issue #112);
+## `--mapmode` is the same dungeon (main adds MapMode on top); `--crypt01` the Crypt (`--crypt01 --mapmode` the Crypt on the node map).
+static func location_kind(args: PackedStringArray) -> String:
+	if args.has("--crypt"):
+		return "crypt"
+	if args.has("--crypt01"):
+		return "crypt01"
+	if args.has("--mapmode"):
+		return "sunken"
+	if args.has("--selftest") or args.has("--shot"):
+		return "arena"
+	if args.has("--dungeon"):   # the old test dungeon, for the dev tools that walk it (dungeon_check, dungeon_walk, ...)
+		return "testdungeon"
+	return "sunken"
 
 ## A job's modifiers set the mood of the whole run: darker, brighter, foggier.
 func _apply_job_mood(offer: Dictionary) -> void:
