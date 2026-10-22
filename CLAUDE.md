@@ -58,3 +58,26 @@ Do not treat this as optional or silently choose a departure.
 Inspect available code/reference evidence first where it can resolve a factual question;
 if uncertainty remains, explain what is known and ask before implementing that uncertain part.
 Unrelated, clearly authorized work may continue while awaiting the answer.
+
+## Godot and Blender tools (owner instruction, 2026-10-22)
+
+`.mcp.json` registers two MCP servers for this project (owner's PC only):
+
+- **`ziva-godot`** talks to the Godot editor open on this project (Ziva plugin). Use it **by default** for
+  Godot editor work: project settings, input map, scene trees, opening and running scenes, screenshots,
+  editor errors. Prefer it over hand-editing `project.godot` or `.tscn` files. The Godot editor must be
+  open on this folder. Ziva takes the first free port from 7012; if calls fail with "Unable to
+  connect", find its port (`Get-NetTCPConnection -State Listen`, process `zivacode`) and fix
+  `--upstream` here and in the user config.
+- **`blender`** talks to the running Blender (MCP add-on on port 9876). Use it **by default** for model
+  and asset work in Blender (inspect the scene first, prefer operators, screenshot to check).
+  Blender must be running with the add-on connected. Don't modify an unrelated open scene without asking.
+
+**Standing owner rule (permanent, every agent, 2026-10-22): edit and work on Curse through the MCP connection
+to the open Curse project whenever possible** (Ziva for Godot, the Blender MCP for models): inspect, edit,
+import, run scenes and take screenshots there, not through a separate command-line Godot or Blender.
+**If the MCP connection to Curse isn't there** (Godot not open on this folder, Ziva not answering, Blender
+MCP not connected), **stop and tell the owner**; don't silently switch to command-line tools. Headless
+command-line runs remain fine only for what the MCP can't do (CI-style selftest suites, rebaking scenes),
+and say so when you use them.
+Codex: the same two servers are in `.codex/config.toml`. Other agents: register them in your own MCP config.

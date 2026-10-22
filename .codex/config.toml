@@ -1,0 +1,10 @@
+# Project MCP servers for Codex (owner instruction, 2026-10-22); the same two as .mcp.json for Claude.
+# Use them by default for Godot editor and Blender work (see AGENTS.md).
+
+[mcp_servers.ziva-godot]
+command = 'C:\Users\lloyd\AppData\Roaming\ziva-local\bin\zivacode.exe'
+args = ["--mcp-bridge", "--godot-bin", "C:/Users/lloyd/Downloads/Godot_v4.8-dev2_win64.exe/Godot_v4.8-dev2_win64.exe", "--upstream", "http://127.0.0.1:7012/api/mcp"]
+
+[mcp_servers.blender]
+command = 'C:\Users\lloyd\tools\blender_mcp\.venv\Scripts\blender-mcp.exe'
+args = []
