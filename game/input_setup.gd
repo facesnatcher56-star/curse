@@ -20,6 +20,7 @@ static func apply() -> void:
 	_key("use_mana_potion", KEY_W)
 	_key("companion_attack", KEY_A)
 	_key("party_switch", KEY_C)
+	_key("pickup_nearby", KEY_Z)
 	for i in 6:
 		_key("skill_%d" % (i + 1), KEY_1 + i)
 	_apply_gamepad()

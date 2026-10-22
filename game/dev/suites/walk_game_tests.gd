@@ -88,3 +88,72 @@ func _test_walk_game() -> void:
 	expect("a party member who steps onto it uses it: the party is restored", shrine.used and player.health >= player.max_health)
 	shrine.queue_free()
 	await _frames(2)
+
+## Z (issue #112 c): every member goes to pick up the loot near him; a full bag leaves the item; a hit stops the order.
+func _drop_at(pos: Vector3, level: int = 2) -> LootDrop:
+	var drop: LootDrop = game.director.drop_item(pos, Items.build(ItemDb.get_def("leather_cap"), level, Items.Rarity.NORMAL))
+	return drop
+
+func _test_pickup_nearby() -> void:
+	expect("the Pick up nearby loot action exists on Z and is in the key-binding list", InputMap.has_action("pickup_nearby")
+		and InputMap.action_get_events("pickup_nearby").any(func(e: InputEvent) -> bool: return e is InputEventKey and (e as InputEventKey).physical_keycode == KEY_Z)
+		and GameSettings.ACTIONS.any(func(row: Array) -> bool: return row[0] == "pickup_nearby"))
+	var cutter: Player = game.companion
+	var cutter_was_disabled: bool = cutter.testing_disabled
+	cutter.testing_disabled = false
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	for node in get_tree().get_nodes_in_group("loot"):
+		node.queue_free()
+	await _frames(2)
+	var bag_before: Array = PartyManager.current().backpack.duplicate(true)
+	PartyManager.current().backpack = []
+	var base: Vector3 = player.global_position
+	cutter.global_position = Nav.snap(cutter, base + Vector3(0.0, 0.0, 9.0))
+	var near_hero: Array[LootDrop] = [_drop_at(Nav.snap(player, base + Vector3(3.0, 0.0, 0.0))), _drop_at(Nav.snap(player, base + Vector3(-4.0, 0.0, 1.0)))]
+	var near_cutter: LootDrop = _drop_at(Nav.snap(cutter, cutter.global_position + Vector3(2.5, 0.0, 1.0)))
+	var far: LootDrop = _drop_at(Nav.snap(player, base + Vector3(Player.PICKUP_NEARBY_RADIUS + 10.0, 0.0, -6.0)))
+	await _frames(60)   # they land
+	var ordered: int = Player.order_pickup_nearby(PartyManager.current().living())
+	expect("Z orders the 3 items near the members and not the far one (%d)" % ordered, ordered == 3)
+	expect("each member goes for the loot nearest him: the hero for his two, the Cutter for hers", near_hero.has(player.pickup_target) and player.pickup_queue.size() == 1
+		and cutter.pickup_target == near_cutter and player.collecting and cutter.collecting)
+	var frames: int = 0
+	while frames < 900 and (is_instance_valid(near_hero[0]) or is_instance_valid(near_hero[1]) or is_instance_valid(near_cutter)):
+		await get_tree().physics_frame
+		frames += 1
+	expect("every member walked to his items and took them (%d frames)" % frames, not is_instance_valid(near_hero[0]) and not is_instance_valid(near_hero[1]) and not is_instance_valid(near_cutter))
+	expect("they are in the party's bag (%d items), the far one still lies there" % PartyManager.current().backpack.size(), PartyManager.current().backpack.size() == 3 and is_instance_valid(far) and not far.is_queued_for_deletion())
+	expect("the order is over", not player.collecting and not cutter.collecting and player.pickup_target == null and cutter.pickup_target == null)
+	# A full bag: the item stays on the ground and the order still ends.
+	var filler: Array = []
+	while true:
+		var candidate: Array = filler.duplicate()
+		candidate.append(Items.build(ItemDb.get_def("leather_cap"), 1, Items.Rarity.NORMAL))
+		if not PlayerStats.BagGrid.can_hold(candidate):
+			break
+		filler = candidate
+	PartyManager.current().backpack.assign(filler)
+	PlayerStats.BagGrid.arrange(PartyManager.current().backpack)
+	var kept: LootDrop = _drop_at(Nav.snap(player, player.global_position + Vector3(2.0, 0.0, 0.0)))
+	await _frames(60)
+	Player.order_pickup_nearby([player])
+	frames = 0
+	while frames < 600 and player.collecting:
+		await get_tree().physics_frame
+		frames += 1
+	expect("with a full bag the item stays on the ground (order over after %d frames)" % frames, is_instance_valid(kept) and not kept.is_queued_for_deletion() and not player.collecting)
+	PartyManager.current().backpack = []
+	# A hit ends the order: he stops and fights.
+	var other: LootDrop = _drop_at(Nav.snap(player, player.global_position + Vector3(-8.0, 0.0, 0.0)))
+	await _frames(60)
+	Player.order_pickup_nearby([player])
+	expect("setup: he is on his way to the item", player.collecting and player.pickup_target != null)
+	player._on_hurt({"damage": 1.0, "outcome": Combat.Outcome.HIT}, player.global_position)
+	expect("a member who is hit stops picking up", not player.collecting and player.pickup_target == null and player.pickup_queue.is_empty())
+	for node in [far, kept, other]:
+		if is_instance_valid(node):
+			node.queue_free()
+	PartyManager.current().backpack.assign(bag_before)
+	cutter.testing_disabled = cutter_was_disabled
+	await _frames(2)

@@ -26,6 +26,10 @@ var hurt_flash: float = 0.0
 var attack_target: Actor
 var chest_target: Chest   # a treasure chest the hero was sent to open (click it): walks up and opens it once in reach
 var pickup_target: LootDrop   # an item the hero was sent to take (click it, or its name): nothing is picked up by walking over it
+var pickup_queue: Array[LootDrop] = []   # the rest of a "pick up nearby loot" order (Z, issue #112), nearest first; pickup_target is the one he is on
+var collecting: bool = false   # a Z order is running (a hit ends it; a plain click pickup is not one)
+## Z (issue #112): every living member goes for the loot lying within this many flat metres of him.
+const PICKUP_NEARBY_RADIUS := 12.0
 var attack_prop: Destructible   # a barrel the hero was told to smash (only barrels can be attacked for now)
 var hover_target: Actor  # enemy under the mouse cursor, for the health bar and highlight ring
 var _ring: MeshInstance3D
@@ -647,6 +651,8 @@ func _read_input(cursor: Vector3) -> void:
 		var loot: LootDrop = LootDrop.focused if is_instance_valid(LootDrop.focused) else null
 		var chest: Chest = Chest.near(get_tree(), cursor, 0.35) if loot == null else null
 		skills.clear_queue()
+		if collecting:
+			stop_pickup_order()   # any click is a new order: a Z order ends
 		pickup_target = null
 		chest_target = null
 		if loot != null and not ctrl:   # an item, or its name, under the pointer: go and take it
@@ -722,6 +728,67 @@ func _confirm_party_take_aim(cursor: Vector3) -> bool:
 		return true
 	return false
 
+## The item he is sent for: taken once in reach (then the next of a Z order). True while there is one still to walk to. A full bag leaves the
+## item on the ground (LootDrop.pick_up), and he goes on to the next.
+func take_pickup_in_reach() -> bool:
+	while pickup_target != null:
+		if is_instance_valid(pickup_target) and not pickup_target.is_queued_for_deletion() and not pickup_target.in_reach(self):
+			return true
+		if is_instance_valid(pickup_target) and not pickup_target.is_queued_for_deletion():
+			pickup_target.pick_up(self)
+			movement.has_goal = false
+		pickup_target = pickup_queue.pop_front() if not pickup_queue.is_empty() else null
+		click_mode = 4 if pickup_target != null else 0
+	collecting = false
+	return false
+
+## Ends a Z order: the rest of the loot stays where it lies.
+func stop_pickup_order() -> void:
+	collecting = false
+	pickup_queue.clear()
+	pickup_target = null
+	click_mode = 0
+	movement.has_goal = false
+
+## Z (issue #112): every member in `members` goes to pick up the loot lying within PICKUP_NEARBY_RADIUS of him, nearest first; an item in reach of
+## two members goes to the nearer one. Nothing is fought or skipped for it; a member who is hit stops and fights (_on_hurt). Returns the items ordered.
+static func order_pickup_nearby(members: Array) -> int:
+	var lists: Dictionary = {}   # member -> its items
+	for m in members:
+		lists[m] = [] as Array[LootDrop]
+	if members.is_empty():
+		return 0
+	var tree: SceneTree = (members[0] as Node).get_tree()
+	var ordered: int = 0
+	for node in tree.get_nodes_in_group("loot"):
+		var drop := node as LootDrop
+		if drop == null or drop.is_queued_for_deletion():
+			continue
+		var best: Player = null
+		var best_d: float = PICKUP_NEARBY_RADIUS
+		for m in members:
+			var body := m as Player
+			var d: float = body.flat_distance_to(drop)
+			if not body.dead and d <= best_d:
+				best = body
+				best_d = d
+		if best != null:
+			(lists[best] as Array).append(drop)
+			ordered += 1
+	for m in members:
+		var body := m as Player
+		var items: Array = lists[body]
+		if items.is_empty():
+			continue
+		items.sort_custom(func(a: LootDrop, b: LootDrop) -> bool: return body.flat_distance_to(a) < body.flat_distance_to(b))
+		body.pickup_queue.assign(items)
+		body.pickup_target = body.pickup_queue.pop_front()
+		body.collecting = true
+		body.click_mode = 4
+		body.attack_target = null
+		body.attack_prop = null
+	return ordered
+
 ## Walks to the item the hero was sent for and takes it as soon as it is in reach; the use key takes the nearest one in reach too, which
 ## is how a controller (or the keyboard) picks things up.
 func _pursue_pickup(stand_still: bool) -> void:
@@ -739,18 +806,11 @@ func _pursue_pickup(stand_still: bool) -> void:
 		elif not stand_still:
 			movement.goal = Nav.snap(self, chest_target.global_position)
 			movement.has_goal = true
-	if pickup_target != null:
-		if not is_instance_valid(pickup_target):
-			pickup_target = null
-			click_mode = 0
-		elif pickup_target.in_reach(self):
-			pickup_target.pick_up(self)
-			pickup_target = null
-			click_mode = 0
-			movement.has_goal = false
-		elif not stand_still:
-			movement.goal = Nav.snap(self, pickup_target.global_position)
-			movement.has_goal = true
+	if Input.is_action_just_pressed("pickup_nearby"):
+		order_pickup_nearby(PartyManager.current().living())
+	if take_pickup_in_reach() and not stand_still:
+		movement.goal = Nav.snap(self, pickup_target.global_position)
+		movement.has_goal = true
 	if Input.is_action_just_pressed("interact"):
 		var nearest: LootDrop = null
 		var nearest_d: float = INF
@@ -1152,6 +1212,8 @@ func _on_hurt(result: Dictionary, _source_pos: Vector3) -> void:
 	if MapMode.active:
 		MapMode.note_damage(self, float(result.get("damage", 0.0)))
 	MapModeTraits.on_hurt(self, result)
+	if collecting:
+		stop_pickup_order()   # Z: a member who is hit stops picking up and fights
 	var share: float = float(result.get("damage", 0.0)) / maxf(max_health, 1.0)
 	Gamepad.rumble(0.3 + share * 2.0, 0.4 + share * 3.0, 0.18 + share)
 	combat_timer = 5.0
