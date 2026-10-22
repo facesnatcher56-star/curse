@@ -20,15 +20,21 @@ const HERO_TORCH_ENERGY := 2.4
 
 
 static func tune_environment(environment: Environment, sun: DirectionalLight3D) -> void:
-	environment.ambient_light_color = Color(0.5, 0.44, 0.5)   # a dim warm grey-violet, nudged toward the torch colour: a crypt, not a night outdoors
-	environment.ambient_light_energy = 0.42
+	# Readability (owner, 2026-10-22: "everything is washed out, things don't stand out"). Shadows are deep and cool, so the
+	# warm torch pools and whatever stands in them separate from the stone by colour as well as brightness; the haze only
+	# darkens the far end of a room instead of greying the whole picture; the tonemap keeps its blacks.
+	environment.ambient_light_color = Color(0.36, 0.4, 0.52)   # cool: the complement of the torchlight
+	environment.ambient_light_energy = 0.3
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0.0, 0.0, 0.0)
 	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.1, 0.08, 0.07)   # a dusty haze that eats the far end of a room
-	environment.fog_density = 0.014
-	environment.fog_aerial_perspective = 0.2
-	environment.tonemap_exposure = 1.05
+	environment.fog_light_color = Color(0.03, 0.03, 0.04)   # a dark haze that swallows the far end of a room
+	environment.fog_density = 0.009
+	environment.fog_aerial_perspective = 0.0
+	environment.tonemap_exposure = 1.25
+	environment.tonemap_agx_contrast = 1.45
+	environment.adjustment_enabled = true
+	environment.adjustment_saturation = 1.08
 	if sun != null:
 		sun.light_energy = 0.25
 		sun.light_color = Color(0.72, 0.72, 0.95)

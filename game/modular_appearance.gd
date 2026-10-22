@@ -136,6 +136,7 @@ func _attach(piece: String) -> Array:
 		mi.skin = skin
 		mi.skeleton = NodePath("..")
 		mi.transform = Transform3D.IDENTITY
+		CharacterModel.mark_actor(mi)
 		mi.name = piece
 		out.append(mi)
 	inst.free()

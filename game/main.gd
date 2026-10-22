@@ -90,6 +90,8 @@ func _ready() -> void:
 		rig.offset = Vector3(0.0, 2.6, 4.2)
 		rig.pitch_degrees = -22.0
 	add_child(rig)
+	if location != null and AtmosphereProfile.enabled():
+		AtmosphereProfile.add_actor_lights(rig)
 	rig.target = player
 	rig.global_position = player.global_position
 

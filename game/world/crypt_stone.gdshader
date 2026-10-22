@@ -47,7 +47,7 @@ void fragment() {
 	float low = 1.0 - smoothstep(0.2, 2.2, wpos.y);
 	float patch = smoothstep(0.58, 0.82, fbm(plane * 0.55 + 3.0));
 	col = mix(col, vec3(0.055, 0.09, 0.04) * (0.8 + fine * 0.6), patch * moss * mix(0.5, 1.0, up) * low);
-	ALBEDO = col * 0.92 + vec3(0.03, 0.032, 0.04);   // no texel goes pitch black
+	ALBEDO = col * 0.95 + vec3(0.008, 0.009, 0.012);   // dark creases read as depth; only a trace of lift so nothing is pure black
 	ROUGHNESS = mix(rough_lo, rough_hi, fine);
 	SPECULAR = 0.25;
 }

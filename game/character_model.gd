@@ -10,6 +10,15 @@ static var _libraries: Dictionary = {}
 ## skeleton's orientations so the knight's clips drive him until his own animations are made).
 const ANIM_SOURCE := {"res://assets/models/barbarian": "res://assets/models/knight2"}
 
+## Render layer of every character mesh and what it holds, on top of the default layer: AtmosphereProfile.add_actor_lights
+## lights only this layer, so characters stand out from the stone without the world getting brighter.
+const ACTOR_LAYER := 1 << 9
+
+static func mark_actor(root: Node) -> void:
+	for node in [root] + root.find_children("*", "GeometryInstance3D", true, false):
+		if node is GeometryInstance3D:
+			(node as GeometryInstance3D).layers |= ACTOR_LAYER
+
 var folder: String = ""   # the rig folder this model was built from (assets/models/<rig>)
 ## False for a rig whose item models are not built yet (the barbarian, data/appearance/equipment_visuals.json `rigs`):
 ## held weapons and bows keep their nodes (skill effects anchor to the blade's base and tip) but draw nothing.
@@ -41,6 +50,7 @@ static func build(folder: String, clips: Array[String], fists: bool = true) -> C
 	model.folder = folder
 	model.show_items = bool(ModularAppearance.rig(folder)["equipment_pieces"])
 	var rigged: Node = (load(folder + "/rigged.glb") as PackedScene).instantiate()
+	mark_actor(rigged)
 	model.add_child(rigged)
 	var players := rigged.find_children("*", "AnimationPlayer", true, false)
 	if players.is_empty():   # a rig exported without clips of its own (the barbarian): its tracks are rooted at the rig root
@@ -71,6 +81,7 @@ func _give_fists(folder: String) -> void:
 		_mounts[side[0]] = mount
 		var fist: Node3D = (load("%s/fist_%s.glb" % [folder, side[1]]) as PackedScene).instantiate()
 		LootDrop._use_vertex_colours(fist)
+		mark_actor(fist)
 		mount.add_child(fist)
 
 ## What a weapon or prop is attached to: the hand's mount, or a plain bone attachment for any other bone.
@@ -225,6 +236,7 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 	prop.position = Vector3(-bounds.get_center().x * thickness, -bounds.position.y - grip_offset * bounds.size.y,
 		-bounds.get_center().z * thickness)
 	holder.add_child(prop)
+	mark_actor(prop)
 	prop.visible = show_items
 	weapon = holder
 	weapon_base = Node3D.new()
