@@ -92,7 +92,7 @@ func _follow_hands() -> void:
 static func _library(folder: String, clips: Array[String]) -> AnimationLibrary:
 	if _libraries.has(folder):
 		return _libraries[folder]
-	if ANIM_SOURCE.has(folder):
+	if ANIM_SOURCE.has(folder) and not ResourceLoader.exists(folder + "/anims.res"):   # its own baked clips win
 		_libraries[folder] = _borrowed(folder, ANIM_SOURCE[folder], clips)
 		return _libraries[folder]
 	# Preferred: the baked library from tools/bake_anims.gd (small, animation data only).
