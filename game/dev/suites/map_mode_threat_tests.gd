@@ -73,7 +73,7 @@ func _test_map_mode_threat() -> void:
 	var after_warrior: float = EnemyRoles.threat_of(mult, player)
 	EnemyRoles.note_hit(mult, {"source": cutter, "damage": 10.0}, cutter.global_position)
 	expect("the warrior's threat is doubled (pull 10 + 2 x 10), the Cutter's is not (%.0f, %.0f)" % [after_warrior, EnemyRoles.threat_of(mult, cutter)], after_warrior == EnemyRoles.PULL_THREAT + 10.0 * EnemyRoles.WARRIOR_THREAT_MULT and EnemyRoles.threat_of(mult, cutter) == 10.0)
-	# Healing threat goes to the healer, split across the enemies in combat.
+	# Healing threat goes to the healer, split across the enemies that already have a party member in their threat table.
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
 	await get_tree().physics_frame
@@ -81,20 +81,24 @@ func _test_map_mode_threat() -> void:
 	for i in 3:
 		var f: Enemy = _threat_enemy("zombie", Vector3(3.0 + i, 0.0, -4.0))
 		f.wake()
+		EnemyRoles.pull(f, player)   # in combat with the party: the warrior is in its table
 		fighters.append(f)
 	var sleeper: Enemy = _threat_enemy("zombie", Vector3(-8.0, 0.0, -8.0))
+	var awake_elsewhere: Enemy = _threat_enemy("zombie", Vector3(-12.0, 0.0, 8.0))
+	awake_elsewhere.wake()   # awake, but nobody in the party has pulled it
 	var hurt: float = player.health
 	player.health = player.max_health - 50.0
 	player.stats.heal(30.0, cutter)
 	var each: float = 30.0 * EnemyRoles.HEAL_THREAT / 3.0
 	var split_ok: bool = true
 	for f in fighters:
-		split_ok = split_ok and is_equal_approx(EnemyRoles.threat_of(f, cutter), each) and EnemyRoles.threat_of(f, player) == 0.0
+		split_ok = split_ok and is_equal_approx(EnemyRoles.threat_of(f, cutter), each) and EnemyRoles.threat_of(f, player) == EnemyRoles.PULL_THREAT
 	expect("healing threat goes to the healer (the Cutter), not to the one healed, split evenly across the 3 enemies in combat (%.1f each)" % each, split_ok)
 	expect("an enemy that is not in combat gets none", EnemyRoles.threat_of(sleeper, cutter) == 0.0)
+	expect("an awake enemy with no party member in its threat table gets none", EnemyRoles.threat_of(awake_elsewhere, cutter) == 0.0)
 	player.health = player.max_health - 50.0
 	player.stats.heal(30.0)
-	expect("a tank's own healing is doubled: 30 healed = %.0f each" % (each * EnemyRoles.WARRIOR_THREAT_MULT), is_equal_approx(EnemyRoles.threat_of(fighters[0], player), each * EnemyRoles.WARRIOR_THREAT_MULT))
+	expect("a tank's own healing is doubled: 30 healed = %.0f each" % (each * EnemyRoles.WARRIOR_THREAT_MULT), is_equal_approx(EnemyRoles.threat_of(fighters[0], player), EnemyRoles.PULL_THREAT + each * EnemyRoles.WARRIOR_THREAT_MULT))
 	var potions_before: int = player.stats.potions
 	player.stats.potions = 1
 	player.stats.cooldowns.erase("potion")

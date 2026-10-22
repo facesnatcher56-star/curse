@@ -7,7 +7,8 @@ extends RefCounted
 ## Rules:
 ##   Each enemy has a threat table (party member -> threat) and goes for the member with the most.
 ##   Damage is 1 threat per point (basic attacks, powers and procs alike); a TANK member's threat (damage, healing) is multiplied (WARRIOR_THREAT_MULT).
-##   Healing: the HEALER (who cast it or drank the potion) gets HEAL_THREAT per point healed, split evenly across every enemy in combat with the party.
+##   Healing: the HEALER (who cast it or drank the potion) gets HEAL_THREAT per point healed, split evenly across every enemy that already has a
+##   party member in its threat table.
 ##   Taking aggro (WoW): a member takes an enemy from its current holder only above TAKE_MELEE (110%) of the holder's threat when he stands within
 ##   MELEE_HIT_MAX of the enemy, above TAKE_RANGED (130%) otherwise. A member nobody has threat on yet is simply the top.
 ##   Pulls: the first member to come within a group's aggro range, or to hit any of it (or the one closest to it when the fight starts), gets
@@ -120,14 +121,24 @@ static func note_hit(e: Enemy, result: Dictionary, _source_pos: Vector3 = Vector
 	if int(result.get("outcome", Combat.Outcome.HIT)) >= Combat.Outcome.HIT:
 		add_threat(e, source, float(result.get("damage", 0.0)))
 
-## Life restored to `healer` or by him (a heal, a potion, life steal): HEAL_THREAT per point, split evenly across every enemy in combat with the party.
+## True when a living party member is in `e`'s threat table (it is in combat with the party, not merely awake elsewhere).
+static func has_party_threat(e: Enemy) -> bool:
+	if not e.has_meta("role_state"):
+		return false
+	for who in state_of(e).threat:
+		if is_instance_valid(who) and who is Player and not (who as Actor).dead:
+			return true
+	return false
+
+## Life restored to `healer` or by him (a heal, a potion, life steal): HEAL_THREAT per point, split evenly across every enemy that already has a
+## party member in its threat table (an awake group nobody has pulled gets none).
 static func note_heal(healer: Actor, amount: float) -> void:
 	if not MapMode.active or not enabled or amount <= 0.0 or healer == null or not healer.is_inside_tree():
 		return
 	var engaged: Array[Enemy] = []
 	for node in healer.get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
-		if e != null and not e.dead and e.is_aggro():
+		if e != null and not e.dead and has_party_threat(e):
 			engaged.append(e)
 	for e in engaged:
 		add_threat(e, healer, amount * HEAL_THREAT / float(engaged.size()))
