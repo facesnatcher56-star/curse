@@ -47,3 +47,11 @@ MCP not connected), **stop and tell the owner**; don't silently switch to comman
 command-line runs remain fine only for what the MCP can't do (CI-style selftest suites, rebaking scenes),
 and say so when you use them.
 Codex: the same two servers are in `.codex/config.toml`. Other agents: register them in your own MCP config.
+
+## Playable character skeleton (owner rule, permanent, 2026-10-22)
+
+**Every playable character, now and in future, is rigged to the detailed humanoid skeleton**: the 54-bone hero skeleton
+(knight2's 24 game bones with their rest rotations, plus three Mixamo-named joints per finger), first built for the barbarian
+hero (`assets/models/barbarian/rigged.glb`). Never ship a playable character on a reduced skeleton or its own bone names.
+Equipment is made to fit the character, not the character to the equipment. The standard, rest pose and checks are in
+[docs/art/PIPELINE.md](docs/art/PIPELINE.md) ("Humanoid skeleton standard").

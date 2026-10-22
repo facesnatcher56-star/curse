@@ -6,7 +6,14 @@ extends Node3D
 const LOOPING: Array[String] = ["idle", "walk", "run"]
 
 static var _libraries: Dictionary = {}
+## Rigs that play another rig's clips: same bone names and rest rotations (the barbarian hero was rigged to the knight2
+## skeleton's orientations so the knight's clips drive him until his own animations are made).
+const ANIM_SOURCE := {"res://assets/models/barbarian": "res://assets/models/knight2"}
 
+var folder: String = ""   # the rig folder this model was built from (assets/models/<rig>)
+## False for a rig whose item models are not built yet (the barbarian, data/appearance/equipment_visuals.json `rigs`):
+## held weapons and bows keep their nodes (skill effects anchor to the blade's base and tip) but draw nothing.
+var show_items: bool = true
 var anim: AnimationPlayer
 var current: String = ""
 ## 0..1: lifts the right leg forward with a bent knee (a boot planted on something in front), applied after the
@@ -31,9 +38,15 @@ var _reaction_owner: Node        # Actor that owns this model, for ragdoll/death
 
 static func build(folder: String, clips: Array[String], fists: bool = true) -> CharacterModel:
 	var model := CharacterModel.new()
+	model.folder = folder
+	model.show_items = bool(ModularAppearance.rig(folder)["equipment_pieces"])
 	var rigged: Node = (load(folder + "/rigged.glb") as PackedScene).instantiate()
 	model.add_child(rigged)
-	model.anim = rigged.find_children("*", "AnimationPlayer", true, false)[0]
+	var players := rigged.find_children("*", "AnimationPlayer", true, false)
+	if players.is_empty():   # a rig exported without clips of its own (the barbarian): its tracks are rooted at the rig root
+		players.append(AnimationPlayer.new())
+		rigged.add_child(players[0])
+	model.anim = players[0]
 	model.anim.add_animation_library("game", _library(folder, clips))
 	model.anim.mixer_applied.connect(model._after_mixer)
 	if fists:
@@ -79,6 +92,9 @@ func _follow_hands() -> void:
 static func _library(folder: String, clips: Array[String]) -> AnimationLibrary:
 	if _libraries.has(folder):
 		return _libraries[folder]
+	if ANIM_SOURCE.has(folder):
+		_libraries[folder] = _borrowed(folder, ANIM_SOURCE[folder], clips)
+		return _libraries[folder]
 	# Preferred: the baked library from tools/bake_anims.gd (small, animation data only).
 	if ResourceLoader.exists(folder + "/anims.res"):
 		var baked: AnimationLibrary = load(folder + "/anims.res")
@@ -94,6 +110,34 @@ static func _library(folder: String, clips: Array[String]) -> AnimationLibrary:
 		source.free()
 	_libraries[folder] = lib
 	return lib
+
+## Another rig's clips for a rig with the same bone names and rest rotations but its own proportions. Rotation tracks carry
+## over unchanged. The source keys the hips and the thigh roots by position: the hips track is moved by the difference of
+## the two rest poses (so the feet stay on the ground), and the other position tracks are dropped (they would drag the
+## joints to the source's proportions; with them gone those bones keep this rig's rest offsets).
+static func _borrowed(folder: String, source: String, clips: Array[String]) -> AnimationLibrary:
+	var from := _library(source, clips)
+	var offset: Vector3 = _rest_origin(folder, "Hips") - _rest_origin(source, "Hips")
+	var lib := AnimationLibrary.new()
+	for clip in from.get_animation_list():
+		var animation := from.get_animation(clip).duplicate(true) as Animation
+		for track in range(animation.get_track_count() - 1, -1, -1):
+			if animation.track_get_type(track) != Animation.TYPE_POSITION_3D:
+				continue
+			if String(animation.track_get_path(track)).ends_with(":Hips"):
+				for key in animation.track_get_key_count(track):
+					animation.track_set_key_value(track, key, (animation.track_get_key_value(track, key) as Vector3) + offset)
+			else:
+				animation.remove_track(track)
+		lib.add_animation(clip, animation)
+	return lib
+
+static func _rest_origin(folder: String, bone: String) -> Vector3:
+	var rigged: Node = (load(folder + "/rigged.glb") as PackedScene).instantiate()
+	var skeleton: Skeleton3D = rigged.find_children("*", "Skeleton3D", true, false)[0]
+	var origin: Vector3 = skeleton.get_bone_rest(skeleton.find_bone(bone)).origin
+	rigged.free()
+	return origin
 
 ## Loop a clip (idle/walk/run); does nothing if it is already playing.
 func loop(clip: String, speed: float = 1.0, blend: float = 0.15) -> void:
@@ -181,6 +225,7 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 	prop.position = Vector3(-bounds.get_center().x * thickness, -bounds.position.y - grip_offset * bounds.size.y,
 		-bounds.get_center().z * thickness)
 	holder.add_child(prop)
+	prop.visible = show_items
 	weapon = holder
 	weapon_base = Node3D.new()
 	weapon_base.position = Vector3(0, (1.0 - length * 0.0) * bounds.size.y * 0.62 - grip_offset * bounds.size.y, 0)

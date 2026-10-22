@@ -1,5 +1,5 @@
 {
-  "_doc": "Item def id -> worn visuals. Each part is a separate skinned GLB in model_dir (one piece per file) bound to the Meshy skeleton by game/modular_appearance.gd. hides removes base or other parts (a robe replaces the gambeson). placeholder marks an item that reuses another item's mesh until its own GLB exists. To add equipment: export one GLB (tools/art/modular_export.py) and add a row here; no code change.",
+  "_doc": "Item def id -> worn visuals. Each part is a separate skinned GLB in model_dir (one piece per file) bound to the Meshy skeleton by game/modular_appearance.gd. hides removes base or other parts (a robe replaces the gambeson). placeholder marks an item that reuses another item's mesh until its own GLB exists. To add equipment: export one GLB (tools/art/modular_export.py) and add a row here; no code change. Per rig (rigs, keyed by the rig folder): its own base and model_dir, and equipment_pieces false for a rig whose item models are not built yet; a rig without an entry uses the top-level ones (the knight2 kit).",
   "model_dir": "res://assets/models/modular/",
   "base": [
     "body_skin",
@@ -7,6 +7,18 @@
     "body_beard",
     "clt_gambeson"
   ],
+  "rigs": {
+    "res://assets/models/barbarian": {
+      "_doc": "The barbarian hero. No item pieces are shown on him (owner, 2026-10-22): every item model is to be rebuilt for him; until then equipment changes stats only. His own meshes body_skin, body_hair, body_beard and clt_briefs are his base (game/modular_appearance.gd).",
+      "equipment_pieces": false,
+      "base": [
+        "body_skin",
+        "body_hair",
+        "body_beard",
+        "clt_briefs"
+      ]
+    }
+  },
   "items": {
     "plate_cuirass": {
       "slot": "armor",
