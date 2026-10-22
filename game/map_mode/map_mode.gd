@@ -192,7 +192,14 @@ func _physics_process(delta: float) -> void:
 				_open_map()   # no waiting: the card stays up over the map until its time runs out or the next dash starts
 		State.DEAD:
 			if not hero.dead:
+				_start_again()
 				_open_map()
+
+## Back on their feet after the party fell: a new start, so every power is empty again (owner rule, as at the start of a run).
+func _start_again() -> void:
+	for body in [hero, companion]:
+		if is_instance_valid(body):
+			start_uncharged(body)
 
 ## The world has filled: the dungeon's node map is placed (it is adopted here), or, without one, there are live groups for the flat map.
 func _world_ready() -> bool:

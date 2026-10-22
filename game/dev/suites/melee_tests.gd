@@ -82,12 +82,13 @@ func _test_auto_attack() -> void:
 	Input.action_release("click")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	var released_clears: bool = player.attack_target == null and player.click_mode == 0
+	var released_keeps: bool = player.attack_target == dummy   # owner rule: no click-to-engage, the fight goes on after the release
 	player.attack_target = null
 	player.skills.cancel_action()
 	player.movement.has_goal = false
 	var idle_after: bool = not player.skills.busy and player.attack_target == null
-	# 2. Standing idle with an enemy nearby must not turn the hero or start anything.
+	# 2. Standing idle with a SLEEPING enemy nearby must not turn the hero or start anything (an awake one is engaged by itself, below).
+	dummy._aggro = false
 	var yaw_before: float = player.visual.rotation.y
 	var busy_during_idle: bool = false
 	for i in 90:
@@ -95,13 +96,14 @@ func _test_auto_attack() -> void:
 		busy_during_idle = busy_during_idle or player.skills.busy
 	var yaw_drift: float = absf(angle_difference(yaw_before, player.visual.rotation.y))
 	# 3. A skill clears the attack order so the hero does not resume swinging when it ends.
+	dummy._aggro = false
 	player.attack_target = dummy
 	player.skills.start_skill("fireball", null, Vector3(0, 0, -6))
 	var cleared_by_skill: bool = player.attack_target == null
 	await get_tree().create_timer(2.0).timeout
 	var swings_after_skill: bool = player.skills.busy and player.skills.busy_skill == "basic"
 	expect("holding the click on a target repeats basic attacks", swings >= 2 and retained_order)
-	expect("letting go of the click ends the engagement (no auto-attack)", released_clears)
+	expect("letting go of the click keeps fighting the target (nothing has to be held)", released_keeps)
 	expect("explicit cancellation clears engagement", idle_after)
 	expect("hero does not swing or turn with no input", not busy_during_idle and absf(yaw_drift) < 0.02)
 	expect("a skill clears the attack order", cleared_by_skill)
@@ -113,6 +115,13 @@ func _test_auto_attack() -> void:
 	await get_tree().process_frame
 	await _test_held_click_keeps_target()
 	await _test_hit_bar_feedback()
+	# Leave nothing behind for the next suite: no swing in progress, target, walk goal or chase.
+	player.skills.cancel_action()
+	player.skills.clear_queue()
+	player.attack_target = null
+	player.movement.has_goal = false
+	player._chasing = false
+	player.click_mode = 0
 
 ## Holding the click on an enemy keeps attacking that enemy while the button stays down, wherever the pointer goes (another enemy,
 ## empty ground); only letting go (or its death) ends it.
@@ -147,7 +156,65 @@ func _test_held_click_keeps_target() -> void:
 	Input.action_release("click")
 	for i in 3:
 		await get_tree().physics_frame
-	expect("letting go ends it", player.attack_target == null)
+	expect("letting go does not end it: the fight goes on until the target falls", player.attack_target == first)
+	# An idle hero engages an awake enemy by himself, and a ground click sends him away from it.
+	player.attack_target = null
+	player.skills.cancel_action()
+	player.movement.has_goal = false
+	player._chasing = false
+	first.aggro_range = 0.0
+	second.global_position = Vector3(40.0, 0.0, 40.0)
+	first._aggro = true
+	for i in 6:
+		await get_tree().physics_frame
+	expect("an idle hero engages an awake enemy near him with no click", player.attack_target == first)
+	player.cursor_override = Vector3(-6.0, 0.0, -6.0)
+	await _click_ground(Vector3(-6.0, 0.0, -6.0))
+	expect("a ground click sends him away from it and he does not turn back at once", player.attack_target == null and player.movement.has_goal)
+	# Setting up an ability (Take Aim waiting for its target click, an aim key held) holds the auto-engage back.
+	player.movement.has_goal = false
+	player.attack_target = null
+	first._aggro = true
+	player.skills.take_aim_targeting = true
+	for i in 6:
+		await get_tree().physics_frame
+	expect("while Take Aim waits for its target click the hero does not auto-engage", player.attack_target == null and not player.skills.busy)
+	player.skills.take_aim_targeting = false
+	player.skills.aiming_id = "fireball"
+	for i in 6:
+		await get_tree().physics_frame
+	expect("nor while an aimed ability's key is held", player.attack_target == null and not player.skills.busy)
+	player.skills.aiming_id = ""
+	for i in 6:
+		await get_tree().physics_frame
+	expect("and he engages again as soon as the ability is done", player.attack_target == first)
+	player.attack_target = null
+	first._aggro = false
+	# The Cutter engages an awake enemy well beyond the old 12 m from the hero (an archer or thrower stands back), with nothing clicked.
+	var cutter: Player = game.companion
+	if is_instance_valid(cutter):
+		var was_disabled: bool = cutter.testing_disabled
+		cutter.testing_disabled = false
+		player.global_position = Vector3.ZERO
+		player.reset_physics_interpolation()
+		cutter.global_position = Vector3(1.5, 0.0, 1.5)
+		cutter.attack_target = null
+		second.global_position = Vector3(0.0, 0.0, 17.0)
+		second._aggro = true
+		first.global_position = Vector3(60.0, 0.0, 60.0)
+		for i in 8:
+			await get_tree().physics_frame
+		expect("the Cutter engages an awake enemy 17 m from the hero by himself", cutter.attack_target == second)
+		second._aggro = false
+		cutter.attack_target = null
+		cutter.testing_disabled = was_disabled
+	# Leave nothing behind for the next suite: no walk goal, chase, target or queued action.
+	player.movement.has_goal = false
+	player._chasing = false
+	player.attack_target = null
+	player.skills.cancel_action()
+	player.skills.clear_queue()
+	player.click_mode = 0
 	Gamepad.active = was_pad
 	for e in [first, second]:
 		e.queue_free()
@@ -308,7 +375,7 @@ func _test_move_priority() -> void:
 	Input.action_press("stand_still")
 	await _click_ground(destination)
 	Input.action_release("stand_still")
-	expect("Ctrl plus ground click keeps the swing going and does not move (releasing the click ends the engagement)", player.skills.busy and not player.movement.has_goal)
+	expect("Ctrl plus ground click keeps the swing going and does not move ", player.skills.busy and not player.movement.has_goal)
 	player.skills.cancel_action()
 	player.attack_target = null
 
