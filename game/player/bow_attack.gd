@@ -23,6 +23,7 @@ var reload_remaining: float = 0.0
 var sight_refund: float = 0.0   # Executioner's Sight: the share of Take Aim's charge given back by the shot being loosed
 var _draw_arrow: Node3D
 var _bow_holder: Node3D
+var _bow_built: bool = false   # the bow is a model built for this rig: shown and strung where other items are not
 var _quiver: Node3D
 var _string_upper: MeshInstance3D
 var _string_lower: MeshInstance3D
@@ -418,7 +419,14 @@ func _attach_gear() -> void:
 	# Blender Z exports as Godot Y, so the bow is already upright. Rotating it
 	# another quarter-turn made Cutter carry and draw it like a staff.
 	var bow_path: String = p.appearance.bow_model if p.appearance != null and p.appearance.bow_model != "" else BOW_MODEL   # the kit bow follows the same prop convention
-	_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02))
+	# A bow built for this rig (data/appearance/equipment_visuals.json item_models, e.g. the elf's bow) is shown and strung even
+	# where other items are not; it is built to the same convention (upright, 1.58 m, belly -X, string at x +0.065, nocks at +-0.78).
+	var worn: Variant = p.stats.wielded_weapon()
+	var built: Dictionary = {} if worn == null else ModularAppearance.rig(p.model.folder)["item_models"].get(String((worn as Dictionary)["def"]), {})
+	_bow_built = not built.is_empty()
+	if _bow_built:
+		bow_path = String(built["model"])
+	_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02), _bow_built)
 	# The imported quiver is already upright along +Y. Keep it aligned with the spine and add only a slight shoulder cant.
 	var quiver_basis := Basis(Vector3.FORWARD, -0.16)
 	_quiver = _attach_prop(QUIVER_MODEL, "Spine02", 0.78, quiver_basis, Vector3(-0.14, -0.08, 0.08))
@@ -431,7 +439,7 @@ func _attach_gear() -> void:
 	p.add_child(_string_upper)
 	p.add_child(_string_lower)
 
-func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, offset: Vector3) -> Node3D:
+func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, offset: Vector3, built_for_rig: bool = false) -> Node3D:
 	var prop: Node3D = (load(path) as PackedScene).instantiate()
 	LootDrop._use_vertex_colours(prop)
 	var box: AABB = CharacterModel._bounds_of(prop)
@@ -444,7 +452,7 @@ func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, of
 	p.model._mount_for(bone).add_child(holder)
 	holder.add_child(prop)
 	CharacterModel.mark_actor(prop)
-	prop.visible = p.model.show_items   # a rig without item models keeps the nodes, draws no bow
+	prop.visible = p.model.show_items or built_for_rig   # a rig without item models keeps the nodes, draws nothing not built for it
 	prop.position = -box.get_center()
 	holder.set_meta("mesh_bounds", box)
 	return holder
@@ -460,7 +468,7 @@ func _make_bow_cord() -> MeshInstance3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_color = Color(0.22, 0.16, 0.09)
 	mesh.material = mat
-	if p.model.show_items:
+	if p.model.show_items or _bow_built:
 		cord.mesh = mesh
 	cord.top_level = true
 	cord.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
