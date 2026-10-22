@@ -189,7 +189,7 @@ func _test_map_mode_threat() -> void:
 	PartyManager.current().bodies.erase(third.member_id)
 	third.queue_free()
 	player.attack_target = null
-	# Map mode off: healing and taunts change nothing, and an enemy still takes the closest member.
+	# Map mode off: the normal game uses threat too (#109 comment, owner 2026-10-21).
 	MapMode.current = null
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
@@ -199,13 +199,16 @@ func _test_map_mode_threat() -> void:
 	var plain: Enemy = _threat_enemy("zombie", Vector3(5.0, 0.0, 5.0))
 	plain.wake()
 	EnemyRoles.note_heal(cutter, 40.0)
+	expect("normal game: an awake enemy nobody has pulled gets no healing threat", EnemyRoles.threat_of(plain, cutter) == 0.0)
 	EnemyRoles.taunt(plain, player)
-	expect("with map mode off, healing and taunts leave no threat", EnemyRoles.threat_of(plain, cutter) == 0.0 and EnemyRoles.threat_of(plain, player) == 0.0)
+	expect("normal game: a taunt sets the taunter's threat (at least a pull)", EnemyRoles.threat_of(plain, player) == EnemyRoles.PULL_THREAT)
+	EnemyRoles.note_heal(cutter, 40.0)
+	expect("normal game: healing threat reaches an enemy in combat with the party", is_equal_approx(EnemyRoles.threat_of(plain, cutter), 40.0 * EnemyRoles.HEAL_THREAT))
 	plain.set_physics_process(true)
 	plain.target = null
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	expect("with map mode off an enemy still takes the closest member (sticky default)", plain.target == cutter)
+	expect("normal game: an enemy goes for the top threat (the healer, above 130% of the taunter)", plain.target == cutter)
 	plain.queue_free()
 	await get_tree().physics_frame
 	# --- a click on another enemy ------------------------------------------------------------------------------------------------

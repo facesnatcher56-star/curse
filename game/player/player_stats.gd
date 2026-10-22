@@ -279,7 +279,7 @@ func use_potion() -> bool:
 	cooldowns["potion"] = float(SkillDb.all()["potion"]["cd"])
 	var before: float = p.health
 	p.health = minf(p.health + 60.0, p.max_health)
-	EnemyRoles.note_heal(p, p.health - before)   # map mode: the one who drank it
+	EnemyRoles.note_heal(p, p.health - before)   # threat: the one who drank it
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+60", Color(0.4, 1.0, 0.4), 56)
 	return true
 
@@ -523,7 +523,7 @@ func unequip_to_bag(place: int, cell: Vector2i = BagGrid.NONE) -> bool:
 func heal(amount: float, healer: Player = null) -> void:
 	var before: float = p.health
 	p.health = minf(p.health + amount, p.max_health)
-	EnemyRoles.note_heal(healer if healer != null else p, p.health - before)   # map mode: healing threat goes to the healer, not the one healed
+	EnemyRoles.note_heal(healer if healer != null else p, p.health - before)   # threat: healing threat goes to the healer, not the one healed
 	Fx.text_at(p, p.global_position + Vector3(0, 2.4, 0), "+%d" % int(amount), Color(0.4, 1.0, 0.4), 40)
 
 func collect_orbs() -> void:
