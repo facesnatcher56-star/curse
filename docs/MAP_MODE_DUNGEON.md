@@ -9,7 +9,11 @@ godot --path . --screen 1 -- --mapmode
 
 15 nodes, 16 corridors: start (0), 9 enemy nodes (6 packs, one 28-body swarm, 2 champion packs), 4 rewards (2 chests, 2 shrines), the boss (11).
 Forks at nodes 1, 3, 4, 6, 9, 10, 14; the swarm and node 3 are alternatives (1 -> 2 -> 4 or 1 -> 3 -> 4); the rewards are dead-end spurs; the fastest
-route to the boss skips two enemy nodes. Rooms are 40 m or more apart (home to home), corridors run from short (5 cells) to long (25 cells).
+route to the boss skips two enemy nodes. Rooms are 40 m or more apart (home to home).
+**Layout (owner-approved redesign, 2026-10-22):** rooms that join sit side by side in bands (Cloister - Iron Vestry - Charnel Pit, Reliquary - Drowned
+Nave - Ghoul Warren, then the T-shaped Ossuary gallery), corridors are 2 cells (8 m) wide and 2 to 6 cells (8-24 m) long, doors sit in or near the middle
+of walls, every fighting room has cover pillars (`NODES` `cover`), and the round boss court has a black rim outside its wall that hides the floor
+cells the curve clips. 52 x 84 cells; the walk from the Landing to the boss is about 430 m (it was about 610 m).
 
 ## Where things live
 
@@ -36,11 +40,12 @@ The Crypt's loader got three tiny hooks (`scene_path()`, `zone_title()`, `_scene
 
 ## How to edit
 
-* **The graph / rooms.** Edit `NODES` (room rectangle in 4 m cells, centre = where the party arrives = the pack's home, groups, stage) and `LINKS` (a polyline of cell coordinates from room centre to room centre; the cells of its axis-aligned runs outside the rooms become the corridor, and the points are the waypoints). Add chamfers in `CUTS` only to rooms whose doors are mid-wall. Then rebake:
+* **The graph / rooms.** Edit `NODES` (room rectangle in 4 m cells, `extra` rectangles for a shaped room, centre = where the party arrives = the pack's home, groups, stage, `cover` cells for pillars) and `LINKS` (a polyline of cell coordinates from room centre to room centre, running on the x.5 line between a corridor's two cells; the cells of its axis-aligned runs outside the rooms become the corridor, `CORRIDOR_WIDTH` cells wide, and the points are the waypoints). Two spaces that touch get a doorway between them, so rooms and corridors may only touch where the graph joins them. Add chamfers in `CUTS` only to rooms whose doors are mid-wall. Then rebake:
   `godot --headless --path . -s res://tools/build_map_mode_01.gd` (replaces hand edits to the scene).
 * **By hand in the editor.** Open the scene: paint the GridMaps, move props, scatter and markers, exactly as for the Crypt. If you move a room or a marker, keep `MapModeLayout` in step (the tests read the plan *and* the scene).
 * **Keep rooms apart.** No enemy's wake reach (its `aggro_range`, or a ranged thrower's `fire_range`) plus its pack's spread may reach another group's bodies or the party's arrival spot; the test enforces a margin and 40 m between homes.
-* A corridor in this kit is 4 m wide with about 2 m walkable: nothing may stand on a corridor's line (the baker keeps props, braziers and sarcophagi 2.6 to 3.4 m off every link path).
+* A corridor is 8 m wide (two cells): nothing may stand on a corridor's line (the baker keeps props, braziers and sarcophagi 2.6 to 3.4 m off every link path, and cover must be placed off it too).
+* **Walking-game packs** (`MapModeDungeon.corridor_packs`, not in map mode) stand wherever 12.5 m of a link has been walked with no pack within 14 m, on a corridor cell or a room cell at least 28 m from every room's own group, so no walk is longer than 40.5 m (9 s) with nothing in view.
 
 ## Checks
 
