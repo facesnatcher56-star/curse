@@ -443,6 +443,7 @@ func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, of
 	holder.basis = prop_basis.scaled(Vector3.ONE * size / maxf(extent * rig_scale, 0.001))
 	p.model._mount_for(bone).add_child(holder)
 	holder.add_child(prop)
+	CharacterModel.mark_actor(prop)
 	prop.visible = p.model.show_items   # a rig without item models keeps the nodes, draws no bow
 	prop.position = -box.get_center()
 	holder.set_meta("mesh_bounds", box)

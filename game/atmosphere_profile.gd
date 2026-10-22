@@ -64,6 +64,30 @@ static func style_hero_torch(torch: OmniLight3D) -> void:
 	torch.omni_attenuation = 1.4
 	torch.shadow_enabled = SHADOW_CASTING_LOCAL_LIGHTS > 0
 
+## Readability lights for characters only (CharacterModel.ACTOR_LAYER; the world never receives them), riding the camera rig
+## so they follow the view as it turns: a soft key from the camera's side gives bodies form, and a cool rim from beyond them
+## draws a bright edge round every silhouette and along a blade. Characters then stand off the stone in any room, lit or dark.
+const ACTOR_KEY_ENERGY := 0.55
+const ACTOR_RIM_ENERGY := 1.6
+
+static func add_actor_lights(rig: Node3D) -> void:
+	var key := DirectionalLight3D.new()
+	key.name = "ActorKey"
+	key.light_cull_mask = CharacterModel.ACTOR_LAYER
+	key.light_color = Color(1.0, 0.94, 0.86)
+	key.light_energy = ACTOR_KEY_ENERGY
+	key.rotation_degrees = Vector3(-38.0, 18.0, 0.0)   # from behind and above the camera, a little to its left
+	key.light_specular = 0.6
+	rig.add_child(key)
+	var rim := DirectionalLight3D.new()
+	rim.name = "ActorRim"
+	rim.light_cull_mask = CharacterModel.ACTOR_LAYER
+	rim.light_color = Color(0.7, 0.8, 1.0)
+	rim.light_energy = ACTOR_RIM_ENERGY
+	rim.rotation_degrees = Vector3(-30.0, 180.0, 0.0)   # from beyond the characters, back towards the camera
+	rim.light_specular = 1.0
+	rig.add_child(rim)
+
 ## A hero torch for a scene that has none (the town): the same light as main.gd's torch, styled for the atmosphere.
 static func make_hero_torch() -> OmniLight3D:
 	var torch := OmniLight3D.new()
