@@ -34,7 +34,9 @@
       ],
       "item_models": {
         "short_bow": {
-          "model": "res://assets/models/elf/items/elven_bow.glb"
+          "model": "res://assets/models/elf/items/elven_bow.glb",
+          "arrow": "res://assets/models/elf/items/elven_arrow.glb",
+          "quiver": "res://assets/models/elf/items/elven_quiver.glb"
         }
       }
     }

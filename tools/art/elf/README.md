@@ -11,4 +11,8 @@ position/normal bakes.
    export it to `assets/models/elf/items/elven_bow.glb`. It is listed in `data/appearance/equipment_visuals.json`
    (`rigs` → elf → `item_models` → `short_bow`), so the archer code shows it, strung.
 
-After exporting, Godot must import the new GLB.
+3. On an empty scene: `make_elven_arrow_quiver.py` builds the arrow (0.92 m, point up) and the quiver (0.78 m with the
+   arrows standing in it) and exports both to `assets/models/elf/items/`. They are listed with the bow (`arrow`,
+   `quiver`): the archer nocks and shoots that arrow, and the quiver rides on his back.
+
+After exporting, Godot must import the new GLBs.
