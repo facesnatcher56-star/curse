@@ -85,6 +85,39 @@ func _set_pieces() -> void:
 		holder.add_child(_flat_mesh(ring, rune_mat, Vector3(2.2, 0.03, 2.2), Vector3(0, 0.04, 0), 0.0))
 		holder.add_child(_flat_mesh(ring, rune_mat, Vector3(1.5, 0.03, 1.5), Vector3(0, 0.04, 0), 0.0))
 		_add("Decor", holder, "ShrineRunes")
+	_gateways()
+
+
+## A Gateway (the Blender arch and doors, game/world/gateway.gd) across every corridor end: at the middle of the opening, its -Z pointing from the
+## room into the corridor. An opening in a room's south wall faces the camera, so it gets the low one; a round room keeps its own arch.
+func _gateways() -> void:
+	var openings: Dictionary = {}   # "room|corridor" -> {sum (world x, z of the edges), n, out}
+	for r in L.H:
+		for c in L.W:
+			var room: String = L.space_at(c, r)
+			if room == "" or room.begins_with("c") or L.ROUNDS.has(room):
+				continue
+			for d in 4:
+				var step: Vector2i = DIRS[d]
+				var other: String = L.space_at(c + step.x, r + step.y)
+				if not other.begins_with("c"):
+					continue
+				var key: String = "%s|%s" % [room, other]
+				var row: Dictionary = openings.get(key, {"sum": Vector2.ZERO, "n": 0, "out": Vector2(step)})
+				row["sum"] = (row["sum"] as Vector2) + L.world(c, r) + Vector2(step) * C * 0.5
+				row["n"] = int(row["n"]) + 1
+				openings[key] = row
+	for key in openings:
+		var row: Dictionary = openings[key]
+		var at: Vector2 = (row["sum"] as Vector2) / float(row["n"])
+		var out: Vector2 = row["out"]
+		var gate := Node3D.new()
+		gate.set_script(load("res://game/world/gateway.gd"))
+		gate.set("low", out.y > 0.5)   # the corridor leaves through the room's south wall
+		gate.position = Vector3(at.x, 0.0, at.y)
+		gate.rotation.y = atan2(-out.x, -out.y)   # local -Z along `out`
+		_add("SetPieces", gate, "Gateway")
+	_counts["gateways"] = openings.size()
 
 
 ## True when `p` (world x, z) is within `margin` m of a link's path: the lines the party walks stay clear of furniture and props.
