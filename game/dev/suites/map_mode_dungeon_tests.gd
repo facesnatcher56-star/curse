@@ -236,6 +236,38 @@ func _test_map_mode_dungeon() -> void:
 	expect("the minimap paints the start room as floor and leaves the rock between rooms empty",
 		probe_map.kind_at(Vector3(start_pos.x, 0, start_pos.y)) == MinimapMap.K_ROAD and probe_map.kind_at(Vector3(outside.x, 0, outside.y)) == MinimapMap.K_VOID)
 
+	# --- walking pacing (#112): corridor packs keep every stretch under the walking-gap budget ------------------------------------
+	var pace_homes: Array[Vector2] = []
+	for n in nodes:
+		if not (n["groups"] as Array).is_empty():
+			pace_homes.append(n["pos"])
+	var corridor: Array[Vector2] = []
+	for row in MapModeDungeon.corridor_homes_with_links():
+		corridor.append(row["home"])
+	pace_homes.append_array(corridor)
+	var worst_gap: float = 0.0
+	var worst_link: String = ""
+	for link in links:
+		var points: Array[Vector2] = link["waypoints"]
+		var run: float = 0.0
+		for i in points.size() - 1:
+			var leg: float = points[i].distance_to(points[i + 1])
+			var s: float = 0.0
+			while s < leg:
+				var here: Vector2 = points[i].lerp(points[i + 1], s / leg)
+				run = 0.0 if pace_homes.any(func(h: Vector2) -> bool: return here.distance_to(h) <= TestDungeon.PACK_VIEW_RANGE) else run + 1.0
+				if run > worst_gap:
+					worst_gap = run
+					worst_link = "%d-%d" % [int(link["a"]), int(link["b"])]
+				s += 1.0
+	print("  corridor packs: %d, longest walk with nothing in view %.0f m (%s)" % [corridor.size(), worst_gap, worst_link])
+	expect("walking the Sunken Way, no corridor stretch is longer than %.1f m with no pack in view (%d corridor packs, longest %.0f m on %s)" % [TestDungeon.MAX_WALK_GAP, corridor.size(), worst_gap, worst_link],
+		worst_gap <= TestDungeon.MAX_WALK_GAP and not corridor.is_empty())
+	expect("corridor packs stand in corridors, never inside a room", corridor.all(func(h: Vector2) -> bool:
+		var cell: Vector2i = MapModeLayout.cell_of(h)
+		return MapModeLayout.space_at(cell.x, cell.y).begins_with("c")))
+	expect("map mode's dungeon has no corridor packs (off unless the walking game sets it)", not MapModeDungeon.new().corridor_packs)
+
 	# --- run time -----------------------------------------------------------------------------------------------------------------------
 	var fast_min: float = float(fastest["seconds"]) / 60.0
 	var full_min: float = _full_clear_seconds(nodes, links, adj, by_id) / 60.0
