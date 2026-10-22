@@ -57,13 +57,14 @@ func tick(delta: float) -> void:
 	# Cast only a live target: an enemy freed at the end of the last frame is still held by attack_target.
 	var target: Enemy = (p.attack_target as Enemy) if is_instance_valid(p.attack_target) else null
 	if not is_instance_valid(target) or target.dead or target.flat_distance_to(leader) > KEEP_TARGET_FROM_LEADER:
-		target = null
-		for node in p.get_tree().get_nodes_in_group("enemies"):
-			var enemy := node as Enemy
-			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < ENGAGE_FROM_LEADER:
-				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
-	var assist: Enemy = _tank_target(party, leader)
-	if assist != null: target = assist   # threat (issue #109): every member but the tank assists the tank's current target
+		# A new pick: every member but the tank assists the tank's current target (threat, issue #109), else the nearest awake enemy.
+		# A target the player ordered (a click or the companion-attack key) is kept until it falls, as before.
+		target = _tank_target(party, leader)
+		if target == null:
+			for node in p.get_tree().get_nodes_in_group("enemies"):
+				var enemy := node as Enemy
+				if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < ENGAGE_FROM_LEADER:
+					if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
 	if MapMode.active and MapMode.current.state == MapMode.State.FIGHT:   # `--mapmode`: the fight's nearest or focus target, wherever the leader is
 		target = MapMode.current.target_for(p)
 	p.attack_target = target
