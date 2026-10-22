@@ -91,6 +91,8 @@ func _build(tree: SceneTree) -> void:
 		for y in range(y0, y1):
 			for x in range(x0, x1):
 				kinds[y * cols + x] = K_GROUND
+	for node in tree.get_nodes_in_group("crypt_dungeon"):   # a dungeon built from a plan (the Crypt, the Sunken Way): only its rooms and corridors
+		_paint_floor(node)
 	for node in tree.get_nodes_in_group("crypt_road"):
 		_paint_road(node as CryptRoad)
 	for a in arenas:
@@ -153,6 +155,17 @@ func _paint_road(road: CryptRoad) -> void:
 				var centre := Vector2(origin.x + (cx + 0.5) * CELL, origin.y + (cy + 0.5) * CELL)
 				if kinds[cy * cols + cx] != K_VOID and centre.distance_to(Geometry2D.get_closest_point_to_segment(centre, a, b)) <= width:
 					kinds[cy * cols + cx] = K_ROAD
+
+## A planned dungeon: the arena's ground goes, and the plan's walkable cells are painted as floor (ROAD, so the rooms and corridors stand out from
+## the dark backing; the walls are the edge between them).
+func _paint_floor(dungeon: Node) -> void:
+	if dungeon == null or not dungeon.has_method("floor_rects"):
+		return
+	kinds.fill(K_VOID)
+	for r: Rect2 in dungeon.call("floor_rects"):
+		for cy in range(maxi(floori((r.position.y - origin.y) / CELL), 0), mini(ceili((r.end.y - origin.y) / CELL), rows)):
+			for cx in range(maxi(floori((r.position.x - origin.x) / CELL), 0), mini(ceili((r.end.x - origin.x) / CELL), cols)):
+				kinds[cy * cols + cx] = K_ROAD
 
 func _paint_disc(at: Vector2, radius: float) -> void:
 	for cy in range(maxi(floori((at.y - radius - origin.y) / CELL), 0), mini(ceili((at.y + radius - origin.y) / CELL), rows)):
