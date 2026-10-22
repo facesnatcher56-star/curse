@@ -61,6 +61,9 @@ static func build(folder: String, clips: Array[String], fists: bool = true) -> C
 	model.anim = players[0]
 	model.anim.add_animation_library("game", _library(folder, clips))
 	model.anim.mixer_applied.connect(model._after_mixer)
+	var skeleton: Skeleton3D = rigged.find_children("*", "Skeleton3D", true, false)[0]
+	if JointHelpers.has_helpers(skeleton):   # twist and joint-helper bones turn with the joints after every pose (JointHelpers)
+		skeleton.add_child(JointHelpers.new())
 	if fists:
 		model._give_fists(folder)
 	return model
@@ -152,8 +155,16 @@ static func _rest_origin(folder: String, bone: String) -> Vector3:
 	rigged.free()
 	return origin
 
+## Clips played in place of others while it is set (e.g. an archer with his bow out stands in "bow_idle" wherever "idle_alert"
+## is asked for: BowAttack). Only names the library has.
+var aliases: Dictionary = {}
+
+func has_clip(clip: String) -> bool:
+	return anim.has_animation("game/" + clip)
+
 ## Loop a clip (idle/walk/run); does nothing if it is already playing.
 func loop(clip: String, speed: float = 1.0, blend: float = 0.15) -> void:
+	clip = aliases.get(clip, clip)
 	if current == clip:
 		anim.speed_scale = speed
 		return
@@ -163,6 +174,7 @@ func loop(clip: String, speed: float = 1.0, blend: float = 0.15) -> void:
 
 ## Play a clip once, from `start` seconds, at `speed`.
 func once(clip: String, start: float = 0.0, speed: float = 1.0, blend: float = 0.1) -> void:
+	clip = aliases.get(clip, clip)
 	current = clip
 	anim.speed_scale = 1.0
 	anim.play("game/" + clip, blend, speed)

@@ -54,4 +54,6 @@ Codex: the same two servers are in `.codex/config.toml`. Other agents: register 
 (knight2's 24 game bones with their rest rotations, plus three Mixamo-named joints per finger), first built for the barbarian
 hero (`assets/models/barbarian/rigged.glb`). Never ship a playable character on a reduced skeleton or its own bone names.
 Equipment is made to fit the character, not the character to the equipment. The standard, rest pose and checks are in
-[docs/art/PIPELINE.md](docs/art/PIPELINE.md) ("Humanoid skeleton standard").
+[docs/art/PIPELINE.md](docs/art/PIPELINE.md) ("Humanoid skeleton standard"). On top of the 54 bones, rigs get the 9 driven
+twist and joint-helper bones (`tools/art/hero/joint_quality.py`, driven in game by `JointHelpers`; owner approved,
+2026-10-22) so bends stay round and textures do not stretch.
