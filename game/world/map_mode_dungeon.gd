@@ -21,9 +21,10 @@ var _marker_nodes: Array[int] = []        # the node id of each enemy marker, in
 ## the dungeon is walked; map mode, which dashes along the corridors, and the tests that build this dungeon leave it off).
 var corridor_packs: bool = false
 var corridor_homes: Array[Vector2] = []   # where the corridor packs stand (x, z)
-## Corridor packs: a pack stands no farther than this along the corridor from the last place one was in view (so with TestDungeon's
-## PACK_VIEW_RANGE the longest walk with nothing in view stays under TestDungeon.MAX_WALK_GAP), with this many bodies.
-const CORRIDOR_PACK_EVERY := TestDungeon.MAX_WALK_GAP - TestDungeon.PACK_VIEW_RANGE
+## Corridor packs: a pack stands where this many metres have been walked with nothing in view and the spot is a corridor (or far from every
+## fight), so even a short corridor in the middle of a long room-to-room walk gets one; with TestDungeon's PACK_VIEW_RANGE the longest walk with
+## nothing in view stays under TestDungeon.MAX_WALK_GAP. Each has this many bodies.
+const CORRIDOR_PACK_EVERY := TestDungeon.MAX_WALK_GAP - 2.0 * TestDungeon.PACK_VIEW_RANGE
 const CORRIDOR_PACK_SIZE := 3
 var _marker_champions: Array[Dictionary] = []
 
@@ -120,7 +121,7 @@ func spawn_encounters(for_director: RunDirector) -> void:
 
 ## Small packs along every corridor (walking game only): walking each corridor from one room to the other, a pack is placed whenever
 ## CORRIDOR_PACK_EVERY metres have passed with no pack (a room's group or an earlier corridor pack) within TestDungeon.PACK_VIEW_RANGE. A pack
-## stands only on a corridor cell, never inside a room. Its bodies are the plain kinds of the two rooms it joins (no brute, no Warden), at the
+## stands on a corridor cell, or in a long room (the Ossuary's wings) at least two view ranges from every room's own group, never on a fight. Its bodies are the plain kinds of the two rooms it joins (no brute, no Warden), at the
 ## lower of the two rooms' levels.
 func _spawn_corridor_packs() -> void:
 	corridor_homes = corridor_pack_homes()
@@ -162,6 +163,7 @@ static func corridor_homes_with_links() -> Array[Dictionary]:
 	for n in MapModeLayout.nodes():
 		if not (n["groups"] as Array).is_empty():
 			seen.append(n["pos"])
+	var room_groups: Array[Vector2] = seen.duplicate()
 	var out: Array[Dictionary] = []
 	for link in MapModeLayout.links():
 		var points: Array[Vector2] = link["waypoints"]
@@ -173,7 +175,8 @@ static func corridor_homes_with_links() -> Array[Dictionary]:
 				var here: Vector2 = points[i].lerp(points[i + 1], s / leg)
 				var in_view: bool = seen.any(func(h: Vector2) -> bool: return here.distance_to(h) <= TestDungeon.PACK_VIEW_RANGE)
 				unseen = 0.0 if in_view else unseen + 1.0
-				if unseen >= CORRIDOR_PACK_EVERY and _is_corridor(here):
+				var far_from_fights: bool = room_groups.all(func(h: Vector2) -> bool: return here.distance_to(h) >= 2.0 * TestDungeon.PACK_VIEW_RANGE)
+				if unseen >= CORRIDOR_PACK_EVERY and (_is_corridor(here) or far_from_fights):
 					seen.append(here)
 					out.append({"home": here, "a": int(link["a"]), "b": int(link["b"])})
 					unseen = 0.0
