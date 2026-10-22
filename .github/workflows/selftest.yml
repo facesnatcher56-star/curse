@@ -15,6 +15,8 @@ concurrency:
 env:
   GODOT_VERSION: 4.8-dev2
   GODOT_ZIP: Godot_v4.8-dev2_linux.x86_64.zip
+  # The map-mode suites the full self-test does not run (since #112 their rules are the normal game's). Each runs in its own process.
+  MAP_SUITES: mapmode mapgraph championmm championaffixchips mmdrops mmroles mmthreat mmequip mmshield mmrewards mmcutterscreen mmlegend
 
 jobs:
   selftest:
@@ -95,6 +97,15 @@ jobs:
             printf '%s\n' "$run_status" > "suite-logs/$name.exit-code"
           done
 
+      - name: Run map-mode suites
+        run: |
+          mkdir -p suite-logs
+          for name in $MAP_SUITES; do
+            log="suite-logs/$name.log"
+            if timeout 300 ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 --headless --path . res://game/main.tscn -- --selftest --only=$name > "$log" 2>&1; then run_status=0; else run_status=$?; fi
+            printf '%s\n' "$run_status" > "suite-logs/$name.exit-code"
+          done
+
       - name: Python catalog and coverage validation
         run: |
           python3 tools/check_ds2_effect_coverage.py
@@ -123,7 +134,7 @@ jobs:
             read -r run_status < itemlab.exit-code
             python3 tools/ci_check_selftest.py itemlab.log --exit-code "$run_status" --expected-suite itemlab || status=1
           fi
-          for name in powerdamage defensiveresistances dodgeblock opening popupclick itemlablayout itemlabdropdowns equipmentintegration lootappraisal lootrewards ds2items items inventoryequip lootui equipmenthits equipmenteffects elements rangedmods ds2combat uiaudit movepriority uiblock camera knockdown; do
+          for name in powerdamage defensiveresistances dodgeblock opening popupclick itemlablayout itemlabdropdowns equipmentintegration lootappraisal lootrewards ds2items items inventoryequip lootui equipmenthits equipmenteffects elements rangedmods ds2combat uiaudit movepriority uiblock camera knockdown $MAP_SUITES; do
             log="suite-logs/$name.log"
             exit_file="suite-logs/$name.exit-code"
             echo "== $name"
