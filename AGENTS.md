@@ -39,5 +39,11 @@ Dungeon Siege II combat is the baseline; follow [docs/COMBAT_REFERENCE.md](docs/
   and asset work in Blender (inspect the scene first, prefer operators, screenshot to check).
   Blender must be running with the add-on connected. Don't modify an unrelated open scene without asking.
 
-Fall back to scripts or headless runs only when the tools can't do the job or the app isn't open, and say so.
+**Standing owner rule (permanent, every agent, 2026-10-22): edit and work on Curse through the MCP connection
+to the open Curse project whenever possible** (Ziva for Godot, the Blender MCP for models): inspect, edit,
+import, run scenes and take screenshots there, not through a separate command-line Godot or Blender.
+**If the MCP connection to Curse isn't there** (Godot not open on this folder, Ziva not answering, Blender
+MCP not connected), **stop and tell the owner**; don't silently switch to command-line tools. Headless
+command-line runs remain fine only for what the MCP can't do (CI-style selftest suites, rebaking scenes),
+and say so when you use them.
 Codex: the same two servers are in `.codex/config.toml`. Other agents: register them in your own MCP config.
