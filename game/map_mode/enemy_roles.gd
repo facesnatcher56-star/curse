@@ -1,8 +1,7 @@
 class_name EnemyRoles
 extends RefCounted
-## Map-mode enemy targeting (issue #109): MMO-style THREAT. Every number lives in this file.
-## Nothing here runs unless `MapMode.active`: Enemy asks `retarget` only behind that flag, so the default game's "closest living party member,
-## sticky until it dies" targeting is untouched.
+## Enemy targeting (issue #109): MMO-style THREAT, in the normal game and in map mode alike. Every number lives in this file.
+## An enemy nobody has any threat on yet falls back to Enemy's own "closest living party member, sticky until it dies".
 ##
 ## Rules:
 ##   Each enemy has a threat table (party member -> threat) and goes for the member with the most.
@@ -43,7 +42,7 @@ const BACK_MAX := 10.0
 const BACK := 9.0
 const CUTTER_ID := "cutter"
 
-## False restores the old targeting inside map mode (for before/after measurements). The default game never asks.
+## False restores the old closest-member targeting (for before/after measurements).
 static var enabled: bool = true
 
 class State extends RefCounted:
@@ -96,7 +95,7 @@ static func pull(e: Enemy, member: Actor) -> void:
 
 ## Enemy._physics_process: `e` has just noticed the party. The closest member within its aggro range is the one who came into it.
 static func note_noticed(e: Enemy) -> void:
-	if not MapMode.active or not enabled:
+	if not enabled:
 		return
 	var inside: Array = PartyManager.current().living().filter(func(p: Player) -> bool: return e.flat_distance_to(p) <= e.aggro_range)
 	pull(e, closest_of(inside, e.global_position))
@@ -112,7 +111,7 @@ static func pull_group(enemies: Array, members: Array) -> void:
 	for e in enemies:
 		pull(e as Enemy, puller)
 
-## A blow `e` took (Enemy.receive, map mode only): the first member to hit the group pulls it, and every point is threat for the one who dealt it.
+## A blow `e` took (Enemy.receive): the first member to hit the group pulls it, and every point is threat for the one who dealt it.
 static func note_hit(e: Enemy, result: Dictionary, _source_pos: Vector3 = Vector3.ZERO, _now_s: float = -1.0) -> void:
 	var source: Player = result.get("source") as Player
 	if source == null:
@@ -133,7 +132,7 @@ static func has_party_threat(e: Enemy) -> bool:
 ## Life restored to `healer` or by him (a heal, a potion, life steal): HEAL_THREAT per point, split evenly across every enemy that already has a
 ## party member in its threat table (an awake group nobody has pulled gets none).
 static func note_heal(healer: Actor, amount: float) -> void:
-	if not MapMode.active or not enabled or amount <= 0.0 or healer == null or not healer.is_inside_tree():
+	if not enabled or amount <= 0.0 or healer == null or not healer.is_inside_tree():
 		return
 	var engaged: Array[Enemy] = []
 	for node in healer.get_tree().get_nodes_in_group("enemies"):
@@ -145,7 +144,7 @@ static func note_heal(healer: Actor, amount: float) -> void:
 
 ## Provoke hit `e`: the taunter's threat becomes the top plus TAUNT_BONUS (at least a pull). The lock itself is Enemy.provoked_until_ms.
 static func taunt(e: Enemy, taunter: Actor) -> void:
-	if not MapMode.active or not enabled:
+	if not enabled:
 		return
 	var st: State = state_of(e)
 	var top: float = 0.0
@@ -234,7 +233,7 @@ static func choose(e: Enemy, members: Array, now: float) -> Actor:
 			return after if after != null else closest_of(members, e.global_position)
 	return _by_threat(e, st, members)
 
-## Called by Enemy every physics frame in map mode (never in the default game).
+## Called by Enemy every physics frame.
 static func retarget(e: Enemy) -> void:
 	if not enabled or e.dead:
 		return

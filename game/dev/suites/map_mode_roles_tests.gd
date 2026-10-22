@@ -1,6 +1,6 @@
 extends DevSuite
 ## Map mode enemy targeting + dash formation (issues #81, #109): threat picks each target, Provoke overrides it, the Cutter lands 8-10 m behind the warrior,
-## a ghoul stays on the warrior, and with the flag off targeting is exactly the default game's (closest, sticky).
+## a ghoul stays on the warrior, and with the flag off (the normal game) threat picks the target too.
 
 func _frames(count: int) -> void:
 	for i in count:
@@ -14,7 +14,7 @@ func _test_map_mode_roles() -> void:
 	var cutter_was_disabled: bool = cutter.testing_disabled
 	cutter.testing_disabled = false
 	var base: Vector3 = player.global_position
-	# --- Flag off: the default game's targeting is untouched -------------------------------------------------------------------------
+	# --- Flag off: the normal game uses threat too (#109 comment, owner 2026-10-21) --------------------------------------------------
 	expect("flag off at the start", not MapMode.active)
 	var ghoul_off: Enemy = _spawn_enemy(Nav.snap(player, base + Vector3(4.0, 0.0, 0.0)), "ghoul", 1.0)
 	var brute_off: Enemy = _spawn_enemy(Nav.snap(player, base + Vector3(-4.0, 0.0, 0.0)), "brute", 1.0)
@@ -25,13 +25,17 @@ func _test_map_mode_roles() -> void:
 	await _frames(3)
 	var hero_gap: float = ghoul_off.flat_distance_to(player)
 	var cutter_gap: float = ghoul_off.flat_distance_to(cutter)
-	expect("flag off: a ghoul keeps the default closest target (hero %.1f m, Cutter %.1f m)" % [hero_gap, cutter_gap], ghoul_off.target == (player if hero_gap <= cutter_gap else cutter))
+	expect("normal game: with no threat yet a ghoul takes the closest member (hero %.1f m, Cutter %.1f m)" % [hero_gap, cutter_gap], ghoul_off.target == (player if hero_gap <= cutter_gap else cutter))
 	ghoul_off.target = cutter
 	await _frames(4)
-	expect("flag off: a sticky target is never swapped (the hand-off Provoke uses)", ghoul_off.target == cutter)
-	var threat_before: int = EnemyRoles.state_of(brute_off).threat.size()
-	brute_off.receive({"source": player, "damage": 5.0, "outcome": Combat.Outcome.HIT, "weight": 1.0}, base)
-	expect("flag off: no threat is kept", EnemyRoles.state_of(brute_off).threat.size() == threat_before)
+	expect("normal game: with no threat yet a sticky target is not swapped", ghoul_off.target == cutter)
+	ghoul_off.set_physics_process(true)   # Enemy._physics_process is what asks EnemyRoles.retarget
+	ghoul_off.receive({"source": player, "damage": 5.0, "outcome": Combat.Outcome.HIT, "weight": 1.0}, base)
+	await _frames(20)   # past the hit-pause, which freezes the enemy's tick
+	expect("normal game: a hit is threat (pull + the warrior's doubled damage) and takes the enemy from its sticky target", is_equal_approx(EnemyRoles.threat_of(ghoul_off, player), EnemyRoles.PULL_THREAT + 5.0 * EnemyRoles.WARRIOR_THREAT_MULT) and ghoul_off.target == player)
+	player.attack_target = brute_off
+	expect("normal game: a non-tank member assists the tank's current target", cutter.ai._tank_target(PartyManager.current(), player) == brute_off and player.ai._tank_target(PartyManager.current(), player) == null)
+	player.attack_target = null
 	for e in [ghoul_off, brute_off]:
 		e._apply_damage(e.max_health + 10.0)
 

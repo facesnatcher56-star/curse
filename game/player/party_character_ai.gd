@@ -62,6 +62,8 @@ func tick(delta: float) -> void:
 			var enemy := node as Enemy
 			if enemy != null and not enemy.dead and enemy.is_aggro() and enemy.flat_distance_to(leader) < ENGAGE_FROM_LEADER:
 				if target == null or enemy.flat_distance_to(p) < target.flat_distance_to(p): target = enemy
+	var assist: Enemy = _tank_target(party, leader)
+	if assist != null: target = assist   # threat (issue #109): every member but the tank assists the tank's current target
 	if MapMode.active and MapMode.current.state == MapMode.State.FIGHT:   # `--mapmode`: the fight's nearest or focus target, wherever the leader is
 		target = MapMode.current.target_for(p)
 	p.attack_target = target
@@ -108,6 +110,19 @@ func tick(delta: float) -> void:
 		p.movement.has_goal = false
 		p.move_with(Vector3.ZERO)
 		p.movement.update_locomotion_anim()
+
+## The tank's current target when this member is not a tank and that target is a live, awake enemy near the leader; else null.
+func _tank_target(party: PartyManager, leader: Player) -> Enemy:
+	if EnemyRoles.is_tank(p):
+		return null
+	for m in party.living():
+		var tank := m as Player
+		if tank == null or tank == p or not EnemyRoles.is_tank(tank):
+			continue
+		var e: Enemy = (tank.attack_target as Enemy) if is_instance_valid(tank.attack_target) else null
+		if e != null and not e.dead and e.is_aggro() and e.flat_distance_to(leader) <= KEEP_TARGET_FROM_LEADER:
+			return e
+	return null
 
 ## The ordered nest cannot be done (no firing spot for too long, or the party has gone): the order is dropped, with a word to the player.
 func _give_up_prop(reason: String) -> void:
