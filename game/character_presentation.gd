@@ -3,7 +3,7 @@ extends RefCounted
 ## Identity chooses artwork and rig only. Every rig receives the same supported combat clips.
 const MEMBERS := {
 	"hero": {"model": "res://assets/models/barbarian", "portrait": "res://assets/ui/busts/knight.png", "name": "Hero"},
-	"cutter": {"model": "res://assets/models/npc_recruit", "portrait": "res://assets/ui/busts/priest.png", "name": "Cutter"},
+	"cutter": {"model": "res://assets/models/elf", "portrait": "res://assets/ui/busts/priest.png", "name": "Cutter"},
 }
 
 static func folder(member_id: String) -> String:

@@ -6,9 +6,11 @@ extends Node3D
 const LOOPING: Array[String] = ["idle", "walk", "run"]
 
 static var _libraries: Dictionary = {}
-## Rigs that play another rig's clips: same bone names and rest rotations (the barbarian hero was rigged to the knight2
-## skeleton's orientations so the knight's clips drive him until his own animations are made).
-const ANIM_SOURCE := {"res://assets/models/barbarian": "res://assets/models/knight2"}
+## Rigs that play another rig's clips: same bone names and rest rotations (every playable character is rigged to the knight2
+## skeleton's orientations, docs/art/PIPELINE.md). The barbarian bakes his own library from the knight's
+## (tools/build_barbarian_anims.gd); the elf shares the barbarian's, adapted to his proportions.
+const ANIM_SOURCE := {"res://assets/models/barbarian": "res://assets/models/knight2",
+	"res://assets/models/elf": "res://assets/models/barbarian"}
 
 ## Render layer of every character mesh and what it holds, on top of the default layer: AtmosphereProfile.add_actor_lights
 ## lights only this layer, so characters stand out from the stone without the world getting brighter.

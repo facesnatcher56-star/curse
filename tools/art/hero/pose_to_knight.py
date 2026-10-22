@@ -1,3 +1,5 @@
+# Shared by every playable character (docs/art/PIPELINE.md, "Humanoid skeleton standard"). Run with CHAR set in the
+# namespace to the MPFB base mesh name (its rig is CHAR + ".rig"), e.g. exec(src, {"CHAR": "Elf", "FOLDER": "elf"}).
 # Blender: pose the MPFB game_engine rig so every mapped bone points the way the knight2 bone does, and close the hands.
 import bpy, math
 from mathutils import Matrix, Vector, Quaternion
@@ -9,7 +11,8 @@ for s, S in (("l", "Left"), ("r", "Right")):
 ALIGN = [k for k in MAP if k not in ("Hips", "Spine02", "Spine01", "Spine", "neck", "Head")]
 
 knight = bpy.data.objects["Armature"]
-rig = bpy.data.objects["Barbarian.rig"]
+CHAR = globals().get("CHAR", "Barbarian")
+rig = bpy.data.objects[CHAR + ".rig"]
 kdir = {b.name: (knight.matrix_world.to_3x3().normalized() @ b.matrix_local.to_3x3() @ Vector((0, 1, 0))).normalized() for b in knight.data.bones}
 # The knight's hand bone runs along the hand; the MPFB hand bone is a stub, so align the hand by wrist -> middle knuckle.
 bpy.context.view_layer.objects.active = rig

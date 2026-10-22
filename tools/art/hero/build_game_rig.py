@@ -1,4 +1,6 @@
-# Blender: freeze the posed MPFB meshes, build the game skeleton (knight2 names and rest orientations, barbarian joint
+# Shared by every playable character (docs/art/PIPELINE.md, "Humanoid skeleton standard"). Run with CHAR set in the
+# namespace to the MPFB base mesh name (its rig is CHAR + ".rig"), e.g. exec(src, {"CHAR": "Elf", "FOLDER": "elf"}).
+# Blender: freeze the posed MPFB meshes, build the game skeleton (knight2 names and rest orientations, the character's joint
 # positions, cm bones under an Armature scaled 0.01) and move the weights over to it.
 import bpy
 from mathutils import Matrix, Vector
@@ -19,7 +21,8 @@ GROUPS.update(FINGERS)
 
 MAP_INV = {v: k for k, v in MAP.items()}
 knight = bpy.data.objects["Armature"]
-rig = bpy.data.objects["Barbarian.rig"]
+CHAR = globals().get("CHAR", "Barbarian")
+rig = bpy.data.objects[CHAR + ".rig"]
 dg = bpy.context.evaluated_depsgraph_get()
 meshes = [o for o in bpy.data.objects if o.type == 'MESH' and o.parent == rig]
 
@@ -41,9 +44,9 @@ def tail(n): return rig.matrix_world @ rig.pose.bones[n].tail
 kw = knight.matrix_world.to_3x3().normalized()
 krot = {b.name: (kw @ b.matrix_local.to_3x3()).normalized() for b in knight.data.bones}
 pos = {k: head(v) for k, v in MAP.items()}
-top = Vector((pos["Head"].x, pos["Head"].y, max(v.co.z for v in bpy.data.objects["Barbarian"].data.vertices)))
+top = Vector((pos["Head"].x, pos["Head"].y, max(v.co.z for v in bpy.data.objects[CHAR].data.vertices)))
 pos["head_end"] = top
-face_y = min(v.co.y for v in bpy.data.objects["Barbarian"].data.vertices if abs(v.co.z - pos["Head"].z) < 0.01 and abs(v.co.x) < 0.02)
+face_y = min(v.co.y for v in bpy.data.objects[CHAR].data.vertices if abs(v.co.z - pos["Head"].z) < 0.01 and abs(v.co.x) < 0.02)
 pos["headfront"] = Vector((pos["Head"].x, face_y, pos["Head"].z))
 CHILD = {"Hips": "Spine02", "Spine02": "Spine01", "Spine01": "Spine", "Spine": "neck", "neck": "Head", "Head": "head_end"}
 for S in ("Left", "Right"):
@@ -59,10 +62,10 @@ def length(name):
     return 0.1
 
 # 3. New armature: same names, parents and rest rotations as knight2; cm bones, object scale 0.01 (as knight2).
-old = bpy.data.objects.get("BarbarianArmature")
+old = bpy.data.objects.get(CHAR + "Armature")
 if old: bpy.data.objects.remove(old, do_unlink=True)
-arm_data = bpy.data.armatures.new("BarbarianArmature")
-arm = bpy.data.objects.new("BarbarianArmature", arm_data)
+arm_data = bpy.data.armatures.new(CHAR + "Armature")
+arm = bpy.data.objects.new(CHAR + "Armature", arm_data)
 bpy.context.scene.collection.objects.link(arm)
 arm.scale = (0.01, 0.01, 0.01)
 bpy.context.view_layer.objects.active = arm

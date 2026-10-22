@@ -1,7 +1,10 @@
-# Blender (barbarian.blend open): stand the rig on the ground (lowest sole vertex at z = 0), export rigged.glb, save.
+# Shared by every playable character (docs/art/PIPELINE.md, "Humanoid skeleton standard"). Run with CHAR set in the
+# namespace to the MPFB base mesh name (its rig is CHAR + ".rig"), e.g. exec(src, {"CHAR": "Elf", "FOLDER": "elf"}).
+# Blender (the character's finished .blend open; FOLDER = its assets/models folder): stand the rig on the ground (lowest sole vertex at z = 0), export rigged.glb, save.
 import bpy
 from mathutils import Matrix, Vector
-OUT = r"C:\Users\lloyd\OneDrive\Documents\curse\assets\models\barbarian\rigged.glb"
+FOLDER = globals().get("FOLDER", "barbarian")
+OUT = r"C:\Users\lloyd\OneDrive\Documents\curse\assets\models\%s\rigged.glb" % FOLDER
 arm = bpy.data.objects["Armature"]
 body = bpy.data.objects["body_skin"]
 dg = bpy.context.evaluated_depsgraph_get()

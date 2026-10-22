@@ -4,9 +4,11 @@ SCR = r"C:\Users\lloyd\OneDrive\Documents\curse\tools\art\barbarian"
 SRC_DIR = r"C:\Users\lloyd\OneDrive\Documents\curse\assets\art_staging\barbarian\source"
 OUT = r"C:\Users\lloyd\OneDrive\Documents\curse\assets\models\barbarian\rigged.glb"
 BLEND = r"C:\Users\lloyd\OneDrive\Documents\curse\assets\art_staging\barbarian\source\barbarian.blend"
+HERO = r"C:\Users\lloyd\OneDrive\Documents\curse\tools\art\hero"
+SHARED = ("pose_to_knight.py", "build_game_rig.py", "ground_and_export.py")
 def run(name):
-    ns = {}
-    exec(open(os.path.join(SCR, name)).read(), ns)
+    ns = {"CHAR": "Barbarian", "FOLDER": "barbarian"}
+    exec(open(os.path.join(HERO if name in SHARED else SCR, name)).read(), ns)
     return ns.get("result")
 log = {}
 log["pose"] = run("pose_to_knight.py")
