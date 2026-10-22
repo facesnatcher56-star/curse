@@ -495,6 +495,16 @@ func pad_facing_target() -> Actor:
 	_pad_target = best
 	return best
 
+## How forgiving the enemy pick is (owner: "easy to miss-click the enemy and click the ground, that kills the feel"). Around each
+## enemy's body on screen the cursor also counts within PICK_MARGIN_M of body (in that enemy's own screen scale, so a far enemy
+## is not padded more than a near one) plus PICK_MARGIN_PX; at the feet the ground point counts within PICK_GROUND_MARGIN of
+## its body. Between enemies the nearest to the cursor wins, and the one already being fought wins a near tie (PICK_STICKY), so
+## clicks in a melee do not hop between targets. The hover highlight uses the same pick, so what lights up is what a click takes.
+const PICK_MARGIN_M := 0.3
+const PICK_MARGIN_PX := 8.0
+const PICK_GROUND_MARGIN := 0.6
+const PICK_STICKY := 0.75
+
 ## Enemy under the mouse, picked in screen space: pointing at a head or chest counts, not just the feet.
 func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0)) -> Actor:
 	if mouse_override.x < 0.0 and test_mouse.x >= 0.0:
@@ -521,9 +531,12 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 		var feet: Vector2 = camera.unproject_position(origin)
 		var head: Vector2 = camera.unproject_position(origin + Vector3(0, e.body_height, 0))
 		var pixels_per_metre: float = maxf(feet.distance_to(head) / e.body_height, 1.0)
-		var reach: float = minf(e.body_radius * pixels_per_metre + 4.0, 90.0)   # close to the camera the projection blows up
+		# close to the camera the projection blows up, hence the cap
+		var reach: float = minf((e.body_radius + PICK_MARGIN_M) * pixels_per_metre + PICK_MARGIN_PX, 110.0)
 		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(mouse, feet, head)
 		var d: float = mouse.distance_to(closest)
+		if e == attack_target:
+			d *= PICK_STICKY
 		if d <= reach and d < best_score:
 			best_score = d
 			best = e
@@ -535,7 +548,7 @@ func _hover_pick(cursor: Vector3, mouse_override: Vector2 = Vector2(-1.0, -1.0))
 				continue
 			var gap: Vector3 = e.global_position - cursor
 			gap.y = 0.0
-			if gap.length() <= e.body_radius + 0.15 and gap.length() < best_score:
+			if gap.length() <= e.body_radius + PICK_GROUND_MARGIN and gap.length() < best_score:
 				best_score = gap.length()
 				best = e
 	return best

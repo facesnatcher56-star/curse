@@ -398,6 +398,49 @@ func _test_ui_block() -> void:
 	player.cursor_override = Vector3.INF
 	await get_tree().process_frame
 
+## A click just off an enemy's body still takes the enemy (owner: missing an enemy and clicking the ground killed the feel); a click
+## clearly away from it is still the ground; between two enemies the one being fought wins a near tie.
+func _test_forgiving_pick() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	await get_tree().process_frame
+	player.global_position = Vector3(0, 0, 0)
+	player.reset_physics_interpolation()
+	player.attack_target = null
+	game.rig.global_position = player.global_position
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var enemy: Enemy = _spawn_enemy(Vector3(2.5, 0, -1.0))
+	enemy.aggro_range = 0.0
+	await get_tree().create_timer(0.3).timeout
+	var feet: Vector2 = camera.unproject_position(enemy.global_position)
+	var head: Vector2 = camera.unproject_position(enemy.global_position + Vector3(0, enemy.body_height, 0))
+	var ppm: float = feet.distance_to(head) / enemy.body_height
+	var mid: Vector2 = (feet + head) * 0.5
+	var side: Vector2 = (head - feet).orthogonal().normalized()
+	var old_reach: float = enemy.body_radius * ppm + 4.0
+	var near_miss: Vector2 = mid + side * (old_reach + 12.0)   # outside the old pick, a near miss a player makes
+	var far_miss: Vector2 = mid + side * ((enemy.body_radius + Player.PICK_MARGIN_M) * ppm + Player.PICK_MARGIN_PX + 40.0)
+	print("  forgiving pick: %.0f px per metre, old reach %.0f px, near miss at %.0f px, far at %.0f px" % [ppm, old_reach,
+		near_miss.distance_to(mid), far_miss.distance_to(mid)])
+	expect("a click just beside an enemy's body takes the enemy", player._hover_pick(Vector3(99, 0, 99), near_miss) == enemy)
+	expect("a click clearly away from it is still the ground", player._hover_pick(Vector3(99, 0, 99), far_miss) == null)
+	# Two enemies side by side: the cursor halfway between them goes to the one already being fought.
+	var other: Enemy = _spawn_enemy(Vector3(3.3, 0, -1.0))
+	other.aggro_range = 0.0
+	await get_tree().create_timer(0.3).timeout
+	var between: Vector2 = (camera.unproject_position(enemy.global_position + Vector3(0, enemy.body_height * 0.5, 0))
+		+ camera.unproject_position(other.global_position + Vector3(0, other.body_height * 0.5, 0))) * 0.5
+	player.attack_target = other
+	expect("between two enemies the one being fought wins", player._hover_pick(Vector3(99, 0, 99), between) == other)
+	player.attack_target = enemy
+	expect("and the other way round", player._hover_pick(Vector3(99, 0, 99), between) == enemy)
+	player.attack_target = null
+	enemy.queue_free()
+	other.queue_free()
+	await get_tree().process_frame
+
 ## An enemy behind the camera must never be picked: Camera3D.unproject_position mirrors such points back onto the screen, so one
 ## standing behind the view used to be "under" the cursor (highlighted and chased on click) while nothing visible was there.
 func _test_hover_behind_camera() -> void:
