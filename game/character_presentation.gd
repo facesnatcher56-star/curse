@@ -2,7 +2,7 @@ class_name CharacterPresentation
 extends RefCounted
 ## Identity chooses artwork and rig only. Every rig receives the same supported combat clips.
 const MEMBERS := {
-	"hero": {"model": "res://assets/models/knight2", "portrait": "res://assets/ui/busts/knight.png", "name": "Hero"},
+	"hero": {"model": "res://assets/models/barbarian", "portrait": "res://assets/ui/busts/knight.png", "name": "Hero"},
 	"cutter": {"model": "res://assets/models/npc_recruit", "portrait": "res://assets/ui/busts/priest.png", "name": "Cutter"},
 }
 

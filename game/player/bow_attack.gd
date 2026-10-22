@@ -443,6 +443,7 @@ func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, of
 	holder.basis = prop_basis.scaled(Vector3.ONE * size / maxf(extent * rig_scale, 0.001))
 	p.model._mount_for(bone).add_child(holder)
 	holder.add_child(prop)
+	prop.visible = p.model.show_items   # a rig without item models keeps the nodes, draws no bow
 	prop.position = -box.get_center()
 	holder.set_meta("mesh_bounds", box)
 	return holder
@@ -458,7 +459,8 @@ func _make_bow_cord() -> MeshInstance3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_color = Color(0.22, 0.16, 0.09)
 	mesh.material = mat
-	cord.mesh = mesh
+	if p.model.show_items:
+		cord.mesh = mesh
 	cord.top_level = true
 	cord.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cord.visible = false

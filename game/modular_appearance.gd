@@ -2,10 +2,17 @@ class_name ModularAppearance
 extends RefCounted
 ## Worn equipment as visible meshes on the common character rig.
 ##
-## The hero rig (assets/models/knight2) keeps its skeleton and every game clip; its fused armoured mesh is replaced by
-## separate skinned pieces, one GLB per piece (assets/models/modular/*.glb, made by tools/art/modular_export.py). Which
+## The hero rig keeps its skeleton and every game clip; what it wears is separate skinned pieces, one GLB per piece. Which
 ## pieces show is a pure function of the equipped items (`pieces_for`) through data/appearance/equipment_visuals.json, so
 ## save/load restores the look from the item state alone and new equipment is a new GLB plus a table row.
+##
+## Per rig (table "rigs", keyed by the rig folder): where its pieces live, which pieces it always wears, and whether item
+## pieces show at all. Pieces are made to fit the rig, not the other way round; the barbarian hero has
+## `equipment_pieces: false` until his item models are built (owner), so he shows only his base and CharacterModel draws no
+## held weapon or bow for him (`show_items`). A rig's own meshes whose names are base piece ids (the barbarian's
+## body_skin, body_hair, body_beard, clt_briefs) are built-in pieces, shown or hidden like any other piece, never
+## reloaded. Any other mesh of the rig (the knight's fused armoured char1) is dropped. A rig with no entry uses the
+## table's top-level model_dir and base (the knight2 kit).
 ##
 ## Binding: a piece's GLB carries its own copy of the Meshy skeleton only to name the joints. The mesh is re-parented under
 ## the character's Skeleton3D and given a Skin built from that skeleton's real rest poses, so it deforms with every clip.
@@ -21,6 +28,8 @@ var skeleton: Skeleton3D
 var worn: Array[String] = []        # piece ids currently attached, sorted
 var _nodes: Dictionary = {}         # piece id -> Array of MeshInstance3D
 var bow_model: String = ""          # res:// path of the equipped bow's GLB, "" when none
+var _dir: String = ""               # where this rig's pieces live
+var _builtin: Dictionary = {}       # piece id -> the rig's own MeshInstance3D for it
 
 static func table() -> Dictionary:
 	if _table.is_empty():
@@ -37,10 +46,20 @@ static func _entry(item: Variant) -> Dictionary:
 		return {}
 	return table().get("items", {}).get(String((item as Dictionary).get("def", "")), {})
 
-## The pieces that show for an equipment dictionary ({Items.Slot: item}); the order is stable (sorted).
-static func pieces_for(equipment: Dictionary) -> Array[String]:
+## The table entry for a rig folder: {model_dir, base, equipment_pieces}; falls back to the top-level knight2 kit.
+static func rig(folder: String) -> Dictionary:
+	var entry: Dictionary = table().get("rigs", {}).get(folder, {})
+	return {"model_dir": entry.get("model_dir", table().get("model_dir", "")), "base": entry.get("base", table().get("base", [])),
+		"equipment_pieces": entry.get("equipment_pieces", true)}
+
+## The pieces that show for an equipment dictionary ({Items.Slot: item}) on a rig; the order is stable (sorted). A rig
+## whose item models are not built yet shows only its base, whatever it wears.
+static func pieces_for(equipment: Dictionary, folder: String = CharacterPresentation.folder("hero")) -> Array[String]:
 	var pieces: Array[String] = []
-	pieces.assign(table().get("base", []))
+	pieces.assign(rig(folder)["base"])
+	if not rig(folder)["equipment_pieces"]:
+		pieces.sort()
+		return pieces
 	var hidden: Array = []
 	for slot in WORN_SLOTS:
 		var entry := _entry(equipment.get(slot))
@@ -57,37 +76,45 @@ static func pieces_for(equipment: Dictionary) -> Array[String]:
 
 static func bow_model_for(equipment: Dictionary) -> String:
 	var id: String = String(_entry(equipment.get(Items.Slot.WEAPON)).get("bow_model", ""))
-	return "" if id == "" else String(table()["model_dir"]) + id + ".glb"
+	return "" if id == "" else String(table()["model_dir"]) + id + ".glb"   # rigid prop: rig independent
 
 func _init(character_model: CharacterModel) -> void:
 	model = character_model
 	skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
-	# the fused armoured knight mesh of the source rig is replaced by the pieces
+	var entry := ModularAppearance.rig(model.folder)
+	_dir = String(entry["model_dir"])
 	for mesh in skeleton.find_children("*", "MeshInstance3D", false, false):
-		skeleton.remove_child(mesh)
-		mesh.queue_free()
+		var piece := String(mesh.name)
+		if (entry["base"] as Array).has(piece):
+			_builtin[piece] = mesh   # the rig's own body, hair, beard, underwear: shown while worn
+			mesh.visible = false
+		else:
+			skeleton.remove_child(mesh)   # e.g. the knight's fused armoured mesh, replaced by the pieces
+			mesh.queue_free()
 
 ## Brings the attached pieces in line with `equipment`. Returns true when anything changed.
 func sync(equipment: Dictionary) -> bool:
 	bow_model = ModularAppearance.bow_model_for(equipment)
-	var wanted := ModularAppearance.pieces_for(equipment)
+	var wanted := ModularAppearance.pieces_for(equipment, model.folder)
 	if wanted == worn:
 		return false
+	for piece in _builtin:
+		(_builtin[piece] as MeshInstance3D).visible = wanted.has(piece)
 	for piece in worn:
-		if not wanted.has(piece):
+		if not wanted.has(piece) and not _builtin.has(piece):
 			for node in _nodes.get(piece, []):
 				if is_instance_valid(node):
 					node.get_parent().remove_child(node)   # now, so a re-added piece keeps its name
 					node.queue_free()
 			_nodes.erase(piece)
 	for piece in wanted:
-		if not worn.has(piece):
+		if not worn.has(piece) and not _builtin.has(piece):
 			_nodes[piece] = _attach(piece)
 	worn = wanted
 	return true
 
 func _attach(piece: String) -> Array:
-	var path: String = String(table()["model_dir"]) + piece + ".glb"
+	var path: String = _dir + piece + ".glb"
 	if not _scenes.has(path):
 		_scenes[path] = load(path)
 	var inst: Node = (_scenes[path] as PackedScene).instantiate()

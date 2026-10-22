@@ -24,7 +24,7 @@ func pieces(hero: Player) -> Array:
 func attached(hero: Player) -> Array:
 	var names: Array = []
 	for node in hero.appearance.skeleton.get_children():
-		if node is MeshInstance3D and not node.is_queued_for_deletion():
+		if node is MeshInstance3D and (node as MeshInstance3D).visible and not node.is_queued_for_deletion():   # the rig's own body pieces hide rather than detach
 			names.append(String(node.name))
 	names.sort()
 	return names
@@ -48,8 +48,8 @@ func run() -> void:
 	if "--classic" in OS.get_cmdline_user_args():
 		# classic opt-out: the classic presentation must be exactly the old one
 		check("classic: no modular appearance on the hero", hero.appearance == null and not ModularAppearance.enabled_for("hero"))
-		check("classic: fused knight mesh present", not hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
-		check("classic: gauntlet fists mounted on both hands", hero.model._mounts.has("RightHand") and hero.model._mounts.has("LeftHand"))
+		check("classic: the rig's own body shows", not hero.model.find_children("body_skin", "MeshInstance3D", true, false).is_empty())
+		check("classic: the hands are the rig's own (no gauntlet fists on the barbarian)", hero.model._mounts.is_empty())
 		hero.stats.wear(Items.Slot.ARMOR, item(Items.Slot.ARMOR, "Plate Cuirass"))
 		check("classic: equipping armour adds no pieces and does not error", hero.appearance == null)
 		check("classic: cutter unchanged", PartyManager.current().bodies["cutter"].appearance == null)
@@ -65,36 +65,34 @@ func run() -> void:
 		if arg.begins_with("--shots="):
 			shots = arg.substr(8)
 
-	# --- starting gear: leather jerkin only
-	check("starting gear shows base body + jerkin", pieces(hero) == ["body_beard", "body_hair", "body_skin", "clt_gambeson", "tor_leather"])
+	# --- the barbarian hero shows no item models until his are built (owner, 2026-10-22): every outfit shows only his own
+	# body, hair, beard and briefs, and equipping still changes nothing but stats
+	var base := ["body_beard", "body_hair", "body_skin", "clt_briefs"]
+	check("starting gear shows only his own body", pieces(hero) == base)
 	check("only the pieces in the table are attached", attached(hero) == pieces(hero))
 	check("source knight mesh is gone", hero.model.find_children("char1", "MeshInstance3D", true, false).is_empty())
+	check("the held weapon keeps its nodes but draws nothing (its model is hidden)", hero.model.weapon != null
+		and not (hero.model.weapon.get_child(0) as Node3D).visible and hero.model.weapon_tip != null)
 
 	# --- equip / unequip
 	hero.stats.wear(Items.Slot.ARMOR, item(Items.Slot.ARMOR, "Plate Cuirass"))
-	check("equip plate cuirass swaps jerkin for plate body+arms", pieces(hero) == ["arm_plate", "body_beard", "body_hair", "body_skin", "clt_gambeson", "tor_plate"])
+	check("equip plate cuirass adds no pieces", pieces(hero) == base)
 	hero.stats.wear(Items.Slot.HELM, item(Items.Slot.HELM, "Iron Helm"))
 	hero.stats.wear(Items.Slot.GLOVES, item(Items.Slot.GLOVES, "Iron Gauntlets"))
 	hero.stats.wear(Items.Slot.BOOTS, item(Items.Slot.BOOTS, "Iron Greaves"))
 	hero.stats.wear(Items.Slot.SHIELD, item(Items.Slot.SHIELD, "Kite Shield"))
-	var plate := ["arm_plate", "body_skin", "bts_plate", "clt_gambeson", "glv_plate", "hlm_great", "leg_plate", "shd_kite", "tor_plate"]
-	check("full plate set", pieces(hero) == plate and attached(hero) == plate)
+	check("full plate set adds no pieces and keeps his hair", pieces(hero) == base and attached(hero) == base)
 	hero.stats.unequip(Items.Slot.HELM)
-	check("unequip helm removes only the helm", pieces(hero) == ["arm_plate", "body_beard", "body_hair", "body_skin", "bts_plate", "clt_gambeson", "glv_plate", "leg_plate", "shd_kite", "tor_plate"]
-		and attached(hero) == pieces(hero))
 	hero.stats.unequip(Items.Slot.ARMOR)
-	check("unequip body armour keeps the gambeson base", not pieces(hero).has("tor_plate") and pieces(hero).has("clt_gambeson"))
+	check("unequipping leaves his own body", pieces(hero) == base and attached(hero) == base)
 
 	# --- mixed combinations
 	wear_set(hero, {Items.Slot.ARMOR: item(Items.Slot.ARMOR, "Apprentice Robe"), Items.Slot.HELM: item(Items.Slot.HELM, "Woven Hood"),
 		Items.Slot.BOOTS: item(Items.Slot.BOOTS, "Sorcerer Boots")})
-	check("mage: robe hides the gambeson, hood and boots show", pieces(hero) == ["arm_mantle", "body_beard", "body_skin", "bts_sorcerer", "hlm_hood", "robe_mage"])
+	check("mage set adds no pieces", pieces(hero) == base and attached(hero) == base)
 	wear_set(hero, {Items.Slot.ARMOR: item(Items.Slot.ARMOR, "Leather Jerkin"), Items.Slot.HELM: item(Items.Slot.HELM, "Iron Helm"),
 		Items.Slot.GLOVES: item(Items.Slot.GLOVES, "Iron Gauntlets"), Items.Slot.BOOTS: item(Items.Slot.BOOTS, "Leather Boots")})
-	check("mixed leather body with plate helm and gauntlets", pieces(hero) == ["body_skin", "bts_leather", "clt_gambeson", "glv_plate", "hlm_great", "tor_leather"])
-	wear_set(hero, {Items.Slot.ARMOR: item(Items.Slot.ARMOR, "Plate Cuirass"), Items.Slot.HELM: item(Items.Slot.HELM, "Leather Cap"),
-		Items.Slot.GLOVES: item(Items.Slot.GLOVES, "Leather Gloves"), Items.Slot.BOOTS: item(Items.Slot.BOOTS, "Iron Greaves")})
-	check("mixed plate body, cap, leather gloves, greaves", pieces(hero) == ["arm_plate", "body_beard", "body_skin", "bts_plate", "clt_gambeson", "glv_leather", "hlm_cap", "leg_plate", "tor_plate"])
+	check("mixed set adds no pieces", pieces(hero) == base and attached(hero) == base)
 
 	# --- skinning bound to the real skeleton
 	var ok_bind := true
@@ -112,7 +110,7 @@ func run() -> void:
 	var before: Array = pieces(hero).duplicate()
 	var saved: Dictionary = JSON.parse_string(JSON.stringify(PartyManager.current().to_dict()))
 	wear_set(hero, {})
-	check("wiped look is base only", pieces(hero) == ["body_beard", "body_hair", "body_skin", "clt_gambeson"])
+	check("wiped look is base only", pieces(hero) == base)
 	PartyManager.current().load_data(saved)
 	hero.refresh_appearance()
 	check("save/load restores the same worn pieces", pieces(hero) == before and attached(hero) == before)

@@ -5,7 +5,7 @@ extends Node3D
 const SKIP_MENU := false
 const DUNGEON_SCENE := "res://game/main.tscn"
 const TOWN_SCENE := "res://game/town.tscn"   # reachable via dev flag --town
-const KNIGHT_DIR := "res://assets/models/knight2"
+const KNIGHT_DIR := "res://assets/models/barbarian"   # the hero (the barbarian replaced the knight)
 const ZOMBIE_DIR := "res://assets/models/zombie"
 
 var _camera: Camera3D

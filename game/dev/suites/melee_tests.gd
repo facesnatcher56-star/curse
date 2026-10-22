@@ -859,13 +859,20 @@ func _test_fists() -> void:
 	await get_tree().process_frame
 	var model: CharacterModel = player.model
 	await get_tree().create_timer(0.3).timeout
-	expect("each hand has its own closed fist", model._mounts.size() == 2 and model._mounts["RightHand"].get_child_count() >= 1
-		and model._mounts["LeftHand"].get_child_count() == 1)
-	expect("the sword is held by the right fist's mount", model.weapon != null and model.weapon.get_parent() == model._mounts["RightHand"])
 	var skeleton: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
-	expect("the open hand meshes are shrunk away inside the wrists", skeleton.get_bone_pose_scale(skeleton.find_bone("RightHand")).x < 0.1
-		and skeleton.get_bone_pose_scale(skeleton.find_bone("LeftHand")).x < 0.1)
-	expect("the fist is not shrunk with them", (model._mounts["RightHand"] as Node3D).transform.basis.get_scale().x > 0.5)
+	if ResourceLoader.exists(model.folder + "/fist_r.glb"):   # a rig with flat open hands wears gauntlet fists (the knight)
+		expect("each hand has its own closed fist", model._mounts.size() == 2 and model._mounts["RightHand"].get_child_count() >= 1
+			and model._mounts["LeftHand"].get_child_count() == 1)
+		expect("the sword is held by the right fist's mount", model.weapon != null and model.weapon.get_parent() == model._mounts["RightHand"])
+		expect("the open hand meshes are shrunk away inside the wrists", skeleton.get_bone_pose_scale(skeleton.find_bone("RightHand")).x < 0.1
+			and skeleton.get_bone_pose_scale(skeleton.find_bone("LeftHand")).x < 0.1)
+		expect("the fist is not shrunk with them", (model._mounts["RightHand"] as Node3D).transform.basis.get_scale().x > 0.5)
+	else:   # a rig with its own gripping hands (the barbarian hero: finger bones, hands closed in the grip at rest)
+		expect("no gauntlet fists on a rig with its own hands", model._mounts.is_empty())
+		expect("the sword rides the right hand bone", model.weapon != null and model.weapon.get_parent() is BoneAttachment3D
+			and (model.weapon.get_parent() as BoneAttachment3D).bone_name == "RightHand")
+		expect("his hands are not shrunk", skeleton.get_bone_pose_scale(skeleton.find_bone("RightHand")).x > 0.9
+			and skeleton.get_bone_pose_scale(skeleton.find_bone("LeftHand")).x > 0.9)
 	player.combat_timer = 0.0
 	player.movement.idle_time = 0.0
 	player.movement.update_locomotion_anim()

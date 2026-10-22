@@ -18,33 +18,44 @@ Blender is the source for hand-built models (`tools/blender/`). Every export use
   white on a joined mesh (Blender 5.2 exporter issue, see `tools/blender/make_crypt_props.py`), split the object by material and
   export each piece alone.
 
-## Humanoid skeleton standard (knight2 game rig)
+## Humanoid skeleton standard: the detailed hero skeleton (owner rule, 2026-10-22)
 
-The live knight2 game skeleton, `assets/models/knight2/rigged.glb`, is the **humanoid standard**, not the experimental Blender
-rig. It is the target for modular player equipment. Lane A has
-demonstrated the live-game path: its equipment kit is retargeted onto knight2 (commit a05f2ac). The table below is verified
-against that rig, read directly from its skin. It has **24 joints** under one armature object, `Armature`, with `Hips` under it.
-There is **no `Root` bone**: `Hips` is the top bone.
+**Every playable character uses this skeleton, now and from now on** (owner, project-wide): the 54-bone detailed humanoid
+rig first built for the barbarian hero, `assets/models/barbarian/rigged.glb` (source
+`assets/art_staging/barbarian/source/barbarian.blend`). A new playable character is rigged to it from the start; do not ship
+a playable character on a reduced skeleton (no fingers, no toes) or on its own bone names.
 
-The experiment rig is **not interchangeable** with knight2. It differs in bone names and rest pose, so animation clips, bone
-attachments and the Godot code (`game/character_model.gd`) cannot be assumed to carry over. Do not build player equipment to the
-experiment rig.
+It is the knight2 game skeleton (24 bones, the names, parents and **rest rotations** the game clips and code use) plus
+**three joints per finger** with Mixamo names, so Mixamo-style animations retarget onto it and hands can open, close and grip.
+One armature object, `Armature`, bones in centimetres with the object scaled 0.01 (as knight2), `Hips` the top bone (no `Root`).
 
 | Bone | Parent | Notes |
 | --- | --- | --- |
-| `Hips` | none (top bone) | Pelvis; drives the body. |
+| `Hips` | none (top bone) | Pelvis; drives the body. Clips key its position. |
 | `Spine02`, `Spine01`, `Spine` | `Hips`, then the one above | Spine chain; `Spine` is the chest. |
 | `neck` | `Spine` | Lowercase, as in the Knight. |
 | `Head` | `neck` | |
-| `head_end`, `headfront` | `Head` | Helper bones present in the Knight; kept for compatibility. Their deformation role is not verified. |
-| `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` | `Spine` | Shoulder to hand. |
+| `head_end`, `headfront` | `Head` | Top of the head and the face direction (helpers; no skin weights). |
+| `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` | `Spine` | Collarbone, upper arm, forearm, wrist. |
 | `RightShoulder`, `RightArm`, `RightForeArm`, `RightHand` | `Spine` | Mirror of the left side. |
-| `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase` | `Hips` | Leg chain. |
+| `LeftHandThumb1..3`, `LeftHandIndex1..3`, `LeftHandMiddle1..3`, `LeftHandRing1..3`, `LeftHandPinky1..3` | `LeftHand`, then the joint before | 15 finger joints per hand. |
+| `RightHandThumb1..3` ... `RightHandPinky1..3` | `RightHand`, then the joint before | Mirror of the left side. |
+| `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase` | `Hips` | Hip, knee, ankle, toes. |
 | `RightUpLeg`, `RightLeg`, `RightFoot`, `RightToeBase` | `Hips` | Mirror of the left side. |
 
-- **Rest pose: A-pose**, as the Knight's animation clips are built on it (owner direction). Do not use a T-pose rest.
-- No finger bones. Hands are a single grip shape (the Knight's hands have no finger rig, and the code relies on that).
+- **Rest pose:** the 24 core bones keep knight2's rest rotations exactly (checked to within 0.1 degree), so the game clips play
+  on any character built to the standard; only joint positions follow the character's own proportions. The arms are in the
+  knight's A-pose (elbows bent forward). Fingers rest **closed in the weapon grip**: no game clip keys them yet, so they hold
+  that grip, and an animation that does key them can open the hand.
+- **Feet on the ground:** the lowest sole vertex at height 0 in the rest pose.
+- **Clips from a rig with other proportions:** `CharacterModel.ANIM_SOURCE` borrows another rig's clips; the hips track is
+  moved by the difference of the two rests and other position tracks are dropped (`CharacterModel._borrowed`).
 - Weapons attach to `RightHand` (or `LeftHand` for off-hand items). Do not add extra attachment bones.
+- Equipment is made to fit the character, never the character to the equipment (owner). Pieces are skinned to these bone
+  names. The barbarian has no item models yet (new weapons, armour and animations are to be built for him), so he shows
+  none: `equipment_pieces: false` in `data/appearance/equipment_visuals.json`.
+- The old knight2 rig (`assets/models/knight2`, 24 bones, no fingers, hands replaced by gauntlet fists) is the clip source and
+  the reference for the rest rotations; it is no longer the target for new playable characters.
 
 ## Enemy rigs
 
@@ -103,7 +114,7 @@ category.
 
 1. Visible triangle count is within its class guideline, or the overage is justified in the commit.
 2. Origin at the feet (or the base for props), scale in metres, transforms applied.
-3. Player equipment follows the player skeleton table above, rest pose A-pose, under one armature. Enemy rigs follow the Enemy rigs section.
+3. Player characters and equipment follow the humanoid skeleton standard above (54 bones, rest pose as described), under one armature. Enemy rigs follow the Enemy rigs section.
 4. Names follow the conventions above.
 5. Reads as a silhouette from the far zoom-out.
 

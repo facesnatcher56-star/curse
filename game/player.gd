@@ -8,7 +8,7 @@ signal power_activated(member_id: String, power_id: String)
 ##  - Ctrl (hold): stand still, so clicks and skills never move the hero.
 ##  - Attacks and casts root the hero until the swing finishes (StandStillToCast).
 
-const MODEL_DIR := "res://assets/models/knight2"
+const MODEL_DIR := "res://assets/models/barbarian"
 const HELD_SCALE := 0.85   # how much of a weapon's real length shows in the hand
 const SWORD_PATH := "res://assets/models/sword/model.glb"
 # Sword orientation in the hand bone: index into GRIPS (tuned by eye with --grip=N screenshots).
