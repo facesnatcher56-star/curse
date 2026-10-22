@@ -14,3 +14,6 @@ __pycache__/
 
 # Exported builds
 /build/
+
+# Blender backups
+*.blend1

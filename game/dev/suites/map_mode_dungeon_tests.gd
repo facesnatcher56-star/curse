@@ -134,6 +134,21 @@ func _test_map_mode_dungeon() -> void:
 		openings == 2 * MapModeLayout.CORRIDOR_WIDTH * links.size())
 	expect("the corridor openings are open (8 m wide: no narrow door pieces, no wall across them; %d door pieces, %d walled openings)" % [door_cells, walled_openings],
 		door_cells == 0 and walled_openings == 0)
+	var gates: Array = level.get_node("SetPieces").get_children().filter(func(n: Node) -> bool: return n.get_script() == preload("res://game/world/gateway.gd"))
+	var round_ends: int = 0
+	for link in links:
+		for end_id in [int(link["a"]), int(link["b"])]:
+			round_ends += 1 if MapModeLayout.ROUNDS.has(MapModeLayout._space_name(by_id[end_id])) else 0
+	var gates_ok: bool = gates.size() == 2 * links.size() - round_ends
+	for g in gates:
+		var into: Vector3 = -(g as Node3D).global_transform.basis.z if (g as Node3D).is_inside_tree() else -(g as Node3D).transform.basis.z
+		var ahead: Vector2 = Vector2((g as Node3D).position.x, (g as Node3D).position.z) + Vector2(into.x, into.z) * 2.0
+		var behind: Vector2 = Vector2((g as Node3D).position.x, (g as Node3D).position.z) - Vector2(into.x, into.z) * 2.0
+		var ahead_cell: Vector2i = MapModeLayout.cell_of(ahead)
+		var behind_cell: Vector2i = MapModeLayout.cell_of(behind)
+		gates_ok = gates_ok and MapModeLayout.space_at(ahead_cell.x, ahead_cell.y).begins_with("c") and not MapModeLayout.space_at(behind_cell.x, behind_cell.y).begins_with("c")
+		gates_ok = gates_ok and bool(g.get("low")) == (into.z > 0.5)
+	expect("a gateway stands across every corridor end but the round court's (%d), facing into its corridor, low on a room's south wall" % gates.size(), gates_ok)
 	expect("the player starts at node 0", (level.get_node("PlayerStart") as Node3D).position.is_equal_approx(_v3(by_id[0]["pos"])))
 	# --- corridors are walkable ---------------------------------------------------------------------------------------------------------
 	var obstacles: Array = []   # {p (Vector2), r}
