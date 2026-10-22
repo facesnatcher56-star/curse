@@ -42,12 +42,12 @@ func update_locomotion_anim() -> void:
 		return
 	idle_time = 0.0
 
-## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat.
+## Walking speed this frame, paying stamina (or slowing down once exhausted) while in combat. "of the Gale" speeds up the whole party.
 func _travel_speed(delta: float) -> float:
-	var speed: float = p.stats.run_speed
+	var speed: float = p.stats.run_speed * MapModeTraits.party_speed_mult()
 	if PlayerStats.STAMINA_ON and p.combat_timer > 0.0:
 		if p.stats.stamina <= 0.0:
-			speed = p.stats.run_speed * 0.6
+			speed *= 0.6
 		else:
 			p.stats.stamina = maxf(p.stats.stamina - 16.0 * delta, 0.0)
 	return speed
