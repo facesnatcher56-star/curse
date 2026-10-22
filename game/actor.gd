@@ -838,6 +838,8 @@ func _gib_color() -> Color:
 
 func _die() -> void:
 	dead = true
+	if MapMode.active and self is Player:
+		EnemyRoles.wipe(self)   # map mode: a dead member's threat leaves every enemy's table
 	died.emit(self)
 	set_physics_process(false)
 	hitpause = 0.0

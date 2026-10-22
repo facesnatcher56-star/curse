@@ -68,14 +68,14 @@ func tick(delta: float, dist: float) -> void:
 func _stalk(delta: float, dist: float) -> void:
 	var flank_radius: float = float(e.def.param("flank_radius", 5.5))
 	if dist > flank_radius + 1.5:
-		e.walk_to(EnemyRoles.route_goal(e, e.target.global_position), delta, 1.0, true)
+		e.walk_to(e.target.global_position, delta, 1.0, true)
 		return
 	var radial: Vector3 = e.global_position - e.target.global_position
 	radial.y = 0.0
 	radial = radial.normalized()
 	var swing: float = e._orbit_dir * 0.6
 	var point: Vector3 = e.target.global_position + radial.rotated(Vector3.UP, swing) * maxf(dist - 0.9, float(e.def.param("leap_min", 2.8)) + 0.4)
-	e.walk_to(EnemyRoles.route_goal(e, point), delta, 1.15, false)
+	e.walk_to(point, delta, 1.15, false)
 
 func _tick_windup(delta: float) -> void:
 	_timer -= delta

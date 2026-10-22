@@ -1,6 +1,6 @@
 extends DevSuite
-## Map mode enemy roles + dash formation (issue #81): each role picks its target, Provoke overrides them, the Cutter lands 8-10 m behind the warrior,
-## a ghoul dives the Cutter, and with the flag off targeting is exactly the default game's (closest, sticky).
+## Map mode enemy targeting + dash formation (issues #81, #109): threat picks each target, Provoke overrides it, the Cutter lands 8-10 m behind the warrior,
+## a ghoul stays on the warrior, and with the flag off targeting is exactly the default game's (closest, sticky).
 
 func _frames(count: int) -> void:
 	for i in count:
@@ -26,14 +26,12 @@ func _test_map_mode_roles() -> void:
 	var hero_gap: float = ghoul_off.flat_distance_to(player)
 	var cutter_gap: float = ghoul_off.flat_distance_to(cutter)
 	expect("flag off: a ghoul keeps the default closest target (hero %.1f m, Cutter %.1f m)" % [hero_gap, cutter_gap], ghoul_off.target == (player if hero_gap <= cutter_gap else cutter))
-	var ghoul_goal := Vector3(ghoul_off.global_position.x + 3.0, 0.0, ghoul_off.global_position.z)
-	expect("flag off: route_goal hands the goal back unchanged", EnemyRoles.route_goal(ghoul_off, ghoul_goal) == ghoul_goal)
 	ghoul_off.target = cutter
 	await _frames(4)
 	expect("flag off: a sticky target is never swapped (the hand-off Provoke uses)", ghoul_off.target == cutter)
-	var hits_before: int = EnemyRoles.state_of(brute_off).hits.size()
+	var threat_before: int = EnemyRoles.state_of(brute_off).threat.size()
 	brute_off.receive({"source": player, "damage": 5.0, "outcome": Combat.Outcome.HIT, "weight": 1.0}, base)
-	expect("flag off: no hit history is kept", EnemyRoles.state_of(brute_off).hits.size() == hits_before)
+	expect("flag off: no threat is kept", EnemyRoles.state_of(brute_off).threat.size() == threat_before)
 	for e in [ghoul_off, brute_off]:
 		e._apply_damage(e.max_health + 10.0)
 
@@ -48,35 +46,37 @@ func _test_map_mode_roles() -> void:
 	var warden: Enemy = _spawn_enemy(Nav.snap(player, base + Vector3(-5.0, 0.0, 3.0)), "warden", 1.0)
 	for e in [zombie, ghoul, thrower, brute, warden]:
 		e.set_physics_process(false)   # the rules are driven by hand here
-	expect("the role table names every role kind in one place", EnemyRoles.ROLES.keys().size() == 5 and EnemyRoles.rule_of(ghoul) == "flanker" and EnemyRoles.rule_of(zombie) == "closest")
-	expect("zombie: no opinion, so the sticky closest target stays", EnemyRoles.choose(zombie, members, 100.0) == null)
-	expect("ghoul: the Cutter, though the hero is closer", EnemyRoles.choose(ghoul, members, 100.0) == cutter)
+	expect("the role table names only the kinds with a special (the Warden); everything else follows threat", EnemyRoles.ROLES.keys() == ["warden"])
+	expect("zombie: no opinion while nobody has threat on it, so the sticky closest target stays", EnemyRoles.choose(zombie, members, 100.0) == null)
+	expect("ghoul: no opinion without threat (it no longer dives the Cutter)", EnemyRoles.choose(ghoul, members, 100.0) == null)
+	EnemyRoles.pull_group([ghoul], members)   # the warrior pulls it
+	ghoul.target = cutter
+	expect("ghoul: the warrior who pulled it, though the Cutter is farther back", EnemyRoles.choose(ghoul, members, 100.0) == player)
 	expect("ghoul: the hero when the Cutter is down", EnemyRoles.choose(ghoul, [player], 100.0) == player)
-	expect("rock thrower: closest (no opinion) before anyone hit it", EnemyRoles.choose(thrower, members, 100.0) == null)
-	EnemyRoles.note_hit(thrower, _hit(player, 5.0), thrower.global_position + Vector3(1.0, 0.0, 0.0), 100.0)   # a melee blow
-	expect("rock thrower: a melee blow forces it onto the attacker for a while (the threat rule)", EnemyRoles.choose(thrower, members, 100.5) == player)
-	EnemyRoles.note_hit(thrower, _hit(cutter, 5.0), thrower.global_position + Vector3(12.0, 0.0, 0.0), 110.0)   # an arrow (after the melee force has run out)
-	expect("rock thrower: whoever last hit it from range (the Cutter)", EnemyRoles.choose(thrower, members, 112.0) == cutter)
-	EnemyRoles.note_hit(thrower, _hit(player, 5.0), thrower.global_position + Vector3(8.0, 0.0, 0.0), 113.0)
-	expect("rock thrower: the latest ranged hitter wins (the hero)", EnemyRoles.choose(thrower, members, 113.5) == player)
-	expect("rock thrower: forgotten after its memory runs out", EnemyRoles.choose(thrower, members, 113.0 + float(EnemyRoles.ROLES["rock_thrower"]["memory"]) + 1.0) == null)
-	EnemyRoles.note_hit(brute, _hit(player, 40.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 200.0)   # (from 5 m: the role rule alone; the melee threat rule has its own checks in mmthreat)
+	expect("rock thrower: no opinion before anyone hit it", EnemyRoles.choose(thrower, members, 100.0) == null)
+	EnemyRoles.note_hit(thrower, _hit(cutter, 5.0), thrower.global_position + Vector3(12.0, 0.0, 0.0), 110.0)   # an arrow from range
+	expect("rock thrower: a ranged hit pulls it onto the archer (it no longer chases ranged hits as a role)", EnemyRoles.choose(thrower, members, 112.0) == cutter)
+	thrower.target = cutter
+	EnemyRoles.note_hit(thrower, _hit(player, 20.0), thrower.global_position + Vector3(1.0, 0.0, 0.0), 113.0)   # a melee blow, x2 threat
+	expect("rock thrower: the warrior's melee blow (x2) takes it from the archer", EnemyRoles.choose(thrower, members, 113.5) == player)
+	EnemyRoles.note_hit(brute, _hit(player, 40.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 200.0)
 	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 200.5)
 	EnemyRoles.note_hit(brute, _hit(cutter, 15.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 201.0)
-	expect("brute: the biggest damage dealer in the last 5 s (the hero, 40 against 30)", EnemyRoles.choose(brute, members, 201.5) == player)
+	expect("brute: the biggest threat (the hero: pull 10 + 2 x 40 against the Cutter's 30)", EnemyRoles.choose(brute, members, 201.5) == player)
 	EnemyRoles.note_hit(brute, _hit(cutter, 30.0), brute.global_position + Vector3(5.0, 0.0, 0.0), 202.0)
-	expect("brute: it only re-checks every 2 s (no new opinion at +0.5 s)", EnemyRoles.choose(brute, members, 202.0) == null)
-	expect("brute: after the re-check the Cutter leads (60 against 40)", EnemyRoles.choose(brute, members, 203.6) == cutter)
-	expect("brute: damage older than 5 s counts for nothing", EnemyRoles.choose(brute, members, 215.0) == null)
+	brute.target = player
+	expect("brute: the Cutter (60 against 90) does not take it from the warrior, there is no re-check clock", EnemyRoles.choose(brute, members, 202.0) == player)
 	var every: float = float(EnemyRoles.ROLES["warden"]["special_every"])
 	expect("warden: closest to begin with (no opinion)", EnemyRoles.choose(warden, members, 300.0) == null)
 	expect("warden: its telegraphed attack goes for the farthest member", EnemyRoles.choose(warden, members, 300.0 + every + 0.1) == cutter)
 	expect("warden: and back to the closest once the window has passed", EnemyRoles.choose(warden, members, 300.0 + every + 0.1 + float(EnemyRoles.ROLES["warden"]["special_window"]) + 0.5) == player)
-	# A champion keeps its kind's rule.
+	# A champion follows threat like its kind.
 	var champ: Enemy = _spawn_enemy(Nav.snap(player, base + Vector3(-3.0, 0.0, -4.0)), "ghoul", 1.0)
 	champ.set_physics_process(false)
 	Champion.attach(champ, "fast")
-	expect("a champion ghoul follows the ghoul rule", champ.champion != null and EnemyRoles.choose(champ, members, 100.0) == cutter)
+	EnemyRoles.pull_group([champ], members)
+	champ.target = cutter
+	expect("a champion ghoul follows threat too (the warrior who pulled it)", champ.champion != null and EnemyRoles.choose(champ, members, 100.0) == player)
 	champ.queue_free()
 
 	# --- Flow: dash formation, the dive, Provoke -------------------------------------------------------------------------------------
@@ -111,47 +111,37 @@ func _test_map_mode_roles() -> void:
 	print("[mmroles] formation: Cutter %.1f m behind the warrior, %.1f m from the group (warrior %.1f m)" % [behind, cutter_far, hero_far])
 	expect("formation: the Cutter lands %.1f m behind the warrior (8-10 m)" % behind, behind >= EnemyRoles.BACK_MIN - 0.6 and behind <= EnemyRoles.BACK_MAX + 0.6)
 	expect("formation: the Cutter is on the side away from the group (%.1f m against the warrior's %.1f m)" % [cutter_far, hero_far], cutter_far > hero_far + 6.0)
-	# The dive: the ghoul goes for the Cutter and reaches her.
+	await _frames(20)
+	var tank_target := player.attack_target as Enemy
+	expect("in the real fight the Cutter's automatic target is the warrior's target", tank_target != null and m.target_for(cutter) == tank_target)
+	# The ghoul stays on the warrior from the start of the fight and reaches him in the small arena.
 	var reached: float = INF
-	var targeted: bool = false
+	var started_on_hero: bool = false
 	for i in 480:
 		await get_tree().physics_frame
+		if i == 10:
+			started_on_hero = is_instance_valid(diver) and diver.target == player
 		if is_instance_valid(diver) and not diver.dead:
-			reached = minf(reached, diver.flat_distance_to(cutter))
-			targeted = targeted or diver.target == cutter
-		if reached < 2.6:
+			reached = minf(reached, diver.flat_distance_to(player))
+		if reached < 2.6 and i > 10:
 			break
-	print("[mmroles] dive: ghoul closest to the Cutter %.1f m" % reached)
-	expect("the ghoul targets the Cutter, not the nearest member", targeted)
-	expect("the ghoul reaches the Cutter in the small arena (closest %.1f m)" % reached, reached < 2.6)
+	print("[mmroles] ghoul closest to the warrior %.1f m" % reached)
+	expect("the ghoul is on the warrior at the start of the fight, not the Cutter", started_on_hero)
+	expect("the ghoul reaches the warrior in the small arena (closest %.1f m)" % reached, reached < 2.6)
 	var has_lines: bool = false
 	for child in m.get_children():
 		var script: Script = child.get_script() as Script
 		has_lines = has_lines or (script != null and String(script.resource_path).contains("threat_lines"))
 	expect("no red threat lines are drawn for a diver (the owner removed them)", not has_lines)
-	# Provoke overrides the role for as long as it holds.
+	# Provoke overrides the table for as long as it holds.
 	player.global_position = diver.global_position + Vector3(2.0, 0.0, 0.0)
+	diver.target = cutter
 	player.powers._provoke()
 	await _frames(6)
-	expect("Provoke: the ghoul turns on the hero (its role says Cutter)", diver.target == player and Time.get_ticks_msec() < diver.provoked_until_ms)
+	expect("Provoke: the ghoul turns on the hero", diver.target == player and Time.get_ticks_msec() < diver.provoked_until_ms)
 	diver.provoked_until_ms = 0
 	await _frames(4)
-	expect("when Provoke ends the role takes over again", diver.target == cutter)
-	# The route goes round the warrior standing on the line.
-	player.global_position = Nav.snap(player, (diver.global_position + cutter.global_position) * 0.5)
-	var goal: Vector3 = cutter.global_position
-	var via: Vector3 = EnemyRoles.route_goal(diver, goal)
-	expect("flank: with the warrior on its line the ghoul heads for a point beside him, not through him (%.1f m off him)" % via.distance_to(player.global_position), via != goal and via.distance_to(player.global_position) > 2.4)
-	# Standing on the detour point, the ghoul is sent on to the real goal, not handed the same point again (it used to wait there, not moving).
-	diver.global_position = via
-	var steps: int = 0
-	var onward: Vector3 = EnemyRoles.route_goal(diver, goal)
-	while onward != goal and steps < 6:   # following the detour points it is handed, it must come to the real goal (never be handed the same point for ever)
-		diver.global_position = onward
-		onward = EnemyRoles.route_goal(diver, goal)
-		steps += 1
-	expect("flank: following its detour points the ghoul is sent on to the real goal within a few steps (%d), so it never waits beside the warrior" % steps, onward == goal)
-	expect("and for a moment after, it keeps heading for the goal (no new detour at once)", EnemyRoles.route_goal(diver, goal) == goal)
+	expect("when Provoke ends the table still says the hero (his threat is on top)", diver.target == player)
 	# An awake enemy stuck against a wall (pathing failing for seconds, a little off the navmesh) is set back on the navmesh with fresh path state.
 	diver.wake()
 	diver.behavior.on_interrupted()   # (not in the middle of a pounce: it stalks)

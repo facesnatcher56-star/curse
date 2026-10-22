@@ -1088,7 +1088,9 @@ func _steal_resources(result: Dictionary) -> void:
 		return
 	var gain: float = stats.gear_stat("life_per_hit") + stats.gear_stat("life_steal") / 100.0 * float(result.get("damage", 0.0))
 	if gain > 0.0:
+		var before: float = health
 		health = minf(health + gain, max_health)
+		EnemyRoles.note_heal(self, health - before)   # map mode: life steal is healing the attacker did
 	var mana_gain: float = stats.gear_stat("mana_per_hit") + stats.gear_stat("mana_steal") / 100.0 * float(result.get("damage", 0.0))
 	if mana_gain > 0.0:
 		stats.mana = minf(stats.mana + mana_gain, stats.max_mana)
