@@ -234,6 +234,31 @@ func attach_weapon(scene_path: String, bone_name: String, grip: Basis, length: f
 	weapon_tip.position = Vector3(0, bounds.size.y * 1.0 - grip_offset * bounds.size.y, 0)
 	holder.add_child(weapon_tip)
 
+## The grip of a hand with finger bones (the detailed skeleton, hands resting closed): [grip basis, centre] in the hand
+## bone's space, for attach_weapon. The handle runs through the closed fist from the little finger towards the index
+## finger (the blade's +Y), centred between the knuckles and the curled finger ends; the edge faces the way the knuckles
+## point. Empty for a hand without finger bones.
+func finger_grip(side: String) -> Array:
+	var skeleton: Skeleton3D = find_children("*", "Skeleton3D", true, false)[0]
+	var hand := skeleton.find_bone(side + "Hand")
+	if hand < 0 or skeleton.find_bone(side + "HandIndex1") < 0:
+		return []
+	var to_hand: Transform3D = skeleton.get_bone_global_rest(hand).affine_inverse()
+	var joint := func(bone: String) -> Vector3: return to_hand * skeleton.get_bone_global_rest(skeleton.find_bone(side + "Hand" + bone)).origin
+	var ring := Vector3.ZERO
+	for finger in ["Index", "Middle", "Ring", "Pinky"]:
+		ring += (joint.call(finger + "1") as Vector3) + (joint.call(finger + "3") as Vector3)
+	var centre: Vector3 = ring / 8.0
+	var up: Vector3 = ((joint.call("Index1") as Vector3) - (joint.call("Pinky1") as Vector3)).normalized()
+	var forward: Vector3 = centre - up * centre.dot(up)   # from the wrist towards the fist, across the handle
+	forward = forward.normalized()
+	return [Basis(forward, up, forward.cross(up)), centre]
+
+## Shows or hides the held weapon's model (its nodes stay either way).
+func show_weapon(on: bool) -> void:
+	if weapon != null and weapon.get_child_count() > 0:
+		(weapon.get_child(0) as Node3D).visible = on
+
 ## Takes the held weapon off (its model and the bone attachment holding it).
 func clear_weapon() -> void:
 	if weapon != null and is_instance_valid(weapon):
