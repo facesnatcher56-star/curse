@@ -16,3 +16,11 @@ position/normal bakes.
    `quiver`): the archer nocks and shoots that arrow, and the quiver rides on his back.
 
 After exporting, Godot must import the new GLBs.
+
+4. Joints: with `elf.blend` open, `../hero/joint_quality.py` (MESHES = body_skin, clt_briefs) adds the twist and joint-helper
+   bones and re-blends the joint weights, then `../hero/ground_and_export.py` re-exports `rigged.glb` (63 bones).
+5. Bow clips: `elf_bow_anims.blend` holds the IK control rig and the clips; `bow_anims.py` keys, checks, bakes and previews them
+   (`build_clip`, `check_clip`, `ring`, `preview_action`). Export the three clips (bow_idle, bow_draw, bow_release, one NLA
+   track each) to `assets/art_staging/elf/bow_clips.glb`, then `godot --headless --path . --script tools/build_elf_anims.gd`.
+   The latest clips (whole-body stance) live in `elf_stylized.blend`, which also holds the trial ranger outfit
+   (`stylized_outfit.py`; not in the game).

@@ -57,6 +57,34 @@ One armature object, `Armature`, bones in centimetres with the object scaled 0.0
 - The old knight2 rig (`assets/models/knight2`, 24 bones, no fingers, hands replaced by gauntlet fists) is the clip source and
   the reference for the rest rotations; it is no longer the target for new playable characters.
 
+### Joint helpers: twist and half-joint bones (2026-10-22)
+
+Plain linear skinning folds a hard bend into a point and wrings a turned wrist like a sweet wrapper, stretching the texture.
+On top of the 54 bones a rig gets **9 driven helper bones** (63 in all), added by `tools/art/hero/joint_quality.py` (run it on
+the finished game rig before `ground_and_export.py`):
+
+| Bone | Parent | What it does |
+| --- | --- | --- |
+| `LeftForeArmTwist`, `RightForeArmTwist` | `*ForeArm` | Takes the hand's roll against the forearm; the forearm skin ramps from the forearm (elbow) to it (wrist), so a turned hand twists down the forearm as the radius does. |
+| `LeftArmTwist`, `RightArmTwist` | `*Arm` | Takes the upper arm's roll back out at the shoulder end. |
+| `LeftShoulderHelp`, `RightShoulderHelp`, `LeftElbowHelp`, `RightElbowHelp` | the joint's parent | Turns half of the joint's bend, keeping a bent shoulder or elbow round instead of pointed. |
+| `NeckHelp` | `Spine` | Half of the neck's bend and turn. |
+
+The script also re-blends the deform weights round the big joints and caps every vertex at four bone weights (what the game
+skins with). **No clip keys the helpers**: `JointHelpers` (`game/joint_helpers.gd`, a `SkeletonModifier3D` added by
+`CharacterModel.build` when a rig has them) drives them after every animation and procedural pose, so borrowed clips get the
+benefit too, and `tools/art/elf/bow_anims.py` (`drive_helpers`) applies the same rule in Blender. Measured on Cutter's full
+draw, wrist stretch fell from 118-223% to 14-69%. The barbarian does not have them yet.
+
+### Clips keyed for one character (Cutter's bow clips)
+
+`tools/art/elf/bow_anims.py` keys clips in Blender with an IK control rig (fist, elbow, foot and knee targets) on the
+character's own game rig, checks every frame (prop and hand clearance against the skin, the whole arm against the body,
+elbow and wrist limits, close-up rings round every grip and bend) and bakes them to bone rotations. They are exported as
+`assets/art_staging/elf/bow_clips.glb` and added to his library by `tools/build_elf_anims.gd`, which keeps only the hips'
+position track and gives every bone a clip leaves at rest an explicit rest track (Blender's glTF export drops those, and
+the bone would otherwise keep the previous clip's pose).
+
 ## Enemy rigs
 
 Enemy rigs are **independent** unless a shared clip set requires compatibility. Independent monster rigs are allowed where

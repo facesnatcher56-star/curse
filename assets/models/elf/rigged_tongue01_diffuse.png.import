@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cjv88pkes0th2"
-path="res://.godot/imported/rigged_tongue01_diffuse.png-0cb771b92a5ae9a6e583d6a07a356a4d.ctex"
+path.s3tc="res://.godot/imported/rigged_tongue01_diffuse.png-0cb771b92a5ae9a6e583d6a07a356a4d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "03f3c7040385e3ed039d14478b4cedb3"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/elf/rigged_tongue01_diffuse.png"
-dest_files=["res://.godot/imported/rigged_tongue01_diffuse.png-0cb771b92a5ae9a6e583d6a07a356a4d.ctex"]
+dest_files=["res://.godot/imported/rigged_tongue01_diffuse.png-0cb771b92a5ae9a6e583d6a07a356a4d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -41,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

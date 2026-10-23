@@ -70,15 +70,42 @@ var _holding: bool = false
 func _init(character: Player) -> void:
 	p = character
 
+## Cutter's own bow clips (tools/art/elf/bow_anims.py, baked into assets/models/elf/anims.res): when the rig's library has them,
+## the bow idle, draw, hold and loose are animation, and this code only seats the bow in his fist the way the clips were keyed,
+## nocks the arrow between the string fingers and the rest, strings the bow, tilts the chest to the target's height and carries
+## the bow while he walks. Archers without them keep the procedural draw (_apply_draw_pose).
+const CLIP_DRAW := "bow_draw"
+const CLIP_RELEASE := "bow_release"
+const CLIP_NOCK_AT := 7.0 / 19.0   # share of bow_draw from which the arrow is on the string (bow_anims.py NOCK_FRAME)
+const GRIP_TURN := 0.6             # the bow in the closed fist, as keyed (bow_anims.py TH, GRIP_Z)
+const GRIP_UP := 0.035
+const CLIP_REST := Vector3(-0.047, 0.085, 0.022)   # the arrow rest on the bow, in the bow's own space (bow_anims.py ArrowRest)
+var clip_mode: bool = false
+
 func attach() -> void:
+	clip_mode = p.model.has_clip(CLIP_DRAW)
 	_attach_gear()
 	_skeleton = p.model.find_children("*", "Skeleton3D", true, false)[0]
-	for bone_name in ["Spine02", "LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand"]:
+	for bone_name in ["Hips", "Spine02", "Spine01", "Spine", "neck", "Head", "LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand",
+			"RightHandThumb1", "RightHandThumb3", "RightHandIndex3", "RightHandMiddle3"]:
 		_pose_bones[bone_name] = _skeleton.find_bone(bone_name)
+	for side in ["Left", "Right"]:
+		var grip: Array = p.model.finger_grip(side)
+		_grips[side] = grip if not grip.is_empty() else [Basis.IDENTITY, Vector3.ZERO]
 	p.model.anim.mixer_applied.connect(_apply_draw_pose)
+	_set_bow_idle(clip_mode)
+
+## While the bow is out (clip mode), wherever the game asks for his idle he stands in the bow idle.
+func _set_bow_idle(on: bool) -> void:
+	for clip in ["idle_alert", "idle_rest"]:
+		if on:
+			p.model.aliases[clip] = "bow_idle"
+		else:
+			p.model.aliases.erase(clip)
 
 func detach() -> void:
 	cancel()
+	_set_bow_idle(false)
 	if p.model.anim.mixer_applied.is_connected(_apply_draw_pose):
 		p.model.anim.mixer_applied.disconnect(_apply_draw_pose)
 	for node in [_bow_holder, _quiver, _draw_arrow, _string_upper, _string_lower, aura]:
@@ -90,6 +117,7 @@ var stowed: bool = false
 
 func set_stowed(on: bool) -> void:
 	stowed = on
+	_set_bow_idle(clip_mode and not on)
 	for node in [_bow_holder, _quiver]:
 		if is_instance_valid(node): node.visible = not on
 	if is_instance_valid(_draw_arrow): _draw_arrow.visible = false
@@ -162,7 +190,11 @@ func _begin(target: Actor, prop: Destructible) -> void:
 	p.movement.has_goal = false
 	p.combat_timer = 5.0
 	p.face(point)
-	p.model.loop("idle_alert")
+	_aim_point = point
+	if clip_mode:
+		p.model.manual(CLIP_DRAW)   # scrubbed by the draw itself (_scrub_draw): the arrow nocks exactly when the hands meet
+	else:
+		p.model.loop("idle_alert")
 	_draw = 0.0
 	if thunder_visual:
 		_clear_thunder_fx()
@@ -199,7 +231,9 @@ func tick(delta: float) -> void:
 			cancel()
 			return
 		p.face(point, 0.28)
+		_aim_point = point
 		_draw = clampf(p.skills.busy_t / p.skills.busy_time, 0.0, 1.0)
+		_scrub_draw()
 		_draw_arrow.visible = true
 		if _draw >= 1.0: loose()
 	elif p.skills.busy_t >= p.skills.busy_time + _recovery:
@@ -244,7 +278,9 @@ func loose() -> void:
 		if is_instance_valid(aura): aura.queue_free()
 	p.skills.busy_hit_done = true
 	_draw = 0.0
-	_release = 0.20
+	_release = RELEASE_TIME
+	if clip_mode:
+		p.model.once(CLIP_RELEASE, 0.0, 1.0, 0.05)
 	_draw_arrow.visible = false
 	_set_bow_string_visible(false)
 
@@ -427,7 +463,10 @@ func _attach_gear() -> void:
 	_bow_built = not built.is_empty()
 	if _bow_built:
 		bow_path = String(built["model"])
-	_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02), _bow_built)
+	if clip_mode and _bow_built:
+		_bow_holder = _seat_bow(bow_path)
+	else:
+		_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02), _bow_built)
 	# The imported quiver is already upright along +Y. Keep it aligned with the spine and add only a slight shoulder cant.
 	var quiver_basis := Basis(Vector3.FORWARD, -0.16)
 	# the bow's own quiver and arrow when they are built for the rig (same conventions: quiver upright 0.78 m, arrow point up 0.92 m)
@@ -436,12 +475,17 @@ func _attach_gear() -> void:
 	var quiver_offset := Vector3(-0.14, -0.08, 0.08)
 	if built.has("quiver"):
 		# On the back, in metres: Spine02's bone space is the rig's (centimetres on these rigs), and its +Z points out of the
-		# chest. Centred 16 cm up the spine and 13 cm behind it, slanted across the back (top over the right shoulder), its
+		# chest. Centred 3 cm below Spine02 and 15 cm behind it (the fletchings below the drawing elbow), its top leaning toward the left shoulder (clear of the drawing elbow), its
 		# strap side (the model's -Z) against the body.
 		var spine_scale: float = p.model.find_children("*", "Skeleton3D", true, false)[0].global_transform.basis.get_scale().x
-		quiver_offset = Vector3(0.0, 0.16, -0.13) / maxf(spine_scale, 0.0001)
-		quiver_basis = Basis(Vector3(0, 0, 1), 0.32) * Basis(Vector3.UP, PI)
-	_quiver = _attach_prop(quiver_path, "Spine02", 0.78, quiver_basis, quiver_offset, built.has("quiver"))
+		quiver_offset = Vector3(0.0, -0.03, -0.15) / maxf(spine_scale, 0.0001)
+		quiver_basis = Basis(Vector3(0, 0, 1), -0.2) * Basis(Vector3.UP, PI)
+		# placed against the lower spine as above, then carried by the mid spine so it turns with the back in the archer's stance
+		var sk: Skeleton3D = p.model.find_children("*", "Skeleton3D", true, false)[0]
+		var to_chest: Transform3D = sk.get_bone_global_rest(sk.find_bone("Spine01")).affine_inverse() * sk.get_bone_global_rest(sk.find_bone("Spine02"))
+		quiver_offset = to_chest * quiver_offset
+		quiver_basis = to_chest.basis * quiver_basis
+	_quiver = _attach_prop(quiver_path, "Spine01" if built.has("quiver") else "Spine02", 0.78, quiver_basis, quiver_offset, built.has("quiver"))
 	_draw_arrow = _attach_prop(arrow_path, "RightHand", 0.92, Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.0, 0.02, 0.02), built.has("arrow"))
 	_draw_arrow.visible = false
 	_bow_scale = _bow_holder.global_basis.get_scale().x
@@ -450,6 +494,27 @@ func _attach_gear() -> void:
 	_string_lower = _make_bow_cord()
 	p.add_child(_string_upper)
 	p.add_child(_string_lower)
+
+## The bow in the left fist exactly as the clips were keyed: its handle through the closed fist (CharacterModel.finger_grip), its
+## belly turned GRIP_TURN about the handle from the wrist-to-fist direction, the fist GRIP_UP up the bow from its centre.
+func _seat_bow(path: String) -> Node3D:
+	var prop: Node3D = (load(path) as PackedScene).instantiate()
+	LootDrop._use_vertex_colours(prop)
+	var skeleton: Skeleton3D = p.model.find_children("*", "Skeleton3D", true, false)[0]
+	var rig_scale: float = skeleton.global_transform.basis.get_scale().x
+	var grip: Array = p.model.finger_grip("Left")
+	var c := cos(GRIP_TURN)
+	var s := sin(GRIP_TURN)
+	var belly_x := Vector3(-c, 0.0, s)   # the bow's axes in the fist's frame (wrist-to-fist, handle, side)
+	var bow := Basis(belly_x, Vector3.UP, Vector3(-s, 0.0, -c))
+	var at: Vector3 = belly_x * 0.047 - Vector3.UP * GRIP_UP
+	var holder := Node3D.new()
+	holder.transform = Transform3D(grip[0], grip[1]) * Transform3D(bow.scaled(Vector3.ONE / rig_scale), at / rig_scale)
+	p.model._mount_for("LeftHand").add_child(holder)
+	holder.add_child(prop)
+	CharacterModel.mark_actor(prop)
+	holder.set_meta("mesh_bounds", CharacterModel._bounds_of(prop))
+	return holder
 
 func _attach_prop(path: String, bone: String, size: float, prop_basis: Basis, offset: Vector3, built_for_rig: bool = false) -> Node3D:
 	var prop: Node3D = (load(path) as PackedScene).instantiate()
@@ -509,7 +574,7 @@ func _update_bow_string() -> void:
 	var upper: Vector3 = _bow_holder.to_global(Vector3(0.065, 0.78, 0.0))
 	var lower: Vector3 = _bow_holder.to_global(Vector3(0.065, -0.78, 0.0))
 	var box: AABB = _draw_arrow.get_meta("mesh_bounds")
-	var nock: Vector3 = _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)) if _draw > 0.01 else (upper + lower) * 0.5
+	var nock: Vector3 = _draw_arrow.to_global(Vector3(0.0, -box.size.y * 0.5, 0.0)) if _draw > 0.01 and _draw_arrow.visible else (upper + lower) * 0.5
 	_set_cord(_string_upper, upper, nock)
 	_set_cord(_string_lower, nock, lower)
 
@@ -519,104 +584,264 @@ func _set_bow_string_visible(on: bool) -> void:
 	if _string_lower != null:
 		_string_lower.visible = on
 
+## The draw, in the order an archer shoots: he turns side-on (left shoulder to the target, head turned back to it), the hands meet in
+## front of the chest and the arrow is nocked (NOCK_AT), then the bow arm pushes out straight at shoulder height while the string hand
+## pulls back to the anchor at the corner of the mouth. At the loose the string hand follows through past the jaw, the bow arm holds a beat, and both
+## blend back into the carry. Every point is placed from the skeleton's own measurements (arm lengths, the closed fist from
+## CharacterModel.finger_grip), and the bow and arrow follow the solved fists.
+const STANCE_TURN := -1.05    # radians about up: the open archer's stance (about 60 degrees), the bow shoulder toward the target
+const NOCK_AT := 0.22         # share of the draw at which the hands meet and the arrow is on the string
+const FULL_AT := 0.86         # share of the draw at which the string hand reaches the anchor
+const RELEASE_TIME := 0.5
+const ANCHOR := Vector3(0.085, -0.035, 0.08)   # the string at full draw, from the Head bone: toward the target, down, to the right (m): the corner of the mouth
+const FINGERS := 0.07        # the string hand's fist centre sits this far right of the string (the string lies in the finger ends)
+const ARROW_REST := 0.042     # the arrow passes this far above the bow fist's centre (over the index knuckle)
+const CANT := 0.17            # radians the bow is canted at the shot
+const BRACE := 0.13           # the string's distance behind the grip at rest
+var _aim_point: Vector3
+var _grips: Dictionary = {}   # "Left"/"Right": [grip basis, fist centre] in hand-bone space
+
 func _apply_draw_pose() -> void:
 	if _skeleton == null:
+		return
+	if clip_mode:
+		_apply_clip_pose()
 		return
 	if _draw <= 0.01 and _release <= 0.0:
 		_draw_arrow.top_level = false
 		_draw_arrow.transform = _arrow_rest
 		_draw_arrow.visible = false
-		_apply_carry_pose()
+		_hold_bow(0.0, Vector3.ZERO, Vector3.UP, Vector3.ZERO)
+		_relax_string_arm()
+		_tuck_thumb(Vector3.ZERO, 0.0)
 		_update_bow_string()
 		return
-	var weight: float = smoothstep(0.0, 0.20, _draw) if _release <= 0.0 else smoothstep(0.0, 0.10, _release)
-	_pose("Spine02", Vector3(0.0, -0.12, 0.0), weight)
-	var forward: Vector3 = p.visual.global_basis.z.normalized()   # Actor.face uses +Z.
-	var side: Vector3 = p.visual.global_basis.x.normalized()
-	var chest: Vector3 = p.global_position + Vector3.UP * 1.36
-	var pull: float = smoothstep(0.18, 0.92, _draw)
-	var bow_hand: Vector3 = chest + Vector3.UP * 0.10 + forward * 0.56 + side * 0.16
-	var string_hand: Vector3 = bow_hand.lerp(chest + Vector3.UP * 0.13 + side * 0.16 - forward * 0.06, pull)
-	if _release > 0.0:
-		string_hand = chest + Vector3.UP * 0.13 + side * 0.28 - forward * 0.14
-	_aim_chain(["LeftArm", "LeftForeArm"], "LeftHand", bow_hand, weight)
-	_aim_chain(["RightArm", "RightForeArm"], "RightHand", string_hand, weight)
-	# Props follow the solved hands, not detached ideal coordinates.
-	bow_hand = _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones["LeftHand"])).origin)
-	string_hand = _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones["RightHand"])).origin)
-	_present_draw_props(bow_hand, string_hand, forward)
+	_relax_string_arm()   # the string arm comes up from, and goes back down to, the relaxed hang
+	var drawing: bool = _release <= 0.0
+	var u: float = _draw if drawing else 1.0
+	var r: float = 0.0 if drawing else 1.0 - _release / RELEASE_TIME
+	var weight: float = smoothstep(0.0, NOCK_AT, u) if drawing else 1.0 - smoothstep(0.35, 1.0, r)
+	var pull: float = smoothstep(NOCK_AT, FULL_AT, u)
+	var up_s: Vector3 = _skel_dir(Vector3.UP)
+	var turn: float = smoothstep(0.5, 1.0, weight)   # the bow comes up first, then he turns, so the front leg stays clear of it
+	# the turn is shared down the body: the hips take part of it, so the feet stay apart across the line and out of the bow's way
+	_turn("Hips", Quaternion(up_s, STANCE_TURN * 0.45 * turn))
+	_turn("Spine02", Quaternion(up_s, STANCE_TURN * 0.2 * turn))
+	_turn("Spine01", Quaternion(up_s, STANCE_TURN * 0.2 * turn))
+	_turn("Spine", Quaternion(up_s, STANCE_TURN * 0.15 * turn))
+	_turn("neck", Quaternion(up_s, -STANCE_TURN * 0.45 * turn))
+	_turn("Head", Quaternion(up_s, -STANCE_TURN * 0.55 * turn))
+	var face: Vector3 = Vector3(p.visual.global_basis.z.x, 0.0, p.visual.global_basis.z.z).normalized()   # Actor.face turns +Z to the target
+	var left: Vector3 = Vector3.UP.cross(face)
+	var anchor: Vector3 = _bone_world("Head") + face * ANCHOR.x + Vector3.UP * ANCHOR.y - left * ANCHOR.z
+	var to_aim: Vector3 = _aim_point - anchor
+	var pitch: float = clampf(atan2(to_aim.y, Vector2(to_aim.x, to_aim.z).length()), -0.4, 0.4)
+	var aim: Vector3 = face * cos(pitch) + Vector3.UP * sin(pitch)
+	var bow_up: Vector3 = (Vector3.UP - aim * aim.dot(Vector3.UP)).normalized()
+	bow_up = bow_up.rotated(aim, -CANT)   # the top canted toward his back: the lower limb and string swing out in front of the chest
+	# Full draw: the bow fist where the straight arm reaches along the arrow line from the anchor.
+	var shoulder: Vector3 = _bone_world("LeftArm")
+	var reach: float = _arm_length("Left") * 0.97
+	var q: Vector3 = anchor - bow_up * ARROW_REST - shoulder
+	var along: float = q.dot(aim)
+	var fist_full: Vector3 = anchor - bow_up * ARROW_REST + aim * (-along + sqrt(maxf(along * along - q.length_squared() + reach * reach, 0.0)))
+	# Nocking: the bow fist in front of the chest, the string hand at the string.
+	var fist_nock: Vector3 = _bone_world("Spine") + face * 0.4 - left * 0.26 + Vector3.UP * 0.08
+	var fist: Vector3 = fist_nock.lerp(fist_full, pull)
+	var nock: Vector3 = (fist_nock + bow_up * ARROW_REST - aim * BRACE * _bow_scale).lerp(anchor, pull)
+	if not drawing:
+		var follow: float = smoothstep(0.0, 0.3, r)
+		nock = anchor - aim * 0.1 * follow - left * 0.11 * follow
+	_hold_bow(weight, fist, bow_up, aim)
+	# The string hand: index above the arrow, the string through the curled fingers, the back of the hand outward.
+	var right_shoulder: Vector3 = _bone_world("RightArm")
+	var hand_fwd: Vector3 = nock - right_shoulder
+	hand_fwd = (hand_fwd - Vector3.UP * hand_fwd.dot(Vector3.UP)).normalized()
+	var elbow_up: Vector3 = (-Vector3.UP - left * 0.3).lerp(left - aim * 0.5 - Vector3.UP * 0.3, pull)
+	_place_hand("Right", nock - left * FINGERS, hand_fwd, Vector3.UP, elbow_up, weight)
+	_tuck_thumb(left, weight)
+	var bow_fist: Vector3 = _fist_world("Left")
+	var string_fist: Vector3 = _fist_world("Right") + left * FINGERS
+	_draw_arrow.top_level = true
+	_draw_arrow.visible = drawing and u >= NOCK_AT * 0.9
+	var rest: Vector3 = bow_fist + bow_up * ARROW_REST + left * 0.012
+	var arrow_dir: Vector3 = (rest - string_fist).normalized()
+	var arrow_x: Vector3 = arrow_dir.cross(Vector3.UP).normalized()
+	var arrow_scale: float = maxf(_draw_arrow.global_basis.get_scale().x, 0.001)
+	var box: AABB = _draw_arrow.get_meta("mesh_bounds")
+	_draw_arrow.global_transform = Transform3D(Basis(arrow_x, arrow_dir, arrow_x.cross(arrow_dir)).scaled(Vector3.ONE * arrow_scale),
+		string_fist + arrow_dir * box.size.y * arrow_scale * 0.5)
 	_update_bow_string()
 
-## Keep the bow upright beside the hip, rather than rotating it with the generic
-## unarmed walk/run palm. Legs, torso and the free arm retain their locomotion.
-func _apply_carry_pose() -> void:
-	var forward: Vector3 = p.visual.global_basis.z.normalized()
-	var side: Vector3 = p.visual.global_basis.x.normalized()
-	var carry_hand: Vector3 = p.global_position + Vector3.UP * 1.0 + side * 0.42 + forward * 0.12
-	_aim_chain(["LeftArm", "LeftForeArm"], "LeftHand", carry_hand, 1.0)
-	var hand: Vector3 = _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones["LeftHand"])).origin)
-	var bow_y: Vector3 = Vector3.UP   # limbs vertical in carry and walk (no lean): the limb tips sit behind the grip, level
-	# The mesh's belly is its local -X and its string its local +X (measured on archer/bow and modular/wpn_bow): local -X points forward,
-	# so the string faces the archer and the belly the target. The limbs stay vertical (local Y is up).
-	var bow_x: Vector3 = -side.cross(bow_y).normalized()
-	var bow_z: Vector3 = bow_x.cross(bow_y).normalized()
-	_bow_holder.top_level = true
-	_bow_holder.global_transform = Transform3D(Basis(bow_x, bow_y, bow_z).scaled(Vector3.ONE * _bow_scale), hand + bow_x * 0.065 * _bow_scale)
-
-## The recruit rig has no authored bow clip, and its idle hand transforms do not
-## carry props in an archery pose. During the draw, place the equipment from the
-## same three physical points an archer uses: bow hand, string hand, arrow tip.
-func _present_draw_props(bow_hand: Vector3, nock: Vector3, forward: Vector3) -> void:
-	if _bow_holder == null or _draw_arrow == null:
+## The draw clip at the draw's progress: it reaches full in the ordinary draw time (faster with attack speed), and a longer draw
+## (Take Aim, Thunderous Shot) holds at full.
+func _scrub_draw() -> void:
+	if not clip_mode or p.model.current != CLIP_DRAW:
 		return
-	var bow_scale: float = maxf(_bow_holder.global_basis.get_scale().x, 0.001)
-	var arrow_scale: float = maxf(_draw_arrow.global_basis.get_scale().x, 0.001)
-	# BoneAttachment updates later in the skeleton pass. World-space presentation
-	# must not inherit that second transform after already following solved hands.
-	_bow_holder.top_level = true
+	var full: float = minf(p.skills.busy_time, 0.62 / p.stats.attack_speed())
+	var length: float = p.model.anim.get_animation("game/" + CLIP_DRAW).length
+	p.model.scrub(minf(p.skills.busy_t / full, 1.0) * length)
+
+func _apply_clip_pose() -> void:
+	if stowed:
+		return
+	var drawing: bool = _release <= 0.0 and _draw > 0.01
+	var face: Vector3 = Vector3(p.visual.global_basis.z.x, 0.0, p.visual.global_basis.z.z).normalized()
+	# the chest tilts to the target's height while the bow is up (the clips aim level)
+	var up_weight: float = smoothstep(0.2, 0.8, _draw) if _release <= 0.0 else smoothstep(0.0, RELEASE_TIME * 0.6, _release)
+	if up_weight > 0.0:
+		var to_aim: Vector3 = _aim_point - _bone_world("Head")
+		var pitch: float = clampf(atan2(to_aim.y, Vector2(to_aim.x, to_aim.z).length()), -0.35, 0.35)
+		_turn("Spine", Quaternion(_skel_dir(Vector3.UP.cross(face)), -pitch * up_weight))
+	elif p.model.current in ["walk", "run"]:
+		# the borrowed walk and run swing a free arm: the bow arm holds the bow as the bow idle does instead
+		var left: Vector3 = Vector3.UP.cross(face)
+		_place_hand("Left", p.global_position + Vector3.UP * 0.93 + left * 0.27 + face * 0.06, -Vector3.UP + left * 0.05,
+			face * 0.94 - Vector3.UP * 0.34, -face + left * 0.3, 1.0)
+	# the arrow, from between the string fingers to the rest on the bow, once it is on the string
 	_draw_arrow.top_level = true
-	# The grip sits 0.067 along the belly from the mesh centre, which is now toward forward: the centre lies behind the hand.
-	var bow_centre: Vector3 = bow_hand - forward * 0.065 * bow_scale
-	var arrow_dir: Vector3 = (bow_hand + forward * 0.38 - nock).normalized()
-	# Local -X is the belly (measured): it points at the target, the string faces the archer. Arrow was exported with its shaft along +Y.
-	var bow_x: Vector3 = -forward
-	var bow_y: Vector3 = Vector3.UP
-	var bow_z: Vector3 = bow_x.cross(bow_y).normalized()
-	_bow_holder.global_transform = Transform3D(Basis(bow_x, bow_y, bow_z).scaled(Vector3.ONE * bow_scale), bow_centre)
-	var arrow_x: Vector3 = arrow_dir.cross(Vector3.UP).normalized()
-	var arrow_z: Vector3 = arrow_x.cross(arrow_dir).normalized()
-	var box: AABB = _draw_arrow.get_meta("mesh_bounds")
-	_draw_arrow.global_transform = Transform3D(Basis(arrow_x, arrow_dir, arrow_z).scaled(Vector3.ONE * arrow_scale), nock + arrow_dir * box.size.y * arrow_scale * 0.5)
+	_draw_arrow.visible = drawing and p.model.current == CLIP_DRAW and 		p.model.anim.current_animation_position >= CLIP_NOCK_AT * p.model.anim.get_animation("game/" + CLIP_DRAW).length
+	if _draw_arrow.visible:
+		var nock: Vector3 = _skeleton.to_global((_skeleton.get_bone_global_pose(int(_pose_bones["RightHandIndex3"])).origin
+			+ _skeleton.get_bone_global_pose(int(_pose_bones["RightHandMiddle3"])).origin) * 0.5)
+		var dir: Vector3 = (_bow_holder.to_global(CLIP_REST) - nock).normalized()
+		var side: Vector3 = dir.cross(Vector3.UP).normalized()
+		var arrow_scale: float = maxf(_draw_arrow.global_basis.get_scale().x, 0.001)
+		var box: AABB = _draw_arrow.get_meta("mesh_bounds")
+		_draw_arrow.global_transform = Transform3D(Basis(side, dir, side.cross(dir)).scaled(Vector3.ONE * arrow_scale),
+			nock + dir * box.size.y * arrow_scale * 0.5)
+	_update_bow_string()
 
-func _aim_chain(chain: Array[String], hand_name: String, target_world: Vector3, weight: float) -> void:
-	var hand: int = int(_pose_bones.get(hand_name, -1))
-	if hand < 0:
+## The bow fist and the bow. `weight` 0 is the carry (the arm hanging beside the hip, the bow on a slant, top forward); 1 is the
+## shot (the fist at `fist`, the bow upright across `aim`, its belly to the target, elbow turned out and down).
+func _hold_bow(weight: float, fist: Vector3, bow_up: Vector3, aim: Vector3) -> void:
+	var face: Vector3 = Vector3(p.visual.global_basis.z.x, 0.0, p.visual.global_basis.z.z).normalized()
+	var left: Vector3 = Vector3.UP.cross(face)
+	var carry: Vector3 = p.global_position + Vector3.UP * 0.97 + left * 0.36 + face * 0.08
+	var carry_up: Vector3 = (Vector3.UP * 0.9 + face * 0.42).normalized()
+	var at: Vector3 = carry.lerp(fist, weight) + (face * 0.45 + left * 0.2) * sin(PI * weight)   # raised and lowered out in front and to the side, clear of the hip and the front leg
+	var up: Vector3 = carry_up.lerp(bow_up, smoothstep(0.3, 0.8, weight)).normalized()   # upright only once the fist is up, clear of the knee
+	# carried, the belly faces his leg and the string faces out, clear of the leg; shooting, the belly faces the target
+	var facing: Vector3 = -left if weight <= 0.0 else (-left).lerp(aim, smoothstep(0.0, 0.6, weight))
+	facing = (facing - up * facing.dot(up)).normalized()
+	var shoulder: Vector3 = _bone_world("LeftArm")
+	# The wrist-to-fist direction: carried, along the hanging arm; shooting, turned across the line (knuckles toward the string
+	# side), so the handle sits in the web of the thumb and the forearm runs off to the side of the string.
+	var fwd: Vector3 = (at - shoulder).normalized().lerp((aim - left * 0.7).normalized(), weight)
+	fwd = (fwd - up * fwd.dot(up)).normalized()
+	var elbow: Vector3 = (-face + left * 0.3).lerp(left - Vector3.UP * 0.4, smoothstep(0.0, 0.4, weight))   # turned out early, so the forearm stays off the string
+	_place_hand("Left", at, fwd, up, elbow, 1.0)
+	var bow_x: Vector3 = -facing
+	_bow_holder.top_level = true
+	_bow_holder.global_transform = Transform3D(Basis(bow_x, up, bow_x.cross(up)).scaled(Vector3.ONE * _bow_scale), _fist_world("Left") - facing * 0.065 * _bow_scale)
+
+## The string arm while he carries the bow: standing, it eases down to hang relaxed at his side (the shared idle is a sword guard);
+## walking and running keep their own arm swing.
+var _relaxed: float = 0.0
+
+func _relax_string_arm() -> void:
+	var standing: bool = Vector2(p.velocity.x, p.velocity.z).length() < 0.3
+	_relaxed = move_toward(_relaxed, 1.0 if standing else 0.0, p.get_process_delta_time() * 4.0)
+	if _relaxed <= 0.0:
 		return
-	var start: Vector3 = _skeleton.get_bone_global_pose(hand).origin
-	var target_local: Vector3 = start.lerp(_skeleton.to_local(target_world), weight)
-	for iteration in 8:
-		for name in chain:
-			var bone: int = int(_pose_bones.get(name, -1))
-			if bone < 0:
-				continue
-			var pivot: Vector3 = _skeleton.get_bone_global_pose(bone).origin
-			var hand_pos: Vector3 = _skeleton.get_bone_global_pose(hand).origin
-			var current: Vector3 = hand_pos - pivot
-			var wanted: Vector3 = target_local - pivot
-			if current.length_squared() < 0.0001 or wanted.length_squared() < 0.0001:
-				continue
-			var world_delta := Basis(Quaternion(current.normalized(), wanted.normalized()))
-			var parent: int = _skeleton.get_bone_parent(bone)
-			var parent_basis: Basis = _skeleton.get_bone_global_pose(parent).basis if parent >= 0 else Basis.IDENTITY
-			var local_delta: Quaternion = Quaternion(parent_basis.inverse() * world_delta * parent_basis)
-			_skeleton.set_bone_pose_rotation(bone, local_delta * _skeleton.get_bone_pose_rotation(bone))
+	var face: Vector3 = Vector3(p.visual.global_basis.z.x, 0.0, p.visual.global_basis.z.z).normalized()
+	var left: Vector3 = Vector3.UP.cross(face)
+	var fist: Vector3 = p.global_position + Vector3.UP * 0.95 - left * 0.34 + face * 0.05
+	var fwd: Vector3 = fist - _bone_world("RightArm")
+	_place_hand("Right", fist, fwd - face * fwd.dot(face), face, -face + Vector3.UP * 0.2, smoothstep(0.0, 1.0, _relaxed))
 
-## Layers a rotation over the animated pose of a bone. Idempotent: when the animation has not rewritten the bone since the last layer
-## (a long hold, or called twice in a frame) the layer is applied to the animated pose it was first applied to, not stacked on itself.
+## Puts a closed fist's centre at `fist` (world), its handle axis along `up` and the wrist-to-fist direction along `fwd`, by turning the
+## arm (two-bone, the elbow bent toward `elbow`) and then the hand; `weight` blends from the animated arm.
+func _place_hand(side: String, fist: Vector3, fwd: Vector3, up: Vector3, elbow: Vector3, weight: float) -> void:
+	if weight <= 0.0:
+		return
+	var hand: int = int(_pose_bones[side + "Hand"])
+	var grip: Array = _grips[side]
+	var f: Vector3 = _skel_dir(fwd)
+	var v: Vector3 = _skel_dir(up)
+	f = (f - v * f.dot(v)).normalized()
+	var wanted: Basis = Basis(f, v, f.cross(v)) * (grip[0] as Basis).inverse()
+	var now: Basis = _skeleton.get_bone_global_pose(hand).basis.orthonormalized()
+	var hand_basis: Basis = Basis(now.get_rotation_quaternion().slerp(wanted.get_rotation_quaternion(), weight))
+	var wrist_now: Vector3 = _skeleton.get_bone_global_pose(hand).origin
+	var wrist: Vector3 = wrist_now.lerp(_skeleton.to_local(fist) - hand_basis * (grip[1] as Vector3), weight)
+	_reach(side, wrist, _skel_dir(elbow))
+	var parent: int = _skeleton.get_bone_parent(hand)
+	_skeleton.set_bone_pose_rotation(hand, (_skeleton.get_bone_global_pose(parent).basis.orthonormalized().inverse() * hand_basis).get_rotation_quaternion())
+
+## Two-bone reach in skeleton space: the upper arm and forearm turn so the wrist lands on `wrist` (clamped to the arm's length), the
+## elbow bending toward `pole`.
+func _reach(side: String, wrist: Vector3, pole: Vector3) -> void:
+	var upper: int = int(_pose_bones[side + "Arm"])
+	var lower: int = int(_pose_bones[side + "ForeArm"])
+	var hand: int = int(_pose_bones[side + "Hand"])
+	var s: Vector3 = _skeleton.get_bone_global_pose(upper).origin
+	var e: Vector3 = _skeleton.get_bone_global_pose(lower).origin
+	var a: float = s.distance_to(e)
+	var b: float = e.distance_to(_skeleton.get_bone_global_pose(hand).origin)
+	var to: Vector3 = wrist - s
+	if to.length_squared() < 0.0001:
+		return
+	var dir: Vector3 = to.normalized()
+	var d: float = clampf(to.length(), absf(a - b) + 0.001, a + b - 0.001)
+	var bend: Vector3 = pole - dir * pole.dot(dir)
+	if bend.length_squared() < 0.000001:
+		bend = (e - s) - dir * (e - s).dot(dir)
+	bend = bend.normalized()
+	var cos_a: float = clampf((a * a + d * d - b * b) / (2.0 * a * d), -1.0, 1.0)
+	var elbow: Vector3 = s + (dir * cos_a + bend * sqrt(1.0 - cos_a * cos_a)) * a
+	_swing(upper, e - s, elbow - s)
+	e = _skeleton.get_bone_global_pose(lower).origin
+	_swing(lower, _skeleton.get_bone_global_pose(hand).origin - e, s + dir * d - e)
+
+## Turns a bone (skeleton space) so the direction `from` (its child, measured now) becomes `to`.
+func _swing(bone: int, from: Vector3, to: Vector3) -> void:
+	if from.length_squared() < 0.0000001 or to.length_squared() < 0.0000001:
+		return
+	var turn := Basis(Quaternion(from.normalized(), to.normalized()))
+	var parent: int = _skeleton.get_bone_parent(bone)
+	var parent_basis: Basis = _skeleton.get_bone_global_pose(parent).basis.orthonormalized() if parent >= 0 else Basis.IDENTITY
+	var local_turn: Quaternion = Quaternion(parent_basis.inverse() * turn * parent_basis)
+	_skeleton.set_bone_pose_rotation(bone, (local_turn * _skeleton.get_bone_pose_rotation(bone)).normalized())
+
+func _skel_dir(world: Vector3) -> Vector3:
+	return (_skeleton.global_basis.inverse() * world).normalized()
+
+func _bone_world(name: String) -> Vector3:
+	return _skeleton.to_global(_skeleton.get_bone_global_pose(int(_pose_bones[name])).origin)
+
+func _fist_world(side: String) -> Vector3:
+	var pose: Transform3D = _skeleton.get_bone_global_pose(int(_pose_bones[side + "Hand"]))
+	return _skeleton.to_global(pose.origin + pose.basis.orthonormalized() * (_grips[side][1] as Vector3))
+
+## The string hand's thumb, folded down out of the jaw: the sword grip the hand rests in wraps it round toward the face. The fingers
+## are keyed by no clip, so the thumb is set from its rest every time (weight 0 puts it back).
+func _tuck_thumb(face_side: Vector3, weight: float) -> void:
+	var root: int = int(_pose_bones.get("RightHandThumb1", -1))
+	var tip: int = int(_pose_bones.get("RightHandThumb3", -1))
+	if root < 0 or tip < 0:
+		return
+	_skeleton.set_bone_pose_rotation(root, _skeleton.get_bone_rest(root).basis.get_rotation_quaternion())   # no clip keys the fingers: start from rest
+	if weight <= 0.0:
+		return
+	var now: Vector3 = _skeleton.get_bone_global_pose(tip).origin - _skeleton.get_bone_global_pose(root).origin
+	var toward_face: Vector3 = _skel_dir(face_side)
+	var wanted: Vector3 = now - toward_face * maxf(now.dot(toward_face), 0.0) * 1.5 - _skel_dir(Vector3.UP) * now.length() * 0.4
+	_swing(root, now, now.lerp(wanted, weight))
+
+## Shoulder to wrist, in metres.
+func _arm_length(side: String) -> float:
+	var s: Vector3 = _bone_world(side + "Arm")
+	var e: Vector3 = _bone_world(side + "ForeArm")
+	return s.distance_to(e) + e.distance_to(_bone_world(side + "Hand"))
+
+## Layers a turn (skeleton space, about the bone's own joint) over the animated pose of a bone. Idempotent: when the animation has not
+## rewritten the bone since the last layer (a long hold, or called twice in a frame) the turn is applied to the animated pose it was first
+## applied to, not stacked on itself.
 var _layer_base: Dictionary = {}
 var _layer_out: Dictionary = {}
 
-func _pose(name: String, euler: Vector3, weight: float) -> void:
+func _turn(name: String, turn: Quaternion) -> void:
 	var index: int = int(_pose_bones.get(name, -1))
 	if index < 0:
 		return
@@ -625,7 +850,8 @@ func _pose(name: String, euler: Vector3, weight: float) -> void:
 		base = _layer_base[name]   # still our own output: the animation has not refreshed this bone
 	else:
 		_layer_base[name] = base
-	var layer := Quaternion.from_euler(euler)
-	var result: Quaternion = base * Quaternion.IDENTITY.slerp(layer, weight)
+	var parent: int = _skeleton.get_bone_parent(index)
+	var parent_turn: Quaternion = _skeleton.get_bone_global_pose(parent).basis.get_rotation_quaternion() if parent >= 0 else Quaternion.IDENTITY
+	var result: Quaternion = (parent_turn.inverse() * turn * parent_turn * base).normalized()
 	_layer_out[name] = result
 	_skeleton.set_bone_pose_rotation(index, result)

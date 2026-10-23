@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cgttmbm7k3okn"
-path="res://.godot/imported/rigged_eyelashes01.png-14939e62b83d39be85cb8314dccb08e6.ctex"
+path.s3tc="res://.godot/imported/rigged_eyelashes01.png-14939e62b83d39be85cb8314dccb08e6.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "050add4f6a49b84709d4e478963163c9"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/elf/rigged_eyelashes01.png"
-dest_files=["res://.godot/imported/rigged_eyelashes01.png-14939e62b83d39be85cb8314dccb08e6.ctex"]
+dest_files=["res://.godot/imported/rigged_eyelashes01.png-14939e62b83d39be85cb8314dccb08e6.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -41,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
