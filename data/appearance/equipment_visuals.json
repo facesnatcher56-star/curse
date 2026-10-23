@@ -32,7 +32,11 @@
         "body_hair",
         "clt_briefs"
       ],
-      "item_models": {}
+      "item_models": {
+        "short_bow": {
+          "model": "res://assets/models/elf/items/elven_bow.glb"
+        }
+      }
     }
   },
   "items": {
