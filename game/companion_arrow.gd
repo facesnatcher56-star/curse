@@ -18,6 +18,7 @@ var always_crit: bool = false   # Executioner's Sight: this Take Aim shot crits
 var age: float = 0.0
 var struck: Actor
 var _trail: TakeAimTrail
+var model_path: String = MODEL   # the shooter's arrow model (set by fire)
 
 static func fire(parent: Node, archer: Actor, from: Vector3, toward: Vector3, hit_damage: float,
 		empowered: bool = false, crit: bool = false) -> CompanionArrow:
@@ -28,12 +29,14 @@ static func fire(parent: Node, archer: Actor, from: Vector3, toward: Vector3, hi
 	arrow.take_aim = empowered
 	arrow.always_crit = crit
 	arrow.velocity = (toward - from).normalized() * SPEED * (2.0 if empowered else 1.0)
+	if archer is Player and (archer as Player).bow != null:   # the archer's own arrow (the elf shoots his elven arrow)
+		arrow.model_path = (archer as Player).bow.arrow_path
 	parent.add_child(arrow)
 	arrow.global_position = from
 	return arrow
 
 func _ready() -> void:
-	var model: Node3D = (load(MODEL) as PackedScene).instantiate()
+	var model: Node3D = (load(model_path) as PackedScene).instantiate()
 	LootDrop._use_vertex_colours(model)
 	add_child(model)
 	# Root is the collision tip, not the centre of a shaft protruding past it.

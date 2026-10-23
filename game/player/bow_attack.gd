@@ -24,6 +24,7 @@ var sight_refund: float = 0.0   # Executioner's Sight: the share of Take Aim's c
 var _draw_arrow: Node3D
 var _bow_holder: Node3D
 var _bow_built: bool = false   # the bow is a model built for this rig: shown and strung where other items are not
+var arrow_path: String = ARROW_MODEL   # the arrow this archer nocks and shoots (CompanionArrow flies the same model)
 var _quiver: Node3D
 var _string_upper: MeshInstance3D
 var _string_lower: MeshInstance3D
@@ -429,8 +430,19 @@ func _attach_gear() -> void:
 	_bow_holder = _attach_prop(bow_path, "LeftHand", 1.58, Basis.IDENTITY, Vector3(0.0, 0.02, 0.02), _bow_built)
 	# The imported quiver is already upright along +Y. Keep it aligned with the spine and add only a slight shoulder cant.
 	var quiver_basis := Basis(Vector3.FORWARD, -0.16)
-	_quiver = _attach_prop(QUIVER_MODEL, "Spine02", 0.78, quiver_basis, Vector3(-0.14, -0.08, 0.08))
-	_draw_arrow = _attach_prop(ARROW_MODEL, "RightHand", 0.92, Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.0, 0.02, 0.02))
+	# the bow's own quiver and arrow when they are built for the rig (same conventions: quiver upright 0.78 m, arrow point up 0.92 m)
+	arrow_path = String(built.get("arrow", ARROW_MODEL))
+	var quiver_path: String = String(built.get("quiver", QUIVER_MODEL))
+	var quiver_offset := Vector3(-0.14, -0.08, 0.08)
+	if built.has("quiver"):
+		# On the back, in metres: Spine02's bone space is the rig's (centimetres on these rigs), and its +Z points out of the
+		# chest. Centred 16 cm up the spine and 13 cm behind it, slanted across the back (top over the right shoulder), its
+		# strap side (the model's -Z) against the body.
+		var spine_scale: float = p.model.find_children("*", "Skeleton3D", true, false)[0].global_transform.basis.get_scale().x
+		quiver_offset = Vector3(0.0, 0.16, -0.13) / maxf(spine_scale, 0.0001)
+		quiver_basis = Basis(Vector3(0, 0, 1), 0.32) * Basis(Vector3.UP, PI)
+	_quiver = _attach_prop(quiver_path, "Spine02", 0.78, quiver_basis, quiver_offset, built.has("quiver"))
+	_draw_arrow = _attach_prop(arrow_path, "RightHand", 0.92, Basis(Vector3.FORWARD, PI * 0.5), Vector3(0.0, 0.02, 0.02), built.has("arrow"))
 	_draw_arrow.visible = false
 	_bow_scale = _bow_holder.global_basis.get_scale().x
 	_arrow_rest = _draw_arrow.transform
